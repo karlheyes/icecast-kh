@@ -1,0 +1,1718 @@
+Feature differences from SVN trunk
+
+. FLV wrapping for mp3/aac listeners requesting it with ?type=.flv
+. define a fixed number of worker threads (default 1) for processing clients
+. allow for wildcards (*[] expansion) in mount-name and ban/allow files
+. can limit mountpoint by outgoing bandwidth as well as a max listeners count
+. can drop new listeners if server-wide bitrate is above a limit
+. server xml reload, and reopen logging available via admin url
+. When max-listeners reached, a HTTP 302 code can be sent to redirect
+  clients to alternative slave hosts. 
+. authenticated relays, those that match the relay user/pass, bypass the 
+  max-listener/bandwidth check. slaves can use a different auth to listeners
+. mount can filter out theora content, useful for defining a local relay
+  of a theora+vorbis stream to have a vorbis only stream from the same source.
+. handlers setting for URL authenticator, for N requests at a time.
+
+any extra tags are show in the conf/icecast.xml.dist file
+
+kh31.2
+. fix for win32 error reporting and missing uninstall link in programs list
+. make previous format checks not break webroot files.
+
+kh31.1
+. added "timeout" (default 5) and "on_error_wait" (default 60) to auth url options.
+. Added missing stream format checks in certain error cases.
+. small fix for icy metadata length calculation
+
+2.3.2-kh31
+. Add generic scattered IO routines, listeners wanting FLV wrapping now use this which
+  saves a lot of memory copying and therefore load.
+. build setup for mingw32. This should help with library updates for us, drop GUI build
+. relay restarting fixes included for certain error cases. relays are treaated as
+  failed if they stop within 60 seconds and skip on to next server if specified.
+. a better trigger for on-demand relay if fallback has listeners.
+. on reload when changeowner used, allow for listening sockets to be reopend but
+  prevent closing priviledged ports unless missing from xml
+. prevent unescape routine from creating non-printable chars
+. ignore per-mount username when source is using shoutcast protocol.
+. URL auth can now accept a "ice-username: ..." in the response headers for setting the
+  username. For setups that use query args for auth
+. expand args applied to xsl requests, url encoded now.
+. modify k and m in bitrates to be on 1000 not 1024
+. accesslog modification to parsing, optionally set <type> in <accesslog> to CLF-ESC
+  to escape-encode strings instead of using "".
+. if falling back to file, the bitrate used takes, in order of priority, incoming
+  bitrate, limit-rate and then [value] in filename eg /fallback-[128]
+. fix a large ogg page bug, flac is probably the only one showing this up currently
+. fix a couple of rare crash cases with file serving clients.
+. prevent intro file sending when override triggered.
+. make access log report query args on the request, but truncate the strings if too long.
+. minor change to send limiter
+. move incoming rate limiter to source client specific code.
+. Add server-wide redirect tags.
+. use per-source stats handles for updates, reduces lookups and avoids taking a
+  shared lock.
+. minor log message changes.
+. fix fallback trigger if source timeout occurs
+. fix possible sources count inconsistency with failed relays
+. entity expansion in stats conversion routines added
+. fixup debug allocation code. not normally used.
+
+2.3.2-kh30
+. stats updates.
+   Split stats lock into global and source stats locks, reduces contention.
+   Updated internal API for using a stats handle for quick lookup when updating
+   several stats at once.
+   Make metadata_updated stat to be sent last in the initial listing, we would want
+   that to appear after title, useful as a trigger for updates.
+   make NEW also report the content type after the mountpoint
+. re-work metadata insert merge with shoutcast inserts for mp3/aac, do metadata
+  followed by stream data instead of the other way around, reduces code.
+. fix url decode crash bug with %invalid code.
+. prevent yp add if required data is missing.
+. allow for all args to be supplied to xsl transforms from request not just mount
+. xsl transforms are written direct to refbufs, so should avoid a memory copy on
+  each transform, should help in cases of large data sets. 
+. Add redirect tag on <mount>
+. change default to allow ogg matadata via url (for consistency with trunk).
+. have master relays supply auth by default.
+. allow for quick responses to be tried and possible close the connection, saves
+  rescheduling the worker for just closing the socket.
+. streamlist.txt was not getting tried if /admin/streams failed. IE kh slave to a
+  2.3.2 master.
+. reduce duration of when the config write lock is held when doing reload. 
+. a number of tunings for rescheduling clients (source and stats mainly).
+. small reworking of client_t creation and accounting.
+. missing redirect new listener case not handled.
+. source count could get out of sync in certainly failing relay cases.
+. a few cases of memory leaks fixed, not commonly used but can accumulate in
+  certain setups, eg intros via auth or reloading frequently.
+. fix win32 snprintf missing nul char bug
+. automatically set nofile and corefile size limits to max allowed, for debug
+
+2.3.2-kh29
+. prevent crash with very small burst size (eg 0). 
+. fix possible race with relay restart and headers used in stats update
+. fix possible mpeg issues causing a crash or getting stuck in an allocation loop on bad input.
+. An FLV listener could trigger a corruption in the metadata for non-FLV listeners. More likely
+  to occur when starting on-demand relays.
+. relays that have only been connected for a few seconds will be treated as if it had failed to
+  restart and listeners will be droped or moved.
+. fix possible server stall if reload requested and auth listeners were pending on auth queue
+. Fix a number of cases where listeners kept a relay from restarting because of an incorrect
+  internal state, a stuck relay.
+. revert to reserving a new relay source later in client processing. The relay is still installed
+  immediately (with client) but the source could clash with another already reserved.
+. listener triggers wakeup of inactive on-demand relay, which allows us to reduce the scheduling
+  of inactive relay clients.
+. when relays are updated, only wakeup workers once, not for each relay.
+. stats cleanup on disabled or failed relay start
+. on-demand relays minimum transfer set to 2Meg
+. make rejected_mount and stream_auth work properly again for URL auth
+. possible listener cleanup race if auth used at exit.  We now keep listener on the worker even
+  if inactive until complete.
+. expanded FLV metadata, double and bool settings, adds audiocodecid, audiosamplerate, stereo and
+  various entries from stats.
+. slave relay could of been redirected, now it is marked as a slave by the master so bypassess
+  various limit checks.
+. If auth server does not respond then disable URL requests for listeners for 60 seconds. Keeps
+  icecast from clogging up if link to auth server breaks. Some people use auth for non-auth
+  accounting or listener intro, so extra option added to allow those by default (option
+  presume_innocent set to yes to allow listener even if auth not active).
+. Make auth refcount change based on threads holding it not clients, simplifies the shutdown or
+  busy startup case.
+. move non-ogg metadata update code into one place, and fix-up use of inline URL parsing and
+  possible short write in rare cases.
+. slow down listener thread (therefore reduce new incoming listeners) if relay starts up, more
+  so if many relays start or auth queues are full.
+. increase internal settings, max auth handlers to 100, auth queue to 300 and listen queue to 64
+. fix ogg stream dump-file.
+. reduce frequency of rebalancing across workers with many streams, reduces lock contention
+. use alloca instead of malloc for non-ogg metadata/stream merge, minor speedup
+. new listeners (with queryargs or user:pass) redirected because of icecast will
+  have their supplied auth details added to new location.
+. recreate worker pipe if it fails or else we could busy loop.
+. add error code to recoverable list for accept, and prevent listener thread slow down in those
+  cases, seems to affect FreeBSD more than others although it could affect others.
+. revert listener stat names for listclients to 2.3.2 case for now
+. minor log message cleanups.
+
+2.3.2-kh28
+. fix possible short send shoutcast metadata inserts getting corrupted
+. fix a few possible flv issues when metadata is missing.
+. add filter routine for mpeg parsing, used for file inputs like intro or fallback
+. add mpeg ts frame marker to frame alignment code.
+. add min-queue-size mount setting, defaults to burst size so backward compatible.
+  players can request anything up to min-queue-setting with the initial-burst
+  header or burst= arg
+. worker shutdown forces clients to process, should allow for quicker termination
+  or moving to another worker.
+. stats client tidy up, prevent a few more stats going through to slave, report
+  slave auth failure properly, and initialize settings for inc/dec updates
+. introduce SYNC flag to source to keep internal counts consistent when moving or
+  terminating listeners
+. add proxy/cache avoidance headers
+. drop start timer from relay as we use the more general client schedule timer
+. removed the relay recheck each second as the relays are now installed and started
+  via the clients on the workers. saves work with many relays.
+. possible crash point on relay details change, or xml reload
+. offset in file serving was always 0 even if range was requested.
+. add in the 7.xsl hack for compatability
+. A few internal code and log message cleanups.
+
+2.3.2-kh27
+. use the tree locks instead of stats lock, this should lessen contention with many
+  stats updates, typicaly of setups with many streams.
+. rework previous non-ogg metadata short-write fix, was not complete.
+. previous non-ogg metadata fix exposed problem if file fallback used.
+. remove possible race waking up a worker, could result in crash.
+. add <max-stream-duration> to <mount> (in seconds), could even be used to cycle
+  dump files on a relay.
+. leave public setting as-is when on-demand relay stops.
+. minor legacy code cleanup
+
+2.3.2-kh26
+. fix possible content corruption on shoutcast metadata inserted streams if a short
+  send occurs during metadata sending.
+. do not list non-hidden streams in /admin/stream[list|streams] and make sure auth
+  applies to /admin/streams.
+. allow for the so-sndbuf option per-mount as well as on all connections.
+. old style bind-address setting (not listen-socket) was not working
+. allow a negative ban-client value to use the internal deny block of IPs to prevent
+  more than 1 IP connecting at the same time.
+. small code changes for main worker thread
+
+2.3.2-kh25
+. FLV clients could skip frames on a truncated write, leading to playback problems.
+. various client scheduling tunings, allows quicker reschedule when only some data
+  was written. This seems to affect win32 more than others, especially with burst
+. fix shoutcast-inline metadata bug involving a URL
+. per listener mpeg checking only verifies 1 frame as queue is already checked
+. set non-ogg intial blocksize to 1400 again, now that blocks can be more flexible
+  in size
+. filter out multiple / in requests
+. the 2.3 log archive setting wasn't handled correctly.
+. certain relay configuration (multiple addresses) could leak a file descriptor
+  on failure.
+. possible NULL pointer crash in metadata update.
+. possible sources count not decreased if relay fails.
+. fix for possible relay change restart
+. worker lock changes, now we only take the lock when adding clients. This reduces
+  some lock order complexity when moving clients around and means that no locking
+  is done for most of the time.
+. relay changes are tagged and changed by the client functions.
+. compile cleanups
+
+2.3.2-kh24
+. Allow for per-listener wrapping of existing mp3/aac streams when requested with
+  a type=.flv as a query arg. The actual trigger could be anything we want but this
+  allows for using the existing mountpoint, with easy mapping for URL auth and for
+  matching an extension in the player. Works with intro and fallback handling.
+. mpeg parser is more complete, handles more cases, avoiding bad input cases
+. fix possible bad pointer in ogg headers case.
+. fix for shoutcast-style metadata writes being truncated.
+. fixes for non-ogg buffer alignment causing resync or stalled streams.
+. prevent a failed stream list request from dropping current relays
+. handle relay startup shutdown better for memory usage and listeners 
+. use Host header if available for buildm3u
+
+2.3.2-kh23
+. if an inactive on-demand relay detects listeners on fallback then start relay
+  but do not move listeners until the connection is complete.
+. fix race condition with restarting non-ogg relays and stats being generated
+. make auth queue limit 150 before rejection.
+. A number of relay related fixes. these typically occur when a relay is either
+  restarted or was removed (eg disappeared from a master).  There is also a
+  possible case of long held locking that is now gone.
+. add <ban-client>N</ban-client> mount option to add client IP to the internal
+  banned list for N seconds. subsequent attempts that have not timed out extend
+  the ban period. A stat count of banned entries is produced each second
+. reload from admin page was not restarting listen thread if signalfd used.
+. increase default queue block size on non-ogg streams to 2900
+. mpeg parsing fix for odd cases. This could appear as corrupt or stalled streams
+. fix listing of stats and listener details on fallback files
+. fix Location header reference from auth url
+
+2.3.2-kh22
+. Add mp3/aac sync marker alignment code. This makes the internal buffers contain
+  whole frames. allows for better transistion when moving listeners.
+. The number of logs is not limited to 25 now
+. small changes to client scheduling
+. removed format url lock, source lock is always taken, so this is not needed
+. Add <skip-accesslog> boolean to per-mount settings. Prevents logging listener
+  client details to access log
+. evaluate bandwidth usage when adding to the global bitrate, and change throttle
+  indicator if max bandwidth specified. listeners have varying degrees of
+  scheduling limits applied. lagging listeners get delayed first, then all do.
+. fix long standing bug which could cause a crash on a bad xsl.
+. report line numbers on xml errors.
+. small work-around to handle odd handling of ICY response for mpc and expected
+  the content-type header for shoutcast relay and streamtranscoder.
+. kh21a. kh20 introduced a bug which could occur with listeners being moved between
+  workers.
+
+2.3.2-kh21
+. Fix possible stall bug when a source exits and when adding a listener, only
+  keep the source_tree lock held until a source lock can be acquired. 
+. tighten up where the certain locks are held/released. 
+. win32 stat return code fix
+. added a few internal checks and some log messages.
+. fixes from moo, #1646, status response header first always, #1648, return ICY
+  response for mpc
+. make fh_node use tree for quick lookup
+. zero out format structure, remove previous stats for restarting relays
+. NULL pointer fix in cases where a relay was being cleared of listeners without
+  a fallback mount, eg being disabled or removed from slave list or reread XML
+
+2.3.2-kh20
+. fix possible lock imbalance bug if mutliple workers set
+. make sure listeners are not paused if relay is not running
+. fix memory leak on each source disconnection.
+. fix double free corruption bug if listener_remove used.
+. on server shutdown, prevent auth of new listeners only. other auth requests
+  can continue which allows client details to clean up properly
+. relocate where the source count is increased. For source clients it is just
+  before where it used to be but for relays it is increased before a relay
+  connection is attempted. Bug in kh19 meant sources kept increasing on relay
+  restart
+. fix possible stalling bug in auth command method.
+. listener_connections stat could have a random data bug
+. Do not force a master relay recheck on stream start/stop
+. build fix on certain platforms.
+. small internal code cleanups.
+
+2.3.2-kh19
+. add 7.xsl processing to present stats for a shoutcast /7.html request, requires
+  alias of /7.html to /7.xsl
+. avl tree of listeners is back in, workers process lists of clients but the tree
+  enables a quick listener lookup from a source.
+. the admin arg require handler left a lock held if not specified.
+. make sure the allow/deny/useragent files reload properly
+. initialisation bug for auth, more likely to affect win32 gui.
+. content-type has to be lower case for shoutcast to recognise the mime type.
+. per-mount access log. <accesslog> <name>/file.log</name> ....
+. update to the source shutdown process. reduces code in relay shutdown, no point
+  in duplication. allow listeners to be placed in a waiting state if source is
+  waiting to start up.
+. do not dump stream stats on on-demand relay failure.
+. allow for reporting xml parser warnings to stderr at startup
+. fix possible auth related corruption with disconnected clients on slow auth
+. type fixup on lag calculation on 32bit systems.
+. if streamlist fails then drop all slave relays.
+
+2.3.2-kh18
+. for people who use ICE_MUTEX_ABORT (environment var) to trap for long held
+  locks, change the name to ICE_LOCK_ABORT
+. fix possible memory corruption case in stats and threading
+. fix vorbis stream bandwidth increase when certain source clients connect
+. avoid any ::ffff: in IPs
+. YP thread now started from worker as required instead of once per second
+. shutdown order and other internal code cleanups
+. use signalfd if available for processing signals in connection thread, saves
+  waking up the thread.
+. make sure the auth mountpoint returned is used instead of the listener
+  supplied one. Allows for redirecting listeners to alternative mounts
+. update command auth, works in a similar way to url auth now.
+. stats clients work better under much heavier load. stats notifications
+  are grouped together if possible before sending, this reduces writes in the
+  many streams case
+
+2.3.2-kh17
+. fix possible memory corruption when using multiple workers
+. a few minor timing changes, nothing major.
+. fix possible race case in multiple file handle close
+. kh16b. fix possible crash case with relay failing
+. kh16a. some fserve changes exposed a crash bug with flash clients.
+
+2.3.2-kh16
+. you can now fallback to file if the initial mountpont is not available as long
+  as there is a limit-rate set at some point within the fallback chain.
+. A header from url listener add "icecast-auth-user: withintro" indicates that
+  the response contains intro data to be sent to the this listener. Anything
+  else indicates the previous behaviour.
+. allow source clients to be limited by duration, set by time limit header in
+  url stream auth
+. internal changes to average bitrate calculations. blocks are now removed based
+  on the timestamp not the block count.
+. fix possible race with url auth'd listener getting a 404 response
+. try throttle file sending based on duration/bytes sent on file handle and split the
+  file sending function into two (throttled/unthrottled). reduces memory.
+. merge in compile-time allocation counters
+. Added some stats for fallback files, and metadata_updated for sources
+. minor cleanups for internal API. log message cleanups.
+. kh15b. fix possible crash on url listener failing.
+. kh15a
+  - fix memory corruption when clients are referring to the same file.
+  - log buffering on win32 enabled
+
+2.3.2-kh15
+. lock mismatch identified, could cause a stall in the worker.
+. relay connection timeout was not being set in all cases
+. Don't fallback listeners on relay fail if server shutting down
+. minor code cleanups.
+
+2.3.2-kh14
+. Allow stats/listclients/killclient work with file references
+. Add timeout parameter to relay. number of seconds for connect to complete.
+. fixes for restarting of relays, especially where changes are detected and
+  where fallback to files were set.
+. repeat fallback file
+. tuneup client scheduling for file sending
+. added a few validation checks, useragent chars, xml config port ranges
+. log message cleanups.
+
+2.3.2-kh13
+. on source exit, listeners do not need to be moved to the file serving engine,
+  just release any shared data and delete client if not on worker. saves process
+  work at source exit
+. fix possible crash bug with long lock held detection.
+. allow listener_add response to include intro content
+. merge connection_t into client_t, and shrunk connection_t, reduces memory used
+. improve some of the internal client scheduling.
+. the reading of the mime types file was done too early
+. admin/fallback now updates the mount details if available.
+. more source lock cleanups. nothing major
+. change the order of the header routines, the format specific routine now calls
+  the general routine.
+
+2.3.2-kh12
+. xml based relays could cause a crash on server exit or xml reload
+. avoid memory/fd leak on active relay restart.
+. cleaner worker thread shutdown.
+. win32 update. Prevent Esc closing the GUI. Make the service work better and
+  is now able to take an alternative xml as parameter. Update libogg in the
+  build to 1.1.4 and refer to the current directory for dependent DLLs.
+
+2.3.2-kh11
+. busy looping caused by truncation on 32bit setups
+. avoid possible deadlock between file release and open
+. relay client handles were not being cleaned up fully.
+. send Host: header on relay connects.
+
+2.3.2-kh10
+. big internal thread change. instead of one thread per stream, we now have a fixed number
+  of worker threads, each processing a set of clients (sources/relays/listeners etc).
+  - no source or fserve threads now. auth still has thread(s) as the API for libcurl
+    is blocking
+  - worker threads with no clients sleep for long durations.
+  - defaults to 1 worker thread, overridden by <workers> in <limits>
+  - listeners get moved to the worker thread running the source, helps caching
+  - sources get moved to a less busy thread if it would help
+  - each client has a timestamp to indicate when it wants service. The sleep duration
+    for the worker is based on the next client to be serviced.
+. if fallback to file is specified and the requested mount is not active then a 404
+  response is returned instead of the file contents.
+. fserve engine can handle bandwidth limiting per client. Fallback to file uses this
+  by using the average incoming bitrate of the source stream as the target limit.
+. file serving uses an internal cache of open files, so that 1000 listerners do not
+  suddenly open 1000 files if a fallback to file occurs.
+. move listeners admin request can specify another source or file.
+. relay changes
+  - the client structure is always allocated now, instead of when the relay is started.
+  - listeners stay on relay if switching to another relay master. Only when they all
+    have failed does the fallback apply.
+. post-kh9 fixes
+  - fix for possible race with rejected new listeners going through auth
+  - make mp3-metadata-interval 0 work again
+  - auth htpasswd checks for details provided like user:pass@host:port/mount and if not
+    then checks as host:port/mount?user=a&pass=b
+
+2.3.2-kh9
+. allow shoutcast source client auth work via stream_auth url
+. allow for a flash policy file.
+. internal cleanup to help merging into trunk
+. fix vorbis metadata update via url, broken in recent releases. cleanup some metadata
+  updating/logging
+. drop vorbis stream rebuilding back to flush evert half second, in sync with trunk
+. stop false reports of 'not null' in debug logging. no other effect on server
+. limit how often the relay mountpoint "already exists" logs.
+. minor tweaking to the average bitrate calculation
+. remove the internal global time caching, although prevent several time calls if in
+  succession.
+
+2.3.2-kh8
+. fix memory corruption which affected ogg streams.
+. fix for unsupported FBSD/win32 spin locking options. abort on initialisation failure.
+. win32 fix from kh7 causing stalling source threads. fallout from kh7 build failure
+
+2.3.2-kh7
+. merge fix for bug report on trunk for skeleton
+. fix for build failure with recent glibc
+. fix for admin.cgi metdata updates not applying (kh5 bug).
+. minor locking cleanup
+. win32 fixes. server restart could cause relay details to become corrupted
+. win32 update. updated libxml2/libxslt
+
+2.3.2-kh6
+. some source stats were not being reported on the xsl pages.
+. win32 access log timestamps should now to correct.
+
+2.3.2-kh5
+. stats fixes, crash case in stats handling, and hidden attribute was not honoured
+  on xsl pages with recent stats changes.
+. if requesting /admin/streams via stats method then allow auth via relay user/pass
+  or mountpoint auth. receives only stats for slaves
+. allow url= tag on metadata update for non-ogg streams, adds StreamUrl.
+. fixed possible crash with skeleton stream handling
+. actually prevent metadata updates if there is a stream already running from a
+  different IP.
+. fix build bug on FBSD7
+. allow optional queue-len tag in listen-socket, default is 10
+
+2.3.2-kh4
+. Where's the brown paper bag. boolean settings in the xml were being ignored due
+  to an incorrect test. 
+
+2.3.2-kh3
+. fixed master not informing slaves of streams bug. caused by missed setting in
+  the kh2 stats update
+. more xml checks for badly formed xml files.
+. log files can now be sections not just a single filename ie <errorlog> can
+  contain <name> <archive> <display> and <level>, accesslog can contain <name>
+  <ip> and <archive>, playlistlog can contain <name> <archive> <display>. In each
+  case, name is a filename, archive is a true/false setting for using timestamps
+  on a reopened file, display is the number of lines to show in the admin page.
+
+2.3.2-kh2
+. more stats work. Clients are now processed as needed instead of a dedicated
+  thread per stats client. 
+. don't allow raw metadata updates if not from the same IP address as the source
+  client unless it is from the admin user. For some reason some source client
+  issue updates even though they are rejected.
+. missing lock on streamlist master/slave update, could cause memory corruption.
+. update to average bitrate handling.
+. allow strftime expansion on dump filename, applies at the time the stream has
+  started
+. removed debian directory, it's not maintained really so leave it to the debian
+  people to deal with it themselves.
+. experimental theora keyframe as png patch added. not built by default
+. minor memory leak plugged in fserve
+
+2.3.2-kh1
+. remove stats thread. Stats clients still have their own thread and queue.
+. fix low bandwidth theora stream problem.
+. failing on-demand relays were not being recovered as they should of.
+. encode xml entity data for clients useragent/username
+. reduce memory usage in avl nodes, seems to benefit win32 more because of the
+  unused lock handling
+. minor patch for kate detection applied. ogg.k.ogg.k
+. minor type cleanup for off_t in fserve
+
+2.3-kh34
+. Added Kate/Skeleton codec handling within Ogg streams. patch by ogg.k.ogg.k
+. small changes for stream directory handling, mostly for error cases. 
+. added /admin/reset?mount=/mountpoint&setting=x to reset stats for that mountpoint.
+  without setting= all resetable stats are reset. x can specify peak,read or send
+  or a combination of them (comma deliminated)
+. /admin/streamlist.txt uses the same routine as /admin/streams so does not have 
+  a limit on how much is sent back.
+. updated win32 code, windows service should be ok again. service name now
+  includes version to help multiple installs but windows may require a reboot
+  between removing a service and installing that same service again.
+. fix possible crash on reload of xml with bad tags
+. small update of web pages
+. added per-mount stat for total mbytes sent
+
+2.3-kh33
+. master/slave update.
+  slave mode only issues a streamlist.txt request if the /admin/streams request
+  fails.  /admin/streams also acts as an mountpoint for the slave relays by
+  passing a mount= arg and auth.
+  You can now define a <mount> for /admin/streams to define how slave
+  authentication is done eg url (listener_add) or htpasswd.
+  Once authenticated, the slave can bypass any limits like max listeners etc.
+  The slave also allows for defining a <master> tag block instead of <master-*>
+  tags allowed are <username> <password> <server> <port> <redirect> <bind>
+  auth url can take an "icecast-slave: 1" header, which makes client act as a
+  slave and bypass mount limits.
+. build fixups for OpenBSD and cases where IPV6_V6ONLY is missing
+. move 'clients' limit check to after admin request check, means admin commands
+  can work even if the limit is reached. removes a lock taken as well.
+. drop connections to known slave relays if we find that the destination source
+  is a fallback to file, as this would cause high bandwidth usage.
+. stats fix for inactive on-demand relay stats without a mount definition.
+. added some minor consistency checks.
+
+2.3-kh32
+. crash fix for a failing on-demand relay.
+. incorrect logfile settings for timestamp setting, for playlist and access.log
+. update for win32 build and initialization.
+
+2.3-kh31
+. hard to trigger but possible race condition on source startup.
+. long standing bug identified with many descriptors (eg > 1024 listeners)
+. allow YP thread to skip a non-responsive server.
+
+2.3-kh30
+. crash fix if no user/pass supplied when stream_auth in use.
+. the admin=1 was not passed in POST for stream_auth on metadata updates
+
+2.3-kh29
+. some small code re-organisation in kh28 caused auth htpasswd to fail new
+listeners
+. work around FBSD issue with listening on IPv4/IPv6 sockets
+
+2.3-kh28
+. race fix in yp thread startup.
+. manageauth userlist page was blank due to a NULL check, fixed.
+. add rejected_mount auth option to redirect unathenticated listeners to an
+  alternative mountpoint. eg subscription stream redirected to low bitrate
+. Allow for url auth to handle 'Mountpoint: ' header for redirecting listeners
+  if they are to be rejected to an alternative mountpoint on the same server.
+  This is as opposed to the Location: header which gets a player to redirect,
+  maybe to an alternative server.
+
+2.3-kh27
+. fix potential fserve thread race
+. merge listener inline shoutcast metadata into previous block write. It is
+  very common and saves writing a very short packet per listener at metadata.
+. reduce log memory usage when caching lines for web display
+. reduce memory usage slightly on 64bit systems, in refbuf/avl storage
+. be more 32/64bit clean
+. fix possible corruption if reducing qblock size over reload
+. get stats thread to update global outgoing_kbitrate stat, no point flooding
+  the stats queue.
+
+2.3-kh26
+. internal code cleanups
+. fixed accidental bug which caused problems for non-ogg streams without a
+  mount defined
+. if listener_remove used then remove queue reference before auth performed as
+  queue will expand. race case between auth and source thread on refcounting.
+. Add error reporting with above case, makes identification easier.
+
+2.3-kh25
+. kh24 had a lockup bug on reload if auth url used.
+. Don't pass listeners to the authentication queue if no auth handler defined
+. auth listener_remove was not triggering if listener_add was not specified.
+. make sure avl tree for mime types is cleared.
+. remove pthread_exit in fserve, older glibc had a memory leak
+. fix memory leak/corruption in YP handler, also make YP thread startup instead
+  of polling frequently.
+. redo server connection lookup. Now we refcount the server connection details
+  from the xml, make the client refer to it. reduces locking as well 
+. always call the xml reload from the slave thread.
+. fix memory leak over reload, when using multiple master within relay
+. incorrect output appended to streamlist output for relays.
+. race between stream shutdown and listener_remove could cause memory corruption
+  with queue buffers. Make source clear less strict.
+. cleanup any fserve clients after other threads are down, removes lock race
+. reduce burst limiter for listeners on sources.
+. if available, log file descriptor limit allowed by kernel.
+
+2.3-kh24
+. make auth threads start/stop dynamically. reduces latency for auth'd listeners.
+  The handlers setting is still the maximum number of threads for that auth
+. ip allow/deny list wasn't working right due to fnmatch return value.
+. fix memory leak which occured on reload events.
+. fix possible corruption when connection thread restarts from reload
+. add <deny-agents> tag in <paths>. Drops listeners with useragents matching the
+  pattern in the specified file.
+. internal code cleanups
+
+2.3-kh23
+. file serve thread is dynamically started/stopped, latency seems much better when
+  compared to a sleep/polling loop
+. sometimes the empty virtual mountpoint stats were being provided instead of the
+  real source stats. This should finish off some of the work done earlier on stats
+. Don't be case sensitive on range header in fserve parsing.
+. a typo in the POST for listener_remove got by, ip and duration were not correct.
+. small code cleanups from merges with trunk
+. minor fix for global listeners count
+. listener remove wasn't being triggered for listeners on sources.
+
+2.3-kh22
+. Implement a global outgoing_kbitrate stat, sum of all listeners on all sources.
+. Small updates on the average bitrate handling
+. implement a server-wide bandwidth limiter check for new listeners. If <max-bandwidth>
+  in <limits> is defined then new listeners can be rejected/redirected.
+. drop non-gcc compiler flags from configure.in, drop _XOPEN_SOURCE as well
+. send Cache control header, just in case proxies are involved
+. another flash (on IE as well) hack posted on forum.
+
+2.3-kh21
+. IP ban/allow files can now use wildcard expansion to matching addresses
+. allow mount= param on webroot xsl pages
+. check for missing type in mount authentcation
+. fix corruption if listen socket failed.
+. if using a change owner setup, do the listener socket setup early (for root privs)
+  and prevent reload from altering the sockets.
+. lag calculation incorrect on shoutcast style metadata inserts, fixed
+. fix potential lock held in admin for certain error cases
+
+2.3-kh20
+. send http 302 response if auth url returns a location: header 
+. allow for any number of listen-sockets
+. combine listener/connection thread into one thread
+. use short timeout period in connection thread if requests are pending
+. make primary thread be the slave thread which starts the connection thread, this
+  allows for the connection thread to be restarted with changes to listening sockets
+. cleanup work from merging to trunk
+
+2.3-kh19
+. fix segv possibility in mp3 metadata
+. in xml stats, make listeners id to be an attribute of <listener>
+. cleanups from merge to trunk work.
+. added per listener lag count, which shows in stats.
+. added ip= in POST for listener_remove
+. Use spin locks (if available) for a few short held locks, falls back to mutexes.
+. missed some socket setup with the ipv4/ipv6 code. You don't have to wait when
+  restarting servers
+
+2.3-kh18
+. fix a segv case that occurs in a certain fallback mount case, this was introduced
+  recently when max listeners/bandwidth was worked on.
+. fix possible crash case for a missing mime types file
+. fix segv case added in kh16, on demand relays without a mount.
+. win32 build should now handle wildcard mountpoints.
+
+2.3-kh17
+. fix segv issue in auth, has been triggered with htpasswd
+. if inactive mounts with active fallbacks are removed from the xml, they will
+  now be removed from stats.
+. small build fix for ipv6 update in kh16.
+. memory leak fix in relay handling and mime types, 2 other minor ones elsewhere
+. do http auth extraction for incoming clients earlier, username wasn't logging in
+  certain cases.
+. mangeauth was not hooked into correctly from the last admin update.
+. change streamlist trigger to be based on time instead of a counter. With the
+  shorter delay in slave, this was causing the streamlist to occur too often.
+. http 302 wasn't sent 100% of the time. The redirection list is now only dropped
+  over XML reload.
+
+2.3-kh16
+. Implement max-bandwidth mount setting, this can be used to limit listener numbers
+  instead of/as well as the max-listeners option.
+. Add patch from Gilou for source address bind for relays. Adds <bind> option to
+  <relay> and <master-bind> option for slave setups.
+. Update to IPv6 handling in net/ code, no need to seperately specify an IPv6
+  socket for listening.
+. Actually make the listener details appear on the stats pages if the mount is
+  specified (does not apply to listclients). Most won't notice this unless they
+  parse those xml stats for listener information.
+. Handle xspf generation like m3u but uses an xsl page for layout
+. Small changes in a few places, avg bitrate calculations, lower triggers for
+  listener send with fallback files.
+. Internal duplication removed, source structures contained limits which were also
+  held within mount structures.
+
+2.3-kh15
+. fix for possible race (from kh14) leading to lockup when many streams are
+  starting up at the same time.
+. don't provided listener details to all streams via admin access, only when
+  a mountpoint is provided. Should help in cases where there's large number
+  of listeners on several streams
+
+2.3-kh14
+. add <file-seekable> boolean to <mount>, default is true
+. return 403 (not 401) response if the server in auth url is not contactable
+  for new listeners
+. increase scope for source locks, certain initialisations can have race
+  conditions which leads to unpredictable results.
+. minor fix for listclient.xsl, the case of listener stat names were changed.
+. minor cleanup of stats updating
+
+2.3-kh13
+. Allow for wildcard matching (eg /*.mp3) in mount definitions on systems that
+  support it.
+. for streamlist (slave requests), get the list of non-hidden streams from the
+  stats instead of the source or mount lists. This allows for streams without
+  a <mount> to be exported and also lists inactive mountpoints with active
+  fallbacks.
+. Allow for specifying an id= parameter with listclients so that specific
+  listener details can be queried.
+. ship a config.h used for a VC6 build in win32
+
+2.3-kh12
+. relays handle 302 redirection from master server.
+. fix for possible crash with incoming shoutcast style source clients.
+. changes to web/admin pages. while /status.xsl still exists, better to refer
+  to /index.html for web and /admin.html for admin.
+. Filled in a few more global static stats, updated on reload xml
+
+2.3-kh11
+. added extra header for shoutcast source clients. some may need it.
+. missed <server> tag in <relay> <master> from previous release
+. changes to admin interface, aliases now work, reduce code size.
+. relay page shows all relay masters, not just the first one.
+
+2.3-kh10
+. race fix for relays, hard to trigger but can cause a crash
+. add <mimetypes> xml tag for locating file with mime types defined
+. added warning messages for xml tags with no content, but don't prevent
+  icecast from starting.
+
+2.3-kh9
+. try a lower content length value for flash clients, some combinations of
+  browsers still have issues.
+. add <admin_metadata_only> (boolean) to <mount> for ignoring incoming vorbis
+  comments. Only takes the artist= and title= settings from /admin eg
+  /admin/metadata?artist=abc&title=xyz&mount=%2Flive.ogg
+. allow multiple <master> tags in <relay>, allows for switching between multiple
+  masters. Requires a fallback to keep listeners connected over switch though.
+. add <retry-delay> setting for <relay>, default is <master-update-interval>
+. Add <allow-ip> setting. similar to banfile but only allow connections from
+  certain IPs
+. fix on win32 previous build, truncation bug reappeared on large web requests.
+. minor build update for acx_pthread
+. assume default pass-through (mp3/aac etc) stream charset ISO8859-1 not utf8
+. added macro which enables the writing of large files (log/dump).
+
+2.3-kh8a
+. build had access log logging without IPs
+
+2.3-kh8
+. add "handlers" option for url auth, defines multiple auth threads for
+  processing incoming clients. Default is 1 per <authenication type="url">.
+  Internally the client data doesn't hold onto the auth_t now.
+. banfile option, drops connections whose IP is listed in the banfile
+. Added check for a still connected listener before auth attempted, no point
+  in doing slow url auth if listener has already disconnected.
+. fix buildm3u for auth without a source stream.
+. change content-length for flash to 319324133 to see if that works better
+  for IE7
+. Added <accesslog_ip> boolean for runtime config of logging IPs, default on
+. expand on relay failures messages to include the server and mountpoint
+. fix possible race condition with shoutcast style connections.
+. decrease frequency of connection thread wakeup.
+. make connection thread sleep if accept fails, prevents busy loop
+. Don't set CURLOPT_PASSWDFUNCTION if libcurl does not define it
+. update debian directory (need feedback on that)
+
+2.3-kh7
+. fix slow memory leak on metadata updates if <charset> was defined
+. fix minor leak on xml settings.
+. fix segv on 0-value duration in source, minimum is 2 secs (default 60)
+. fix small memory leak on xsl page requests.
+. stats update. kbytes used, and frequency of read kbytes reduced.
+. change vorbis stream rebuilding to flush at 1 sec at the most.
+. minor changes to win32, buffer size issues for stats and xml cleanup
+  causes a crash in libxml2
+. minor log updates
+
+2.3-kh6
+. implement <limit-rate> bps in <mount>, the bitrate which triggers a timer for
+  possible source termination, also causes a slow down in reading. default no
+  limit applied.
+. implement <avg-bitrate-duration>, calculate average bitrate of over so many
+  seconds (default 60)
+. add <wait-time> to indicate how long a mountpoint is reserved for after a
+  source client terminates.
+. some internal cleanups
+. stats value cleanups.
+. possible segv on override case if source is slow to start streaming.
+. hardcoded AAC content type missing
+. initial xml setting bug, caused crash with later glibc.
+. streamlist.txt should list inactive mounts if their hidden fallback is active.
+. move listener_connection increases even later so that listeners on failed
+  on-demand relays don't get counted.
+. updates to charset handler, for failure cases
+. kh5a included a fix for a segv that crept in.
+
+2.3-kh5
+. add media-type to xsl pages, IE has trouble with xhtml
+. add <accesslog-exclude-ext> for defining extensions that do not get reported
+  via the web interface (they are still written in the log file). Whether
+  alternative tags should be used is still undertermined.
+. fix for empty log display via xsl, produced odd chars.
+. auth url avoids calling backend code when settings are not defined.
+. content type fixes for xslt files
+. allow <shoutcast-mount> to appear in <listen-socket>, this defines a per-port
+  based mountpoint allowing multiple shoutcast source clients to connect. This
+  also defines a port+1 listen-socket automatically.
+. xml parsing changed, 'yes' and 'true' can be taken for boolean settings. some
+  removal of deprecated tags but may of missed a tag so report if any are.
+. added <filter-theora> boolean for <mount>, filters theora out of passed stream
+  so listener only gets what is left.
+. add per-mount listener_connections stat
+. add <allow-url-ogg-metadata> bool per-mount, enable to allow url based metadata
+  updates. Default disabled.
+. add charset option to mount options. It allows for conversion to UTF8
+  for the stats/web pages and therefore YP listings and playlist log.
+. minor changes to web pages.
+. allow for 403 response from auth url to pass back to listener, in the case of
+  a 200 response from auth server, allow 403 at start of message to indicate a
+  403 response to listener.
+
+2.3-kh4
+. fserve thread now looks for a chain of refbufs as well.
+. plug leaks from coverity code analysis. mainly minor but a possible fd leak.
+. log handles caching of N lines.
+. show last N lines of log contents via admin pages
+. change webpages (for the better!), add logs display and reload config.
+. use 64bit handling when using stats _add calls
+. send 403 not 404 for max listeners reached.
+. add server-wide total sent in streams count. 
+. fix possible corruption case with new cients.
+. on listener move, search from burst point if most recent refbuf is not a sync
+  point, currently only theora streams.
+
+2.3-kh3
+. add source auth via authenticator, affects certain admin access as well.
+  Only url auth using it currently
+. relays now have start timestamps, prevents a possible constant rescanning
+  effect with multiple relay failure case
+. fix memory leak in ogg flac case.
+. update YP, get bitrate from stats (incoming_bitrate), if not provided. Issue
+  yp add after 60 secs, gives time for bitrates to settle.
+. cleanups in auth setup, push more setup code into the core auth handler.
+. when moving listeners, if most recent refbuf is not a sync point then use
+  burst point. Fallback theora streams can be affected by this.
+. drop master-redirect-port, use <port>.
+. set <master-redirect> (in slave) non-zero to send IP/port details in
+  streamlist request, so that new listener redirection from master is possible.
+. set <max-redirect-slaves> (in master) to specify the number of slave servers
+  that can request listener redirection, default 0.
+. prevent avg/total byte stats for fallback to file sources.
+. allow for server id to be defined in xml.
+. add connected stat to source, duration in seconds.
+. increase average stats for bitrate calculation to 30 seconds
+. increase sleep duration in connection thread to 100ms
+. make source clients report read bytes in access.log
+. bypass clients limit check for ssl connections, let admin do stuff
+. various type cleanups, gcc4 show various signed/unsigned issues.
+. sync up with trunk, win32, os.h/compat.h, minor type definitions
+
+2.3-kh2
+. merges from post 2.3 release/feedback
+  - stats speedup, from order O(n^2) to O(1)
+  - log cycle update. can state log size and whether renaming with date extension
+    is to be done
+  - fixup grnaulepos handling in vorbis rebuild. minor audio playback glitch
+  - sync intro file change over HUP handling.
+  - send 403 responses instead of 404 in certain cases.
+. added realm and drop_existing_listener settings to generic auth.
+. auth url didn't handle authetication of the invoked scripts. Now the order
+  we handle auth is
+  - url as   http://user:pass@.../
+  - take auth from options username and password
+  - if listener_add/remove then use username/password from listener
+. fix double free bug in auth
+
+2.3-kh1
+. fix double buffer release when dropping auth'd listeners on source exit
+. don't put client on auth engine if removeurl is not set
+. update xsl pages.
+. fixup nsv source clients (shoutcast style), nsvcap uses \r\r\n
+. added logsize tag, for automatic move/reopen of logs
+. fix race on new listener connection
+. missed lock when relay allocates a client
+. nul char out by 1 position in initial connection buffer (request)
+. slow down accept thread if client limit reached
+. cleaned up access logging, username is logged if present
+. add icy:// hack for quicktime
+. if host header is missing a port then assume it's broken (eg winamp) so
+  treat as if it wasn't there
+. revert parser handling as it was having issues with fallbackl to file
+
+2.2-kh17
+. fix double free bug with failed startup of relay
+. added per-mount max-listener-duration setting.
+. updated auth_url, POST update and option names
+. log xml/xsl errors via error log
+. fix hopefully last oddcast/connection thread related bug
+. added artwork=url to metadata update 
+. updated docs (some sync-up with trunk)
+. max client limiter updated
+. sync with trunk
+  - pidfile created before changeowner
+  - close stdin/out/err if using -b 
+  - win32 free bug, unix doesn't seem affected
+  - htpasswd segv bug when auth file is missing
+  - auth.xsl fixup
+  - mp3 metadata cleanup
+
+2.2-kh16
+. fixed segv when using oddcast DSP
+. master/slave streamlist is now isolated in its own thread, so should not
+  affect the slave thread which among other things does timer updates. libcurl
+  is used so that is required but you can do ssl queries if required
+. new listeners will be rejected if auth queue is backed up
+. Changes to web pages by Dave St John
+. isolated SSL/non-SSL switch to connection_t
+. An older xslt lib can be used (earliest version has not been determined yet)
+. changed 'header' option to 'auth_header' option in auth_url
+. various typos, cleanups for merges with trunk
+
+2.2-kh15
+. fixed 2 segv bugs, one on relay shutdown (on-demand) and another on client
+  drop in connection thread.
+. send the fixed string responses via fserve, unlikely to show as a problem
+  for normal connections but required for SSL sockets.
+. Added SSL handling on certain ports define with <ssl>, initial work by
+  oddsock, extended due to connection handler changes.
+. merge small changes from trunk to keep things in sync
+. increased the max number of listen sockets to 50
+
+2.2-kh14
+. various auth updates. The auth thread main code handling updated.
+  - auth url, various checks added for missing settings, listener timelimit
+  added. Added port to POST and useragent (icecast version). 
+  - auth_htpasswd, uses avl tree to store users, faster compared to disk 
+  and mtime is used to make sure it's in sync.
+. win32 updates, probably more cleanups needed but file references are correct
+  again.
+. some small memory leaks plugged and typos fixed.
+. added the favicon.ico file from the website
+
+2.2-kh13
+. updates the m4 scripts, pthread for solaris/gcc and check for --with-X
+. the ogg reading code could busy loop in certain cases, fixed
+. limit ogg codecs per stream to 10 so that it has some upper bound and not a
+  potential excessive memory taker.
+. always on relays missed out the listener count initially, fixed
+. compiler cleanps.
+. YP sends server client limit if max_listeners is set, however client_limit
+  is not in the stats tree, should it be?
+. oddcast sends stream data with http headers, which caused the non-blocking
+  connection thread to drop the inital bit of the stream, ie ogg header.
+. fix xslt handling properly, buffer truncation was missing and empty string
+  was leaving the socket open.
+. fixup handling for shoutcast source clients that send a \n for EOL
+. only log to access log if a response code is set
+
+2.2-kh12
+. rework connection handler to work on non-blocking sockets. the listener thread
+  handles the http reading, after which it passes it over to the connection
+  thread for parsing.
+. any xsl file can be placed in admin now and can work off the stats data
+. dump listener details to xml for admin requests that get the stats tree
+. make sure that fallback file streams are hidden
+. fix fd leak in error case for file ranges and plaintext list_mounts function
+  like that used for querying a master server
+. use correct offset from burst point for new clients
+. batch up small reads for passthrough streams into slightly larger blocks, so
+  that TCP protocol overhead is kept to a minimum.
+. because of the batching, the max send count per client per iteration is less
+. fixup streamlist.txt to be sent via fserve thread
+. fixup automatic m3u output to be via fserve thread.
+. XML read from HUP is not sent via the connection handler now, instead the
+  slave thread processes it
+. doc update for url listener auth
+
+2.2-kh11
+. xsl/xml pages from adminroot and webroot are now delivered via the file
+  serve thread.
+. Allow TouchFreq changes for actions other than add
+. update main auth handler, don't require user:pass to be passed, leave it to
+  the specific auth to decide.
+. update auth_url, pass original request url through to auth in mount=
+. plug some small memory leaks in auth engine
+. remove some dead code
+
+2.2-kh10
+. play better with Real/Helix, StreamTitle needs to be sent at least initially.
+. A zero'ing of the listener count occured affecting on-demand relays. A left
+  over from the pending queue drop
+. various small checks added
+. trunk sync-up
+
+2.2-kh9
+. drop the pending list for each source, adds clients to active list directly
+. intro and fallback to file handling fixed again, recent changes caused
+  certain aspects to not work.
+. helix/real player wants StreamTitle metadata at the start or else it messes
+  up the mp3 playback.
+. small stats/xsl updates
+
+2.2-kh8
+. fix moving listeners bug recently introduced, affects fallback mounts
+. make YP engine, url escape alls stats before sending to YP server.
+. make <no-yp> setting work again, but it is being deprecated because of the
+  newer <public> setting
+. add slow_listeners stat. A count of listeners that fall too far behind
+. small doc updates
+
+2.2-kh7
+. fix busy poll loop, introduced in kh6, fast clients are now placed at the
+  end of the listeners lists and the starting position is recorded. 
+. use a loop when checking the burst point, that way reducing burst size over
+  HUP works on active streams
+. fix 64bit usage in access.log on win32
+. Add ability for relays to be switched on or off but still reserve the
+  mountpoint.
+  - Added <enable> tag to <relay>, takes a 1 (default) or 0
+  - change with url /admin/managerelay?relay=/localmount&enable=1
+  - added admin page for enabling/disabling relays
+. on-[dis]connect scripts are looked up in the mount list instead of copied
+  to the source
+. type cleanups
+
+2.2-kh6
+. sync up with trunk merges
+. various internal updates
+  - better handling of per-mount stream settings
+  - better updating of stats
+  - removed unnecessary code
+. relay username is 'relay' by default
+. shoutcast clients can use per-mount password
+. split client write into client write and advance buffer
+. source IP stat added for relays/source clients
+
+2.2-kh5
+. Added total read and sent stats for each mount.
+. Added start time for server and each mount
+. Added average bandwidth stats for each mount, incoming and outgoing
+. fixup problem with stats client exiting. wasn't unregistering
+. outgoing mp3 metadata default to incoming if present
+. update to explict stream settings in mount
+. prevent cyclic fallback mounts ie A->B B-A where B is down
+. reduce time syscall call usage
+. lookup mount list password for shoutcast source clients
+. 404 unknown requests
+. removed dead/duplicated code
+. check for non-regular file in fserve
+
+2.2-kh4
+. Added FLAC/MIDI to Ogg Handler
+. sources count was left increased if client limit was reached
+. A failed on-demand relay left new-listener count increased
+. streamlist.txt is now built from mount list, not source list as source
+  clients could disappear but may have a mount with a fallback specified.
+. update auth_url with some pointer checks, added server= to the post
+  information sent in 'add'
+. missed <subtype> in previous update
+. a bad request from client caused a clients count leak
+
+2.2-kh3
+. fix nasty buffer reference bug which could cause excessive queue usage
+  when using chained theora streams
+. fix to server full message, client count handling is now done by the 
+  client_create/destroy. client_t created in main handler and passed down
+. YP update. The add retrieves the stats not the create, allowing for a
+  delay in setting the stats. fixes 'blank server name' error. on-demand
+  relays can now add to YP before connection.
+. slave thread now checks if shutdown is required after the sleep
+. dropped parser/con from source_t
+. a few NULL pointer fixes from auth change and some small mem leaks fixed
+. don't trigger short delay in fallback file thread
+
+2.2-kh2
+. optional url requests for source startup/shutdown.
+. 'header' option for listener url auth.  If this header is returned 
+  for the auth request then the listener is authenticated.
+. per-mount override for <stream-name> <stream-description> <stream-url>
+  <genre> and <bitrate>
+. fixes to previous auth update
+
+2.2-kh1
+. Auth update. could have affected a few cases, report any odd issues
+  with connection
+  - auth_t part of mount_proxy now
+  - xsl/m3u/fserve handling occurs after auth
+  - single auth thread used (can be part of a pool)
+  - listeners are auth'd on the mountpoint they requested, no matter if 
+    a fallback was triggered.
+. fix bug introduced in kh6 when url updates are used with vorbis only streams
+. source stats for on-demand relays could disappear when they should not
+. after intro file has been sent, the listener is placed on stream queue to
+  complete the stated burst size
+. mount "all" can be used to state mount settings for all non-admin mountpoints
+. ignore a 0 metadata interval in mp3 streams, some servers have sent that
+. auth_htpasswd, the tmp file failed to work if an absolute path was specified
+. auth_url, 'client=' is sent instead of 'id='
+. various log msg cleanups
+
+2.1-kh6
+. fix reported bugs in auth url.
+. at source shutdown make each client release refbuf before going to auth
+. added example php script for auth url. thanks to Stephen Nixon
+. don't do work on logical stream changes that will be dropped immediately
+  afterwards
+. make sure m3u does not race against HUP change
+. resync with trunk (2.2 fixes)
+  . type fixup when referring to time_t
+  . do not list failed relays in streamlist.txt
+  . xsl caching wasn't working right if many xsl pages were being referenced 
+  . playlist logging was being truncated by 1 for ogg
+
+2.1-kh5
+. fix YP memory corruption bug introduced in kh4
+. resync with trunk
+  . updated YP parameters to follow spec.
+  . stats on the theora stream
+  . doc and xsl updates
+
+2.1-kh4
+. cleanup ogg codec build
+. handle ogg header pages better
+. ogg vorbis streams are rebuilt, but mutli ogg codec streams are
+  not, automatically determined now (drop the ogg-rebuild option)
+. more error checking in theora handling
+. unused code removal
+. merge from trunk
+  - add cluster-password
+  - admin page for updating title via url
+
+
+2.1-kh3
+. merge of the 2 ogg modules
+  - drop --enable-vorbis-upodates, use <ogg-rebuild> in the <mount> instead
+  - split codec specific code into separate files
+. authenticated relays (non-slave host) should work again
+. update autoconf macros
+. move code around to help with sync-up, code move to auth as well
+. yp touch wasn't updating as quick as it should
+. resync with trunk
+  - make format_mp3 the default handler, passing through the mime type, that
+    way unknown streams like AAC, NSV just pass through
+  - fixup for naming and authenticating of shoutcast mountpoint
+  - docs and win32 build setup
+
+2.1-kh2
+. send max_listeners to YP, server limit if mount is unlimited
+. add server client_limit and source_limit to stats
+. filter duplicate metadata in inline mp3 streams 
+. minor fix the xslt
+. minor leak on failed range header fserve client
+. added AAC and AAC+ content-types for mp3 handler
+. resync with trunk
+    logging metadata, needs testing
+    added <shoutcast-mount> for shoucast DSP compatible clients
+
+2.1-kh1
+. Added <intro> tag to <mount> to allow the contents of a nominated file
+  (in the same format as the stream) to be sent to a listener before the actual
+  stream is.  On-demand relays also work with this.
+. fallback-mount can now be used to state a file not just another streaming
+  mountpoint (needs to be same format as the stream), fallback-override works
+  with this.
+. the stats.xsl page lists all stats, status.xsl does not show hidden ones.
+. internal cleanups when processing clients. Drop the use of per-client predata
+  and use usual buffers instead. more even client write distribution.
+. resync with work from 2.1 release and trunk
+    shoutcast style source client, needs verifying
+    NSV streaming.
+    Win32 build cleanups
+
+kh58
+. fix stability bug on vorbis rewrite module (--enable-vorbis-updates)
+. fixes to URL metadata handling. For vorbis streams they didn't update
+  the stats/YP, for MP3 they were ignored if the source stream had no metadata
+. fixed small leak in slave host handling
+. resync with various trunk changes (aliasing cleanups, win32 timezone offset,
+  log messages, docs, xsl files etc)
+. for auth_url ignore case for authentication header
+. updates to slave handling of stats when relays start/stop, mainly relating
+  to on-demand relays
+. expand on the trigger for determining if a relay has changed, it was only
+  on local mountpoint before.
+. if an on-demand relay shuts down, don't remove the YP info
+
+kh57
+. don't list hidden mounts on streamlist.txt
+. fixup format_vorbis from singleq merge, memory leaks and uninitialised
+  pointers.
+. for YP, grab the ice-bitrate from stats at the time of adding to server,
+  this is useful as YP spec has bitrate as mandatory but bitrate may only
+  be determined from stream.
+. check per-mount auth settings for per-mount admin requests, useful on
+  url metadata updates
+. resync web and admin docs with recent xhtml work in trunk
+
+kh56
+. provide an alternate sock_write_fmt for old style vsnprintf, this was
+  causing no data (on truncation) to be sent on windows (stats.xml).
+. restructure stats engine, the inc/dec calls could cause incorrect values
+  due to racing with unprocessed events. The maths is done in the engine now
+. due to the stats engine, various changes to stats for mountpoints have
+  happened, most/all cases look ok. stats relays will need double checking
+. added max_listeners stat to each listed mount.
+. added icecast version global stat
+. fixed bug when a on-demand relay as a fallback was being started when
+  it should not of been.
+. allow for clients to fallback from on-demand relays that fail to start
+. The default mp3 interval is now 16000 bytes (inline with trunk) but this
+  can be overridden per-mount with <mp3-metadata-interval> in bytes. Other
+  format-specific settings could be possible.
+. update fserve thread to check which clients are writable, CPU loading
+  could become high if slow and fast clients are connected.
+
+kh55
+. let the stats relays loop around instead of blocking on conditions, that
+  way we don't get out of sync if we miss a wakeup.
+. some NULL checks in stats code were missing.
+. updated xsl transform code, small changes to status.xsl as well
+. add checks for missing / starting mountpoints
+. sync up YP in trunk, this looks to be solid now.
+. small include cleanups
+
+kh54
+. NULL dereference in yp from previous patch now fixed.
+. When override set on an on-demand relay, then the relay now checks to see
+  if there are any listeners on the fallback mount, if so then it starts up.
+. removed useless per source clients stat, listeners already exists
+
+kh53
+. remove the last remaining stats at stream shutdown.
+. implement hidden attribute for stats, source stats can be toggled between
+  hidden/visible. This is a slight change to stats usage but not major.
+. mountpoints on xsl are better handled now
+. drop slave-host from xml parsing. They are used internally, created and
+  removed by master relays authenticating against the relay user/pass.
+. when moving clients don't report on-demand relays as source not available
+. when moving clients don't show move clients on mount /a to /a entry.
+. race fix for YP entries
+
+kh52
+. A lot of resync work with trunk
+. add queue shrinking, reduces queues to either last listener or burst
+. minor race fix, mp3 url update lock.
+. allow for xsl files to show inactive mounts but with active fallbacks
+. Add <hidden> attribute to <mount> to prevent xsl display
+. add <burst-on-connect> flag to maintain compatability with trunk
+. doc updates
+
+kh51
+. make config lock a rwlock instead of mutex, removes unneccesary stalling
+  and removes possible (although not reported) deadlock cases
+. very hard to trigger race in util fixed
+. on-demand authenticated relay wasn't being kicked off properly
+. allow the prevention of duplicate authenticated clients connecting. The
+  mechanism is the same as SVN except duplication checking is a generic
+  authentication check and applies to all auth mechanisms.
+. make connection handler only sleep when connections are not pending
+. mp3 streams with in-line metadata could of created some empty nodes, not
+a stability problem, but wasteful.
+. small memory leak fixes
+. small internal code cleanups
+
+kh50
+. removed redundant pointer, adding new clients could cause a memory
+  corruption problem
+. structured relay startup differently, so that relays operate independently
+  from one another. relay threads are now attached.
+. resync with trunk. make m3u lookups more general, makes static files work
+  with .m3u
+. encode names and values from stats when building xsl pages
+. add /admin/function[.xsl]?perform=xx the current handlers are
+    xx = reopenlog
+    xx = updatecfg
+. removed old abort test
+
+kh49
+. allow for changes in mount settings to update active sources
+. allow for slaves to authenticate with the master using the 
+  master user/pass.
+. if client authenticates as a relay then bypass the normal
+  authentication and max listeners check.
+. fix a string length problem with relay auth
+. if slave fails to auth then log it and go back to waiting
+. remove unused/debug code
+. updated net code, timeout problem for slaves
+
+kh48
+. tweaks to per client write limits
+. allow for on-demand to be set on all relays by default
+. resync with trunk for refbuf singleq merge
+. updated win32 build
+. Add Ogg writ handler
+. mp3 fixes, url metadata related
+. resync yp timeout code to the same as in trunk
+. allow for redirecting new clients to other hosts when full
+
+kh47
+. per mount burst size was not being referred to properly
+. added sync markers to queue for client starts, the buffer with a sync mark
+  from the burst point is where a client starts from.
+. theora marks a sync marker on a page which has the start of a keyframe.
+. vorbis and speex mark sync on all buffers unless theora is used. mp3 sync
+  marks on every buffer.
+. some code re-org for queue management, allows old refbuf removal even
+  on socket read timeout
+. place clients that can take more pending data at the beginning of the client
+  queue. This allows for reducing client scanning when there's a short timeout
+
+kh46
+. New listeners actually drop to fallback mount, silly inverse bug
+. typo in mp3 metadata handling, affected error case, rare
+. make short delay timeout work when reading from source, minor handling
+  case from previous update.
+. make the ogg vorbis module use 1000 not 1024 as a factor for stats.
+. if a YP server is up but not responding with an error message then show
+  a default one.
+. fixed a fallback problem and improved the log messages for when fallback
+  is triggered.
+
+kh45
+. fix minor YP cleanup case when YP server fails and source disconnects
+. cleanup from previous patch exposed a potential source reading bug, which
+  had shown up because sources could disconnect for no reason.
+
+kh44
+. fix segv case for non-auth streams, unchecked in last release.
+. only send ICY 200 OK if realplayer else send HTTP/1.0 200 OK
+. allow for setting username/password for auth URLs
+. still apply timeout to recoverable source read
+
+kh43
+. add <username> <password> tags for <relay>, default none, both need to
+  be provided for auth to be attempted.
+. add url based auth module. example in conf, you can state add and
+  remove urls to run for each client, each add is passed id, user, pass, ip,
+  user agent. The remove is passed id, user, pass, duration
+. make sure the global client count is in sync when auth is used
+
+kh42
+. drop the use of thread conditional variables in the connection threads,
+  they we not working as they should
+. minor cleanups, log messages etc
+. re-work auth subsystem to allow for slow auth mechanisms
+. added command auth, do that listener auth can be done externally. The
+  external command should take a mount, user and pass on separate lines and
+  return a status code of 0 (authenticated) or non-zero (reject)
+
+kh41
+. fixed 401 reporting on missing urls, should be 404. Handle a very rare
+  long lock held case as well
+
+kh40
+. make sure public is 0 in the stats tree
+. move parse_audio_info back to source.c and make it thread safe
+. add debug for YP ok case, debug is supposed to be rarely used after all
+. up the per-listener max write threshold
+. report 401 for failed auth connections
+. add audio/x-mpeg mime type
+
+kh39
+. mp3 streams without metadata were not having their metadata initialised
+  properly, causing problems when clients connected with metadata capable
+  clients.
+. send ice-audio-info to clients, provides YP info in relays situations
+
+kh38
+. re-sync with svn codebase, update listener auth and docs
+. send ICY OK instead of HTTP OK for realplayer test
+. minor cleanups
+
+kh37
+. add the previous vorbis specific handler back in, it allowed for updates
+  via url. enabled via configure --enable-vorbis-updates
+. updated admin pages to those in the main tree
+. plug some minor memory leaks in yp
+
+kh36
+. force yp_remove, log message when found, fixed a race as well
+. fix mp3 segv when on-demand relays are used
+. fix debug messaging in yp.c, helps to track any YP related problems
+. emit icy-br instead of icy-bitrate, allow relays to be on YP listings, but
+  handle icy-bitrate as well
+. <no-yp> (default 0) in <mount> prevents a mount from going on YP listings
+. fixes to ice-audio-info handling.
+. make yp thread wait longer than it does at shutdown, allows for final
+  yp_remove on closing streams
+
+kh35
+. handle YP error conditions better.
+. moving clients via url allows on-demand relays to startup/shutdown
+. segv bug fixed from previous release, http headers were being prepared
+  on mount switchover.
+
+kh34
+. minor fixes for YP, fix missing bits from rewrite
+  if any YP request fails go back to add
+  do a yp touch on inline mp3 updates as well as url metadata updates 
+. sync with main tree for minor patches.
+. set default stream burst size to 64k (typical player prebuffer size)
+. fix some missing web stats
+. add <fallback-when-full> (0 default) to <mount>, put new listeners
+  on next available fallback, 404 otherwise
+
+kh33
+. schedule a YP touch on admin metadata updates
+. build fix relating to geturl files.
+
+kh32
+. minor compile cleanups from CVS
+. make sure a failed script does exit
+. report system message on initial log open failure
+. update YP thread code, big change.
+
+kh31
+. fix for bug when adding clients from pending list.
+
+kh30
+. add make static for those who want it
+. changed code on list processing for active and pending clients
+. changed when format-specific client data gets freed up
+. shuffle code around, OK response to source client only source_client_thread
+. 404 sent to client on failed on-demand relay
+. more re-sync work + various non-functional cleanups
+
+kh29
+. revert test harness code left from before which advertised private streams
+  and cleanup unwanted messages
+. more cleanups, more sync work with CVS
+. source_t wasn't going after source client disconnection
+
+kh28
+. more re-sync work
+. fixed a yp deadlock case for stuffed yp servers.
+
+kh27
+. fixed 2 possible deadlock cases
+. fixed race wrt to alias lookup after HUP change
+. reset ogg stream type to "Ogg Vorbis" even if it isn't, so that YP
+  shows icons correctly.
+
+kh26
+. fixed YP related bugs, leaks + bad pointer access
+. fixed rare segv case in format_mp3
+. more cleanup work in source shutdown
+. Changed how client http headers are sent back
+. Implement on demand relay, enabled with <on-demand>1</on-demand> in <relay>
+
+kh25
+. Changed Ogg module
+  - added Ogg multiplexing
+  - added theora and speex streaming
+  - URL updates removed from vorbis, due to multiple codec support, maybe added later.
+. continue with more re-sync to CVS work
+. fixed a few rare races that had shown up with the re-sync work.
+
+kh24
+. more re-sync work with CVS.
+. Identified a couple more locking issues via the admin interface
+. remove errno use from stream dump routines
+
+kh23
+. re-sync with CVS tree, fallback override, no-mount, initial work on
+  listener authentication.
+. locking updates 
+. on-connect/disconnect scripts are started and not waited on.
+. icy/ice headers cleanup
+. initialise config correctly
+
+kh22
+. fix some rare lock races
+. page samples fix on EOS flush, reset granulepos to 0 on new stream
+. add /admin/streamlist.txt from beta3
+. big update of the relay code, supports master relay now
+. added yp-log-headers tag in <logging> to disable YP header logging, it
+  can make for lots of noise in the logs
+
+kh21
+. only send a 200 OK for source connections that are from source clientts
+  and not relays
+. on failed source init, some setup was not cleared and the source count
+  was not decremented
+. Check that writes to clients have actual data available
+. fix deadlock case with yp
+. fix locking for url metdata updates generically
+. fix use of non thread-safe function localtime in yp
+
+kh20
+. fixed slave/stats shutdown race
+. re-applying avl fix for null free function
+. fix for vorbis, API changes caused stalls when sending to client
+. relay updating/restarting code fixed.
+. changes to vorbis input to allow for url updates
+. allow for stating artist and title on url
+
+kh19
+. fix a few more signed/unsigned problems, affecting mp3 mainly
+. re-worked pthread configure option
+. update various bits to bring in line with v2.0 beta2
+
+kh18
+. another signed/unsigned int bug fixed
+. added a short delay trigger for waiting clients, improves bursting
+. added --disable-log-ip for the access log
+. fix segv when adding clients to inactive relays
+
+kh17
+. cleanup some api bits
+. fix mp3 bug causing glitches in the audio
+. added pidfile support
+
+kh16
+. made outgoing serial numbers unique, helps in fallback situations
+. revert date field to where it was in access.log. That way it conforms
+  to the common log format for analysers.
+. changed interal api of the client write function so that handling of
+  burst limits is better. Also allow the queue to be more format specific.
+
+kh15
+. Updated vorbis input to rebuild stream, forcing pages to contain around
+  1 second worth of audio.
+
+kh14
+. use localtime_r when available
+. compile time switch for enabling/disabling logging IP in access log
+. handle source counts better.
+. relays retain the source struct so source clients don't steal inactive
+  relay mountpoints.
+
+kh13
+. update to latest CVS docs
+. fixup source timeout, internally it's in milliseconds, and can be
+  stated per mount as well as globally.
+
+kh12
+. terminate stream if inline metadata does not contain "StreamTitle"
+. Added docs by oddsock, and other updates from CVS
+. wait for source start/stop run scripts to finish, linuxthreads
+  were leaving zombies.
+. missing initialiser for relay connection, caused segv on failed
+  connections
+. fix 3 mp3 metadata mis-alignment bugs on stalled links
+
+kh11
+. fix a bad memory reference from kh9
+. don't free finished clients too early, bad memory reference
+
+kh10
+. when reading from straight mp3 stream (no shoutcast metadata)
+  updates via url were not getting to clients. fixed
+
+kh9
+. per-mount queue and burst size options
+. pre-mount on-connect/on-disconnect scripts
+. more re-sync with cvs updates
+. force relay re-check on xml update
+
+kh8
+. timeout value had multiple applied
+. more dead code removal
+. make initial mp3 metadata block blank
+. fix potential leak in mp3 reading code.
+
+kh7
+. added stream type check for client moving
+. various cleanups, dead code removal
+. minor relay structure mem leak fix
+. fix source count check.
+. enable the fileserve thread again
+
+kh6
+. stream dumping added
+. mp3 title update via url fixed up
+. fixed up listclients, moveclients.
+. re-implemented source fallbacks
+
+kh5
+. 2 lots of ;; caused compile problems on windows
+. enable curl for YP access
+. allow the format specific get buffer routine to return
+  NULL for retry, needs to set running to 0 now
+. add vorbis header parsing for artist title stats
+. add mp3 title parsing for the stats
+
+kh4
+. handle relay start and shutdown better.
+. apply avl rwlock leak fix
+. apply stats thread sleep avoidance fix
+. update sock.c errno check
+. enable stats/YP thread, add various stat triggers
+
+kh3
+. fix burst size larger than queue size case
+. prevent relay connections initiating if connection is running
+. send server package string from autoconf
+. fixed a few segvs from previous update
+
+kh2
+. fix mp3 handling, metadata handling wasn't correct.
+. fix flow control, locks/source counts with relay
+. Added <burst-size> tag default 0 (in bytes)
+. Use queue size field, was hardcoded before
+. Don't filter refbuf if 0 length but have associated data
+. handle EOF/error from socket in format_mp3
+
+kh1 - core update
+. removed many locks
+. used single queue for source data.
+. clients start at end of queue and allowed to repeat writes, thus
+  giving bursts at connection. capped at 8 writes
+. many secondary things not working. stream dumping, YP, stats,
+  web interface
+. mp3 incl shoutcast meta and ogg should work 
+
+2003-10-12
+    Added documentation
+
+2003-04-23
+    Support aliases
+
+2003-03-09
+    Support listening on multiple sockets.
+
+2003-03-08
+    Support for shoutcast source protocol added.
+
+2003-03-08
+    Started implementing generic admin interface. Supports (so far): 
+    - dynamic configuration of mount fallbacks
+        /admin/fallbacks?mount=/mount&fallback=/fallback
+    - setting of mp3 metadata
+        /admin/metadata?mount=/mount&mode=updinfo&song=New%20Title
+    - dumping raw xml stats
+        /admin/rawstats
+    - listing all connected clients on a mountpoint: 
+        /admin/listclients?mount=/mountname
+
+2003-03-05
+    Implemented the ability to reread the config file on SIGHUP. For now, this
+    does not affect configuration for currently running sources (only new
+    sources and global parameters like max-listeners)
+
+2003-03-02 
+    More features:	 
+    -- per mountpoint listener maxima   
+    -- static configuration of mountpoint fallbacks   
+    -- stream dumping (write incoming stream to disk)
+
+2003-02-27
+    Fix log buffering on win32 - previously, logs were never flushed, so they
+    only got output every few tens or hundreds of lines.
+
+2003-02-27
+	Support new icy-audio-info header, to communicate various parameters to
+    clients and yp servers, including sample rate, quality, channels, bitrate
+
+2003-02-25
+    Full support for relaying mp3 metadata (if turned on in config file)
+
+2003-02-25
+    Allow configuration of maximum client queue length (in bytes)
+
+2003-02-14
+    Finished full IPv6 support. 
+
+2003-02-12
+	Allow configuring local mountpoint seperately from remote mountpoint for
+    relays
+
+2003-02-12
+	Per mountpoint usernames and passwords (for sources)
+
+2003-02-11
+	Now that it's been officially assigned, use application/ogg instead of
+	application/x-ogg
+
+2003-02-07
+    Allow relaying of mp3 streams from icecast 1.x and shoutcast
+
+2003-02-07
+    Added ability to configure individual relays (rather than just all streams
+    from a single server).
+
+2003-02-03
+    Added support for YP directory services listings
+	are only used by the yp listing routines
+
+2003-02-03
+    Support command line parameter -b to run in the background (not supported
+    on win32)
+
+2002-12-31 
+    Implement configurable mountpoint fallbacks (on source exit, clients are
+    transferred to another mountpoint automatically, without disconnecting
+    them)
+
+2002-12-31
+    Implemented full mp3 metadata support.
+
+(older stuff is missing from here)
+

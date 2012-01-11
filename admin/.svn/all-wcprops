@@ -1,0 +1,83 @@
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/!svn/ver/17788/icecast/branches/kh/icecast/admin
+END
+manageauth.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/!svn/ver/14281/icecast/branches/kh/icecast/admin/manageauth.xsl
+END
+viewxml.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/!svn/ver/18147/icecast/branches/kh/icecast/admin/viewxml.xsl
+END
+listclients.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/!svn/ver/17788/icecast/branches/kh/icecast/admin/listclients.xsl
+END
+response.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/!svn/ver/14281/icecast/branches/kh/icecast/admin/response.xsl
+END
+stats.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/!svn/ver/16219/icecast/branches/kh/icecast/admin/stats.xsl
+END
+xspf.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/!svn/ver/15865/icecast/branches/kh/icecast/admin/xspf.xsl
+END
+listmounts.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/!svn/ver/14820/icecast/branches/kh/icecast/admin/listmounts.xsl
+END
+showlog.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/!svn/ver/15372/icecast/branches/kh/icecast/admin/showlog.xsl
+END
+updatemetadata.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/!svn/ver/14281/icecast/branches/kh/icecast/admin/updatemetadata.xsl
+END
+Makefile.am
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/!svn/ver/16772/icecast/branches/kh/icecast/admin/Makefile.am
+END
+logs.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/!svn/ver/14281/icecast/branches/kh/icecast/admin/logs.xsl
+END
+managerelays.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/!svn/ver/14281/icecast/branches/kh/icecast/admin/managerelays.xsl
+END
+moveclients.xsl
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/!svn/ver/16219/icecast/branches/kh/icecast/admin/moveclients.xsl
+END
