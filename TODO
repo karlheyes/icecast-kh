@@ -1,0 +1,30 @@
+FEATURES
+--------
+
+- Should icecast automatically (i.e. without needing -c) look for the config
+  file in /etc/icecast.xml or something?
+
+- pull out vorbis comments.  and send to stats. This seems to be being
+  done, but it isn't working right.
+
+- directory server GUID checks
+	directory server does GET /GUID-asldjfasldfjalsdkfjasldkfj HTTP/1.0
+	and either gets a 404 if it's wrong, or a 200 if it's correct.
+
+- adding new stats type, event.  events don't modify the global stats tree,
+	ie, source /1234.ogg disconnected
+
+- support W3C Extended Logging (http://www.w3.org/TR/WD-logfile.html)
+	toggle between this and Apache Combined Log Format in the config file.
+	default to apache style.
+
+- general registerable url-handlers in connection.c rather than hard-coded list
+  (already getting unmaintainable)
+
+- httpp - split out query string for further processing
+
+- abstract all admin functionality to a set of commands, and command handlers.
+  Make /admin/* just parse according to a set of rules, and dispatch generic
+  commands through that.
+  Use this for alternative admin interfaces (GUI? telnet interface?)
+
