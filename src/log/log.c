@@ -64,6 +64,8 @@ typedef struct log_tag
     FILE *logfile;
     off_t size;
     off_t trigger_level;
+    time_t reopen_at;
+    unsigned int duration;
     int archive_timestamp;
 
     unsigned long total;
@@ -84,13 +86,14 @@ static void _lock_logger(void);
 static void _unlock_logger(void);
 
 
-static int _log_open (int id)
+static int _log_open (int id, time_t now)
 {
     if (loglist [id] . in_use == 0)
         return 0;
 
     /* check for cases where an open of the logfile is wanted */
     if (loglist [id] . logfile == NULL || 
+       (loglist [id] . duration && loglist [id] . reopen_at <= now) ||
        (loglist [id] . trigger_level && loglist [id] . size > loglist [id] . trigger_level))
     {
         if (loglist [id] . filename)  /* only re-open files where we have a name */
@@ -106,7 +109,6 @@ static int _log_open (int id)
                 if (loglist[id].archive_timestamp)
                 {
                     char timestamp [128];
-                    time_t now = time(NULL);
 
                     strftime (timestamp, sizeof (timestamp), "%Y%m%d_%H%M%S", localtime (&now));
                     snprintf (new_name,  sizeof(new_name), "%s.%s", loglist[id].filename, timestamp);
@@ -128,6 +130,8 @@ static int _log_open (int id)
                 loglist [id] . size = 0;
             else
                 loglist [id] . size = st.st_size;
+            if (loglist [id] . duration)
+                loglist [id] . reopen_at = now + loglist [id] . duration;
         }
         else
             loglist [id] . size = 0;
@@ -140,7 +144,8 @@ static log_init (log_t *log)
     log->in_use = 0;
     log->level = 2;
     log->size = 0;
-    log->trigger_level = 1000000000;
+    log->trigger_level = 50*1024*1024;
+    log->duration = 0;
     log->filename = NULL;
     log->logfile = NULL;
     log->buffer = NULL;
@@ -220,6 +225,16 @@ void log_set_trigger(int id, unsigned trigger)
     if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
          loglist [id] . trigger_level = trigger*1024;
+    }
+}
+
+
+void log_set_reopen_after (int id, unsigned int trigger)
+{
+    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
+    {
+         loglist [id] . duration = trigger;
+         loglist [id] . reopen_at = time (NULL) + trigger;
     }
 }
 
@@ -450,7 +465,7 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
 
     snprintf (pre+datelen, sizeof (pre)-datelen, " %s %s%s ", prior [priority-1], cat, func);
 
-    if (_log_open (log_id))
+    if (_log_open (log_id, now))
     {
         int len = create_log_entry (log_id, pre, line);
         if (len > 0)
@@ -475,7 +490,7 @@ void log_write_direct(int log_id, const char *fmt, ...)
 
     _lock_logger();
     vsnprintf(line, LOG_MAXLINELEN, fmt, ap);
-    if (_log_open (log_id))
+    if (_log_open (log_id, now))
     {
         int len = create_log_entry (log_id, "", line);
         if (len > 0)

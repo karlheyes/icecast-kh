@@ -175,12 +175,14 @@ void logging_access_id (access_log *accesslog, client_t *client)
     client->respcode = -1;
 }
 
+
 void logging_access (client_t *client)
 {
     ice_config_t *config = config_get_config();
     logging_access_id (&config->access_log, client);
     config_release_config ();
 }
+
 
 /* This function will provide a log of metadata for each
    mountpoint.  The metadata *must* be in UTF-8, and thus
@@ -274,6 +276,7 @@ int restart_logging (ice_config_t *config)
     else
     {
         log_set_trigger (config->error_log.logid, config->error_log.size);
+        log_set_reopen_after (config->error_log.logid, config->error_log.duration);
         log_set_lines_kept (config->error_log.logid, config->error_log.display);
         log_set_archive_timestamp (config->error_log.logid, config->error_log.archive);
         log_set_level (config->error_log.logid, config->error_log.level);
@@ -286,6 +289,7 @@ int restart_logging (ice_config_t *config)
     else
     {
         log_set_trigger (config->access_log.logid, config->access_log.size);
+        log_set_reopen_after (config->access_log.logid, config->access_log.duration);
         log_set_lines_kept (config->access_log.logid, config->access_log.display);
         log_set_archive_timestamp (config->access_log.logid, config->access_log.archive);
         log_set_level (config->access_log.logid, 4);
@@ -296,6 +300,7 @@ int restart_logging (ice_config_t *config)
     else
     {
         log_set_trigger (config->playlist_log.logid, config->playlist_log.size);
+        log_set_reopen_after (config->playlist_log.logid, config->playlist_log.duration);
         log_set_lines_kept (config->playlist_log.logid, config->playlist_log.display);
         log_set_archive_timestamp (config->playlist_log.logid, config->playlist_log.archive);
         log_set_level (config->playlist_log.logid, 4);
@@ -309,6 +314,7 @@ int restart_logging (ice_config_t *config)
         else
         {
             log_set_trigger (m->access_log.logid, m->access_log.size);
+            log_set_reopen_after (m->access_log.logid, m->access_log.duration);
             log_set_lines_kept (m->access_log.logid, m->access_log.display);
             log_set_archive_timestamp (m->access_log.logid, m->access_log.archive);
             log_set_level (m->access_log.logid, 4);

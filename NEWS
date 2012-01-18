@@ -16,6 +16,13 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+kh31.4
+. Add duration to all access, error and playlist logs, allows re-opening them after a
+  number of seconds elapsed, 0 by default. set size trigger to 50Meg default.
+
+kh31.3
+. possible busy loop since kh31 in cases where fallback is defined
+
 kh31.2
 . fix for win32 error reporting and missing uninstall link in programs list
 . make previous format checks not break webroot files.

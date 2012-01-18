@@ -631,6 +631,7 @@ static int _parse_accesslog (xmlNodePtr node, void *arg)
         { "exclude_ext",    config_get_str,     &log->exclude_ext },
         { "display",        config_get_int,     &log->display },
         { "size",           config_get_int,     &log->size },
+        { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
     };
 
@@ -655,6 +656,7 @@ static int _parse_errorlog (xmlNodePtr node, void *arg)
         { "display",        config_get_int,     &log->display },
         { "level",          config_get_int,     &log->level },
         { "size",           config_get_int,     &log->size },
+        { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
     };
 
@@ -672,6 +674,7 @@ static int _parse_playlistlog (xmlNodePtr node, void *arg)
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
         { "size",           config_get_int,     &log->size },
+        { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
     };
 
