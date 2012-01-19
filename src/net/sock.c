@@ -169,6 +169,12 @@ int sock_recoverable(int error)
 #ifdef ERESTART
     case ERESTART:
 #endif
+#ifdef ENOBUFS
+    case ENOBUFS:
+#endif
+#ifdef WSAENOBUFS
+    case WSAENOBUFS:
+#endif
         return 1;
     default:
         return 0;
@@ -338,11 +344,10 @@ ssize_t sock_readv (sock_t sock, WSABUF *iov, size_t count)
 #ifdef WIN32
 ssize_t sock_writev (sock_t sock, WSABUF *iov, size_t count)
 {
-    DWORD ret = -1;
-    if (WSASend (sock, iov, count, &ret, 0, NULL, NULL) == SOCK_ERROR)
-        return ret > 0 ? ret : -1;
-    if (ret == 0) ret = -1;
-    return (ssize_t)ret;
+    DWORD ret = 0;
+    if (WSASend (sock, iov, (DWORD)count, &ret, 0, NULL, NULL) == SOCK_ERROR)
+        return -1;
+    return ret > 0 ? (ssize_t)ret : -1;
 }
 
 #elif !defined (HAVE_WRITEV)
