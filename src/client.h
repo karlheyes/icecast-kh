@@ -144,15 +144,16 @@ void worker_wakeup (worker_t *worker);
 
 
 /* client flags bitmask */
-#define CLIENT_ACTIVE               (001)
-#define CLIENT_AUTHENTICATED        (002)
-#define CLIENT_IS_SLAVE             (004)
-#define CLIENT_IN_FSERVE            (010)
-#define CLIENT_NO_CONTENT_LENGTH    (020)
-#define CLIENT_HAS_INTRO_CONTENT    (040)
-#define CLIENT_SKIP_ACCESSLOG       (0100)
-#define CLIENT_HAS_MOVED            (0200)
-#define CLIENT_IP_BAN_LIFT          (0400)
-#define CLIENT_FORMAT_BIT           (010000)
+#define CLIENT_ACTIVE               (1)
+#define CLIENT_AUTHENTICATED        (1<<1)
+#define CLIENT_IS_SLAVE             (1<<2)
+#define CLIENT_IN_FSERVE            (1<<3)
+#define CLIENT_NO_CONTENT_LENGTH    (1<<4)
+#define CLIENT_HAS_INTRO_CONTENT    (1<<5)
+#define CLIENT_SKIP_ACCESSLOG       (1<<6)
+#define CLIENT_HAS_MOVED            (1<<7)
+#define CLIENT_IP_BAN_LIFT          (1<<8)
+#define CLIENT_HIJACKER             (1<<9)
+#define CLIENT_FORMAT_BIT           (1<<16)
 
 #endif  /* __CLIENT_H__ */

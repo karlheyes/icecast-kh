@@ -89,7 +89,7 @@ static void source_run_script (char *command, char *mountpoint);
 struct _client_functions source_client_ops = 
 {
     source_client_read,
-    NULL
+    client_destroy
 };
 
 struct _client_functions source_client_halt_ops = 
@@ -127,7 +127,7 @@ struct _client_functions source_client_http_ops =
  * exists with that mountpoint in the global source tree then return
  * NULL.
  */
-source_t *source_reserve (const char *mount)
+source_t *source_reserve (const char *mount, int ret_exist)
 {
     source_t *src = NULL;
 
@@ -137,7 +137,8 @@ source_t *source_reserve (const char *mount)
         src = source_find_mount_raw (mount);
         if (src)
         {
-            src = NULL;
+            if (ret_exist == 0)
+                src = NULL;
             break;
         }
 
@@ -575,6 +576,15 @@ static int source_client_read (client_t *client)
     source_t *source = client->shared_data;
 
     thread_mutex_lock (&source->lock);
+    if (source->flags & SOURCE_HIJACK)
+    {
+        INFO1 ("source %s hijacked by another client, terminating", source->mount);
+        source->flags &= ~SOURCE_HIJACK;
+        source->format->parser = source->client->parser;
+        thread_mutex_unlock (&source->lock);
+        client->shared_data = NULL;
+        return -1;
+    }
     if (client->connection.discon_time &&
             client->connection.discon_time <= client->worker->current_time.tv_sec)
     {
@@ -2015,38 +2025,59 @@ static int source_client_http_send (client_t *client)
 }
 
 
+static void source_swap_client (source_t *source, client_t *client)
+{
+    client_t *old_client = source->client;
+
+    client->shared_data = source;
+    source->client = client;
+    client->schedule_ms = client->worker->time_ms + 20;
+    old_client->schedule_ms = client->worker->time_ms;
+    worker_wakeup (old_client->worker);
+}
+
+
 int source_startup (client_t *client, const char *uri)
 {
     source_t *source;
-    source = source_reserve (uri);
+    source = source_reserve (uri, (client->flags & CLIENT_HIJACKER));
 
     if (source)
     {
-        ice_config_t *config = config_get_config();
-        int source_limit = config->source_limit;
-        config_release_config();
-        global_lock();
-        if (global.sources >= source_limit)
+        if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
-            WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
-            global_unlock();
-            client_send_403 (client, "too many streams connected");
-            source_free_source (source);
-            return 0;
+            thread_mutex_lock (&source->lock);
+            source_swap_client (source, client);
+            source->flags |= SOURCE_HIJACK;
         }
-        global.sources++;
-        INFO1 ("sources count is now %d", global.sources);
-        stats_event_args (NULL, "sources", "%d", global.sources);
-        global_unlock();
-        thread_mutex_lock (&source->lock);
-        source->client = client;
-        if (connection_complete_source (source) < 0)
+        else
         {
-            source->client = NULL;
-            client_send_403 (client, "content type not supported");
-            thread_mutex_unlock (&source->lock);
-            source_free_source (source);
-            return 0;
+            ice_config_t *config = config_get_config();
+            int source_limit = config->source_limit;
+            config_release_config();
+            global_lock();
+            if (global.sources >= source_limit)
+            {
+                WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
+                global_unlock();
+                client_send_403 (client, "too many streams connected");
+                source_free_source (source);
+                return 0;
+            }
+            global.sources++;
+            INFO1 ("sources count is now %d", global.sources);
+            stats_event_args (NULL, "sources", "%d", global.sources);
+            global_unlock();
+            thread_mutex_lock (&source->lock);
+            source->client = client;
+            if (connection_complete_source (source) < 0)
+            {
+                source->client = NULL;
+                client_send_403 (client, "content type not supported");
+                thread_mutex_unlock (&source->lock);
+                source_free_source (source);
+                return 0;
+            }
         }
         client->respcode = 200;
         client->shared_data = source;

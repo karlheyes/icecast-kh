@@ -1361,7 +1361,7 @@ static int relay_startup (client_t *client)
     }
     if (relay->source == NULL)  /* new relay, so set up a source if we can */
     {
-        source_t *source = source_reserve (relay->localmount);
+        source_t *source = source_reserve (relay->localmount, 0);
         if (source == NULL)
         {
             INFO1 ("new relay but source \"%s\" exists, waiting", relay->localmount);

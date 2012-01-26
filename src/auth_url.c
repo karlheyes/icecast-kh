@@ -195,6 +195,8 @@ static int handle_returned_header (void *ptr, size_t size, size_t nmemb, void *s
                 ++p;
                 if (strstr (p, "withintro"))
                     client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                if (strstr (p, "hijack"))
+                    client->flags |= CLIENT_HIJACKER;
                 if (strstr (p, "0"))
                 {
                     WARN0 ("auth header returned with 0 value");
