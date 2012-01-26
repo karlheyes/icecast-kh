@@ -1146,14 +1146,20 @@ static int source_set_override (const char *mount, const char *dest, format_type
         if (strcmp (source->mount, dest) != 0)
         {
             thread_mutex_lock (&source->lock);
-            if (source->format->type == type && source->listeners && source->fallback.mount == NULL)
+            if (source->format->type == type)
             {
-                source->fallback.limit = 0;
-                source->fallback.mount = strdup (dest);
-                source->termination_count = source->listeners;
-                source->flags |= SOURCE_LISTENERS_SYNC;
-                ret = 1;
+                if (source->listeners && source->fallback.mount == NULL)
+                {
+                    source->fallback.limit = 0;
+                    source->fallback.mount = strdup (dest);
+                    source->fallback.type = type;
+                    source->termination_count = source->listeners;
+                    source->flags |= SOURCE_LISTENERS_SYNC;
+                    ret = 1;
+                }
             }
+            else
+                ERROR4("%s (%d) and %s(%d) are different formats", mount, type, dest, source->format->type);
             thread_mutex_unlock (&source->lock);
         }
         avl_tree_unlock (global.source_tree);
