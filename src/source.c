@@ -1585,7 +1585,10 @@ static int source_client_callback (client_t *client)
 
     client->ops = &source_client_ops;
     if (source_running (source))
+    {
         thread_mutex_unlock (&source->lock);
+        stats_event_inc (NULL, "source_total_connections");
+    }
     else
         source_init (source);
     return 0;
