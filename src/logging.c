@@ -113,7 +113,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
     time_t stayed;
     const char *referrer, *user_agent, *username = NULL, *ip = "-";
     char datebuf[50];
-    char reqbuf[128];
+    char reqbuf[256];
 
     if (client->flags & CLIENT_SKIP_ACCESSLOG)
         return;
