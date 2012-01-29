@@ -583,6 +583,7 @@ static int source_client_read (client_t *client)
         source->format->parser = source->client->parser;
         thread_mutex_unlock (&source->lock);
         client->shared_data = NULL;
+        client->flags &= ~CLIENT_AUTHENTICATED;
         return -1;
     }
     if (client->connection.discon_time &&
@@ -1582,8 +1583,11 @@ static int source_client_callback (client_t *client)
     stats_event_inc(NULL, "source_client_connections");
     client_set_queue (client, NULL);
 
-    source_init (source);
     client->ops = &source_client_ops;
+    if (source_running (source))
+        thread_mutex_unlock (&source->lock);
+    else
+        source_init (source);
     return 0;
 }
 
@@ -2037,8 +2041,13 @@ static void source_swap_client (source_t *source, client_t *client)
 
     client->shared_data = source;
     source->client = client;
+    if (source->format->swap_client)
+        source->format->swap_client (client, old_client);
+    source->flags |= SOURCE_HIJACK;
     client->schedule_ms = client->worker->time_ms + 20;
     old_client->schedule_ms = client->worker->time_ms;
+    old_client->connection.sent_bytes = source->format->read_bytes;
+    source->format->read_bytes = 0;
     worker_wakeup (old_client->worker);
 }
 
@@ -2054,7 +2063,6 @@ int source_startup (client_t *client, const char *uri)
         {
             thread_mutex_lock (&source->lock);
             source_swap_client (source, client);
-            source->flags |= SOURCE_HIJACK;
         }
         else
         {

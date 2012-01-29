@@ -62,6 +62,7 @@ static void write_mp3_to_file (struct source_tag *source, refbuf_t *refbuf);
 static void mp3_set_tag (format_plugin_t *plugin, const char *tag, const char *in_value, const char *charset);
 static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mount);
 static int  mpeg_process_buffer (client_t *client, format_plugin_t *plugin);
+static void swap_client (client_t *new_client, client_t *old_client);
 
 
 /* client format flags */
@@ -85,6 +86,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     plugin->create_client_data = format_mp3_create_client_data;
     plugin->free_plugin = format_mp3_free_plugin;
     plugin->align_buffer = mpeg_process_buffer;
+    plugin->swap_client = swap_client;
     plugin->set_tag = mp3_set_tag;
     plugin->apply_settings = format_mp3_apply_settings;
 
@@ -884,6 +886,17 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     client->refbuf->len = 4096 - remaining;
 
     return 0;
+}
+
+
+static void swap_client (client_t *new_client, client_t *old_client)
+{
+    mpeg_sync *mpeg_sync = old_client->format_data;
+
+    new_client->format_data = mpeg_sync;
+    old_client->format_data = NULL;
+
+    mpeg_sync->mount = new_client->connection.ip;
 }
 
 

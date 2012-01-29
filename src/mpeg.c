@@ -388,7 +388,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         mp->surplus = NULL;
     }
     start = (unsigned char *)new_block->data + offset;
-    remaining = new_block->len - offset;
+    // remaining = new_block->len - offset;
     while (1)
     {
         end = (unsigned char*)new_block->data + new_block->len;
@@ -432,7 +432,6 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             continue;
         }
         frame_len = mp->process_frame (mp, start, remaining);
-        //DEBUG2 ("seen frame of %d (%d) bytes", frame_len, remaining);
         if (frame_len <= 0)  // frame fragment at the end
             break;
         start += frame_len;

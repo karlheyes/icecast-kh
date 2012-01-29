@@ -139,6 +139,8 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
             remaining = len;
         memcpy (buf, client->refbuf->data + client->pos, remaining);
         client->pos += remaining;
+        if (client->pos >= client->refbuf->len)
+            client_set_queue (client, NULL);
         return remaining;
     }
 #ifdef HAVE_OPENSSL

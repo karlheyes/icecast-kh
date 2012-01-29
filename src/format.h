@@ -59,6 +59,7 @@ struct _format_plugin_tag
     void (*apply_settings)(struct _format_plugin_tag *format, struct _mount_proxy *mount);
     int  (*align_buffer)(client_t *client, format_plugin_t *plugin);
     int  (*get_image)(client_t *client, struct _format_plugin_tag *format);
+    void (*swap_client)(client_t *new_cient, client_t *old_client);
 
     /* for internal state management */
     void *_state;
