@@ -721,7 +721,6 @@ static void fserve_move_listener (client_t *client)
     fbinfo f;
 
     _free_fserve_buffers (client);
-    client->shared_data = NULL;
     thread_mutex_lock (&fh->lock);
     remove_from_fh (fh, client);
     if (fh->refcount == 1)
@@ -731,8 +730,10 @@ static void fserve_move_listener (client_t *client)
     f.mount = fh->finfo.fallback;
     f.fallback = fh->finfo.mount;
     client->intro_offset = -1;
-    move_listener (client, &f);
-    fh_release (fh);
+    if (move_listener (client, &f) < 0)
+        client->shared_data = fh;
+    else
+        fh_release (fh);
 }
 
 struct _client_functions throttled_file_content_ops;
