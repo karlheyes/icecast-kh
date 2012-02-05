@@ -341,19 +341,11 @@ static void *auth_run_thread (void *arg)
 
     while (1)
     {
-        /* usually no clients are waiting, so don't bother taking locks */
+        thread_mutex_lock (&auth->lock);
         if (auth->head)
         {
-            auth_client *auth_user;
+            auth_client *auth_user = auth->head;
 
-            /* may become NULL before lock taken */
-            thread_mutex_lock (&auth->lock);
-            auth_user = (auth_client*)auth->head;
-            if (auth_user == NULL)
-            {
-                thread_mutex_unlock (&auth->lock);
-                continue;
-            }
             DEBUG2 ("%d client(s) pending on %s", auth->pending_count, auth->mount);
             auth->head = auth_user->next;
             if (auth->head == NULL)
@@ -373,10 +365,11 @@ static void *auth_run_thread (void *arg)
 
             continue;
         }
+        handler->thread = NULL;
+        thread_mutex_unlock (&auth->lock);
         break;
     }
     DEBUG1 ("Authenication thread %d shutting down", handler->id);
-    handler->thread = NULL;
     auth_release (auth);
     thread_rwlock_unlock (&auth_lock);
     return NULL;
