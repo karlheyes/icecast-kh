@@ -500,6 +500,7 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("rLock on %s requested at %s:%d", rwlock->name, file, line);
 #endif
+#if _POSIX_C_SOURCE>=200112L
     if (lock_problem_abort)
     {
         struct timespec now;
@@ -514,6 +515,7 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
         }
         return;
     }
+#endif
     pthread_rwlock_rdlock(&rwlock->sys_rwlock);
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("rLock on %s acquired at %s:%d", rwlock->name, file, line);
@@ -525,6 +527,7 @@ void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("wLock on %s requested at %s:%d", rwlock->name, file, line);
 #endif
+#if _POSIX_C_SOURCE>=200112L
     if (lock_problem_abort)
     {
         struct timespec now;
@@ -539,6 +542,7 @@ void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
         }
         return;
     }
+#endif
     pthread_rwlock_wrlock(&rwlock->sys_rwlock);
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("wLock on %s acquired at %s:%d", rwlock->name, file, line);
@@ -723,6 +727,7 @@ void thread_rename(const char *name)
 
 static void _mutex_lock_c(mutex_t *mutex, const char *file, int line) 
 {
+#if _POSIX_C_SOURCE>=200112L
     if (lock_problem_abort)
     {
         struct timespec now;
@@ -744,6 +749,7 @@ static void _mutex_lock_c(mutex_t *mutex, const char *file, int line)
         mutex->line = line;
         return;
     }
+#endif
     pthread_mutex_lock(&mutex->sys_mutex);
 }
 
