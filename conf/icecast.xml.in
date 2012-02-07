@@ -42,6 +42,12 @@
     listings. -->
     <hostname>localhost</hostname>
 
+    <!-- set the mountpoint for a shoutcast source to use, the default if not
+         specified is /stream but you can change it here if an alternative is
+         wanted or an extension is required
+    <shoutcast-mount>/live.nsv</shoutcast-mount>
+    -->
+
     <!-- port to use when talking to YP etc -->
     <!--<port>8000</port> -->
 
@@ -172,12 +178,6 @@
 
 
     <fileserve>1</fileserve>
-
-    <!-- set the mountpoint for a shoutcast source to use, the default if not
-         specified is /stream but you can change it here if an alternative is
-         wanted or an extension is required
-    <shoutcast-mount>/live.nsv</shoutcast-mount>
-    -->
 
     <paths>
         <!-- basedir is only used if chroot is enabled -->
