@@ -600,9 +600,10 @@ static void process_source_event (stats_event_t *event)
         int fallback_stream = 0;
         avl_tree_wlock (snode->stats_tree);
         fallback_stream = _find_node (snode->stats_tree, "fallback") == NULL ? 1 : 0;
-        avl_tree_unlock (snode->stats_tree);
         if (fallback_stream)
             avl_delete(_stats.source_tree, (void *)snode, _free_source_stats);
+        else
+            avl_tree_unlock (snode->stats_tree);
         avl_tree_unlock (_stats.source_tree);
         return;
     }
