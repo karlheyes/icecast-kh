@@ -30,6 +30,7 @@ typedef enum _format_type_tag
     FORMAT_TYPE_OGG,
     FORMAT_TYPE_AAC,
     FORMAT_TYPE_MPEG,
+    FORMAT_TYPE_EBML,
     FORMAT_TYPE_GENERIC
 } format_type_t;
 
