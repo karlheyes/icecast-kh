@@ -1486,8 +1486,8 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
     if (source->min_queue_size < source->default_burst_size)
         source->min_queue_size = source->default_burst_size;
 
-    if (source->min_queue_size > source->queue_size_limit - 50000)
-        source->queue_size_limit = source->min_queue_size + 50000;
+    if (source->min_queue_size + 40000 > source->queue_size_limit)
+        source->queue_size_limit = source->min_queue_size + 40000;
 
     source->wait_time = 0;
     if (mountinfo && mountinfo->wait_time)
