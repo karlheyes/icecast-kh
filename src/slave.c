@@ -69,6 +69,7 @@ static void _slave_thread(void);
 static void redirector_add (const char *server, int port, int interval);
 static redirect_host *find_slave_host (const char *server, int port);
 static int  relay_startup (client_t *client);
+static int  relay_initialise (client_t *client);
 static int  relay_read (client_t *client);
 static void relay_release (client_t *client);
 
@@ -96,6 +97,12 @@ struct _client_functions relay_client_ops =
 struct _client_functions relay_startup_ops =
 {
     relay_startup,
+    relay_release
+};
+
+struct _client_functions relay_init_ops =
+{
+    relay_initialise,
     relay_release
 };
 
@@ -556,13 +563,35 @@ static int relay_install (relay_server *relay)
     client_register (client);
     global_unlock();
     client->shared_data = relay;
-    client->ops = &relay_startup_ops;
+    client->ops = &relay_init_ops;
 
     client->flags |= CLIENT_ACTIVE;
     DEBUG1 ("adding relay client for %s", relay->localmount);
     client_add_worker (client);
 
     return 0;
+}
+
+
+int relay_toggle (relay_server *relay)
+{
+    source_t *source = relay->source;
+    client_t *client;
+    int ret = 0;
+
+    thread_mutex_lock (&source->lock);
+    client = source->client;
+    thread_mutex_unlock (&source->lock);
+    if (relay->running == 0)
+    {
+        client->ops = &relay_init_ops;
+        ret = 1;
+    }
+    relay->running = relay->running ? 0 : 1;
+    client->schedule_ms = 0;
+    worker_wakeup (client->worker);
+    slave_update_all_mounts();
+    return ret;
 }
 
 
@@ -1288,6 +1317,7 @@ static int relay_read (client_t *client)
         slave_update_all_mounts();
         return -1;
     }
+    client->ops = &relay_startup_ops;
     do {
         if (relay->running)
         {
@@ -1296,31 +1326,29 @@ static int relay_read (client_t *client)
                 INFO1 ("standing by to restart relay on %s", relay->localmount);
                 if (relay->on_demand && source->listeners == 0)
                     relay_reset (relay);
+                stats_event (relay->localmount, NULL, NULL);
+                client->ops = &relay_init_ops;
                 break;
             }
-            else
-            {
-                client->schedule_ms = client->worker->time_ms + (relay->interval * 1000);
-                INFO2 ("standing by to restart relay on %s in %d seconds", relay->localmount, relay->interval);
-            }
+            client->schedule_ms = client->worker->time_ms + (relay->interval * 1000);
+            INFO2 ("standing by to restart relay on %s in %d seconds", relay->localmount, relay->interval);
         }
         else
         {
-            INFO1 ("Relay %s is now disabled", relay->localmount);
+            INFO1 ("Relay %s is disabled", relay->localmount);
             client->schedule_ms = client->worker->time_ms + 3600000;
         }
         source->flags &= ~SOURCE_ON_DEMAND;
+        stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         relay_reset (relay);
+        stats_event (relay->localmount, NULL, NULL);
+        slave_update_all_mounts();
     } while (0);
-    stats_event_args (source->mount, "listeners", "%lu", source->listeners);
     client->connection.con_time = 0;
     source->stats = 0;
-    stats_event (relay->localmount, NULL, NULL);
-    slave_update_all_mounts();
 
     thread_mutex_unlock (&source->lock);
     connection_close (&client->connection);
-    client->ops = &relay_startup_ops;
     return 0;
 }
 
@@ -1337,19 +1365,68 @@ static void relay_release (client_t *client)
 }
 
 
+static int relay_initialise (client_t *client)
+{
+    relay_server *relay = get_relay_details (client);
+
+    if (relay->source == NULL)  /* new relay, so set up a source if we can */
+    {
+        source_t *source = source_reserve (relay->localmount, 0);
+        if (source == NULL)
+        {
+            INFO1 ("new relay but source \"%s\" exists, waiting", relay->localmount);
+            client->schedule_ms = client->worker->time_ms + 2000;
+            return 0;
+        }
+        relay->source = source;
+        source->client = client;
+    }
+    do
+    {
+        if (global.running != ICE_RUNNING)  break;
+        if (relay->running)
+        {
+            if (relay->on_demand)
+            {
+                ice_config_t *config;
+                mount_proxy *mountinfo;
+                source_t *source = relay->source;
+
+                thread_mutex_lock (&source->lock);
+                config = config_get_config();
+                mountinfo = config_find_mount (config, source->mount);
+                source->flags |= SOURCE_ON_DEMAND;
+                source_update_settings (config, source, mountinfo);
+                thread_mutex_unlock (&source->lock);
+                config_release_config();
+                slave_update_all_mounts();
+                stats_set_flags (source->stats, "listener_connections", "0", STATS_COUNTERS);
+            }
+            break;
+        }
+        client->schedule_ms = client->worker->time_ms + 10000000;
+        return 0;
+    } while(0);
+    client->ops = &relay_startup_ops;
+    return client->ops->process (client);
+}
+
+
 static int relay_startup (client_t *client)
 {
     relay_server *relay = get_relay_details (client);
     worker_t *worker = client->worker;
 
-    if (relay->cleanup || relay->running == 0)
+    if (relay->cleanup)
     {
-        source_t *source = relay->source;
-        if (source == NULL)
-            return -1;
         /* listeners may be still on, do a recheck */
         relay->running = 0;
         DEBUG1 ("cleanup detected on %s", relay->localmount);
+    }
+    if (relay->running == 0)
+    {
+        if (relay->source == NULL)
+            return -1;
         client->ops = &relay_client_ops;
         client->schedule_ms = worker->time_ms + 20;
         return 0;
@@ -1359,33 +1436,6 @@ static int relay_startup (client_t *client)
         client->schedule_ms = client->worker->time_ms + 50;
         return 0;
     }
-    if (relay->source == NULL)  /* new relay, so set up a source if we can */
-    {
-        source_t *source = source_reserve (relay->localmount, 0);
-        if (source == NULL)
-        {
-            INFO1 ("new relay but source \"%s\" exists, waiting", relay->localmount);
-            client->schedule_ms = client->worker->time_ms + 1000;
-            return 0;
-        }
-        if (relay->on_demand)
-        {
-            ice_config_t *config;
-            mount_proxy *mountinfo;
-
-            thread_mutex_lock (&source->lock);
-            config = config_get_config();
-            mountinfo = config_find_mount (config, source->mount);
-            source->flags |= SOURCE_ON_DEMAND;
-            source_update_settings (config, source, mountinfo);
-            thread_mutex_unlock (&source->lock);
-            config_release_config();
-        }
-        relay->source = source;
-        source->client = client;
-        stats_event_flags (source->mount, "listener_connections", "0", STATS_COUNTERS);
-    }
-
     if (relay->on_demand)
     {
         source_t *source = relay->source;

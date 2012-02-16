@@ -573,19 +573,13 @@ static int command_manage_relay (client_t *client, int response)
     msg = "no such relay";
     if (relay)
     {
-        source_t *source = relay->source;
-        client_t *client;
-
-        thread_mutex_lock (&source->lock);
-        client = source->client;
-        relay->running = atoi (enable) ? 1 : 0;
-        if (client)
-        {
-            client->schedule_ms = 0;
-            worker_wakeup (client->worker);
-        }
-        thread_mutex_unlock (&source->lock);
-        msg = "relay has been changed";
+        int running = atoi (enable) ? 1 : 0;
+        if (relay->running == running)
+            msg = "relay is left unchanged";
+        else if (relay_toggle (relay))
+            msg = "relay has been enabled";
+        else
+            msg = "relay has been disabled";
     }
     thread_mutex_unlock (&(config_locks()->relay_lock));
 

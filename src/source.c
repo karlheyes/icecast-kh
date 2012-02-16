@@ -1660,19 +1660,12 @@ void source_recheck_mounts (int update_all)
             mount = mount->next;
             continue;
         }
-        source = source_find_mount (mount->mountname);
-
-        if (source)
+        source = source_find_mount_raw (mount->mountname);
+        if (source == NULL || source_available (source) == 0)
         {
-            source = source_find_mount_raw (mount->mountname);
-            if (source)
-            {
-                mount_proxy *mountinfo = config_find_mount (config, source->mount);
-                thread_mutex_lock (&source->lock);
-                source_update_settings (config, source, mountinfo);
-                thread_mutex_unlock (&source->lock);
-            }
-            else if (update_all)
+            source = source_find_mount (mount->mountname);
+            DEBUG3 ("fallback checking %s %p %d", mount->mountname, source, update_all);
+            if (source && update_all)
             {
                 long stats = stats_handle (mount->mountname);
                 stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);
@@ -1686,14 +1679,6 @@ void source_recheck_mounts (int update_all)
                 stats_release (stats);
             }
         }
-        else
-        {
-            // only delete these stats if no client is maintaining them
-            source = source_find_mount_raw (mount->mountname);
-            if (source == NULL)
-                stats_event (mount->mountname, NULL, NULL);
-        }
-
         mount = mount->next;
     }
     avl_tree_unlock (global.source_tree);
