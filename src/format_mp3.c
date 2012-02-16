@@ -178,7 +178,7 @@ static void mp3_set_tag (format_plugin_t *plugin, const char *tag, const char *i
 }
 
 
-static int parse_shoutcast_metadata (mp3_state *source_mp3)
+static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
 {
     int meta_len = source_mp3->build_metadata_len;
     char *metadata = source_mp3->build_metadata;
@@ -205,7 +205,7 @@ static int parse_shoutcast_metadata (mp3_state *source_mp3)
             snprintf (s, len, "%s", metadata+13);
             free (source_mp3->url_title);
             source_mp3->url_title = s;
-            DEBUG1 ("found title %s", s);
+            INFO2 ("incoming title for %s %s", name, s);
         }
         else if (strncmp (metadata, "StreamUrl='", 11) == 0)
         {
@@ -216,7 +216,7 @@ static int parse_shoutcast_metadata (mp3_state *source_mp3)
             snprintf (s, len, "%s", metadata+11);
             free (source_mp3->inline_url);
             source_mp3->inline_url = s;
-            DEBUG1 ("found url %s", s);
+            INFO2 ("incoming URL for %s %s", name, s);
         }
         else if ((end = strchr (metadata, ';')) == NULL)
             break;
@@ -387,7 +387,7 @@ static void mp3_set_title (source_t *source)
                 stats_event (source->mount, "metadata_url", NULL);
             }
         }
-        DEBUG1 ("shoutcast metadata block setup with %.80s...", p->data+1);
+        DEBUG1 ("icy metadata as %.80s...", p->data+1);
         yp_touch (source->mount);
 
         flv_meta_append_string (flvmeta, NULL, NULL);
@@ -775,7 +775,7 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
         bytes -= metadata_remaining;
         memmove (src, src+metadata_remaining, bytes);
 
-        if (source_mp3->build_metadata_len > 1 && parse_shoutcast_metadata (source_mp3) < 0)
+        if (source_mp3->build_metadata_len > 1 && parse_icy_metadata (source->mount, source_mp3) < 0)
         {
             WARN1 ("Unable to parse metadata insert for %s", source->mount);
             source->flags &= ~SOURCE_RUNNING;
