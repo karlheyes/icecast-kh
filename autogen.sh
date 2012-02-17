@@ -94,12 +94,12 @@ fi
 echo "  autoheader"
 autoheader
 
-echo "  libtoolize --automake"
-libtoolize --automake
+echo "  libtoolize"
+libtoolize --automake --copy
 
 if test -n "$AUTOMAKE"; then
-  echo "  $AUTOMAKE --add-missing"
-  $AUTOMAKE --add-missing 
+  echo "  $AUTOMAKE"
+  $AUTOMAKE --add-missing --copy
 fi
 
 echo "  autoconf"
