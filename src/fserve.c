@@ -200,14 +200,11 @@ static int _compare_fh(void *arg, void *a, void *b)
 static int _delete_fh (void *mapping)
 {
     fh_node *fh = mapping;
-    fh->refcount--;
     if (fh->refcount)
         WARN2 ("handle for %s has refcount %d", fh->finfo.mount, fh->refcount);
     else
-    {
-        thread_mutex_unlock (&fh->lock);
         thread_mutex_destroy (&fh->lock);
-    }
+
     if (fh->fp)
         fclose (fh->fp);
     if (fh->format)
@@ -225,12 +222,20 @@ static int _delete_fh (void *mapping)
 }
 
 
-static void remove_fh_from_cache (fh_node *fh)
+static int remove_fh_from_cache (fh_node *fh)
 {
+    int ret = 0;
     avl_tree_wlock (fh_cache);
-    avl_delete (fh_cache, fh, NULL);
+    thread_mutex_lock (&fh->lock);
+    fh->refcount--;
+    if (fh->refcount == 0)
+    {
+        avl_delete (fh_cache, fh, NULL);
+        ret = 1;
+    }
+    thread_mutex_unlock (&fh->lock);
     avl_tree_unlock (fh_cache);
-    fh->peak = 0;
+    return ret;
 }
 
 
@@ -265,14 +270,14 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
     if (avl_get_by_key (fh_cache, fh, (void**)&result) == 0)
     {
         free (fh);
+        thread_mutex_lock (&result->lock);
+        avl_tree_unlock (fh_cache);
         if ((finfo->flags & FS_FALLBACK) && result->finfo.type != finfo->type)
         {
             WARN1 ("format mismatched for %s", finfo->mount);
-            avl_tree_unlock (fh_cache);
+            thread_mutex_unlock (&result->lock);
             return NULL;
         }
-        thread_mutex_lock (&result->lock);
-        avl_tree_unlock (fh_cache);
         result->refcount++;
         if (client)
         {
@@ -636,19 +641,14 @@ static void fh_release (fh_node *fh)
 {
     if (fh->finfo.mount[0])
         DEBUG2 ("refcount now %d on %s", fh->refcount, fh->finfo.mount);
-    if (fh->refcount > 1)
+    thread_mutex_unlock (&fh->lock);
+    if (remove_fh_from_cache (fh))
     {
-        fh->refcount--;
-        stats_event_args (fh->finfo.mount, "listeners", "%ld", fh->refcount);
-        thread_mutex_unlock (&fh->lock);
-        return;
+        fh->peak = 0;
+        stats_event (fh->finfo.mount, "fallback", NULL);
+        stats_event (fh->finfo.mount, NULL, NULL);
+        _delete_fh (fh);
     }
-    stats_event (fh->finfo.mount, "fallback", NULL);
-    stats_event (fh->finfo.mount, NULL, NULL);
-    if (fh->peak)
-        remove_fh_from_cache (fh);
-    // leave as locked
-    _delete_fh (fh);
 }
 
 
@@ -677,8 +677,6 @@ static void file_release (client_t *client)
         if (fh->finfo.flags & FS_FALLBACK)
             stats_event_dec (NULL, "listeners");
         remove_from_fh (fh, client);
-        if (fh->refcount == 1)
-            stats_event (fh->finfo.mount, NULL, NULL);
         fh_release (fh);
     }
     _free_fserve_buffers (client);
@@ -722,18 +720,21 @@ static void fserve_move_listener (client_t *client)
 
     _free_fserve_buffers (client);
     thread_mutex_lock (&fh->lock);
-    remove_from_fh (fh, client);
-    if (fh->refcount == 1)
-        stats_event (fh->finfo.mount, NULL, NULL);
     f.flags = fh->finfo.flags|FS_OVERRIDE;
     f.limit = fh->finfo.limit;
     f.mount = fh->finfo.fallback;
     f.fallback = fh->finfo.mount;
     client->intro_offset = -1;
     if (move_listener (client, &f) < 0)
+    {
         client->shared_data = fh;
+        thread_mutex_unlock (&fh->lock);
+    }
     else
+    {
+        remove_from_fh (fh, client);
         fh_release (fh);
+    }
 }
 
 struct _client_functions throttled_file_content_ops;
