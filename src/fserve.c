@@ -713,28 +713,32 @@ struct _client_functions file_content_ops =
 };
 
 
-static void fserve_move_listener (client_t *client)
+static int fserve_move_listener (client_t *client)
 {
     fh_node *fh = client->shared_data;
+    int ret = 0;
     fbinfo f;
 
     _free_fserve_buffers (client);
     thread_mutex_lock (&fh->lock);
     f.flags = fh->finfo.flags|FS_OVERRIDE;
     f.limit = fh->finfo.limit;
-    f.mount = fh->finfo.fallback;
+    f.mount = strdup (fh->finfo.fallback);
     f.fallback = fh->finfo.mount;
-    client->intro_offset = -1;
+    f.type = fh->finfo.type;
     if (move_listener (client, &f) < 0)
     {
-        client->shared_data = fh;
         thread_mutex_unlock (&fh->lock);
+        WARN1 ("moved failed, terminating listenr on %s", fh->finfo.mount);
+        ret = -1;
     }
     else
     {
         remove_from_fh (fh, client);
         fh_release (fh);
     }
+    free (f.mount);
+    return ret;
 }
 
 struct _client_functions throttled_file_content_ops;
@@ -754,10 +758,8 @@ static int prefile_send (client_t *client)
         if (refbuf == NULL || client->pos == refbuf->len)
         {
             if (fh && fh->finfo.fallback)
-            {
-                fserve_move_listener (client);
-                return 0;
-            }
+                return fserve_move_listener (client);
+
             if (refbuf == NULL || refbuf->next == NULL)
             {
                 if (fh)
@@ -894,10 +896,8 @@ static int throttled_file_send (client_t *client)
     if (client->connection.discon_time && now >= client->connection.discon_time)
         return -1;
     if (fh->finfo.fallback)
-    {
-        fserve_move_listener (client);
-        return 0;
-    }
+        return fserve_move_listener (client);
+
     if (client->flags & CLIENT_WANTS_FLV) /* increase limit for flv clients as wrapping takes more space */
         limit = (unsigned long)(limit * 1.01);
     if (secs)
@@ -1051,7 +1051,7 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
     fh.finfo.type = type;
 
     avl_tree_wlock (fh_cache);
-    if (avl_get_by_key (fh_cache, &fh, (void**)&result) == 0)
+    if (avl_get_by_key (fh_cache, &fh, (void**)&result) == 0 && result->finfo.type == type)
     {
         char *tmp = result->finfo.fallback;
         thread_mutex_lock (&result->lock);
@@ -1060,6 +1060,7 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
 
         result->finfo.flags |= FS_OVERRIDE;
         result->finfo.fallback = strdup (dest);
+        result->finfo.type = type;
         thread_mutex_unlock (&result->lock);
         free (tmp);
         INFO2 ("move clients from %s to %s", mount, dest);

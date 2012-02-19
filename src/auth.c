@@ -426,7 +426,8 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         return -1;
     if (finfo->flags & FS_OVERRIDE)
     {
-        finfo->mount = finfo->fallback;
+        free (finfo->mount);
+        finfo->mount = strdup (finfo->fallback);
         finfo->fallback = NULL;
         finfo->flags &= ~FS_OVERRIDE;
     }
