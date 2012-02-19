@@ -729,7 +729,7 @@ static int fserve_move_listener (client_t *client)
     if (move_listener (client, &f) < 0)
     {
         thread_mutex_unlock (&fh->lock);
-        WARN1 ("moved failed, terminating listenr on %s", fh->finfo.mount);
+        WARN1 ("moved failed, terminating listener on %s", fh->finfo.mount);
         ret = -1;
     }
     else
