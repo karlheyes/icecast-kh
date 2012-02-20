@@ -1042,7 +1042,7 @@ static int http_client_request (client_t *client)
                         break;
                     default:
                         WARN0("unhandled request type from client");
-                        return client_send_400 (client, "unknown request");
+                        return client_send_501 (client);
                 }
                 client->counter = 0;
                 return client->ops->process(client);

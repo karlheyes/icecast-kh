@@ -267,6 +267,17 @@ int client_send_416(client_t *client)
     return fserve_setup_client (client);
 }
 
+int client_send_501(client_t *client)
+{
+    client_set_queue (client, NULL);
+    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
+            "HTTP/1.0 501 Not Implemented\r\n\r\n");
+    client->respcode = 501;
+    client->refbuf->len = strlen (client->refbuf->data);
+    return fserve_setup_client (client);
+}
+
 
 /* helper function for sending the data to a client */
 int client_send_bytes (client_t *client, const void *buf, unsigned len)
