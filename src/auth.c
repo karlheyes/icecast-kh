@@ -403,7 +403,8 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         thread_mutex_lock (&source->lock);
         if (source_available (source))
         {
-            if (source->format->type == finfo->type)
+            // an unused on-demand relay will still have an unitialised type
+            if (source->format->type == finfo->type || source->format->type == FORMAT_ERROR)
             {
                 config_release_config();
                 avl_tree_unlock (global.source_tree);
