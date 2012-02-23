@@ -1180,29 +1180,30 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 {
     int bitrate = 0;
     client_t *client = source->client;
-    time_t connected = client->worker->current_time.tv_sec - client->connection.con_time;
+    time_t connected;
 
-    if (dest_mount == NULL || source->listeners == 0)
+    if (dest_mount == NULL)
     {
-        INFO1 ("Skipping fallback on %s, no listeners", source->mount);
+        INFO1 ("No fallback on %s", source->mount);
         return;
     }
+    if (source->listeners == 0)
+    {
+        INFO2 ("fallback on %s to %s, but no listeners", source->mount, dest_mount);
+        return;
+    }
+    connected = client->worker->current_time.tv_sec - client->connection.con_time;
     if (connected > 40)
         bitrate = (int)rate_avg (source->format->in_bitrate);
     if (bitrate == 0 && source->limit_rate)
         bitrate = source->limit_rate;
-    if (source->listeners)
-    {
-        source->fallback.flags = FS_FALLBACK;
-        source->fallback.mount = strdup (dest_mount);
-        source->fallback.limit = bitrate;
-        source->fallback.type = source->format->type;
-        INFO4 ("fallback set on %s to %s(%d) with %d listeners", source->mount, dest_mount,
-                source->fallback.limit, source->listeners);
-    }
-    else
-        INFO4 ("Skipping fallback to %s on %s (bitrate %d, listeners %d)", dest_mount,
-                source->mount, bitrate, source->listeners);
+
+    source->fallback.flags = FS_FALLBACK;
+    source->fallback.mount = strdup (dest_mount);
+    source->fallback.limit = bitrate;
+    source->fallback.type = source->format->type;
+    INFO4 ("fallback set on %s to %s(%d) with %d listeners", source->mount, dest_mount,
+            source->fallback.limit, source->listeners);
 }
 
 
@@ -1853,6 +1854,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     f.mount = (char *)mount;
                     f.fallback = NULL;
                     f.limit = rate / 8;
+                    f.type = FORMAT_TYPE_UNDEFINED;
                     if (move_listener (client, &f) == 0)
                     {
                         /* source dead but fallback to file found */

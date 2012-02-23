@@ -404,7 +404,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         if (source_available (source))
         {
             // an unused on-demand relay will still have an unitialised type
-            if (source->format->type == finfo->type || source->format->type == FORMAT_ERROR)
+            if (source->format->type == finfo->type || source->format->type == FORMAT_TYPE_UNDEFINED)
             {
                 config_release_config();
                 avl_tree_unlock (global.source_tree);

@@ -1191,7 +1191,7 @@ int connection_complete_source (source_t *source)
     {
         format_type = format_get_type (contenttype);
 
-        if (format_type == FORMAT_ERROR)
+        if (format_type == FORMAT_TYPE_UNDEFINED)
         {
             WARN1("Content-type \"%s\" not supported, dropping source", contenttype);
             return -1;

@@ -272,7 +272,7 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         free (fh);
         thread_mutex_lock (&result->lock);
         avl_tree_unlock (fh_cache);
-        if ((finfo->flags & FS_FALLBACK) && result->finfo.type != finfo->type)
+        if ((finfo->flags & FS_FALLBACK) && result->finfo.type != finfo->type && finfo->type != FORMAT_TYPE_UNDEFINED)
         {
             WARN1 ("format mismatched for %s", finfo->mount);
             thread_mutex_unlock (&result->lock);
@@ -315,7 +315,7 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         {
             if (finfo->flags & FS_FALLBACK)
             {
-                if (fh->finfo.type != type)
+                if (fh->finfo.type != type && fh->finfo.type != FORMAT_TYPE_UNDEFINED)
                 {
                     avl_tree_unlock (fh_cache);
                     free (fullpath);
@@ -332,7 +332,7 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         if (fh->fp == NULL)
         {
             if (client)
-                WARN1 ("Failed to open \"%s\"", fullpath);
+                INFO1 ("Failed to open \"%s\"", fullpath);
             if (finfo->flags & FS_FALLBACK)
             {
                 avl_tree_unlock (fh_cache);

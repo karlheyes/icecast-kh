@@ -26,7 +26,7 @@ struct _mount_proxy;
 
 typedef enum _format_type_tag
 {
-    FORMAT_ERROR, /* No format, source not processable */
+    FORMAT_TYPE_UNDEFINED, /* No format determined */
     FORMAT_TYPE_OGG,
     FORMAT_TYPE_AAC,
     FORMAT_TYPE_MPEG,
