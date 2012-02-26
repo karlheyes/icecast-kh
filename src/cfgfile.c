@@ -630,6 +630,7 @@ static int _parse_accesslog (xmlNodePtr node, void *arg)
         { "archive",        config_get_bool,    &log->archive },
         { "exclude_ext",    config_get_str,     &log->exclude_ext },
         { "display",        config_get_int,     &log->display },
+        { "querystr",       config_get_bool,    &log->qstr },
         { "size",           config_get_int,     &log->size },
         { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
@@ -637,6 +638,7 @@ static int _parse_accesslog (xmlNodePtr node, void *arg)
 
     log->logid = -1;
     log->type = LOG_ACCESS_CLF;
+    log->qstr = 1;
     if (parse_xml_tags (node, icecast_tags))
         return 2;
     if (type && strcmp (type, "CLF-ESC") == 0)

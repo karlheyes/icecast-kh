@@ -107,7 +107,7 @@ int get_clf_time (char *buffer, unsigned len, struct tm *t)
 */
 void logging_access_id (access_log *accesslog, client_t *client)
 {
-    const char *req;
+    const char *req = NULL;
     struct tm thetime;
     time_t now;
     time_t stayed;
@@ -128,7 +128,8 @@ void logging_access_id (access_log *accesslog, client_t *client)
 #else
     strftime (datebuf, sizeof(datebuf), LOGGING_FORMAT_CLF, &thetime);
 #endif
-    req = httpp_getvar (client->parser, HTTPP_VAR_RAWURI);
+    if (accesslog->qstr)
+        req = httpp_getvar (client->parser, HTTPP_VAR_RAWURI);
     if (req == NULL)
         req = httpp_getvar (client->parser, HTTPP_VAR_URI);
     /* build the request */

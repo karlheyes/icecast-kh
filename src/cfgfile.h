@@ -45,6 +45,7 @@ typedef struct access_log
     char *name;
     int logid;
     int log_ip;
+    int qstr;
     int type;
     int archive;
     int display;
