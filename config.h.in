@@ -27,6 +27,10 @@
 /* Define to 1 if you have the `curl_global_init' function. */
 #undef HAVE_CURL_GLOBAL_INIT
 
+/* Define to 1 if you have the declaration of `FindFirstFile', and to 0 if you
+   don't. */
+#undef HAVE_DECL_FINDFIRSTFILE
+
 /* Define to 1 if you have the declaration of `localtime_r', and to 0 if you
    don't. */
 #undef HAVE_DECL_LOCALTIME_R
@@ -63,6 +67,12 @@
 
 /* Define to 1 if you have the `gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
+
+/* Define to 1 if you have the `glob' function. */
+#undef HAVE_GLOB
+
+/* Define to 1 if you have the <glob.h> header file. */
+#undef HAVE_GLOB_H
 
 /* Define to 1 if you have the `inet_aton' function. */
 #undef HAVE_INET_ATON
@@ -180,6 +190,9 @@
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the <windows.h> header file. */
+#undef HAVE_WINDOWS_H
 
 /* Define if you have winsock2.h on MINGW */
 #undef HAVE_WINSOCK2_H

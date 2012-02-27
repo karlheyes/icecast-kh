@@ -19,6 +19,9 @@
 #include <string.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
+#if HAVE_GLOB_H
+#include <glob.h>
+#endif
 
 #ifdef HAVE_FNMATCH_H
 #include <fnmatch.h>
@@ -441,10 +444,12 @@ int config_parse_file(const char *filename, ice_config_t *configuration)
 
     configuration->config_filename = (char *)strdup(filename);
 
-    _parse_root (node, configuration);
-
+    if (_parse_root (node, configuration) < 0)
+    {
+        xmlFreeDoc(doc);
+        return CONFIG_EPARSE;
+    }
     xmlFreeDoc(doc);
-
     return 0;
 }
 
@@ -739,6 +744,67 @@ static int _parse_logging (xmlNodePtr node, void *arg)
     return 0;
 }
 
+
+static int parse_include (xmlNodePtr include, void *arg)
+{
+    char *pattern = NULL;
+    int ret = 0;
+    xmlNodePtr node = include->xmlChildrenNode;
+
+    if (xmlNodeIsText (node) == 0)
+        return -1;
+    pattern = (char *)xmlNodeListGetString (node->doc, node, 1);
+    do
+    {
+#if HAVE_GLOB
+        glob_t globbuf;
+        if (glob (pattern, 0, NULL, &globbuf) == 0)
+        {
+            int i;
+            for (i=0; i<globbuf.gl_pathc; i++)
+            {
+                xmlDocPtr sub_doc = xmlParseFile (globbuf.gl_pathv[i]);
+                if (sub_doc)
+                {
+                    xmlNodePtr sub_node = xmlDocGetRootElement (sub_doc);
+                    if (sub_node)
+                        xmlAddNextSibling (include, sub_node);
+                    xmlFreeDoc (sub_doc);
+                    continue;
+                }
+                ret = -1;
+                break;
+            }
+        }
+        globfree (&globbuf);
+#elif HAVE_DECL_FINDFIRSTFILE
+        WIN32_FIND_DATA filedata;
+        HANDLE hFind = FindFirstFile (pattern, &filedata);
+        do {
+            if (filedata.dwFileAttributes & FILE_ATTRIBUTE_NORMAL)
+            {
+                xmlDocPtr sub_doc = xmlParseFile (filedata.cFileName);
+                if (sub_doc)
+                {
+                    xmlNodePtr sub_node = xmlDocGetRootElement (sub_doc);
+                    if (sub_node)
+                        xmlAddNextSibling (include, sub_node);
+                    xmlFreeDoc (sub_doc);
+                    continue;
+                }
+                ret = -1;
+                break;
+            }
+        } while (FindNextFile (hFind, &filedata) != 0);
+        FindClose (hFind);
+#endif
+    } while (0);
+    xmlFree (pattern);
+
+    return ret;
+}
+
+
 static int _parse_paths (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
@@ -766,6 +832,7 @@ static int _parse_paths (xmlNodePtr node, void *arg)
         return -1;
     return 0;
 }
+
 
 static int _parse_directory (xmlNodePtr node, void *arg)
 {
@@ -1171,7 +1238,8 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
         { "paths",              _parse_paths,       config },
         { "logging",            _parse_logging,     config },
         { "security",           _parse_security,    config },
-        { "authentication",     _parse_authentication, config},
+        { "authentication",     _parse_authentication, config },
+        { "include",            parse_include,      config },
         { NULL, NULL, NULL }
     };
 
