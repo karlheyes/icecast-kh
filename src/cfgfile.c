@@ -781,7 +781,7 @@ static int parse_include (xmlNodePtr include, void *arg)
         WIN32_FIND_DATA filedata;
         HANDLE hFind = FindFirstFile (pattern, &filedata);
         do {
-            if (filedata.dwFileAttributes & FILE_ATTRIBUTE_NORMAL)
+            if ((filedata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
             {
                 xmlDocPtr sub_doc = xmlParseFile (filedata.cFileName);
                 if (sub_doc)
