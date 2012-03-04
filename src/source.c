@@ -1032,8 +1032,8 @@ static int send_listener (source_t *source, client_t *client)
      * if so, check to see if this client is still referring to it */
     if (client->refbuf && (client->refbuf->flags & SOURCE_BLOCK_RELEASE))
     {
-        INFO2 ("Client %lu (%s) has fallen too far behind, removing",
-                client->connection.id, client->connection.ip);
+        INFO3 ("Client %lu (%s) has fallen too far behind on %s, removing",
+                client->connection.id, client->connection.ip, source->mount);
         stats_event_inc (source->mount, "slow_listeners");
         client_set_queue (client, NULL);
         ret = -1;
