@@ -258,8 +258,6 @@ void source_clear_source (source_t *source)
         source->dumpfile = NULL;
     }
 
-    format_plugin_clear (source->format, source->client);
-
     /* flush out the stream data, we don't want any left over */
 
     /* the source holds a reference on the very latest so that one
@@ -324,6 +322,7 @@ static int _free_source (void *p)
     thread_mutex_destroy (&source->lock);
 
     INFO1 ("freeing source \"%s\"", source->mount);
+    format_plugin_clear (source->format, source->client);
     free (source->format);
     free (source->mount);
     free (source);
