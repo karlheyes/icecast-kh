@@ -311,6 +311,8 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         format_type_t type = format_get_type (contenttype);
 
         free (contenttype);
+        if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
+            fh->finfo.type = type;
         if (client)
         {
             if (finfo->flags & FS_FALLBACK)
@@ -352,6 +354,7 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
             if (format_get_plugin (fh->format, NULL) < 0)
             {
                 avl_tree_unlock (fh_cache);
+                free (fh->format);
                 free (fh);
                 return NULL;
             }
