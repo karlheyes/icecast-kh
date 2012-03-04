@@ -83,15 +83,9 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
 {
     struct flv *flv = mp->callback_key;
 
-    if (mp->raw_offset + len + 16 > mp->raw->len)
-    {
-        int newlen = mp->raw->len + 4096;
-        void *p = realloc (mp->raw->data, newlen);
-        if (p == NULL)
-            return -1;
-        mp->raw->data = p;
-        mp->raw->len = newlen;
-    }
+    if (mp->raw_offset + 16 > mp->raw->len)
+        return -1;
+
     flv_hdr (flv, len + 1);
     if (flv->tag[15] == 0x22)
     {
@@ -123,15 +117,9 @@ static int flv_aac_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
 {
     struct flv *flv = mp->callback_key;
 
-    if (mp->raw_offset + len + 17 > mp->raw->len)
-    {
-        int newlen = mp->raw->len + 4096;
-        void *p = realloc (mp->raw->data, newlen);
-        if (p == NULL)
-            return -1;
-        mp->raw->data = p;
-        mp->raw->len = newlen;
-    }
+    if (mp->raw_offset + 17 > mp->raw->len)
+        return -1;
+
     flv_hdr (flv, len + 2);
     // a single frame (headerless) follows this
     memcpy (mp->raw->data + mp->raw_offset, &flv->tag[0], 17);
