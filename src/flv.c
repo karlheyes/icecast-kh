@@ -197,7 +197,7 @@ static int send_flv_buffer (client_t *client, struct flv *flv)
 }
 
 
-void flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
+int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
 {
     /* the first assoc block is shoutcast meta, second is flv meta */
     int len;
@@ -256,21 +256,23 @@ void flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
         flv_meta_append_string (flvmeta, NULL, NULL);
         flvm = (struct flvmeta *)flvmeta->data;
         meta_copied  = flvm->meta_pos - sizeof (*flvm);
+        if (meta_copied + 15 + flv->mpeg_sync.raw_offset > raw->len)
+        {
+            int newlen = meta_copied + flv->mpeg_sync.raw_offset + 1024;
+            void *p = realloc (raw->data, newlen);
+            if (p == NULL) return -1;
+            raw->data = p;
+            raw->len = newlen;
+            flv->block_pos = flv->mpeg_sync.raw_offset = 0;
+            connection_bufs_flush (&flv->bufs);
+            return -1;
+        }
     }
     else
         flvm = (struct flvmeta *)flvmeta->data;
     len  = flvm->meta_pos - sizeof (*flvm);
     src = (char *)flvm + sizeof (*flvm);
 
-    if (meta_copied + 15 > raw->len)
-    {
-        int newlen = raw->len + 1024;
-        void *p = realloc (raw->data, newlen);
-        if (p == NULL)
-            return;
-        raw->data = p;
-        raw->len = newlen;
-    }
     flv->tag[4] = 18;    // metadata
     flv_hdr (flv, len);
     memcpy (dst, &flv->tag[0], 15);
@@ -288,6 +290,7 @@ void flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
         connection_bufs_append (&flv->bufs, src, len);
     flv->prev_tagsize = len + 11;
     flv->tag[4] = prev_type;
+    return 0;
 }
 
 
@@ -316,7 +319,8 @@ int write_flv_buf_to_client (client_t *client)
             ref->len += unprocessed;   /* output was truncated, so revert changes */
 
         if (flv->seen_metadata != scmeta)
-            flv_write_metadata (flv, scmeta, client->mount);
+            if (flv_write_metadata (flv, scmeta, client->mount) < 0)
+                return 0;
     }
     ret = send_flv_buffer (client, flv);
     if (flv->mpeg_sync.raw_offset == 0)
