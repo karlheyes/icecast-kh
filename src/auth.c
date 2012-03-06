@@ -380,23 +380,20 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
 {
     source_t *source;
     mount_proxy *minfo;
-    int rate = finfo->limit, loop = 20;
+    int rate = finfo->limit, loop = 20, ret = -1;
     ice_config_t *config = config_get_config();
+    struct _fbinfo where;
 
+    memcpy (&where, finfo, sizeof (where));
+    where.mount = strdup (finfo->mount);
     avl_tree_rlock (global.source_tree);
     do
     {
-        if (finfo->mount == NULL)
-        {
-            avl_tree_unlock (global.source_tree);
-            config_release_config();
-            return -1; // nothing else to check for
-        }
-        minfo = config_find_mount (config, finfo->mount);
+        minfo = config_find_mount (config, where.mount);
 
         if (rate == 0 && minfo && minfo->limit_rate)
             rate = minfo->limit_rate;
-        source = source_find_mount_raw (finfo->mount);
+        source = source_find_mount_raw (where.mount);
 
         if (source == NULL)
             break;
@@ -415,31 +412,38 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
             }
         }
         thread_mutex_unlock (&source->lock);
-        free (finfo->mount);
-        finfo->mount = NULL;
+        free (where.mount);
         if (minfo && minfo->fallback_mount)
-            finfo->mount = strdup (minfo->fallback_mount);
+            where.mount = strdup (minfo->fallback_mount);
+        else
+        {
+            where.mount = NULL;
+            break;
+        }
     } while (loop--);
 
     avl_tree_unlock (global.source_tree);
     config_release_config();
-    if (client->flags & CLIENT_IS_SLAVE)
-        return -1;
-    if (finfo->flags & FS_OVERRIDE)
+    if (where.mount && ((client->flags & CLIENT_IS_SLAVE) == 0))
     {
-        free (finfo->mount);
-        finfo->mount = strdup (finfo->fallback);
-        finfo->fallback = NULL;
-        finfo->flags &= ~FS_OVERRIDE;
+        if (finfo->flags & FS_OVERRIDE)
+        {
+            free (where.mount);
+            where.mount = strdup (where.fallback);
+            where.fallback = NULL;
+            where.flags &= ~FS_OVERRIDE;
+        }
+        if (where.limit == 0)
+        {
+            if (rate == 0)
+                if (sscanf (where.mount, "%*[^[][%d]", &rate) == 1)
+                    rate = rate * 1000/8;
+            where.limit = rate;
+        }
+        ret = fserve_setup_client_fb (client, &where);
     }
-    if (finfo->limit == 0)
-    {
-        if (rate == 0)
-            if (sscanf (finfo->mount, "%*[^[][%d]", &rate) == 1)
-                rate = rate * 1000/8;
-        finfo->limit = rate;
-    }
-    return fserve_setup_client_fb (client, finfo);
+    free (where.mount);
+    return ret;
 }
 
 

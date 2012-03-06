@@ -727,7 +727,7 @@ static int fserve_move_listener (client_t *client)
     thread_mutex_lock (&fh->lock);
     f.flags = fh->finfo.flags|FS_OVERRIDE;
     f.limit = fh->finfo.limit;
-    f.mount = strdup (fh->finfo.fallback);
+    f.mount = fh->finfo.fallback;
     f.fallback = fh->finfo.mount;
     f.type = fh->finfo.type;
     if (move_listener (client, &f) < 0)
@@ -741,7 +741,6 @@ static int fserve_move_listener (client_t *client)
         remove_from_fh (fh, client);
         fh_release (fh);
     }
-    free (f.mount);
     return ret;
 }
 
