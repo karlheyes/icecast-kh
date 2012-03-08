@@ -962,10 +962,10 @@ static int http_client_request (client_t *client)
             if (memcmp (refbuf->data, "<policy-file-request/>", 23) == 0)
             {
                 fbinfo fb;
+                memset (&fb, 0, sizeof(fb));
                 fb.mount = "/flashpolicy";
                 fb.flags = FS_USE_ADMIN;
-                fb.fallback = NULL;
-                fb.limit = 0;
+                fb.type = FORMAT_TYPE_UNDEFINED;
                 client->respcode = 200;
                 refbuf_release (refbuf);
                 client->shared_data = NULL;
