@@ -324,16 +324,19 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
 /* return -1 for no valid frame at this specified address, 0 for more data needed */
 static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
-    int ret;
+    int ret = -1;
 
     if (p[0] == 0x47)
-        return check_for_ts (mp, p, remaining);
-    if (p[1] < 0xE0)
-        return -1;
-    mp->layer = (p[1] & 0x6) >> 1;
-    ret = check_for_aac (mp, p, remaining);
+        ret = check_for_ts (mp, p, remaining);
     if (ret < 0)
-        ret = check_for_mp3 (mp, p, remaining);
+    {
+        if (p[1] < 0xE0)
+            return -1;
+        mp->layer = (p[1] & 0x6) >> 1;
+        ret = check_for_aac (mp, p, remaining);
+        if (ret < 0)
+            ret = check_for_mp3 (mp, p, remaining);
+    }
     if (ret > 0) mp->resync_count = 0;
     return ret;
 }
@@ -406,7 +409,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         if (!is_sync_byte (mp, start))
         {
             int ret = find_align_sync (mp, start, remaining);
-            if (ret == 0)
+            if (ret == 0 || mp->resync_count > 20)
                 break; // no sync in the rest, so dump it
             DEBUG2 ("no frame sync, re-checking after skipping %d (%d)", ret, remaining);
             new_block->len -= ret;
@@ -419,9 +422,8 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             int ret = get_initial_frame (mp, start, remaining);
             if (ret < 0)
             {
-                // failed to detect a complete frame, try again
-                memmove (start, start+1, remaining-1);
-                new_block->len--;
+                // failed to detect a complete frame, try another search
+                *start = 0;
                 continue;
             }
             if (ret == 0)
