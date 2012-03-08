@@ -154,7 +154,14 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remain
     int frame_len = get_mpeg_frame_length (mp, p);
 
     if (frame_len <= 0)
+    {
+        if (frame_len < 0)
+        {
+            INFO1 ("detected format settings change for %s", mp->mount);
+            mp->syncbytes = 0;
+        }
         return -1;
+    }
     if (remaining - frame_len < 0)
         return 0;
     if (mp->raw)
@@ -239,6 +246,7 @@ static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
             samplerate = get_mpegframe_samplerate (p);
             if (samplerate == 0)
                 return -1;
+            mp->samplerate = samplerate;
             do
             {
                 int frame_len;
@@ -264,7 +272,6 @@ static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 remaining -= frame_len;
                 fh += frame_len;
             } while (--checking);
-            mp->samplerate = samplerate;
             if  (((p[3] & 0xC0) >> 6) == 3)
                 mp->channels = 1;
             else
