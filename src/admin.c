@@ -990,7 +990,7 @@ static int command_metadata (client_t *client, source_t *source, int response)
                 INFO2 ("Metadata title on %s changed to \"%s\"", source->mount, title);
             }
             /* updates are now done, let them be pushed into the stream */
-            plugin->set_tag (plugin, NULL, NULL, NULL);
+            plugin->set_tag (plugin, NULL, NULL, charset);
         }
         else
         {
