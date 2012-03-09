@@ -303,6 +303,18 @@ char *stats_get_value(const char *source, const char *name)
     return(_get_stats(source, name));
 }
 
+
+char *stats_retrieve (long handle, const char *name)
+{
+    char *v = NULL;
+    stats_source_t *src_stats = (stats_source_t *)handle;
+    stats_node_t *stats = _find_node (src_stats->stats_tree, name);
+
+    if (stats) v =  strdup (stats->value);
+    return v;
+}
+
+
 /* increase the value in the provided stat by 1 */
 void stats_event_inc(const char *source, const char *name)
 {
@@ -611,6 +623,17 @@ static void process_source_event (stats_event_t *event)
     avl_tree_unlock (_stats.source_tree);
     process_source_stat (snode, event);
     avl_tree_unlock (snode->stats_tree);
+}
+
+
+void stats_set_time (long handle, const char *name, int flags, time_t tm)
+{
+    struct tm local;
+    char buffer[100];
+
+    localtime_r (&tm, &local);
+    strftime (buffer, sizeof (buffer), ICECAST_TIME_FMT, &local);
+    stats_set_flags (handle, name, buffer, flags);
 }
 
 

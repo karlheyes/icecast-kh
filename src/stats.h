@@ -64,6 +64,8 @@ void stats_set (long handle, const char *name, const char *value);
 void stats_set_args (long handle, const char *name, const char *format, ...);
 void stats_set_flags (long handle, const char *name, const char *value, int flags);
 void stats_set_conv (long handle, const char *name, const char *value, const char *charset);
+void stats_set_time (long handle, const char *name, int flags, time_t tm);
+char *stats_retrieve (long handle, const char *name);
 
 void stats_listener_to_xml (client_t *listener, xmlNodePtr parent);
 
