@@ -193,9 +193,13 @@ static int compare_banned_ip (void *arg, void *a, void *b)
 {
     struct banned_entry *this = (struct banned_entry *)a;
     struct banned_entry *that = (struct banned_entry *)b;
-    if (that->timeout)
-        if (ban_entry_removal == NULL || that->timeout < ban_entry_removal->timeout)
+
+    if (ban_entry_removal == NULL)
+    {
+        time_t now = *((time_t*)arg);
+        if (that->timeout < now - 60)
             ban_entry_removal = that; // identify possible removal
+    }
     return compare_pattern (NULL, &this->ip[0] , &that->ip[0]);
 }
 
@@ -560,7 +564,7 @@ static void recheck_cached_file (cache_file_contents *cache, time_t now)
             return;
         }
 
-        new_ips = avl_tree_new (cache->compare, NULL);
+        new_ips = avl_tree_new (cache->compare, &cache->file_recheck);
 
         while (get_line (file, line, MAX_LINE_LEN))
         {
@@ -584,6 +588,7 @@ static int accept_ip_address (char *ip)
     void *result;
     time_t now = time(NULL);
 
+    global_lock();
     recheck_cached_file (&banned_ip, now);
 
     if (banned_ip.contents)
@@ -591,34 +596,26 @@ static int accept_ip_address (char *ip)
         ban_entry_removal = NULL;
         if (avl_get_by_key (banned_ip.contents, ip, &result) == 0)
         {
-            struct banned_entry *entry = result;
-            if (entry->timeout)
+            struct banned_entry *match = result;
+            if (match->timeout == 0 || match->timeout > now)
             {
-                if (entry->timeout > now)
-                {
-                    /* we may need to extend the timeout, for repeat offenders */
-                    if (now+900 > entry->timeout)
-                        entry->timeout = now + 900;
-                    return 0;
-                }
-            }
-            else
-            {
-                DEBUG1 ("%s is banned", ip);
+                if (match->timeout && now + 900 > match->timeout)
+                    match->timeout = now + 900;
+                global_unlock();
+                DEBUG1 ("%s banned", ip);
                 return 0;
             }
+            avl_delete (banned_ip.contents, ip, free_filtered_line);
         }
+        /* we may of seen another one to remove */
         if (ban_entry_removal)
         {
-            /* we have identified the entry with the earliest timeout, but has it expired */
-            if (ban_entry_removal->timeout <= now)
-            {
-                INFO1 ("removing %s from ban list for now", &ban_entry_removal->ip[0]);
-                avl_delete (banned_ip.contents, &ban_entry_removal->ip[0], free_filtered_line);
-            }
+            INFO1 ("removing %s from ban list for now", &ban_entry_removal->ip[0]);
+            avl_delete (banned_ip.contents, &ban_entry_removal->ip[0], free_filtered_line);
             ban_entry_removal = NULL;
         }
     }
+    global_unlock();
     recheck_cached_file (&allowed_ip, now);
     if (allowed_ip.contents)
     {
