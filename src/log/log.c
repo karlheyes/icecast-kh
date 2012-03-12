@@ -350,7 +350,7 @@ void log_close(int log_id)
         fclose (loglist [log_id] . logfile);
         loglist [log_id] . logfile = NULL;
     }
-    while (loglist[log_id].entries)
+    while (loglist [log_id].log_head)
     {
         log_entry_t *to_go = loglist [log_id].log_head;
         loglist [log_id].log_head = to_go->next;
@@ -359,6 +359,7 @@ void log_close(int log_id)
         free (to_go);
         loglist [log_id].entries--;
     }
+    loglist [log_id].entries = 0;
     _unlock_logger();
 }
 

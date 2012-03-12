@@ -398,7 +398,6 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         mp->surplus = NULL;
     }
     start = (unsigned char *)new_block->data + offset;
-    // remaining = new_block->len - offset;
     while (1)
     {
         end = (unsigned char*)new_block->data + new_block->len;

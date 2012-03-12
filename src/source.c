@@ -500,6 +500,11 @@ int source_read (source_t *source)
                 }
                 if (source->stream_data_tail)
                 {
+                    if (source->min_queue_offset > source->min_queue_size)
+                    {
+                        ERROR3 ("queue oddity, stream %s, %d, %d", source->mount, source->min_queue_offset, source->min_queue_size);
+                        source->flags &= ~SOURCE_RUNNING;
+                    }
                     source->stream_data_tail->next = refbuf;
                     refbuf_release (source->stream_data_tail);
                 }
