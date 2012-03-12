@@ -838,7 +838,7 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
         }
 
         DEBUG1 ("read from master \"%s\"", buf);
-        if (strlen (buf))
+        if (*buf != 0)
         {
             relay_server *r = calloc (1, sizeof (relay_server));
             relay_server_master *m = calloc (1, sizeof (relay_server_master));
