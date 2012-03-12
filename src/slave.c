@@ -76,6 +76,7 @@ static void relay_release (client_t *client);
 int slave_running = 0;
 int worker_count;
 int relays_connecting;
+int streamlister;
 
 static volatile int update_settings = 0;
 static volatile int update_all_mounts = 0;
@@ -181,6 +182,7 @@ void slave_initialize(void)
 
     thread_rwlock_create (&slaves_lock);
     slave_running = 1;
+    streamlister = 0;
     streamlist_check = 0;
     update_settings = 0;
     update_all_mounts = 0;
@@ -912,7 +914,8 @@ static void *streamlist_thread (void *arg)
     curl_easy_setopt (handle, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt (handle, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt (handle, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt (handle, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt (handle, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt (handle, CURLOPT_TIMEOUT, 120L);
     if (master->bind)
         curl_easy_setopt (handle, CURLOPT_INTERFACE, master->bind);
 
@@ -940,6 +943,7 @@ static void *streamlist_thread (void *arg)
     free (master->server_id);
     free (master->args);
     free (master);
+    streamlister = 0;
     return NULL;
 }
 #endif
@@ -953,6 +957,8 @@ static void update_from_master (ice_config_t *config)
     if (config->master_password == NULL || config->master_server == NULL ||
             config->master_server_port == 0)
         return;
+    if (streamlister) return;
+    streamlister = 1;
     details = calloc (1, sizeof (*details));
     details->server = strdup (config->master_server);
     details->port = config->master_server_port; 
