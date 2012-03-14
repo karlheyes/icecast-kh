@@ -800,7 +800,8 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
                 return (master->ok = 0);
             }
             buffer = realloc (master->buffer, len + 1);
-            if (buffer) master->buffer = buffer;
+            if (buffer == NULL) return 0;
+            master->buffer = buffer;
             memcpy (master->buffer + master->previous, ptr, passed_len);
             master->buffer [len] = '\0';
             master->previous = len;
@@ -837,12 +838,12 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
             break;
         }
 
-        DEBUG1 ("read from master \"%s\"", buf);
-        if (*buf != 0)
+        if (*buf == '/')
         {
             relay_server *r = calloc (1, sizeof (relay_server));
             relay_server_master *m = calloc (1, sizeof (relay_server_master));
 
+            DEBUG1 ("read from master \"%s\"", buf);
             m->ip = (char *)xmlStrdup (XMLSTR(master->server));
             m->port = master->port;
             if (master->bind)
@@ -866,6 +867,8 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
             r->next = master->new_relays;
             master->new_relays = r;
         }
+        else
+            DEBUG1 ("skipping \"%s\"", buf);
         buf += offset;
         len -= offset;
         if (len == 0 && prev)
