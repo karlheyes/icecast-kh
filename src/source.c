@@ -1850,14 +1850,14 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             {
                 if (rate == 0)
                     if (sscanf (mount, "%*[^[][%d]", &rate) == 1)
-                        rate = rate * 1000;
+                        rate = rate * 1000 / 8;
                 if (rate)
                 {
                     fbinfo f;
                     f.flags = FS_FALLBACK;
                     f.mount = (char *)mount;
                     f.fallback = NULL;
-                    f.limit = rate / 8;
+                    f.limit = rate;
                     f.type = FORMAT_TYPE_UNDEFINED;
                     if (move_listener (client, &f) == 0)
                     {
