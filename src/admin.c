@@ -1002,6 +1002,7 @@ static int command_metadata (client_t *client, source_t *source, int response)
         return admin_send_response(doc, client, response, "response.xsl");
 
     } while (0);
+    INFO1 ("Metadata on mountpoint %s prevented", source->mount);
     thread_mutex_unlock (&source->lock);
     xmlNewChild(node, NULL, XMLSTR("message"), 
             XMLSTR("Mountpoint will not accept this URL update"));

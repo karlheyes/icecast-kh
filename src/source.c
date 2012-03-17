@@ -855,7 +855,10 @@ static int wait_for_restart (client_t *client)
     source_t *source = client->shared_data;
 
     if (client->worker->current_time.tv_sec - client->timer_start > 15)
+    {
+        INFO1 ("Dropping listener, stuck in %s too long", source->mount);
         client->connection.error = 1; // in here too long, drop client
+    }
 
     if (source_running (source) || client->connection.error ||
             (source->flags & SOURCE_PAUSE_LISTENERS) == 0 ||

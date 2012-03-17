@@ -544,12 +544,12 @@ static auth_result url_add_listener (auth_client *auth_user)
     }
     else if (atd->errormsg[0])
     {
+        INFO3 ("listener %s (%s) returned \"%s\"", client->connection.ip, url->addurl, atd->errormsg);
         if (atoi (atd->errormsg) == 403)
         {
             auth_user->client = NULL;
             client_send_403 (client, atd->errormsg+4);
         }
-        INFO2 ("client auth (%s) failed with \"%s\"", url->addurl, atd->errormsg);
     }
     return ret;
 }

@@ -686,8 +686,8 @@ void connection_close_sigfd (void)
 static sock_t wait_for_serversock (void)
 {
 #ifdef HAVE_POLL
-    struct pollfd ufds [global.server_sockets + 1];
     int i, ret;
+    struct pollfd ufds [global.server_sockets + 1];
 
     for(i=0; i < global.server_sockets; i++) {
         ufds[i].fd = global.serversock[i];

@@ -267,6 +267,7 @@ int client_send_416(client_t *client)
     return fserve_setup_client (client);
 }
 
+
 int client_send_501(client_t *client)
 {
     client_set_queue (client, NULL);

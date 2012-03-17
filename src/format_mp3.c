@@ -614,6 +614,9 @@ int mpeg_process_buffer (client_t *client, format_plugin_t *plugin)
 }
 
 
+/* validate the frames, sending any partial frames either back for reading or
+ * keep them for later mpeg parsing.
+ */
 static int validate_mpeg (source_t *source, refbuf_t *refbuf)
 {
     client_t *client = source->client;

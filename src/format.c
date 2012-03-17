@@ -111,6 +111,7 @@ int format_get_plugin (format_plugin_t *plugin, client_t *client)
             ret = format_mp3_get_plugin (plugin, client);
             break;
         default:
+            INFO1 ("unknown format detected for %s", plugin->mount);
             break;
     }
 

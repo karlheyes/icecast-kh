@@ -873,12 +873,12 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
         len -= offset;
         if (len == 0 && prev)
         {
-           buf = ptr + prev;
-           len =  passed_len - prev;
-           free (master->buffer);
-           master->buffer = NULL;
-           master->previous = 0;
-           prev = 0;
+            buf = ptr + prev;
+            len =  passed_len - prev;
+            free (master->buffer);
+            master->buffer = NULL;
+            master->previous = 0;
+            prev = 0;
         }
     }
     return passed_len;

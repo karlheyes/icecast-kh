@@ -164,7 +164,7 @@ int config_get_bitrate (xmlNodePtr node, void *x)
         if (metric == 'k' || metric == 'K')
             (*p) *= 1000;
         if (metric == 'm' || metric == 'M')
-            (*p) *= 10000000;
+            (*p) *= 1000000;
         xmlFree (str);
     }
     return 0;

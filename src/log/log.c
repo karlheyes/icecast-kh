@@ -139,7 +139,7 @@ static int _log_open (int id, time_t now)
     return 1;
 }
 
-static log_init (log_t *log)
+static void log_init (log_t *log)
 {
     log->in_use = 0;
     log->level = 2;
@@ -341,7 +341,7 @@ void log_close(int log_id)
 
     loglist[log_id].in_use = 0;
     loglist[log_id].level = 2;
-    if (loglist[log_id].filename) free(loglist[log_id].filename);
+    free (loglist[log_id].filename);
     loglist[log_id].filename = NULL;
     if (loglist[log_id].buffer) free(loglist[log_id].buffer);
 
@@ -512,7 +512,7 @@ static int _get_log_id(void)
     /* lock mutex */
     _lock_logger();
 
-    for (i = 0; i < LOG_MAXLOGS; i++)
+    for (i = 0; i < logs_allocated; i++)
         if (loglist[i].in_use == 0) {
             loglist[i].in_use = 1;
             id = i;
@@ -520,7 +520,7 @@ static int _get_log_id(void)
         }
     if (id == -1)
     {
-        int new_count = logs_allocated + 5;
+        int new_count = logs_allocated + 20;
         log_t *new_list = realloc (loglist, new_count * sizeof (log_t));
         if (new_list)
         {

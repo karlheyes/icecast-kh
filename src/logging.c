@@ -111,7 +111,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
     struct tm thetime;
     time_t now;
     time_t stayed;
-    const char *referrer, *user_agent, *username = NULL, *ip = "-";
+    const char *referrer, *user_agent, *username, *ip = "-";
     char datebuf[50];
     char reqbuf[256];
 
