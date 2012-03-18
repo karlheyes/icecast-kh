@@ -54,6 +54,14 @@ typedef struct {
     char *listener_remove;
 } auth_cmd;
 
+
+typedef struct
+{
+    char *location;
+    char errormsg [100];
+} auth_thread_data;
+
+
 static void cmd_clear(auth_t *self)
 {
     auth_cmd *cmd = self->state;
@@ -65,6 +73,7 @@ static void cmd_clear(auth_t *self)
 static void process_header (const char *p, auth_client *auth_user)
 {
     client_t *client = auth_user->client;
+    auth_thread_data *atd = auth_user->thread_data;
 
     if (strncasecmp (p, "Mountpoint: ",12) == 0)
     {
@@ -75,6 +84,26 @@ static void process_header (const char *p, auth_client *auth_user)
             auth_user->mount = new_mount;
         }
         return;
+    }
+    if (strncasecmp (p, "icecast-slave:", 14) == 0)
+        client->flags |= CLIENT_IS_SLAVE;
+    if (strncasecmp (p, "Location: ", 10) == 0)
+    {
+        int len = strcspn ((char*)p+10, "\r\n");
+        free (atd->location);
+        atd->location = malloc (len+1);
+        snprintf (atd->location, len+1, "%s", (char *)p+10);
+    }
+    if (strncasecmp (p, "ice-username: ", 14) == 0)
+    {
+        int len = strcspn ((char*)p+14, "\r\n");
+        char *name = malloc (len+1);
+        if (name)
+        {
+            snprintf (name, len+1, "%s", (char *)p+14);
+            free (client->username);
+            client->username = name;
+        }
     }
 
     if (strncasecmp (p, "icecast-auth-user: ", 19) == 0)
@@ -90,6 +119,16 @@ static void process_header (const char *p, auth_client *auth_user)
         unsigned limit;
         sscanf (p+24, "%u", &limit);
         client->connection.discon_time = time(NULL) + limit;
+    }
+    if (strncasecmp (p, "icecast-auth-message: ", 22) == 0)
+    {
+        char *eol;
+        snprintf (atd->errormsg, sizeof (atd->errormsg), "%s", (char*)p+22);
+        eol = strchr (atd->errormsg, '\r');
+        if (eol == NULL)
+            eol = strchr (atd->errormsg, '\n');
+        if (eol)
+            *eol = '\0';
     }
 }
 
@@ -213,6 +252,7 @@ static auth_result auth_cmd_client (auth_client *auth_user)
     client_t *client = auth_user->client;
     auth_t *auth = auth_user->auth;
     auth_cmd *cmd = auth->state;
+    auth_thread_data *atd = auth_user->thread_data;
     int status, len;
     const char *qargs;
     char str[512];
@@ -265,6 +305,8 @@ static auth_result auth_cmd_client (auth_client *auth_user)
             if (client->flags & CLIENT_AUTHENTICATED)
                 return AUTH_OK;
     }
+    if (atd->errormsg[0])
+        INFO3 ("listener %s (%s) returned \"%s\"", client->connection.ip, cmd->listener_add, atd->errormsg);
     return AUTH_FAILED;
 }
 
@@ -283,6 +325,23 @@ static auth_result auth_cmd_listuser (auth_t *auth, xmlNodePtr srcnode)
     return AUTH_FAILED;
 }
 
+
+static void *alloc_thread_data (auth_t *auth)
+{
+    auth_thread_data *atd = calloc (1, sizeof (auth_thread_data));
+    INFO0 ("...handler data initialized");
+    return atd;
+}
+
+
+static void release_thread_data (auth_t *auth, void *thread_data)
+{
+    auth_thread_data *atd = thread_data;
+    free (atd);
+    DEBUG1 ("...handler destroyed for %s", auth->mount);
+}
+
+
 int auth_get_cmd_auth (auth_t *authenticator, config_options_t *options)
 {
     auth_cmd *state;
@@ -292,6 +351,8 @@ int auth_get_cmd_auth (auth_t *authenticator, config_options_t *options)
     authenticator->adduser = auth_cmd_adduser;
     authenticator->deleteuser = auth_cmd_deleteuser;
     authenticator->listuser = auth_cmd_listuser;
+    authenticator->alloc_thread_data = alloc_thread_data;
+    authenticator->release_thread_data = release_thread_data;
 
     state = calloc(1, sizeof(auth_cmd));
 
