@@ -21,7 +21,9 @@
 #include "format.h"
 #include "mpeg.h"
 
-#define CLIENT_WANTS_FLV            (CLIENT_FORMAT_BIT<<10)
+#define CLIENT_WANTS_FLV            (CLIENT_FORMAT_BIT<<1)
+#define CLIENT_WANTS_META           (CLIENT_FORMAT_BIT<<2)
+
 
 typedef struct {
     refbuf_t *associated;

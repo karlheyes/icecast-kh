@@ -123,7 +123,6 @@ struct _client_tag
 
 void client_register (client_t *client);
 void client_destroy(client_t *client);
-void client_send_504(client_t *client, char *message);
 int  client_send_501(client_t *client);
 int  client_send_416(client_t *client);
 int  client_send_404(client_t *client, const char *message);
@@ -154,7 +153,8 @@ void worker_wakeup (worker_t *worker);
 #define CLIENT_SKIP_ACCESSLOG       (1<<6)
 #define CLIENT_HAS_MOVED            (1<<7)
 #define CLIENT_IP_BAN_LIFT          (1<<8)
-#define CLIENT_HIJACKER             (1<<9)
+#define CLIENT_META_INSTREAM        (1<<9)
+#define CLIENT_HIJACKER             (1<<10)
 #define CLIENT_FORMAT_BIT           (1<<16)
 
 #endif  /* __CLIENT_H__ */

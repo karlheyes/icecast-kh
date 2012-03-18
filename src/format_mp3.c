@@ -109,12 +109,14 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     metadata = httpp_getvar (plugin->parser, "icy-metaint");
     if (metadata)
     {
+        client->flags |= CLIENT_META_INSTREAM;
         state->inline_metadata_interval = atoi (metadata);
         if (state->inline_metadata_interval > 0)
         {
             state->offset = 0;
             plugin->get_buffer = mp3_get_filter_meta;
             state->interval = state->inline_metadata_interval;
+            INFO2 ("icy metadata format expected on %s, interval %d", plugin->mount, state->interval);
         }
     }
     if (client && (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG))
@@ -306,13 +308,20 @@ static void mp3_set_title (source_t *source)
     if (p)
     {
         refbuf_t *flvmeta = flv_meta_allocate (4000);
+        refbuf_t *iceblock = refbuf_new (4096);
         mpeg_sync *mpeg_sync = source->client->format_data;
         mp3_state *source_mp3 = source->format->_state;
-        int r;
+        char *ibp = iceblock->data + 2;
+        int r, n, ib_len = iceblock->len - 2;
 
         memset (p->data, '\0', size);
         p->associated = flvmeta;
+        flvmeta->associated = iceblock;
         stats_lock (source->stats, source->mount);
+
+        n = snprintf (ibp, ib_len, "mode=updinfo\n");
+        if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
+
         if (mpeg_sync)
         {
             char *str = stats_retrieve (source->stats, "server_name");
@@ -360,6 +369,9 @@ static void mp3_set_title (source_t *source)
             r = snprintf (p->data, size, "%c%s%s - %s", len_byte, streamtitle,
                     source_mp3->url_artist, source_mp3->url_title);
             flv_meta_append_string (flvmeta, "artist", source_mp3->url_artist);
+
+            n = snprintf (ibp, ib_len, "artist=%s\n", source_mp3->url_artist);
+            if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
         }
         else
         {
@@ -369,6 +381,10 @@ static void mp3_set_title (source_t *source)
         logging_playlist (source->mount, p->data+14, source->listeners);
         strcat (p->data+14, "';");
         flv_meta_append_string (flvmeta, "title", source_mp3->url_title);
+
+        n = snprintf (ibp, ib_len, "title=%s\n", source_mp3->url_title);
+        if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
+
         if (r > 0)
         {
             r += 2;
@@ -377,18 +393,30 @@ static void mp3_set_title (source_t *source)
                 snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->inline_url);
                 flv_meta_append_string (flvmeta, "URL", source_mp3->inline_url);
                 stats_set (source->stats, "metadata_url", source_mp3->inline_url);
+
+                 n = snprintf (ibp, ib_len, "URL=%s\n", source_mp3->inline_url);
+                 if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
             }
             else if (source_mp3->url)
             {
                 snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->url);
                 flv_meta_append_string (flvmeta, "URL", source_mp3->url);
                 stats_set (source->stats, "metadata_url", source_mp3->url);
+                n = snprintf (ibp, ib_len, "URL=%s\n", source_mp3->url);
+                if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
             }
         }
         DEBUG1 ("icy metadata as %.80s...", p->data+1);
         yp_touch (source->mount);
 
         flv_meta_append_string (flvmeta, NULL, NULL);
+
+        if (ib_len > 0) ib_len--; // add nul char to help parsing
+        iceblock->len -= ib_len;
+        iceblock->data[iceblock->len-1] = 0;
+        iceblock->data[0] = ((iceblock->len >> 8) & 0x7F) | 0x80;
+        iceblock->data[1] = iceblock->len & 0xFF;
+
         refbuf_release (source_mp3->metadata);
         source_mp3->metadata = p;
         stats_set_time (source->stats, "metadata_updated", STATS_GENERAL, source->client->worker->current_time.tv_sec);
@@ -524,8 +552,60 @@ static int format_mp3_write_buf_to_client (client_t *client)
 }
 
 
+static int send_iceblock_to_client (client_t *client) 
+{
+    int ret = -1, len = 0, skip = 0;
+    mp3_client_data *client_mpg = client->format_data;
+    refbuf_t *refbuf = client->refbuf;
+    unsigned char lengthbytes[2];
+    struct connection_bufs v;
+
+    connection_bufs_init (&v, 2);
+    if (refbuf->associated != client_mpg->associated)
+    {
+        refbuf_t *meta = refbuf->associated;
+        if (meta && meta->associated && meta->associated->associated)
+        {
+            meta = meta->associated->associated;
+            connection_bufs_append (&v, meta->data, meta->len);
+        }
+    }
+    skip = connection_bufs_append (&v, lengthbytes, 2);
+    len = connection_bufs_append (&v, refbuf->data, refbuf->len);
+
+    lengthbytes[0] = ((refbuf->len+2) >> 8) & 0x7F;
+    lengthbytes[1] = (refbuf->len+2) & 0xFF;
+    ret = connection_bufs_send (&client->connection, &v, client_mpg->metadata_offset);
+    connection_bufs_release (&v);
+
+    if (ret > 0)
+    {
+        client_mpg->metadata_offset += ret;
+        if (client_mpg->metadata_offset > skip)
+            client->queue_pos += (client_mpg->metadata_offset - skip);
+    }
+
+    if (client_mpg->metadata_offset >= len)
+    {
+        client->pos = refbuf->len;
+        if (refbuf->associated != client_mpg->associated)
+        {
+            refbuf_addref (refbuf->associated);
+            refbuf_release (client_mpg->associated);
+            client_mpg->associated = refbuf->associated;
+        }
+        client_mpg->metadata_offset = 0;
+    }
+    else
+        client->schedule_ms += 50;
+    return ret;
+}
+
+
 static int write_mpeg_buf_to_client (client_t *client) 
 {
+    if (client->flags & CLIENT_WANTS_META)
+        return send_iceblock_to_client (client);
     if (client->flags & CLIENT_WANTS_FLV)
         return write_flv_buf_to_client (client);
     return format_mp3_write_buf_to_client (client);
@@ -862,22 +942,32 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     remaining -= bytes;
     ptr += bytes; 
 
-    /* check for shoutcast style metadata inserts */
-    metadata = httpp_getvar(client->parser, "icy-metadata");
-    if (metadata && atoi(metadata))
+    if (httpp_getvar (client->parser, "iceblocks"))
     {
-        if (source_mp3->interval >= 0)
-            client_mp3->interval = source_mp3->interval;
-        else
-            client_mp3->interval = ICY_METADATA_INTERVAL;
-        if (client_mp3->interval)
+        client->flags |= CLIENT_WANTS_META;
+        bytes = snprintf (ptr, remaining, "IceBlocks: 1\r\n");
+        remaining -= bytes;
+        ptr += bytes;
+    }
+    else
+    {
+        /* check for shoutcast style metadata inserts */
+        metadata = httpp_getvar(client->parser, "icy-metadata");
+        if (metadata && atoi(metadata))
         {
-            bytes = snprintf (ptr, remaining, "icy-metaint:%u\r\n",
-                    client_mp3->interval);
-            if (bytes > 0)
+            if (source_mp3->interval >= 0)
+                client_mp3->interval = source_mp3->interval;
+            else
+                client_mp3->interval = ICY_METADATA_INTERVAL;
+            if (client_mp3->interval)
             {
-                remaining -= bytes;
-                ptr += bytes;
+                bytes = snprintf (ptr, remaining, "icy-metaint:%u\r\n",
+                        client_mp3->interval);
+                if (bytes > 0)
+                {
+                    remaining -= bytes;
+                    ptr += bytes;
+                }
             }
         }
     }
