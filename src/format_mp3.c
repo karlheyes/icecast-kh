@@ -319,7 +319,7 @@ static void mp3_set_title (source_t *source)
         flvmeta->associated = iceblock;
         stats_lock (source->stats, source->mount);
 
-        n = snprintf (ibp, ib_len, "mode=updinfo\n");
+        n = snprintf (ibp, ib_len, "%cmode=updinfo\n", 0);
         if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
 
         if (mpeg_sync)
