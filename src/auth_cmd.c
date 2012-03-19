@@ -306,7 +306,14 @@ static auth_result auth_cmd_client (auth_client *auth_user)
                 return AUTH_OK;
     }
     if (atd->errormsg[0])
+    {
         INFO3 ("listener %s (%s) returned \"%s\"", client->connection.ip, cmd->listener_add, atd->errormsg);
+        if (atoi (atd->errormsg) == 403)
+        {
+            auth_user->client = NULL;
+            client_send_403 (client, atd->errormsg+4);
+        }
+    }
     if (atd->location)
     {
         client_send_302 (client, atd->location);
