@@ -945,7 +945,7 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     if (httpp_getvar (client->parser, "iceblocks"))
     {
         client->flags |= CLIENT_WANTS_META;
-        bytes = snprintf (ptr, remaining, "IceBlocks: 1\r\n");
+        bytes = snprintf (ptr, remaining, "IceBlocks: 1.1\r\n");
         remaining -= bytes;
         ptr += bytes;
     }
