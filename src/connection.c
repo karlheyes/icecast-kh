@@ -1198,7 +1198,7 @@ int connection_complete_source (source_t *source)
     {
         WARN0("No content-type header, falling back to backwards compatibility mode "
                 "for icecast 1.x relays. Assuming content is mp3.");
-        format_type = FORMAT_TYPE_GENERIC;
+        format_type = FORMAT_TYPE_MPEG;
     }
 
     format_plugin_clear (source->format, client);
