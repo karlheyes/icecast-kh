@@ -333,6 +333,7 @@ int admin_handle_request (client_t *client, const char *uri)
             mount = httpp_get_query_param (client->parser, "mount");
         }
         httpp_setvar (client->parser, HTTPP_VAR_PROTOCOL, "ICY");
+        httpp_setvar (client->parser, HTTPP_VAR_ICYPASSWORD, pass);
         client->username = strdup ("source");
         client->password = strdup (pass);
     }
