@@ -125,6 +125,7 @@ struct build_intro_contents
     format_type_t type;
     mpeg_sync sync;
     refbuf_t *head, **tailp;
+    size_t intro_len;
 };
 
 static void auth_url_clear(auth_t *self)
@@ -306,6 +307,7 @@ static int handle_returned_data (void *ptr, size_t size, size_t nmemb, void *str
         {
             *x->tailp = n;
             x->tailp = &n->next;
+            x->intro_len += n->len;
         }
     }
     return (int)(bytes);
@@ -497,6 +499,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     x = (void *)client->refbuf->data;
     x->type = 0;
     x->head = NULL;
+    x->intro_len = 0;
     x->tailp = &x->head;
 
     DEBUG1 ("handler %d sending request", auth_user->handler);
@@ -508,7 +511,10 @@ static auth_result url_add_listener (auth_client *auth_user)
     if (client->flags & CLIENT_AUTHENTICATED)
     {
         if (client->flags & CLIENT_HAS_INTRO_CONTENT)
+        {
             client->refbuf->next = x->head;
+            DEBUG3 ("intro (%d) received %lu for %s", x->type, (unsigned long)x->intro_len, client->connection.ip);
+        }
         if (x->head == NULL)
             client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
         x->head = NULL;
