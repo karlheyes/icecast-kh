@@ -417,6 +417,30 @@ static int do_yp_remove (ypdata_t *yp, char *s, unsigned len)
 }
 
 
+/* the incoming rate can vary a fair bit so to get the expected value I add about 10%
+ * (to handle lower figures) and then refer to the most significant 3 bits using shift
+ * ops.  This should give us a resoanble estimation for YP
+ */
+static void set_bitrate_from_inrate (ypdata_t *yp)
+{
+    char *value = stats_get_value (yp->mount, "incoming_bitrate");
+    if (value)
+    {
+        long v = atol (value), c = 0;
+        char buf [12];
+
+        v = (long)(v*1.1) + 5;
+        for (; v > 7; c++)
+            v >>= 1;
+        v <<= c;
+        v /= 1024;
+        snprintf (buf, sizeof buf, "%ld", v);
+        add_yp_info (yp, buf, YP_BITRATE);
+        free (value);
+    }
+}
+
+
 static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
 {
     int ret;
@@ -439,10 +463,13 @@ static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
     free (value);
 
     value = stats_get_value (yp->mount, "bitrate");
-    if (value == NULL)
-        value = stats_get_value (yp->mount, "incoming_bitrate");
-    add_yp_info (yp, value, YP_BITRATE);
-    free (value);
+    if (value)
+    {
+        add_yp_info (yp, value, YP_BITRATE);
+        free (value);
+    }
+    else
+        set_bitrate_from_inrate (yp);
 
     value = stats_get_value (yp->mount, "server_description");
     add_yp_info (yp, value, YP_SERVER_DESC);
