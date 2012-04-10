@@ -278,7 +278,7 @@ static void auth_remove_listener (auth_client *auth_user)
     {
         client_t *client = auth_user->client;
         if (client->worker)
-            client->flags = CLIENT_ACTIVE | (client->flags & ~CLIENT_AUTHENTICATED);
+            client_send_404 (client, NULL);
         else
         {
             client->flags &= ~CLIENT_AUTHENTICATED;
@@ -653,7 +653,7 @@ int auth_release_listener (client_t *client, const char *mount, mount_proxy *mou
         }
         client->flags &= ~CLIENT_AUTHENTICATED;
     }
-    return -1;
+    return client_send_404 (client, NULL);
 }
 
 

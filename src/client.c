@@ -239,7 +239,9 @@ int client_send_404 (client_t *client, const char *message)
         return 0;
     }
     client_set_queue (client, NULL);
-    if (client->respcode == 0)
+    if (client->respcode)
+        client->flags = CLIENT_ACTIVE | (client->flags & ~CLIENT_AUTHENTICATED);
+    else
     {
         if (message == NULL)
             message = "Not Available";

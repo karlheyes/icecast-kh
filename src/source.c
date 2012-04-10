@@ -1790,6 +1790,10 @@ void source_client_release (client_t *client)
 
 static int source_listener_release (source_t *source, client_t *client)
 {
+    int ret;
+    ice_config_t *config;
+    mount_proxy *mountinfo;
+
     /* search through sources client list to find previous link in list */
     source_listener_detach (source, client);
     client->shared_data = NULL;
@@ -1800,20 +1804,15 @@ static int source_listener_release (source_t *source, client_t *client)
     /* change of listener numbers, so reduce scope of global sampling */
     global_reduce_bitrate_sampling (global.out_bitrate);
 
-    if (client->respcode)
-    {
-        int ret;
-        ice_config_t *config = config_get_config ();
-        mount_proxy *mountinfo = config_find_mount (config, source->mount);
+    config = config_get_config ();
+    mountinfo = config_find_mount (config, source->mount);
 
-        if (mountinfo && mountinfo->access_log.name)
-            logging_access_id (&mountinfo->access_log, client);
+    if (mountinfo && mountinfo->access_log.name)
+        logging_access_id (&mountinfo->access_log, client);
 
-        ret = auth_release_listener (client, source->mount, mountinfo);
-        config_release_config();
-        return ret;
-    }
-    return client_send_404 (client, NULL); // failed on-demand relay? 
+    ret = auth_release_listener (client, source->mount, mountinfo);
+    config_release_config();
+    return ret;
 }
 
 
