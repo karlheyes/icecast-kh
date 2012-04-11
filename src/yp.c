@@ -530,7 +530,7 @@ static int do_yp_touch (ypdata_t *yp, char *s, unsigned len)
          {
              sprintf (song, "%s%s%s", artist, separator, title);
              add_yp_info(yp, song, YP_CURRENT_SONG);
-             stats_event (yp->mount, "yp_currently_playing", song);
+             stats_event_flags (yp->mount, "yp_currently_playing", song, STATS_COUNTERS);
              free (song);
          }
     }
