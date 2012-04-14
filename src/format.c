@@ -212,17 +212,36 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 
         if (useragent)
         {
-            if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
-                protocol = "ICY";
-            if (strstr (useragent, "Shoutcast Server")) /* hack for sc_serv */
-                contenttypehdr = "content-type";
-            // if (strstr (useragent, "Sonos"))
-                // contenttypehdr = "content-type";
-            if (plugin->type == FORMAT_TYPE_AAC)
+            const char *resp = httpp_get_query_param (client->parser, "_hdr");
+            int fmtcode = 0;
+#define FMT_RETURN_ICY          1
+#define FMT_LOWERCASE_TYPE      2
+#define FMT_FORCE_AAC           4
+
+            if (resp)
+                fmtcode = atoi (resp);
+            else
             {
-                if (strstr (useragent, "BlackBerry"))
-                    contenttype="audio/aac";
+                if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
+                    fmtcode = FMT_RETURN_ICY;
+                if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
+                    fmtcode = FMT_RETURN_ICY;
+                if (strstr (useragent, "Shoutcast Server")) /* hack for sc_serv */
+                    fmtcode = FMT_LOWERCASE_TYPE;
+                // if (strstr (useragent, "Sonos"))
+                //    contenttypehdr = "content-type";
+                if (plugin->type == FORMAT_TYPE_AAC)
+                {
+                    if (strstr (useragent, "BlackBerry"))
+                        fmtcode = FMT_FORCE_AAC;
+                }
             }
+            if (fmtcode & FMT_RETURN_ICY)
+                protocol = "ICY";
+            if (fmtcode & FMT_LOWERCASE_TYPE)
+                contenttypehdr = "content-type";
+            if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
+                contenttype = "audio/aac";
         }
         bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
                 "%s: %s\r\n", protocol, contenttypehdr, contenttype);
