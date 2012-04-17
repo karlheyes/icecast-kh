@@ -16,21 +16,25 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
-kh31.4
+. Reduce memory copies with large stream lists from master
+. internal FLV buffer management cleaned up, possible crash case avoided.
+. return 501 instead of 400 for HEAD requests, helps some players.
+. stats updating reduced now that relays always have clients, also reduce locking.
+. missing user/pass setting for metadata update from shoutcast style source and url auth
+. Experimental. send variable block framing if requested by listener
+. Experimental. allow <include>/dir/*.xml</include> in <icecast> for breaking xml up
+. Experimental. webm work by David Richards
+. Experimental.  source client hijacking. replace existing source with another. has to
+  to allowed via auth url currently to prevent bouncing of clients with auto-reconnect.
 . Add duration to all access, error and playlist logs, allows re-opening them after a
   number of seconds elapsed, 0 by default. set size trigger to 50Meg default.
-
-kh31.3
-. possible busy loop since kh31 in cases where fallback is defined
-
-kh31.2
+. possible busy loop in kh31 in cases where fallback is defined
 . fix for win32 error reporting and missing uninstall link in programs list
-. make previous format checks not break webroot files.
-
-kh31.1
 . added "timeout" (default 5) and "on_error_wait" (default 60) to auth url options.
-. Added missing stream format checks in certain error cases.
-. small fix for icy metadata length calculation
+. sync up headers handled by auth cmd with auth url.
+. Added missing stream format checks for certain error cases.
+. speedup for icy metadata and avoid length bug on inline urls.
+. A number of possible lock fixes and checks are now added for odd cases.
 
 2.3.2-kh31
 . Add generic scattered IO routines, listeners wanting FLV wrapping now use this which

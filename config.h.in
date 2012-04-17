@@ -261,9 +261,6 @@ typedef int socklen_t;
 /* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
 
-/* Define for ipv6 on win32 */
-#undef _WIN32_WINNT
-
 /* Replace __func__ if not supported */
 #undef __func__
 
