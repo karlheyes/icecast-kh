@@ -854,6 +854,7 @@ static client_t *accept_client (void)
         num = global.clients;
         global_unlock ();
         stats_event_args (NULL, "clients", "%d", num);
+        client->flags |= CLIENT_ACTIVE;
         return client;
     } while (0);
 

@@ -50,11 +50,8 @@ int worker_count;
 
 void client_register (client_t *client)
 {
-    if (client && client->connection.sock)
-    {
-        client->flags |= CLIENT_ACTIVE;
+    if (client)
         global.clients++;
-    }
 }
 
 
