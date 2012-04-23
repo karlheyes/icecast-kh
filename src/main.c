@@ -42,6 +42,9 @@
 #include <grp.h>
 #include <pwd.h>
 #endif
+#ifdef HAVE_GETRLIMIT
+#include <sys/resource.h>
+#endif
 
 #include "cfgfile.h"
 #include "sighandler.h"
@@ -229,9 +232,31 @@ void server_process (void)
     auth_shutdown();
 }
 
+
+/* unix traditionally defaults to 1024 open FDs max, which is often a restriction for icecast
+ * so here (as root) we check the current limit against clients allowed and up it while we can
+ */
+static void check_open_file_limit (ice_config_t *config)
+{
+#ifdef HAVE_GETRLIMIT
+    struct rlimit rlimit;
+    if (getrlimit (RLIMIT_NOFILE, &rlimit) == 0)
+    {
+        if (rlimit.rlim_max < config->client_limit)
+        {
+            rlim_t old = rlimit.rlim_max;
+            rlimit.rlim_cur = rlimit.rlim_max = config->client_limit;
+            if (setrlimit (RLIMIT_NOFILE, &rlimit) < 0)
+                fprintf (stderr, "failed to increase max number of open files from %lu to %lu\n",
+                        (unsigned long)old, (unsigned long)config->client_limit);
+        }
+    }
+#endif
+}
+
+
 /* chroot the process. Watch out - we need to do this before starting other
  * threads. Change uid as well, after figuring out uid _first_ */
-
 static void _ch_root_uid_setup(void)
 {
    ice_config_t *conf = config_get_config_unlocked();
@@ -260,6 +285,8 @@ static void _ch_root_uid_setup(void)
        }
    }
 #endif
+
+   check_open_file_limit (conf);
 
 #ifdef HAVE_CHROOT
    if (conf->chroot)
