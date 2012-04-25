@@ -1189,7 +1189,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 {
     int bitrate = 0;
     client_t *client = source->client;
-    time_t connected;
+    source_t *dest;
 
     if (dest_mount == NULL)
     {
@@ -1201,18 +1201,26 @@ void source_set_fallback (source_t *source, const char *dest_mount)
         INFO2 ("fallback on %s to %s, but no listeners", source->mount, dest_mount);
         return;
     }
-    connected = client->worker->current_time.tv_sec - client->connection.con_time;
-    if (connected > 40)
-        bitrate = (int)rate_avg (source->format->in_bitrate);
-    if (bitrate == 0 && source->limit_rate)
-        bitrate = source->limit_rate;
+    avl_tree_rlock (global.source_tree);
+    dest = source_find_mount (dest_mount);
+    if (dest)
+    {
+        time_t connected = client->worker->current_time.tv_sec - client->connection.con_time;
+        if (connected > 40)
+            bitrate = (int)rate_avg (source->format->in_bitrate);
+        if (bitrate == 0 && source->limit_rate)
+            bitrate = source->limit_rate;
 
-    source->fallback.flags = FS_FALLBACK;
-    source->fallback.mount = strdup (dest_mount);
-    source->fallback.limit = bitrate;
-    source->fallback.type = source->format->type;
-    INFO4 ("fallback set on %s to %s(%d) with %d listeners", source->mount, dest_mount,
-            source->fallback.limit, source->listeners);
+        source->fallback.flags = FS_FALLBACK;
+        source->fallback.mount = strdup (dest->mount);
+        source->fallback.limit = bitrate;
+        source->fallback.type = source->format->type;
+        INFO4 ("fallback set on %s to %s(%d) with %d listeners", source->mount, dest->mount,
+                source->fallback.limit, source->listeners);
+    }
+    else
+        INFO2 ("fallback on %s to %s, but no stream", source->mount, dest_mount);
+    avl_tree_unlock (global.source_tree);
 }
 
 

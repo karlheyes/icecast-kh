@@ -395,23 +395,26 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
             rate = minfo->limit_rate;
         source = source_find_mount_raw (where.mount);
 
-        if (source == NULL)
+        if (source == NULL && minfo == NULL)
             break;
-        thread_mutex_lock (&source->lock);
-        if (source_available (source))
+        if (source)
         {
-            // an unused on-demand relay will still have an unitialised type
-            if (source->format->type == finfo->type || source->format->type == FORMAT_TYPE_UNDEFINED)
+            thread_mutex_lock (&source->lock);
+            if (source_available (source))
             {
-                config_release_config();
-                avl_tree_unlock (global.source_tree);
-                source_setup_listener (source, client);
-                client->flags |= CLIENT_HAS_MOVED;
-                thread_mutex_unlock (&source->lock);
-                return 0;
+                // an unused on-demand relay will still have an unitialised type
+                if (source->format->type == finfo->type || source->format->type == FORMAT_TYPE_UNDEFINED)
+                {
+                    config_release_config();
+                    avl_tree_unlock (global.source_tree);
+                    source_setup_listener (source, client);
+                    client->flags |= CLIENT_HAS_MOVED;
+                    thread_mutex_unlock (&source->lock);
+                    return 0;
+                }
             }
+            thread_mutex_unlock (&source->lock);
         }
-        thread_mutex_unlock (&source->lock);
         free (where.mount);
         if (minfo && minfo->fallback_mount)
             where.mount = strdup (minfo->fallback_mount);
