@@ -984,11 +984,21 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
 static void swap_client (client_t *new_client, client_t *old_client)
 {
     mpeg_sync *mpeg_sync = old_client->format_data;
+    unsigned len = 0;
 
     new_client->format_data = mpeg_sync;
     old_client->format_data = NULL;
-
-    mpeg_sync->mount = new_client->connection.ip;
+    if (mpeg_sync)
+    {
+        mpeg_sync->mount = new_client->connection.ip;
+        if (mpeg_sync->surplus)
+        {
+            len = mpeg_sync->surplus->len;
+            refbuf_release (mpeg_sync->surplus);
+        }
+        mpeg_sync->surplus = NULL;
+    }
+    DEBUG1 ("moving mpeg sync over to new client, and flushing %d", len);
 }
 
 

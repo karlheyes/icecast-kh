@@ -579,17 +579,13 @@ static int source_client_read (client_t *client)
 {
     source_t *source = client->shared_data;
 
-    thread_mutex_lock (&source->lock);
-    if (source->flags & SOURCE_HIJACK)
+    if (source == NULL)
     {
-        INFO1 ("source %s hijacked by another client, terminating", source->mount);
-        source->flags &= ~SOURCE_HIJACK;
-        source->format->parser = source->client->parser;
-        thread_mutex_unlock (&source->lock);
-        client->shared_data = NULL;
-        client->flags &= ~CLIENT_AUTHENTICATED;
+        INFO1 ("source client from %s hijacked", client->connection.ip);
         return -1;
     }
+
+    thread_mutex_lock (&source->lock);
     if (client->connection.discon_time &&
             client->connection.discon_time <= client->worker->current_time.tv_sec)
     {
@@ -1759,7 +1755,7 @@ static int source_client_shutdown (client_t *client)
     }
     thread_mutex_lock (&source->lock);
     if (source->listeners)
-        DEBUG1 ("remaining listeners to process is %d", source->listeners);
+        INFO1 ("remaining listeners to process is %d", source->listeners);
     /* listeners handled now */
     if (source->wait_time)
     {
@@ -1786,6 +1782,7 @@ void source_client_release (client_t *client)
 
     thread_mutex_lock (&source->lock);
     source->flags &= ~(SOURCE_RUNNING|SOURCE_ON_DEMAND);
+    client->flags &= ~CLIENT_AUTHENTICATED;
     /* log bytes read in access log */
     if (source->format)
         client->connection.sent_bytes = source->format->read_bytes;
@@ -2045,15 +2042,20 @@ static void source_swap_client (source_t *source, client_t *client)
 {
     client_t *old_client = source->client;
 
+    INFO1 ("source %s hijacked by another client, terminating old one", source->mount);
     client->shared_data = source;
     source->client = client;
+
+    old_client->schedule_ms = client->worker->time_ms;
+    old_client->shared_data = NULL;
+    old_client->flags &= ~CLIENT_AUTHENTICATED;
+    old_client->connection.sent_bytes = source->format->read_bytes;
+
+    source->format->read_bytes = 0;
+    source->format->parser = source->client->parser;
     if (source->format->swap_client)
         source->format->swap_client (client, old_client);
-    source->flags |= SOURCE_HIJACK;
-    client->schedule_ms = client->worker->time_ms + 20;
-    old_client->schedule_ms = client->worker->time_ms;
-    old_client->connection.sent_bytes = source->format->read_bytes;
-    source->format->read_bytes = 0;
+
     worker_wakeup (old_client->worker);
 }
 
@@ -2065,16 +2067,18 @@ int source_startup (client_t *client, const char *uri)
 
     if (source)
     {
+        thread_mutex_lock (&source->lock);
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
-            thread_mutex_lock (&source->lock);
             source_swap_client (source, client);
         }
         else
         {
             ice_config_t *config = config_get_config();
             int source_limit = config->source_limit;
+
             config_release_config();
+            thread_mutex_unlock (&source->lock);
             global_lock();
             if (global.sources >= source_limit)
             {
