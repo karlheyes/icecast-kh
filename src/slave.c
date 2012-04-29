@@ -1314,13 +1314,13 @@ static int relay_read (client_t *client)
     if (source->termination_count && source->termination_count <= source->listeners)
     {
         client->schedule_ms = client->worker->time_ms + 150;
-        if (client->worker->current_time.tv_sec - client->timer_start > 2)
-        {
-            client->schedule_ms += 400;
-            WARN3 ("counts are %lu and %lu (%s)", source->termination_count, source->listeners, source->mount);
-        }
+        if (client->timer_start + 1500 < client->worker->time_ms)
+        {               
+            WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount);
+            source->flags &= ~SOURCE_TERMINATING;
+        }   
         else
-            DEBUG3 ("counts are %lu and %lu (%s)", source->termination_count, source->listeners, source->mount);
+            DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
         thread_mutex_unlock (&source->lock);
         return 0;
     }
@@ -1344,6 +1344,7 @@ static int relay_read (client_t *client)
         if (source->listeners)
         {
             INFO1 ("listeners on terminating relay %s, rechecking", relay->localmount);
+            client->timer_start = client->worker->time_ms;
             source->termination_count = source->listeners;
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
             source->flags |= SOURCE_LISTENERS_SYNC;

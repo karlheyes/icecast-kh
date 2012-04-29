@@ -409,7 +409,12 @@ int source_read (source_t *source)
         {
             if (source->termination_count)
             {
-                client->schedule_ms += 20;
+                if (client->timer_start + 1500 < client->worker->time_ms)
+                {
+                    source->flags &= ~(SOURCE_RUNNING|SOURCE_LISTENERS_SYNC);
+                    WARN1 ("stopping %s as sync mode lasted too long", source->mount);
+                }
+                client->schedule_ms += 30;
                 thread_mutex_unlock (&source->lock);
                 return 0;
             }
@@ -614,7 +619,13 @@ static int source_client_read (client_t *client)
 
         if (source->termination_count && source->termination_count <= source->listeners)
         {
-            DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
+            if (client->timer_start + 1500 < client->worker->time_ms)
+            {
+                WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
+                source->flags &= ~SOURCE_TERMINATING;
+            }
+            else
+                DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
             client->schedule_ms = client->worker->time_ms + 100;
         }
         else
@@ -623,6 +634,7 @@ static int source_client_read (client_t *client)
             {
                 INFO1 ("listeners on terminating source %s, rechecking", source->mount);
                 source->termination_count = source->listeners;
+                client->timer_start = client->worker->time_ms;
                 source->flags &= ~SOURCE_PAUSE_LISTENERS;
                 source->flags |= SOURCE_LISTENERS_SYNC;
                 thread_mutex_unlock (&source->lock);
@@ -946,7 +958,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
     /* wait for all source listeners to go through this */
     // DEBUG1 ("listener now waiting for the other %d listeners", source->termination_count);
     client->ops = &listener_wait_ops;
-    client->schedule_ms = client->worker->time_ms + 60;
+    client->schedule_ms = client->worker->time_ms + 100;
     return 0;
 }
 
@@ -1160,6 +1172,7 @@ static int source_set_override (const char *mount, const char *dest, format_type
                     source->fallback.mount = strdup (dest);
                     source->fallback.type = type;
                     source->termination_count = source->listeners;
+                    source->client->timer_start = source->client->worker->time_ms;
                     source->flags |= SOURCE_LISTENERS_SYNC;
                     ret = 1;
                 }
@@ -1228,6 +1241,8 @@ void source_shutdown (source_t *source, int with_fallback)
 
     source->flags &= ~(SOURCE_ON_DEMAND|SOURCE_TIMEOUT);
     source->termination_count = source->listeners;
+    source->client->timer_start = source->client->worker->time_ms;
+    source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
     mountinfo = config_find_mount (config_get_config(), source->mount);
     if (source->client->connection.con_time)
     {
@@ -1243,8 +1258,6 @@ void source_shutdown (source_t *source, int with_fallback)
     if (mountinfo && with_fallback && global.running == ICE_RUNNING)
         source_set_fallback (source, mountinfo->fallback_mount);
     config_release_config();
-    source->client->timer_start = source->client->worker->current_time.tv_sec;
-    source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
 }
 
 
