@@ -111,6 +111,7 @@ void source_setup_listener (source_t *source, client_t *client);
 void source_init (source_t *source);
 void source_shutdown (source_t *source, int with_fallback);
 void source_set_fallback (source_t *source, const char *dest_mount);
+void source_listeners_wakeup (source_t *source);
 
 #define SOURCE_BLOCK_SYNC           01
 #define SOURCE_BLOCK_RELEASE        02

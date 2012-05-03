@@ -1348,6 +1348,7 @@ static int relay_read (client_t *client)
             source->termination_count = source->listeners;
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
             source->flags |= SOURCE_LISTENERS_SYNC;
+            source_listeners_wakeup (source);
             thread_mutex_unlock (&source->lock);
             return 0; /* listeners may be paused, recheck and let them leave this stream */
         }

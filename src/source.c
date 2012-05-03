@@ -139,7 +139,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         {
             if (ret_exist == 0)
                 src = NULL;
-            else if (source->flags & SOURCE_LISTENERS_SYNC)
+            else if (src->flags & SOURCE_LISTENERS_SYNC)
                 src = NULL;
             break;
         }
@@ -582,6 +582,21 @@ int source_read (source_t *source)
 }
 
 
+void source_listeners_wakeup (source_t *source)
+{
+    client_t *s = source->client;
+    avl_node *node = avl_get_first (source->clients);
+    while (node)
+    {
+        client_t *client = (client_t *)node->key;
+        if (s->schedule_ms + 100 < client->schedule_ms)
+            DEBUG2 ("listener on %s was ahead by %ld", source->mount, (long)(client->schedule_ms - s->schedule_ms));
+        client->schedule_ms = 0;
+        node = avl_get_next (node);
+    }
+}
+
+
 static int source_client_read (client_t *client)
 {
     source_t *source = client->shared_data;
@@ -612,6 +627,7 @@ static int source_client_read (client_t *client)
                 return 0;
             }
         }
+        // maybe have source read leave lock if dropping to exit ?
         return source_read (source);
     }
     else
@@ -639,6 +655,7 @@ static int source_client_read (client_t *client)
                 client->timer_start = client->worker->time_ms;
                 source->flags &= ~SOURCE_PAUSE_LISTENERS;
                 source->flags |= SOURCE_LISTENERS_SYNC;
+                source_listeners_wakeup (source);
                 thread_mutex_unlock (&source->lock);
                 return 0;
             }
@@ -1178,6 +1195,7 @@ static int source_set_override (const char *mount, source_t *dest_source, format
                     source->termination_count = source->listeners;
                     source->client->timer_start = dest_source->client->worker->time_ms;
                     source->flags |= SOURCE_LISTENERS_SYNC;
+                    source_listeners_wakeup (source);
                     ret = 1;
                 }
             }
@@ -1247,6 +1265,7 @@ void source_shutdown (source_t *source, int with_fallback)
     source->termination_count = source->listeners;
     source->client->timer_start = source->client->worker->time_ms;
     source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
+    source_listeners_wakeup (source);
     mountinfo = config_find_mount (config_get_config(), source->mount);
     if (source->client->connection.con_time)
     {
