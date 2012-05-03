@@ -226,6 +226,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     fmtcode = FMT_RETURN_ICY;
                 if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
                     fmtcode = FMT_RETURN_ICY;
+                if (strstr (useragent, "RealMedia")) /* hack for rp (mainly mobile) */
+                    fmtcode = FMT_RETURN_ICY;
                 if (strstr (useragent, "Shoutcast Server")) /* hack for sc_serv */
                     fmtcode = FMT_LOWERCASE_TYPE;
                 // if (strstr (useragent, "Sonos"))
