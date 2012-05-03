@@ -139,6 +139,8 @@ source_t *source_reserve (const char *mount, int ret_exist)
         {
             if (ret_exist == 0)
                 src = NULL;
+            else if (source->flags & SOURCE_LISTENERS_SYNC)
+                src = NULL;
             break;
         }
 
