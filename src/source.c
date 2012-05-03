@@ -78,7 +78,7 @@ static int  locate_start_on_queue (source_t *source, client_t *client);
 static int  listener_change_worker (client_t *client, source_t *source);
 static int  source_change_worker (source_t *source);
 static int  source_client_callback (client_t *client);
-static int  source_set_override (const char *mount, const char *dest, format_type_t type);
+static int  source_set_override (const char *mount, source_t *dest_source, format_type_t type);
 
 #ifdef _WIN32
 #define source_run_script(x,y)  WARN0("on [dis]connect scripts disabled");
@@ -686,7 +686,7 @@ static int locate_start_on_queue (source_t *source, client_t *client)
     /* we only want to attempt a burst at connection time, not midstream
      * however streams like theora may not have the most recent page marked as
      * a starting point, so look for one from the burst point */
-    if (source->stream_data_tail == NULL)
+    if (client->connection.error || source->stream_data_tail == NULL)
         return -1;
     refbuf = source->stream_data_tail;
     if (client->connection.sent_bytes > source->min_queue_offset && (refbuf->flags & SOURCE_BLOCK_SYNC))
@@ -969,6 +969,7 @@ static int send_listener (source_t *source, client_t *client)
     int loop = 12;   /* max number of iterations in one go */
     long total_written = 0, limiter = source->listener_send_trigger;
     int ret = 0, lag;
+    worker_t *worker = client->worker;
 
     if (source->flags & SOURCE_LISTENERS_SYNC)
         return listener_waiting_on_source (source, client);
@@ -1042,8 +1043,8 @@ static int send_listener (source_t *source, client_t *client)
         total_written += bytes;
         loop--;
     }
-    rate_add (source->format->out_bitrate, total_written, client->worker->time_ms);
-    global_add_bitrates (global.out_bitrate, total_written, client->worker->time_ms);
+    rate_add (source->format->out_bitrate, total_written, worker->time_ms);
+    global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     source->bytes_sent_since_update += total_written;
 
     /* the refbuf referenced at head (last in queue) may be marked for deletion
@@ -1139,7 +1140,7 @@ void source_init (source_t *source)
          */
 
         if (mountinfo->fallback_override && mountinfo->fallback_mount)
-            source_set_override (mountinfo->fallback_mount, source->mount, type);
+            source_set_override (mountinfo->fallback_mount, source, type);
     }
     config_release_config();
 
@@ -1152,9 +1153,10 @@ void source_init (source_t *source)
 }
 
 
-static int source_set_override (const char *mount, const char *dest, format_type_t type)
+static int source_set_override (const char *mount, source_t *dest_source, format_type_t type)
 {
     source_t *source;
+    const char *dest = dest_source->mount;
     int ret = 0;
 
     avl_tree_rlock (global.source_tree);
@@ -1172,7 +1174,7 @@ static int source_set_override (const char *mount, const char *dest, format_type
                     source->fallback.mount = strdup (dest);
                     source->fallback.type = type;
                     source->termination_count = source->listeners;
-                    source->client->timer_start = source->client->worker->time_ms;
+                    source->client->timer_start = dest_source->client->worker->time_ms;
                     source->flags |= SOURCE_LISTENERS_SYNC;
                     ret = 1;
                 }
@@ -2081,6 +2083,7 @@ int source_startup (client_t *client, const char *uri)
     if (source)
     {
         thread_mutex_lock (&source->lock);
+
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
             source_swap_client (source, client);
