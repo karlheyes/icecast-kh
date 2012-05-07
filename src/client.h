@@ -111,7 +111,7 @@ struct _client_tag
     /* the worker the client is attached to */
     worker_t *worker;
 
-    time_t timer_start;
+    uint64_t timer_start;
     uint64_t counter;
 
     /* function to call to release format specific resources */
