@@ -352,18 +352,17 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining)
     {
         unsigned char *s = start;
         int r = remaining;
-        while ((p = memchr (s, mp->fixed_headerbits[0], r)))
+        while (r && (p = memchr (s, mp->fixed_headerbits[0], r)))
         {
             if (mp->syncbytes == 1)
                 break;
             r = remaining - (p - start);
-            if (r >= mp->syncbytes)
-            {
-                if (memcmp (p, &mp->fixed_headerbits[0], mp->syncbytes) == 0)
-                    break;
-                s = p+1;
-                r--;
-            }
+            if (r < mp->syncbytes)
+                break;
+            if (memcmp (p, &mp->fixed_headerbits[0], mp->syncbytes) == 0)
+                break;
+            s = p+1;
+            r--;
         }
     }
     else
