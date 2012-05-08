@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2009-2010,  Karl Heyes <karl@xiph.org>
+ * Copyright 2009-2012,  Karl Heyes <karl@xiph.org>
  */
 
 /* mpeg.c
@@ -346,8 +346,26 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining)
 {
     int skip = 0;
     unsigned char *p = start;
+    if (remaining > 15000)
+        return 0;
     if (mp->syncbytes)
-        p = memchr (start, mp->fixed_headerbits[0], remaining);
+    {
+        unsigned char *s = start;
+        int r = remaining;
+        while ((p = memchr (s, mp->fixed_headerbits[0], r)))
+        {
+            if (mp->syncbytes == 1)
+                break;
+            r = remaining - (p - start);
+            if (r >= mp->syncbytes)
+            {
+                if (memcmp (p, &mp->fixed_headerbits[0], mp->syncbytes) == 0)
+                    break;
+                s = p+1;
+                r--;
+            }
+        }
+    }
     else
     {
         int offset = remaining;
@@ -359,9 +377,11 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining)
     {
         skip = p - start;
         memmove (start, p, remaining - skip);
+        mp->resync_count++;
     }
     return skip;
 }
+
 
 static int is_sync_byte (mpeg_sync *mp, unsigned char *p)
 {
@@ -408,12 +428,12 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         if (!is_sync_byte (mp, start))
         {
             int ret = find_align_sync (mp, start, remaining);
+            if (mp->resync_count > 10)
+                mp->syncbytes = 0; /* force an initial recheck */
             if (ret == 0 || mp->resync_count > 20)
                 break; // no sync in the rest, so dump it
             DEBUG2 ("no frame sync, re-checking after skipping %d (%d)", ret, remaining);
             new_block->len -= ret;
-            mp->resync_count++;
-            mp->syncbytes = 0; /* force an initial recheck */
             continue;
         }
         if (mp->syncbytes == 0)
