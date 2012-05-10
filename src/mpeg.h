@@ -18,20 +18,23 @@
 
 typedef struct mpeg_sync
 {
-    unsigned char fixed_headerbits[3];
-    char syncbytes;
     int (*process_frame) (struct mpeg_sync *mp, unsigned char *p, int len);
+    unsigned long mask;
+    unsigned long match;
+
+    unsigned char marker;
+    char layer;
+    char ver;
+    char channels;
+
     refbuf_t *surplus;
     long sample_count;
-    long resync_count;
     void *callback_key;
     int (*frame_callback)(struct mpeg_sync *mp, unsigned char *p, unsigned int len);
     refbuf_t *raw;
+    unsigned int resync_count;
     int raw_offset;
-    int ver;
-    int layer;
     int samplerate;
-    int channels;
     int check_numframes;
     const char *mount;
 } mpeg_sync;

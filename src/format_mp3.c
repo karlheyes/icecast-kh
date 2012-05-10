@@ -705,11 +705,11 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
 
     int unprocessed = mpeg_complete_frames (mpeg_sync, refbuf, 0);
 
-    if (unprocessed < 0 || unprocessed > 12000) /* too much unprocessed really, may not be parsing */
+    if (unprocessed < 0 || unprocessed > 20000) /* too much unprocessed really, may not be parsing */
     {
         if (unprocessed > 0 && refbuf->len)
             return 0;
-        WARN2 ("no frames detected for %s (%d)", source->mount, unprocessed);
+        WARN2 ("no frames detected for %s (%d)", source->mount, mpeg_sync->resync_count);
         source->flags &= ~SOURCE_RUNNING;
         return -1;
     }
