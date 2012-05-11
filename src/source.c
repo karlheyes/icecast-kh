@@ -1691,8 +1691,20 @@ void source_recheck_mounts (int update_all)
 
     avl_tree_rlock (global.source_tree);
 
+    stats_clear_virtual_mounts ();
+
     if (update_all)
-        stats_clear_virtual_mounts ();
+    {
+        avl_node *node = avl_get_first (global.source_tree);
+        while (node)
+        {
+            source_t *source = (source_t*)node->key;
+
+            if (source_available (source))
+                source_update_settings (config, source, config_find_mount (config, source->mount));
+            node = avl_get_next (node);
+        }
+    }
 
     while (mount)
     {
@@ -1707,8 +1719,8 @@ void source_recheck_mounts (int update_all)
         if (source == NULL || source_available (source) == 0)
         {
             source = source_find_mount (mount->mountname);
-            DEBUG3 ("fallback checking %s %p %d", mount->mountname, source, update_all);
-            if (source && update_all)
+            DEBUG2 ("fallback checking %s %p", mount->mountname, source);
+            if (source)
             {
                 long stats = stats_handle (mount->mountname);
                 stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);

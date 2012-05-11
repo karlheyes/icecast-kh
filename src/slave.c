@@ -79,7 +79,7 @@ int relays_connecting;
 int streamlister;
 
 static volatile int update_settings = 0;
-static volatile int update_all_mounts = 0;
+static volatile int update_all_sources = 0;
 static volatile int restart_connection_thread = 0;
 static time_t streamlist_check = 0;
 static rwlock_t slaves_lock;
@@ -146,32 +146,23 @@ relay_server *relay_copy (relay_server *r)
 }
 
 
-/* force a recheck of the relays. This will recheck the master server if
- * this is a slave and rebuild all mountpoints in the stats tree
+/* force a recheck of the mounts. 
  */
 void slave_update_all_mounts (void)
 {
-    update_all_mounts = 1;
     update_settings = 1;
 }
 
 
-/* called on reload, so drop all redirection and trigger a relay checkup and
+/* called on reload, so drop all redirection and trigger source checkup and
  * rebuild all stat mountpoints
  */
 void slave_restart (void)
 {
     restart_connection_thread = 1;
     slave_update_all_mounts ();
+    update_all_sources = 1;
     streamlist_check = 0;
-}
-
-/* Request slave thread to check the relay list for changes and to
- * update the stats for the current streams.
- */
-void slave_rebuild_mounts (void)
-{
-    update_settings = 1;
 }
 
 
@@ -185,7 +176,7 @@ void slave_initialize(void)
     streamlister = 0;
     streamlist_check = 0;
     update_settings = 0;
-    update_all_mounts = 0;
+    update_all_sources = 0;
     restart_connection_thread = 0;
     redirectors = NULL;
     workers = NULL;
@@ -1036,7 +1027,7 @@ static void slave_startup (void)
 #endif
 
     update_settings = 0;
-    update_all_mounts = 0;
+    update_all_sources = 0;
 
     redirector_setup (config);
     update_master_as_slave (config);
@@ -1090,9 +1081,9 @@ static void _slave_thread(void)
 
         if (update_settings)
         {
-            source_recheck_mounts (update_all_mounts);
+            source_recheck_mounts (update_all_sources);
             update_settings = 0;
-            update_all_mounts = 0;
+            update_all_sources = 0;
             if (restart_connection_thread)
             {
                 connection_thread_startup();
