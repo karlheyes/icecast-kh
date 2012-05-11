@@ -156,7 +156,13 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remain
     if (frame_len <= 0)
     {
         if (frame_len < 0)
-            INFO1 ("detected format settings change on %s", mp->mount);
+        {
+            int samplerate = get_mpegframe_samplerate (p);
+            if (samplerate)
+                WARN2 ("detected samplerate change to %d on %s, skipping", samplerate, mp->mount);
+            else
+                INFO1 ("detected invalid frame on %s, skipping", mp->mount);
+        }
         return -1;
     }
     if (remaining - frame_len < 0)
