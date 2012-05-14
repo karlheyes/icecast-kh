@@ -46,7 +46,6 @@ typedef struct {
     int update_metadata;
     int queue_block_size;
 
-    mpeg_sync file_sync;
     refbuf_t *metadata;
     refbuf_t *read_data;
     int read_count;

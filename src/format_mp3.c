@@ -125,7 +125,6 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
         mpeg_setup (client->format_data, client->connection.ip);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
-    mpeg_setup (&state->file_sync, plugin->mount);
 
     return 0;
 }
@@ -629,7 +628,6 @@ static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *client)
     free (format_mp3->url);
     refbuf_release (format_mp3->metadata);
     refbuf_release (format_mp3->read_data);
-    mpeg_cleanup (&format_mp3->file_sync);
     free (plugin->contenttype);
     free (format_mp3);
 }
@@ -677,19 +675,12 @@ static int complete_read (source_t *source)
 int mpeg_process_buffer (client_t *client, format_plugin_t *plugin)
 {
     refbuf_t *refbuf = client->refbuf;
-    mp3_state *source_mp3 = plugin->_state;
+    mp3_client_data *client_mp3 = client->format_data;
+    mpeg_sync *file_sync = client_mp3->specific;
     int unprocessed = -1;
 
     if (refbuf)
-    {
-        unprocessed = mpeg_complete_frames (&source_mp3->file_sync, refbuf, 0);
-        if (source_mp3->metadata && refbuf->associated != source_mp3->metadata)
-        {
-            refbuf_release (refbuf->associated);
-            refbuf->associated = source_mp3->metadata;
-            refbuf_addref (source_mp3->metadata);
-        }
-    }
+        unprocessed = mpeg_complete_frames (file_sync, refbuf, 0);
     return unprocessed;
 }
 
