@@ -122,7 +122,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     if (client && (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG))
     {
         client->format_data = malloc (sizeof (mpeg_sync));
-        mpeg_setup (client->format_data, client->connection.ip);
+        mpeg_setup (client->format_data, plugin->mount);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
 

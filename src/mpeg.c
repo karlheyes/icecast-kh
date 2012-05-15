@@ -475,9 +475,11 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         ret = find_align_sync (mp, start, remaining);
         if (ret)
         {
+            if (ret == remaining && ret > 800)
+               mp->mask = 0;
             if (mp->resync_count > 20000)
             {
-                WARN0 ("no frame sync after 20k");
+                INFO1 ("no frame sync after 20k on %s", mp->mount);
                 return -1;
             }
             DEBUG2 ("no frame sync, re-checking after skipping %d (%d)", ret, new_block->len);
