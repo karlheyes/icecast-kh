@@ -46,8 +46,11 @@
 #define CATMODULE "format"
 
 
-format_type_t format_get_type(const char *contenttype)
+format_type_t format_get_type(const char *content_type)
 {
+    char contenttype [256];
+
+    sscanf (content_type, "%250[^ ;]", contenttype);
     if(strcmp(contenttype, "application/x-ogg") == 0)
         return FORMAT_TYPE_OGG; /* Backwards compatibility */
     else if(strcmp(contenttype, "application/ogg") == 0)
