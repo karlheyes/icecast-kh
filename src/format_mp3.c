@@ -393,8 +393,8 @@ static void mp3_set_title (source_t *source)
                 flv_meta_append_string (flvmeta, "URL", source_mp3->inline_url);
                 stats_set (source->stats, "metadata_url", source_mp3->inline_url);
 
-                 n = snprintf (ibp, ib_len, "URL=%s\n", source_mp3->inline_url);
-                 if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
+                n = snprintf (ibp, ib_len, "URL=%s\n", source_mp3->inline_url);
+                if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
             }
             else if (source_mp3->url)
             {

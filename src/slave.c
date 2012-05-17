@@ -146,7 +146,7 @@ relay_server *relay_copy (relay_server *r)
 }
 
 
-/* force a recheck of the mounts. 
+/* force a recheck of the mounts.
  */
 void slave_update_all_mounts (void)
 {
@@ -1277,8 +1277,8 @@ static int relay_read (client_t *client)
     if ((source->flags & SOURCE_TERMINATING) == 0)
     {
         /* this section is for once through code */
-        int fallback = 1;
-        if (client->connection.con_time)
+        int fallback = global.running == ICE_RUNNING ? 1 : 0;
+        if (client->connection.con_time && global.running == ICE_RUNNING)
         {
             if (relay->running && relay->in_use)
                 fallback = 0;
@@ -1300,6 +1300,7 @@ static int relay_read (client_t *client)
         if (relay->running == 0)
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
         // fallback listeners unless relay is to be retried
+        INFO2 ("fallback on %s %sattempted", source->mount, fallback ? "" : "not ");
         source_shutdown (source, fallback);
     }
     if (source->termination_count && source->termination_count <= source->listeners)
