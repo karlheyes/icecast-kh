@@ -407,6 +407,7 @@ int source_read (source_t *source)
         source->flags &= ~SOURCE_RUNNING;
     do
     {
+        client->schedule_ms = client->worker->time_ms;
         if (source->flags & SOURCE_LISTENERS_SYNC)
         {
             if (source->termination_count)
