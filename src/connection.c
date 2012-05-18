@@ -1481,7 +1481,7 @@ static int _handle_get_request (client_t *client)
     if (global.clients > config->client_limit)
     {
         client_limit_reached = 1;
-        WARN2 ("server client limit reached (%d/%d)", config->client_limit, global.clients);
+        WARN3 ("server client limit reached (%d/%d) for %s", config->client_limit, global.clients, client->connection.ip);
     }
     config_release_config();
 
