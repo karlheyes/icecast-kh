@@ -414,9 +414,9 @@ static refbuf_t *ogg_get_buffer (source_t *source)
     ogg_state_t *ogg_info = source->format->_state;
     format_plugin_t *format = source->format;
     char *data = NULL;
-    int bytes = 0;
+    int bytes = 0, total = 0;
 
-    while (1)
+    while (total < 15000)
     {
         while (1)
         {
@@ -465,12 +465,15 @@ static refbuf_t *ogg_get_buffer (source_t *source)
         if (bytes <= 0)
         {
             ogg_sync_wrote (&ogg_info->oy, 0);
-            return NULL;
+            source->client->schedule_ms += 50;
+            break;
         }
+        total += bytes;
         format->read_bytes += bytes;
         rate_add (format->in_bitrate, bytes, source->client->worker->current_time.tv_sec);
         ogg_sync_wrote (&ogg_info->oy, bytes);
     }
+    return NULL;
 }
 
 
