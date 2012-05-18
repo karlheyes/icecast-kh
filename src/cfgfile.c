@@ -1284,7 +1284,7 @@ mount_proxy *config_find_mount (ice_config_t *config, const char *mount)
     }
     while (mountinfo)
     {
-        if (fnmatch (mountinfo->mountname, mount, FNM_PATHNAME) == 0)
+        if (fnmatch (mountinfo->mountname, mount, 0) == 0)
             to_return = mountinfo;
         mountinfo = mountinfo->next;
     }
