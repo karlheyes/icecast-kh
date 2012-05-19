@@ -16,6 +16,22 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.2-kh33
+. Expand file open limit to match <clients> if possible, warn if less.
+. Fix possible client leak. legacy code removal.
+. updated mpeg parser to be more specific on bits to match for. It should increase
+  the tolerance for changes in the stream format (CRC, samplerate etc).
+. reload forces an update of active streams, was missing from a previous update.
+. Realplayer based apps fix for aac+. Assumes certain response header.
+. drop requirement for matching each / in mount-name.
+. content type needed truncating in rare cases before format could be set up
+. prevent too much being read in one go when reading ogg data.
+. internal change to swapping of hijacked clients, possible crash fix.
+. Add timeout for sync mode handling. Should never trigger really.
+. fallback over multiple mounts works again
+. a few small log reporting changes.
+
+2.3.2-kh32
 . Reduce memory copies with large stream lists from master
 . internal FLV buffer management cleaned up, possible crash case avoided.
 . return 501 instead of 400 for HEAD requests, helps some players.
