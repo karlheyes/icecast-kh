@@ -1140,6 +1140,8 @@ static int _parse_master (xmlNodePtr node, void *arg)
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
+    if (config->master_update_interval < 2)
+        config->master_update_interval = 60;
 
     return 0;
 }
@@ -1268,6 +1270,8 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
             return -1;
         }
     }
+    if (config->master_update_interval < 2)
+        config->master_update_interval = 60;
     return 0;
 }
 
@@ -1279,7 +1283,7 @@ mount_proxy *config_find_mount (ice_config_t *config, const char *mount)
 
     if (mount == NULL)
     {
-        WARN0 ("no mount name provided"); 
+        WARN0 ("no mount name provided");
         return NULL;
     }
     while (mountinfo)

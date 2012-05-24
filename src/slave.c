@@ -1364,6 +1364,8 @@ static int relay_read (client_t *client)
                 client->ops = &relay_init_ops;
                 break;
             }
+            if (relay->interval < 3)
+                relay->interval = 60; // if set too low then give a decent retry delay
             client->schedule_ms = client->worker->time_ms + (relay->interval * 1000);
             INFO2 ("standing by to restart relay on %s in %d seconds", relay->localmount, relay->interval);
         }
