@@ -628,11 +628,9 @@ static void process_source_event (stats_event_t *event)
 
 void stats_set_time (long handle, const char *name, int flags, time_t tm)
 {
-    struct tm local;
     char buffer[100];
 
-    localtime_r (&tm, &local);
-    strftime (buffer, sizeof (buffer), ICECAST_TIME_FMT, &local);
+    util_get_clf_time (buffer, sizeof (buffer), tm);
     stats_set_flags (handle, name, buffer, flags);
 }
 
@@ -640,11 +638,9 @@ void stats_set_time (long handle, const char *name, int flags, time_t tm)
 void stats_event_time (const char *mount, const char *name, int flags)
 {
     time_t now = time(NULL);
-    struct tm local;
     char buffer[100];
 
-    localtime_r (&now, &local);
-    strftime (buffer, sizeof (buffer), ICECAST_TIME_FMT, &local);
+    util_get_clf_time (buffer, sizeof (buffer), now);
     stats_event_flags (mount, name, buffer, flags);
 }
 

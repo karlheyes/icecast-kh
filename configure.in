@@ -157,7 +157,6 @@ if test "x$ac_cv_func_fork" = "xyes"
 then
     ICECAST_OPTIONAL="$ICECAST_OPTIONAL auth_cmd.o"
 fi
-AC_DEFINE([ICECAST_TIME_FMT],["%a, %d %b %Y %H:%M:%S %z"], [time format for strftime])
 
 dnl Make substitutions
 

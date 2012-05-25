@@ -857,3 +857,58 @@ int msvc_vsnprintf (char *buf, int len, const char *fmt, va_list ap)
     return ret;
 }
 #endif
+
+#ifdef WIN32
+/* Since strftime's %z option on win32 is different, we need
+   to go through a few loops to get the same info as %z */
+int util_get_clf_time (char *buffer, unsigned len, time_t now)
+{   
+    char        sign = '+';
+    int time_days, time_hours, time_tz;
+    int tempnum1, tempnum2;
+    struct tm thetime;
+    struct tm gmt;
+    char        timezone_string [30];
+
+    gmtime_r (&now, &gmt);
+    localtime_r (&now, &thetime);
+        
+    time_days = thetime.tm_yday - gmt.tm_yday;
+    
+    if (time_days < -1) {
+        tempnum1 = 24;
+    }
+    else {
+        tempnum1 = 1;
+    }
+    if (tempnum1 < time_days) {
+       tempnum2 = -24;
+    }
+    else {
+        tempnum2 = time_days*24;
+    }
+    
+    time_hours = (tempnum2 + thetime.tm_hour - gmt.tm_hour);
+    time_tz = time_hours * 60 + thetime.tm_min - gmt.tm_min;
+    
+    if (time_tz < 0) {
+        sign = '-';
+        time_tz = -time_tz;
+    }
+
+    snprintf (timezone_string, sizeof (timezone_string),
+            "%%d/%%b/%%Y:%%H:%%M:%%S %c%.2d%.2d", sign, time_tz / 60, time_tz % 60);
+
+    return strftime (buffer, len, timezone_string, &thetime);
+}
+#else
+
+int util_get_clf_time (char *buffer, unsigned len, time_t now)
+{
+    struct tm thetime;
+    localtime_r (&now, &thetime);
+    return strftime (buffer, len, "%d/%b/%Y:%H:%M:%S %z", &thetime);
+}
+
+#endif
+

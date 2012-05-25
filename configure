@@ -18495,9 +18495,6 @@ then
     ICECAST_OPTIONAL="$ICECAST_OPTIONAL auth_cmd.o"
 fi
 
-$as_echo "#define ICECAST_TIME_FMT \"%a, %d %b %Y %H:%M:%S %z\"" >>confdefs.h
-
-
 
 
 

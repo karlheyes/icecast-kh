@@ -37,60 +37,6 @@ void fatal_error (const char *perr);
 int errorlog = 0;
 int playlistlog = 0;
 
-#ifdef _MSC_VER
-/* Since strftime's %z option on win32 is different, we need
-   to go through a few loops to get the same info as %z */
-int get_clf_time (char *buffer, unsigned len, struct tm *t)
-{
-    char    sign;
-    char    *timezone_string;
-    struct tm gmt;
-    time_t time1 = time(NULL);
-    int time_days, time_hours, time_tz;
-    int tempnum1, tempnum2;
-    struct tm *thetime;
-    time_t now;
-
-    gmtime_r(&time1, &gmt);
-
-    time_days = t->tm_yday - gmt.tm_yday;
-
-    if (time_days < -1) {
-        tempnum1 = 24;
-    }
-    else {
-        tempnum1 = 1;
-    }
-    if (tempnum1 < time_days) {
-       tempnum2 = -24;
-    }
-    else {
-        tempnum2 = time_days*24;
-    }
-
-    time_hours = (tempnum2 + t->tm_hour - gmt.tm_hour);
-    time_tz = time_hours * 60 + t->tm_min - gmt.tm_min;
-
-    if (time_tz < 0) {
-        sign = '-';
-        time_tz = -time_tz;
-    }
-    else {
-        sign = '+';
-    }
-
-    timezone_string = calloc(1, 7);
-    snprintf(timezone_string, 7, " %c%.2d%.2d", sign, time_tz / 60, time_tz % 60);
-
-    now = time(NULL);
-
-    thetime = localtime(&now);
-    strftime (buffer, len-7, "%d/%b/%Y:%H:%M:%S", thetime);
-    strcat(buffer, timezone_string);
-	free(timezone_string);
-    return 1;
-}
-#endif
 /* 
 ** ADDR IDENT USER DATE REQUEST CODE BYTES REFERER AGENT [TIME]
 **
@@ -108,7 +54,6 @@ int get_clf_time (char *buffer, unsigned len, struct tm *t)
 void logging_access_id (access_log *accesslog, client_t *client)
 {
     const char *req = NULL;
-    struct tm thetime;
     time_t now;
     time_t stayed;
     const char *referrer, *user_agent, *username, *ip = "-";
@@ -120,14 +65,8 @@ void logging_access_id (access_log *accesslog, client_t *client)
 
     now = time(NULL);
 
-    localtime_r (&now, &thetime);
     /* build the data */
-#ifdef _MSC_VER
-    memset(datebuf, '\000', sizeof(datebuf));
-    get_clf_time(datebuf, sizeof(datebuf)-1, &thetime);
-#else
-    strftime (datebuf, sizeof(datebuf), LOGGING_FORMAT_CLF, &thetime);
-#endif
+    util_get_clf_time (datebuf, sizeof(datebuf), now);
     if (accesslog->qstr)
         req = httpp_getvar (client->parser, HTTPP_VAR_RAWURI);
     if (req == NULL)
@@ -190,9 +129,8 @@ void logging_access (client_t *client)
    you can assume that the log itself is UTF-8 encoded */
 void logging_playlist(const char *mount, const char *metadata, long listeners)
 {
-    char datebuf[128];
-    struct tm thetime;
     time_t now;
+    char datebuf[128];
 
     if (playlistlog == -1) {
         return;
@@ -200,14 +138,7 @@ void logging_playlist(const char *mount, const char *metadata, long listeners)
 
     now = time(NULL);
 
-    localtime_r (&now, &thetime);
-    /* build the data */
-#ifdef _MSC_VER
-    memset(datebuf, '\000', sizeof(datebuf));
-    get_clf_time(datebuf, sizeof(datebuf)-1, &thetime);
-#else
-    strftime (datebuf, sizeof(datebuf), LOGGING_FORMAT_CLF, &thetime);
-#endif
+    util_get_clf_time (datebuf, sizeof(datebuf), now);
     /* This format MAY CHANGE OVER TIME.  We are looking into finding a good
        standard format for this, if you have any ideas, please let us know */
     log_write_direct (playlistlog, "%s|%s|%ld|%s",

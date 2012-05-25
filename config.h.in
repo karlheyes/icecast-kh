@@ -203,9 +203,6 @@
 /* Define to 1 if you have the `xsltSaveResultToString' function. */
 #undef HAVE_XSLTSAVERESULTTOSTRING
 
-/* time format for strftime */
-#undef ICECAST_TIME_FMT
-
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR

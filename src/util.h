@@ -37,6 +37,8 @@ char *util_bin_to_hex(unsigned char *data, int len);
 char *util_url_unescape(const char *src);
 char *util_url_escape(const char *src);
 
+int util_get_clf_time (char *buffer, unsigned len, time_t now);
+
 /* String dictionary type, without support for NULL keys, or multiple
  * instances of the same key */
 typedef struct _util_dict {
