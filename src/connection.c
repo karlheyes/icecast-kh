@@ -1567,6 +1567,8 @@ int connection_setup_sockets (ice_config_t *config)
     listener = config->listen_sock;
     prev = &config->listen_sock;
     count = global.server_sockets;
+    if (count)
+        INFO1 ("%d listening sockets already open", count);
     while (listener)
     {
         int successful = 0;

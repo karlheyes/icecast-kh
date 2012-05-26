@@ -66,6 +66,8 @@
 #undef CATMODULE
 #define CATMODULE "main"
 
+static void _ch_root_uid_setup(void);
+
 static int background;
 static char *pidfile = NULL;
 
@@ -192,8 +194,13 @@ static int _server_proc_init(void)
 {
     ice_config_t *config = config_get_config_unlocked();
 
-    if (config->chuid)
-        connection_setup_sockets (config);
+    if (config->chuid && connection_setup_sockets (config) == 0)
+        return 0;
+
+    _ch_root_uid_setup(); /* Change user id and root if requested/possible */
+
+    if (config->chuid == 0 && connection_setup_sockets (config) == 0)
+        return 0;
 
     /* recreate the pid file */
     if (config->pidfile)
@@ -383,7 +390,6 @@ int server_init (int argc, char *argv[])
         _fatal_error("Server startup failed. Exiting");
         return -1;
     }
-    _ch_root_uid_setup(); /* Change user id and root if requested/possible */
     fserve_initialize();
 
 #ifdef CHUID 
