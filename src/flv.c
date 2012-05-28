@@ -294,6 +294,12 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
 }
 
 
+int flv_process_buffer (struct flv *flv, refbuf_t *refbuf)
+{
+    return mpeg_complete_frames (&flv->mpeg_sync, refbuf, 0);
+}
+
+
 int write_flv_buf_to_client (client_t *client) 
 {
     refbuf_t *ref = client->refbuf, *scmeta = ref->associated;

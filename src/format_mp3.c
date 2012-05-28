@@ -680,7 +680,11 @@ int mpeg_process_buffer (client_t *client, format_plugin_t *plugin)
     int unprocessed = -1;
 
     if (refbuf)
+    {
+        if (client->flags & CLIENT_WANTS_FLV)
+            return flv_process_buffer (client_mp3->specific, refbuf);
         unprocessed = mpeg_complete_frames (file_sync, refbuf, 0);
+    }
     return unprocessed;
 }
 
