@@ -862,7 +862,7 @@ int msvc_vsnprintf (char *buf, int len, const char *fmt, va_list ap)
 /* Since strftime's %z option on win32 is different, we need
    to go through a few loops to get the same info as %z */
 int util_get_clf_time (char *buffer, unsigned len, time_t now)
-{   
+{
     char        sign = '+';
     int time_days, time_hours, time_tz;
     int tempnum1, tempnum2;
@@ -872,9 +872,9 @@ int util_get_clf_time (char *buffer, unsigned len, time_t now)
 
     gmtime_r (&now, &gmt);
     localtime_r (&now, &thetime);
-        
+
     time_days = thetime.tm_yday - gmt.tm_yday;
-    
+
     if (time_days < -1) {
         tempnum1 = 24;
     }
@@ -887,7 +887,7 @@ int util_get_clf_time (char *buffer, unsigned len, time_t now)
     else {
         tempnum2 = time_days*24;
     }
-    
+
     time_hours = (tempnum2 + thetime.tm_hour - gmt.tm_hour);
     time_tz = time_hours * 60 + thetime.tm_min - gmt.tm_min;
     
