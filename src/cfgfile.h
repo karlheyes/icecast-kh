@@ -172,6 +172,14 @@ typedef struct _aliases {
     struct _aliases *next;
 }aliases;
 
+
+struct xforward_entry
+{
+    char *ip;
+    struct xforward_entry *next;
+};
+
+
 struct _listener_t 
 {
     struct _listener_t *next;
@@ -270,6 +278,7 @@ typedef struct ice_config_tag
     int master_redirect;
     int max_redirects;
     struct _redirect_host *redirect_hosts;
+    struct xforward_entry *xforward;
 
     relay_server *relay;
 

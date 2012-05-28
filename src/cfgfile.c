@@ -355,6 +355,13 @@ void config_clear(ice_config_t *c)
     if (c->access_log.exclude_ext) xmlFree (c->access_log.exclude_ext);
     if (c->shoutcast_mount) xmlFree(c->shoutcast_mount);
 
+    while (c->xforward)
+    {
+        struct xforward_entry *e = c->xforward;
+        c->xforward = e->next;
+        free (e->ip);
+        free (e);
+    }
     global_lock();
     while ((c->listen_sock = config_clear_listener (c->listen_sock)))
         ;
@@ -805,6 +812,20 @@ static int parse_include (xmlNodePtr include, void *arg)
 }
 
 
+static int parse_xforward (xmlNodePtr node, void *arg)
+{
+    struct xforward_entry **p = arg, *e = calloc (1, sizeof(struct xforward_entry));
+
+    e->ip = (char*)xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
+    if (e->ip)
+    {
+        e->next = *p;
+        *p = e;
+    }
+    return 0;
+}
+
+
 static int _parse_paths (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
@@ -812,6 +833,7 @@ static int _parse_paths (xmlNodePtr node, void *arg)
     {
         { "basedir",        config_get_str, &config->base_dir },
         { "logdir",         config_get_str, &config->log_dir },
+        { "x-forwarded-for",parse_xforward, &config->xforward },
         { "mime-types",     config_get_str, &config->mimetypes_fn },
         { "pidfile",        config_get_str, &config->pidfile },
         { "banfile",        config_get_str, &config->banfile },

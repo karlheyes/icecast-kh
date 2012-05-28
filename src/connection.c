@@ -1455,6 +1455,28 @@ static int _handle_get_request (client_t *client)
         serverhost = client->server_conn->bind_address;
         serverport = client->server_conn->port;
     }
+    do
+    {
+        const char *hdr = httpp_getvar (client->parser, "x-forwarded-for");
+        struct xforward_entry *xforward = config->xforward;
+        if (hdr == NULL) break;
+        while (xforward)
+        {
+            if (strcmp (xforward->ip, client->connection.ip) == 0)
+            {
+                int len = strcspn (hdr, ",") + 1;
+                char *ip = malloc (len);
+
+                snprintf (ip, len, "%s",  hdr);
+                free (client->connection.ip);
+                client->connection.ip = ip;
+                DEBUG2 ("x-forward match for %s, using %s instead", xforward->ip, ip);
+                break;
+            }
+            xforward = xforward->next;
+        }
+    } while (0);
+
     alias = config->aliases;
 
     /* there are several types of HTTP GET clients
