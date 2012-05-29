@@ -749,7 +749,7 @@ struct _client_functions throttled_file_content_ops;
 static int prefile_send (client_t *client)
 {
     refbuf_t *refbuf = client->refbuf;
-    int loop = 6, bytes, written = 0;
+    int loop = 8, bytes, written = 0;
     worker_t *worker = client->worker;
 
     while (loop)
@@ -801,7 +801,7 @@ static int prefile_send (client_t *client)
             bytes = client->check_buffer (client);
         if (bytes < 0)
         {
-            client->schedule_ms = worker->time_ms + 300;
+            client->schedule_ms = worker->time_ms + (written ? 150 : 300);
             return 0;
         }
         written += bytes;
