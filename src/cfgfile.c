@@ -1133,6 +1133,7 @@ static int _parse_limits (xmlNodePtr node, void *arg)
         { "client-timeout", config_get_int,    &config->client_timeout },
         { "header-timeout", config_get_int,    &config->header_timeout },
         { "source-timeout", config_get_int,    &config->source_timeout },
+        { "inactivity-timeout", config_get_int,    &config->inactivity_timeout },
         { NULL, NULL, NULL },
     };
     if (parse_xml_tags (node, icecast_tags))

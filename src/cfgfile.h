@@ -257,6 +257,7 @@ typedef struct ice_config_tag
     char *relay_username;
     char *relay_password;
 
+    int inactivity_timeout;
     int touch_interval;
     ice_config_dir_t *dir_list;
 

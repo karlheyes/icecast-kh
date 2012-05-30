@@ -84,6 +84,8 @@ static volatile int restart_connection_thread = 0;
 static time_t streamlist_check = 0;
 static rwlock_t slaves_lock;
 static spin_t relay_start_lock;
+static time_t inactivity_timer;
+static int inactivity_timeout;
 
 redirect_host *redirectors;
 worker_t *workers;
@@ -184,6 +186,8 @@ void slave_initialize(void)
     relays_connecting = 0;
     thread_spin_create (&relay_start_lock);
     thread_rwlock_create (&workers_lock);
+    inactivity_timeout = 0;
+    inactivity_timer = 0;
 #ifndef HAVE_CURL
     ERROR0 ("streamlist request disabled, rebuild with libcurl if required");
 #endif
@@ -1091,6 +1095,29 @@ static void _slave_thread(void)
             }
         }
         stats_global_calc();
+
+        /* allow for terminating icecast if no streams running */
+        if (inactivity_timer)
+        {
+            if (global.sources)
+            {
+                inactivity_timer = 0;
+                INFO0 ("inactivity timeout cancelled");
+            }
+            else if (inactivity_timer <= current.tv_sec)
+            {
+                INFO0 ("inactivity timeout reached, terminating server");
+                global.running = ICE_HALTING;
+            }
+        }
+        else
+        {
+            if (inactivity_timeout && global.sources == 0)
+            {
+                inactivity_timer = current.tv_sec + inactivity_timeout;
+                INFO1 ("inactivity timeout started, terminate in %d seconds", inactivity_timeout);
+            }
+        }
         thread_sleep (1000000);
     }
     connection_thread_shutdown();
@@ -1147,6 +1174,9 @@ void redirector_setup (ice_config_t *config)
         redir = redir->next;
     }
     thread_rwlock_unlock (&slaves_lock);
+
+    inactivity_timeout = config->inactivity_timeout;
+    inactivity_timer = 0;
 }
 
 
