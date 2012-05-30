@@ -102,7 +102,7 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
     memcpy (mp->raw->data + mp->raw_offset, &flv->tag[0], 16);
     connection_bufs_append (&flv->bufs, mp->raw->data + mp->raw_offset, 16);
     flv->samples += mp->sample_count;
-    flv->prev_ms = (int64_t)(flv->samples / (mp->samplerate/1000.0));
+    flv->prev_ms = (int64_t)((double)flv->samples / (mp->samplerate/1000.0));
     // The extra byte is for the flv audio id, usually 0x2F 
     flv->prev_tagsize = (len + FLVHEADER + 1);
     mp->raw_offset += 16;
@@ -125,7 +125,7 @@ static int flv_aac_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
     memcpy (mp->raw->data + mp->raw_offset, &flv->tag[0], 17);
     connection_bufs_append (&flv->bufs, mp->raw->data + mp->raw_offset, 17);
     flv->samples += mp->sample_count;
-    flv->prev_ms = (int64_t)(flv->samples / (mp->samplerate/1000.0));
+    flv->prev_ms = (int64_t)((double)flv->samples / (mp->samplerate/1000.0));
     // frame length + FLVHEADER + AVHEADER
     flv->prev_tagsize = (len + 11 + 2);
     mp->raw_offset += 17;
