@@ -990,6 +990,7 @@ static int send_listener (source_t *source, client_t *client)
     long total_written = 0, limiter = source->listener_send_trigger;
     int ret = 0, lag;
     worker_t *worker = client->worker;
+    time_t now = worker->current_time.tv_sec;
 
     if (source->flags & SOURCE_LISTENERS_SYNC)
         return listener_waiting_on_source (source, client);
@@ -998,8 +999,7 @@ static int send_listener (source_t *source, client_t *client)
         return -1;
 
     /* check for limited listener time */
-    if (client->connection.discon_time &&
-            client->worker->current_time.tv_sec >= client->connection.discon_time)
+    if (client->connection.discon_time && now >= client->connection.discon_time)
     {
         INFO1 ("time limit reached for client #%lu", client->connection.id);
         return -1;
@@ -1012,7 +1012,7 @@ static int send_listener (source_t *source, client_t *client)
     }
 
     // do we migrate this listener to the same handler as the source client
-    if (source->client->worker != client->worker)
+    if (source->client_stats_update-1 == now && source->client->worker != worker)
         if (listener_change_worker (client, source))
             return 1;
 
@@ -2214,14 +2214,16 @@ int source_change_worker (source_t *source)
 int listener_change_worker (client_t *client, source_t *source)
 {
     worker_t *this_worker = client->worker, *dest_worker;
-    long diff;
+    long diff, trigger = source->listeners + 10;
     int ret = 0;
+
+    if (trigger < 1000) trigger = 1000;
 
     thread_rwlock_rlock (&workers_lock);
     dest_worker = source->client->worker;
     diff = dest_worker->count - this_worker->count;
 
-    if (diff < 1000 && this_worker != dest_worker)
+    if (diff < trigger && this_worker != dest_worker)
     {
         thread_mutex_unlock (&source->lock);
         ret = client_change_worker (client, dest_worker);
