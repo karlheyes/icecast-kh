@@ -738,7 +738,7 @@ static void check_servers (void)
             ypdata_t *yp;
 
             source_t *source = node->key;
-            thread_mutex_lock (&source->lock);
+            thread_rwlock_rlock (&source->lock);
             if (source->yp_public && (yp = create_yp_entry (source->mount)) != NULL)
             {
                 DEBUG1 ("Adding existing mount %s", source->mount);
@@ -747,7 +747,7 @@ static void check_servers (void)
                 yp->next = server->mounts;
                 server->mounts = yp;
             }
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             node = avl_get_next (node);
         }
         avl_tree_unlock (global.source_tree);

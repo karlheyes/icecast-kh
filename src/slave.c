@@ -422,9 +422,9 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
                 break;
             }
             sock_set_blocking (streamsock, 0);
-            thread_mutex_lock (&relay->source->lock);
+            thread_rwlock_wlock (&relay->source->lock);
             client->parser = parser; // old parser will be free in the format clear
-            thread_mutex_unlock (&relay->source->lock);
+            thread_rwlock_unlock (&relay->source->lock);
             client->connection.discon_time = 0;
             client->connection.con_time = time (NULL);
             client_set_queue (client, NULL);
@@ -466,9 +466,9 @@ int open_relay (relay_server *relay)
             INFO3 ("skipping %s:%d for %s", master->ip, master->port, relay->localmount);
             continue;
         }
-        thread_mutex_unlock (&src->lock);
+        thread_rwlock_unlock (&src->lock);
         ret = open_relay_connection (client, relay, master);
-        thread_mutex_lock (&src->lock);
+        thread_rwlock_wlock (&src->lock);
 
         if (ret < 0)
             continue;
@@ -503,7 +503,7 @@ static void *start_relay_stream (void *arg)
         relay = client->shared_data;
         src = relay->source;
 
-        thread_mutex_lock (&src->lock);
+        thread_rwlock_wlock (&src->lock);
         src->flags |= SOURCE_PAUSE_LISTENERS;
         if (sources > config->source_limit)
         {
@@ -538,7 +538,7 @@ static void *start_relay_stream (void *arg)
         relay->in_use = NULL;
         INFO2 ("listener count remaining on %s is %d", src->mount, src->listeners);
         src->flags &= ~SOURCE_PAUSE_LISTENERS;
-        thread_mutex_unlock (&src->lock);
+        thread_rwlock_unlock (&src->lock);
     }
 
     thread_spin_lock (&relay_start_lock);
@@ -576,9 +576,9 @@ int relay_toggle (relay_server *relay)
     client_t *client;
     int ret = 0;
 
-    thread_mutex_lock (&source->lock);
+    thread_rwlock_wlock (&source->lock);
     client = source->client;
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     if (relay->running == 0)
     {
         client->ops = &relay_init_ops;
@@ -1294,7 +1294,7 @@ static int relay_read (client_t *client)
     relay_server *relay = get_relay_details (client);
     source_t *source = relay->source;
 
-    thread_mutex_lock (&source->lock);
+    thread_rwlock_wlock (&source->lock);
     if (source_running (source))
     {
         if (relay->cleanup) relay->running = 0;
@@ -1343,7 +1343,7 @@ static int relay_read (client_t *client)
         }   
         else
             DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         return 0;
     }
     DEBUG1 ("all listeners have now been checked on %s", relay->localmount);
@@ -1371,12 +1371,12 @@ static int relay_read (client_t *client)
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
             source->flags |= SOURCE_LISTENERS_SYNC;
             source_listeners_wakeup (source);
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             return 0; /* listeners may be paused, recheck and let them leave this stream */
         }
         INFO1 ("shutting down relay %s", relay->localmount);
         stats_event_args (source->mount, "listeners", "%lu", source->listeners);
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         stats_event (relay->localmount, NULL, NULL);
         slave_update_all_mounts();
         return -1;
@@ -1413,7 +1413,7 @@ static int relay_read (client_t *client)
     client->connection.con_time = 0;
     source->stats = 0;
 
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     connection_close (&client->connection);
     return 0;
 }
@@ -1458,12 +1458,12 @@ static int relay_initialise (client_t *client)
                 mount_proxy *mountinfo;
                 source_t *source = relay->source;
 
-                thread_mutex_lock (&source->lock);
+                thread_rwlock_wlock (&source->lock);
                 config = config_get_config();
                 mountinfo = config_find_mount (config, source->mount);
                 source->flags |= SOURCE_ON_DEMAND;
                 source_update_settings (config, source, mountinfo);
-                thread_mutex_unlock (&source->lock);
+                thread_rwlock_unlock (&source->lock);
                 config_release_config();
                 slave_update_all_mounts();
                 stats_set_flags (source->stats, "listener_connections", "0", STATS_COUNTERS);

@@ -157,7 +157,7 @@ xmlDocPtr admin_build_sourcelist (const char *mount)
             continue;
         }
 
-        thread_mutex_lock (&source->lock);
+        thread_rwlock_rlock (&source->lock);
         if (source_available (source))
         {
             ice_config_t *config;
@@ -196,7 +196,7 @@ xmlDocPtr admin_build_sourcelist (const char *mount)
                         XMLSTR(source->format->contenttype));
             }
         }
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         node = avl_get_next(node);
     }
     return(doc);
@@ -300,10 +300,10 @@ int admin_mount_request (client_t *client, const char *uri)
     else
     {
         int ret = 0;
-        thread_mutex_lock (&source->lock);
+        thread_rwlock_wlock (&source->lock);
         if (source_available (source) == 0)
         {
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             avl_tree_unlock (global.source_tree);
             INFO1("Received admin command on unavailable mount \"%s\"", mount);
             return client_send_400 (client, "Source is not available");
@@ -444,7 +444,7 @@ static int command_move_clients (client_t *client, source_t *source, int respons
     }
     if (!parameters_passed) {
         doc = admin_build_sourcelist(source->mount);
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         return admin_send_response(doc, client, response, "moveclients.xsl");
     }
     INFO2 ("source is \"%s\", destination is \"%s\"", source->mount, dest_source);
@@ -459,7 +459,7 @@ static int command_move_clients (client_t *client, source_t *source, int respons
 
     snprintf (buf, sizeof(buf), "Clients moved from %s to %s",
             source->mount, dest_source);
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     xmlNewChild(node, NULL, XMLSTR("message"), XMLSTR(buf));
     xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("1"));
 
@@ -684,7 +684,7 @@ static int command_show_listeners (client_t *client, source_t *source, int respo
         if (listener)
             stats_listener_to_xml (listener, srcnode);
     }
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
 
     return admin_send_response (doc, client, response, "listclients.xsl");
 }
@@ -698,14 +698,14 @@ static int command_show_image (client_t *client, const char *mount)
     source = source_find_mount_raw (mount);
     if (source && source->format && source->format->get_image)
     {
-        thread_mutex_lock (&source->lock);
+        thread_rwlock_rlock (&source->lock);
         avl_tree_unlock (global.source_tree);
         if (source->format->get_image (client, source->format) == 0)
         {
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             return fserve_setup_client (client);
         }
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
     }
     else
         avl_tree_unlock (global.source_tree);
@@ -821,7 +821,7 @@ static int command_manageauth (client_t *client, source_t *source, int response)
         node = xmlNewDocNode(doc, NULL, XMLSTR("icestats"), NULL);
         srcnode = xmlNewChild(node, NULL, XMLSTR("source"), NULL);
         xmlSetProp(srcnode, XMLSTR "mount", XMLSTR(source->mount));
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
 
         if (message) {
             msgnode = xmlNewChild(node, NULL, XMLSTR("iceresponse"), NULL);
@@ -838,7 +838,7 @@ static int command_manageauth (client_t *client, source_t *source, int response)
         return admin_send_response (doc, client, response, "manageauth.xsl");
     } while (0);
 
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     config_release_config ();
     return client_send_400 (client, "missing parameter");
 }
@@ -857,7 +857,7 @@ static int command_kill_source (client_t *client, source_t *source, int response
 
     source->flags &= ~SOURCE_RUNNING;
 
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     return admin_send_response (doc, client, response, "response.xsl");
 }
 
@@ -873,7 +873,7 @@ static int command_kill_client (client_t *client, source_t *source, int response
 
     if (COMMAND_REQUIRE(client, "id", idtext) < 0)
     {
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         return client_send_400 (client, "missing arg, id");
     }
 
@@ -901,7 +901,7 @@ static int command_kill_client (client_t *client, source_t *source, int response
         xmlNewChild(node, NULL, XMLSTR("message"), XMLSTR(buf));
         xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("0"));
     }
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     return admin_send_response (doc, client, response, "response.xsl");
 }
 
@@ -912,7 +912,7 @@ static int command_fallback (client_t *client, source_t *source, int response)
     mount_proxy *mountinfo;
     ice_config_t *config;
 
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     DEBUG0("Got fallback request");
     config = config_grab_config();
     mountinfo = config_find_mount (config, mount);
@@ -998,14 +998,14 @@ static int command_metadata (client_t *client, source_t *source, int response)
         {
             break;
         }
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         xmlNewChild(node, NULL, XMLSTR("message"), XMLSTR("Metadata update successful"));
         xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("1"));
         return admin_send_response(doc, client, response, "response.xsl");
 
     } while (0);
     INFO1 ("Metadata on mountpoint %s prevented", source->mount);
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     xmlNewChild(node, NULL, XMLSTR("message"), 
             XMLSTR("Mountpoint will not accept this URL update"));
     xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("1"));
@@ -1021,13 +1021,13 @@ static int command_shoutcast_metadata (client_t *client, source_t *source)
 
     if (COMMAND_REQUIRE(client, "mode", action) < 0)
     {
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         return client_send_400 (client, "missing arg, mode");
     }
 
     if ((source->flags & SOURCE_SHOUTCAST_COMPAT) == 0)
     {
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         ERROR0 ("illegal request on non-shoutcast compatible stream");
         return client_send_400 (client, "Not a shoutcast compatible stream");
     }
@@ -1037,7 +1037,7 @@ static int command_shoutcast_metadata (client_t *client, source_t *source)
         DEBUG0("Got shoutcast metadata update request");
         if (COMMAND_REQUIRE (client, "song", value) < 0)
         {
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             return client_send_400 (client, "missing arg, song");
         }
         if (source->client && strcmp (client->connection.ip, source->client->connection.ip) != 0)
@@ -1051,28 +1051,28 @@ static int command_shoutcast_metadata (client_t *client, source_t *source)
             source->format->set_tag (source->format, NULL, NULL, NULL);
 
             DEBUG2("Metadata on mountpoint %s changed to \"%s\"", source->mount, value);
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             return html_success(client, "Metadata update successful");
         }
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         return client_send_400 (client, "mountpoint will not accept URL updates");
     }
     if (strcmp (action, "viewxml") == 0)
     {
         xmlDocPtr doc;
         DEBUG0("Got shoutcast viewxml request");
-        thread_mutex_unlock (&source->lock);
+        thread_rwlock_unlock (&source->lock);
         doc = stats_get_xml (STATS_ALL, source->mount);
         return admin_send_response (doc, client, XSLT, "viewxml.xsl");
     }
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     return client_send_400 (client, "No such action");
 }
 
 
 static int command_stats_mount (client_t *client, source_t *source, int response)
 {
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     return command_stats (client, NULL);
 }
 
@@ -1191,7 +1191,7 @@ static int command_updatemetadata(client_t *client, source_t *source, int respon
     xmlDocPtr doc;
     xmlNodePtr node, srcnode;
 
-    thread_mutex_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
     doc = xmlNewDoc(XMLSTR("1.0"));
     node = xmlNewDocNode(doc, NULL, XMLSTR("icestats"), NULL);
     srcnode = xmlNewChild(node, NULL, XMLSTR("source"), NULL);
