@@ -1030,15 +1030,14 @@ static int send_listener (source_t *source, client_t *client)
         client->schedule_ms += 100;
         return 0;
     }
-    lag = source->client->queue_pos - client->queue_pos;
 
-#if 0
     // do we migrate this listener to the same handler as the source client
     if (source->client_stats_update-1 == now && source->client->worker != worker)
+    if (source->client->worker != worker && source->client_stats_update == now+1)
         if (listener_change_worker (client, source))
             return 1;
-#endif
 
+    lag = source->client->queue_pos - client->queue_pos;
     if (source->incoming_rate && lag < source->incoming_rate)
         limiter = source->incoming_rate/2;
 
@@ -1087,18 +1086,7 @@ static int send_listener (source_t *source, client_t *client)
     //rate_add (source->format->out_bitrate, total_written, worker->time_ms);
     global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     source->bytes_sent_since_update += total_written;
-#if 0
-    /* the refbuf referenced at head (last in queue) may be marked for deletion
-     * if so, check to see if this client is still referring to it */
-    if (client->refbuf && (client->refbuf->flags & SOURCE_BLOCK_RELEASE))
-    {
-        INFO3 ("Client %lu (%s) has fallen too far behind on %s, removing",
-                client->connection.id, client->connection.ip, source->mount);
-        stats_event_inc (source->mount, "slow_listeners");
-        client_set_queue (client, NULL);
-        ret = -1;
-    }
-#endif
+
     return ret;
 }
 
@@ -2214,6 +2202,11 @@ int source_change_worker (source_t *source)
     worker_t *this_worker = client->worker, *worker;
     int ret = 0;
 
+    // only do a few each time, this doesn't have to be immediate
+    if (this_worker->move_allocations == 0)
+        return 0;
+    this_worker->move_allocations--;
+
     thread_rwlock_rlock (&workers_lock);
     worker = find_least_busy_handler ();
     if (worker && worker != client->worker)
@@ -2239,16 +2232,19 @@ int source_change_worker (source_t *source)
 int listener_change_worker (client_t *client, source_t *source)
 {
     worker_t *this_worker = client->worker, *dest_worker;
-    long diff, trigger = source->listeners + 10;
+    long diff;
     int ret = 0;
 
-    if (trigger < 1000) trigger = 1000;
+    // only do a few each time, this doesn't have to be immediate
+    if (this_worker->move_allocations == 0)
+        return 0;
+    this_worker->move_allocations--;
 
     thread_rwlock_rlock (&workers_lock);
     dest_worker = source->client->worker;
     diff = dest_worker->count - this_worker->count;
 
-    if (diff < trigger && this_worker != dest_worker)
+    if (diff < 1000 && this_worker != dest_worker)
     {
         thread_rwlock_unlock (&source->lock);
         ret = client_change_worker (client, dest_worker);
