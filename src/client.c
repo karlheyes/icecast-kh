@@ -532,6 +532,7 @@ void *worker (void *arg)
         client_t *client = *prevp;
         uint64_t sched_ms = worker->time_ms+6;
 
+        worker->move_allocations = 15;
         while (client)
         {
             if (client->worker != worker) abort();

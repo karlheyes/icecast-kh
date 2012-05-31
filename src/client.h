@@ -32,6 +32,7 @@ struct _worker_t
 {
     int running;
     int count, pending_count;
+    int move_allocations;
     spin_t lock;
     int wakeup_fd[2];
 
