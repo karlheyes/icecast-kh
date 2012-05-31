@@ -74,7 +74,8 @@ typedef struct source_tag
 
     time_t last_read;
 
-    mutex_t lock;
+    //mutex_t lock;
+    rwlock_t lock;
 
     refbuf_t *stream_data;
     refbuf_t *stream_data_tail;

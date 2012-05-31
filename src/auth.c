@@ -399,7 +399,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
             break;
         if (source)
         {
-            thread_mutex_lock (&source->lock);
+            thread_rwlock_rlock (&source->lock);
             if (source_available (source))
             {
                 // an unused on-demand relay will still have an unitialised type
@@ -409,11 +409,11 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                     avl_tree_unlock (global.source_tree);
                     source_setup_listener (source, client);
                     client->flags |= CLIENT_HAS_MOVED;
-                    thread_mutex_unlock (&source->lock);
+                    thread_rwlock_unlock (&source->lock);
                     return 0;
                 }
             }
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
         }
         free (where.mount);
         if (minfo && minfo->fallback_mount)

@@ -1113,9 +1113,9 @@ xmlDocPtr stats_get_xml (int flags, const char *show_mount)
 
         if (source)
         {
-            thread_mutex_lock (&source->lock);
+            thread_rwlock_rlock (&source->lock);
             admin_source_listeners (source, node);
-            thread_mutex_unlock (&source->lock);
+            thread_rwlock_unlock (&source->lock);
             avl_tree_unlock (global.source_tree);
         }
         else
