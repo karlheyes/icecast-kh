@@ -156,6 +156,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src->stats = stats_handle (mount);
 
         thread_rwlock_create (&src->lock);
+        thread_spin_create (&src->spinlock);
         stats_release (src->stats);
 
         avl_insert (global.source_tree, src);
@@ -322,6 +323,7 @@ static int _free_source (void *p)
 
     thread_rwlock_unlock (&source->lock);
     thread_rwlock_destroy (&source->lock);
+    thread_spin_destroy (&source->spinlock);
 
     INFO1 ("freeing source \"%s\"", source->mount);
     format_plugin_clear (source->format, source->client);
@@ -1079,7 +1081,9 @@ static int send_listener (source_t *source, client_t *client)
         total_written += bytes;
         loop--;
     }
-    //rate_add (source->format->out_bitrate, total_written, worker->time_ms);
+    thread_spin_lock (&source->spinlock);
+    rate_add (source->format->out_bitrate, total_written, worker->time_ms);
+    thread_spin_unlock (&source->spinlock);
     global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     source->bytes_sent_since_update += total_written;
 
