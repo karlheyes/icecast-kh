@@ -447,13 +447,10 @@ int source_read (source_t *source)
             update_source_stats (source);
             source->client_stats_update = current + source->stats_interval;
         }
-        if (current >= source->worker_balance_recheck)
-        {
-            int recheck = global.sources > 6 ? global.sources : 6;
-            source->worker_balance_recheck = current + recheck;
+        if (client->worker->move_allocations)
             if (source_change_worker (source))
                 return 1;
-        }
+
         fds = util_timed_wait_for_fd (client->connection.sock, 0);
         if (fds < 0)
         {
@@ -1032,8 +1029,7 @@ static int send_listener (source_t *source, client_t *client)
     }
 
     // do we migrate this listener to the same handler as the source client
-    if (source->client_stats_update-1 == now && source->client->worker != worker)
-    if (source->client->worker != worker && source->client_stats_update == now+1)
+    if (worker->move_allocations)
         if (listener_change_worker (client, source))
             return 1;
 
@@ -2200,19 +2196,21 @@ int source_change_worker (source_t *source)
 {
     client_t *client = source->client;
     worker_t *this_worker = client->worker, *worker;
-    int ret = 0;
+    int ret = 0, recheck;
 
-    // only do a few each time, this doesn't have to be immediate
-    if (this_worker->move_allocations == 0)
+    if (this_worker->current_time.tv_sec >= source->worker_balance_recheck)
         return 0;
-    this_worker->move_allocations--;
+
+    recheck = global.sources > 6 ? global.sources : 6;
+    source->worker_balance_recheck = this_worker->current_time.tv_sec + recheck;
 
     thread_rwlock_rlock (&workers_lock);
-    worker = find_least_busy_handler ();
+    worker = worker_selected ();
     if (worker && worker != client->worker)
     {
         if (worker->count + source->listeners + 10 < client->worker->count)
         {
+            this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
             ret = client_change_worker (client, worker);
             if (ret)
@@ -2235,17 +2233,29 @@ int listener_change_worker (client_t *client, source_t *source)
     long diff;
     int ret = 0;
 
-    // only do a few each time, this doesn't have to be immediate
-    if (this_worker->move_allocations == 0)
-        return 0;
-    this_worker->move_allocations--;
-
     thread_rwlock_rlock (&workers_lock);
     dest_worker = source->client->worker;
-    diff = dest_worker->count - this_worker->count;
 
-    if (diff < 1000 && this_worker != dest_worker)
+    if (this_worker != dest_worker)
     {
+        diff = dest_worker->count - this_worker->count;
+        // do not move listener if source client worker is at least 100 clients more
+        if (diff > 30)
+            dest_worker = NULL;
+    }
+    else
+    {
+        dest_worker = worker_selected ();
+        // do not move if least busy worker is less than 50 clients than ours
+        diff = this_worker->count - dest_worker->count;
+        if (diff < 40)
+            dest_worker = NULL;
+    }
+    if (dest_worker)
+    {
+        // called when allocations is positive, only do so many of these in one go.
+        this_worker->move_allocations--;
+
         thread_rwlock_unlock (&source->lock);
         ret = client_change_worker (client, dest_worker);
         if (ret)
@@ -2253,6 +2263,8 @@ int listener_change_worker (client_t *client, source_t *source)
         else
             thread_rwlock_rlock (&source->lock);
     }
+    else
+        this_worker->move_allocations = 0;
     thread_rwlock_unlock (&workers_lock);
     return ret;
 }

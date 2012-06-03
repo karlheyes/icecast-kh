@@ -1118,6 +1118,7 @@ static void _slave_thread(void)
                 INFO1 ("inactivity timeout started, terminate in %d seconds", inactivity_timeout);
             }
         }
+        worker_balance_trigger (current.tv_sec);
         thread_sleep (1000000);
     }
     connection_thread_shutdown();

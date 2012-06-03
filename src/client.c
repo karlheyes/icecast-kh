@@ -47,6 +47,8 @@
 #define CATMODULE "client"
 
 int worker_count;
+worker_t *worker_balance_to_check, *worker_least_used;
+
 
 void client_register (client_t *client)
 {
@@ -326,23 +328,29 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
 }
 
 
-worker_t *find_least_busy_handler (void)
+static worker_t *find_least_busy_handler (int log)
 {
     worker_t *min = workers;
 
     if (workers && workers->next)
     {
         worker_t *handler = workers->next;
-        DEBUG2 ("handler %p has %d clients", min, min->count);
+        if (log) DEBUG2 ("handler %p has %d clients", min, min->count);
         while (handler)
         {
-            DEBUG2 ("handler %p has %d clients", handler, handler->count);
+            if (log) DEBUG2 ("handler %p has %d clients", handler, handler->count);
             if (handler->count < min->count)
                 min = handler;
             handler = handler->next;
         }
     }
     return min;
+}
+
+
+worker_t *worker_selected (void)
+{
+    return worker_least_used;
 }
 
 
@@ -378,7 +386,7 @@ void client_add_worker (client_t *client)
 
     thread_rwlock_rlock (&workers_lock);
     /* add client to the handler with the least number of clients */
-    handler = find_least_busy_handler();
+    handler = worker_selected();
     thread_spin_lock (&handler->lock);
     thread_rwlock_unlock (&workers_lock);
 
@@ -532,7 +540,6 @@ void *worker (void *arg)
         client_t *client = *prevp;
         uint64_t sched_ms = worker->time_ms+6;
 
-        worker->move_allocations = 15;
         while (client)
         {
             if (client->worker != worker) abort();
@@ -566,6 +573,7 @@ void *worker (void *arg)
             prevp = &client->next_on_worker;
             client = *prevp;
         }
+        worker->move_allocations = 0;
         if (prev_count != worker->count)
         {
             DEBUG2 ("%p now has %d clients", worker, worker->count);
@@ -586,6 +594,29 @@ void *worker (void *arg)
 }
 
 
+// We pick a worker (consequetive) and set a max number of clients to move if needed
+void worker_balance_trigger (time_t now)
+{
+    int v = (now % 10) == 0;
+
+    if (worker_count == 1)
+       return; // no balance required, leave quickly
+    thread_rwlock_rlock (&workers_lock);
+
+    // lets only search for this once a second, not many times
+    worker_least_used = find_least_busy_handler (v);
+    if (worker_balance_to_check)
+    {
+        worker_balance_to_check->move_allocations = 10;
+        worker_balance_to_check = worker_balance_to_check->next;
+    }
+    if (worker_balance_to_check == NULL)
+        worker_balance_to_check = workers;
+
+    thread_rwlock_unlock (&workers_lock);
+}
+
+
 static void worker_start (void)
 {
     worker_t *handler = calloc (1, sizeof(worker_t));
@@ -599,9 +630,11 @@ static void worker_start (void)
     handler->next = workers;
     workers = handler;
     worker_count++;
+    worker_least_used = worker_balance_to_check = workers;
     handler->thread = thread_create ("worker", worker, handler, THREAD_ATTACHED);
     thread_rwlock_unlock (&workers_lock);
 }
+
 
 static void worker_stop (void)
 {
@@ -612,6 +645,7 @@ static void worker_stop (void)
     thread_rwlock_wlock (&workers_lock);
     handler = workers;
     workers = handler->next;
+    worker_least_used = worker_balance_to_check = workers;
     worker_count--;
     thread_rwlock_unlock (&workers_lock);
 
@@ -626,6 +660,7 @@ static void worker_stop (void)
     free (handler);
 }
 
+
 void workers_adjust (int new_count)
 {
     INFO1 ("requested worker count %d", new_count);
@@ -637,6 +672,7 @@ void workers_adjust (int new_count)
             worker_stop ();
     }
 }
+
 
 void worker_wakeup (worker_t *worker)
 {
