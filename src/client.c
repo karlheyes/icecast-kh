@@ -46,7 +46,7 @@
 #undef CATMODULE
 #define CATMODULE "client"
 
-int worker_count;
+int worker_count, min_count;
 worker_t *worker_balance_to_check, *worker_least_used;
 
 
@@ -335,12 +335,18 @@ static worker_t *find_least_busy_handler (int log)
     if (workers && workers->next)
     {
         worker_t *handler = workers->next;
-        if (log) DEBUG2 ("handler %p has %d clients", min, min->count);
+
+        min_count = min->count + min->pending_count;
+        if (log) DEBUG2 ("handler %p has %d clients", min, min_count);
         while (handler)
         {
-            if (log) DEBUG2 ("handler %p has %d clients", handler, handler->count);
-            if (handler->count < min->count)
+            int cur_count = handler->count + handler->pending_count;
+            if (log) DEBUG2 ("handler %p has %d clients", handler, cur_count);
+            if (cur_count < min_count)
+            {
                 min = handler;
+                min_count = cur_count;
+            }
             handler = handler->next;
         }
     }
@@ -350,6 +356,8 @@ static worker_t *find_least_busy_handler (int log)
 
 worker_t *worker_selected (void)
 {
+    if ((worker_least_used->count + worker_least_used->pending_count) - min_count > 20)
+        worker_least_used = find_least_busy_handler(1);
     return worker_least_used;
 }
 
@@ -607,7 +615,7 @@ void worker_balance_trigger (time_t now)
     worker_least_used = find_least_busy_handler (v);
     if (worker_balance_to_check)
     {
-        worker_balance_to_check->move_allocations = 10;
+        worker_balance_to_check->move_allocations = 20;
         worker_balance_to_check = worker_balance_to_check->next;
     }
     if (worker_balance_to_check == NULL)
@@ -646,6 +654,7 @@ static void worker_stop (void)
     handler = workers;
     workers = handler->next;
     worker_least_used = worker_balance_to_check = workers;
+    workers->move_allocations = 100;
     worker_count--;
     thread_rwlock_unlock (&workers_lock);
 

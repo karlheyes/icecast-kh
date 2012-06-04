@@ -2200,19 +2200,21 @@ int source_change_worker (source_t *source)
 {
     client_t *client = source->client;
     worker_t *this_worker = client->worker, *worker;
-    int ret = 0, recheck;
+    int ret = 0;
 
+#if 0
     if (this_worker->current_time.tv_sec >= source->worker_balance_recheck)
         return 0;
 
     recheck = global.sources > 6 ? global.sources : 6;
     source->worker_balance_recheck = this_worker->current_time.tv_sec + recheck;
+#endif
 
     thread_rwlock_rlock (&workers_lock);
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
-        if (worker->count + source->listeners + 10 < client->worker->count)
+        if (worker->count + 20 < client->worker->count)
         {
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
