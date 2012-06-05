@@ -1386,9 +1386,24 @@ void stats_set_flags (long handle, const char *name, const char *value, int flag
 }
 
 
+static xmlParserCtxtPtr get_parser_for_decode (const char *value)
+{
+    char semi = '\0';
+    const char *p = strchr (value, '&');
+
+    if (p)
+    {
+        if (sscanf (p, "&%*7[^; ]%c", &semi) == 1 && semi == ';')
+            return xmlNewParserCtxt();
+    }
+    return NULL;
+}
+
+
 static void stats_set_entity_decode (long handle, const char *name, const char *value)
 {
-    xmlParserCtxtPtr parser = xmlNewParserCtxt();
+    xmlParserCtxtPtr parser = get_parser_for_decode (value);
+
     if (parser)
     {
         xmlChar *decoded = xmlStringDecodeEntities (parser,
