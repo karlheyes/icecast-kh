@@ -654,7 +654,8 @@ static void worker_stop (void)
     handler = workers;
     workers = handler->next;
     worker_least_used = worker_balance_to_check = workers;
-    workers->move_allocations = 100;
+    if (workers)
+        workers->move_allocations = 100;
     worker_count--;
     thread_rwlock_unlock (&workers_lock);
 
