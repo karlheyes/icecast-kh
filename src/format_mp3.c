@@ -546,7 +546,7 @@ static int format_mp3_write_buf_to_client (client_t *client)
             client->counter += ret;
         }
     }
-    client->schedule_ms += 4;
+    client->schedule_ms += 2;
     return ret;
 }
 

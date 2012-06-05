@@ -150,7 +150,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
 
         /* make duplicates for strings or similar */
         src->mount = strdup (mount);
-        src->listener_send_trigger = 10000;
+        src->listener_send_trigger = 4000;
         src->format = calloc (1, sizeof(format_plugin_t));
         src->clients = avl_tree_new (client_compare, NULL);
         src->stats = stats_handle (mount);
@@ -389,7 +389,7 @@ static void update_source_stats (source_t *source)
 
     source->bytes_sent_since_update %= 1024;
     source->bytes_read_since_update %= 1024;
-    source->listener_send_trigger = incoming_rate;
+    source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
 }
 
 
@@ -401,7 +401,7 @@ int source_read (source_t *source)
 {
     client_t *client = source->client;
     refbuf_t *refbuf = NULL;
-    int skip = 1, loop = 2;
+    int skip = 1, loop = 1;
     time_t current = client->worker->current_time.tv_sec;
     int fds = 0;
 
