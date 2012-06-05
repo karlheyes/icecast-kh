@@ -2214,7 +2214,7 @@ int source_change_worker (source_t *source)
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
-        if (worker->count + 20 < client->worker->count)
+        if (worker->count + 40 < client->worker->count)
         {
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
