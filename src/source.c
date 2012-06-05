@@ -699,7 +699,11 @@ static int source_queue_advance (client_t *client)
     {
         if (refbuf->next == NULL)
         {
-            client->schedule_ms = source->client->schedule_ms + 5;
+            static unsigned char offset = 0;
+            // most listeners will be through here, so a minor spread should limit a wave of sends
+            int x = offset % 9;
+            offset++;
+            client->schedule_ms = source->client->schedule_ms + x;
             return -1;
         }
         client->refbuf = refbuf->next;
