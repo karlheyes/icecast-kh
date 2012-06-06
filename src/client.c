@@ -318,7 +318,7 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
     client->refbuf = refbuf;
     if (refbuf)
     {
-        if (refbuf->flags & 04)
+        if (refbuf->flags & 04) // trap SOURCE_QUEUE_BLOCK for now
             abort();
         refbuf_addref (client->refbuf);
     }
@@ -605,14 +605,14 @@ void *worker (void *arg)
 // We pick a worker (consequetive) and set a max number of clients to move if needed
 void worker_balance_trigger (time_t now)
 {
-    int v = (now % 10) == 0;
+    int log_counts = (now % 10) == 0 ? 1 : 0;
 
     if (worker_count == 1)
        return; // no balance required, leave quickly
     thread_rwlock_rlock (&workers_lock);
 
     // lets only search for this once a second, not many times
-    worker_least_used = find_least_busy_handler (v);
+    worker_least_used = find_least_busy_handler (log_counts);
     if (worker_balance_to_check)
     {
         worker_balance_to_check->move_allocations = 20;

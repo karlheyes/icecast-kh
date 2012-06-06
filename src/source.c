@@ -76,7 +76,7 @@ static int  http_source_listener (client_t *client);
 static int  http_source_intro (client_t *client);
 static int  locate_start_on_queue (source_t *source, client_t *client);
 static int  listener_change_worker (client_t *client, source_t *source);
-static int  source_change_worker (source_t *source);
+static int  source_change_worker (client_t *client);
 static int  source_client_callback (client_t *client);
 static int  source_set_override (const char *mount, source_t *dest_source, format_type_t type);
 
@@ -449,9 +449,9 @@ int source_read (source_t *source)
             update_source_stats (source);
             source->client_stats_update = current + source->stats_interval;
         }
-        if (client->worker->move_allocations)
-            if (source_change_worker (source))
-                return 1;
+
+        if (source_change_worker (client))
+            return 1;
 
         fds = util_timed_wait_for_fd (client->connection.sock, 0);
         if (fds < 0)
@@ -684,11 +684,10 @@ static int source_queue_advance (client_t *client)
 
     if (lag > source->queue_size)
     {
-        INFO3 ("Q. Client %lu (%s) has fallen too far behind on %s, removing",
+        INFO3 ("Client %lu (%s) has fallen too far behind on %s, removing",
                 client->connection.id, client->connection.ip, source->mount);
         stats_event_inc (source->mount, "slow_listeners");
         client->refbuf = NULL;
-        //client_set_queue (client, NULL);
         client->connection.error = 1;
         return -1;
     }
@@ -708,7 +707,6 @@ static int source_queue_advance (client_t *client)
         }
         client->refbuf = refbuf->next;
         client->pos = 0;
-        //client_set_queue (client, refbuf->next);
     }
     return source->format->write_buf_to_client (client);
 }
@@ -882,13 +880,11 @@ void source_listener_detach (source_t *source, client_t *client)
             /* make a private copy so that a write can complete */
             refbuf_t *copy = refbuf_copy (client->refbuf);
 
-            // refbuf_release (client->refbuf);
             client->refbuf = copy;
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
         }
         if ((client->flags & CLIENT_HAS_INTRO_CONTENT) == 0)
             client->refbuf = NULL;
-            //client_set_queue (client, NULL);
     }
     avl_delete (source->clients, client, NULL);
     source->listeners--;
@@ -989,7 +985,6 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         {
             if (client->refbuf && (client->refbuf->flags & SOURCE_QUEUE_BLOCK))
                 client->refbuf = NULL;
-                //client_set_queue (client, NULL);
             client->ops = &listener_pause_ops;
             client->flags |= CLIENT_HAS_MOVED;
             client->schedule_ms = client->worker->time_ms + 60;
@@ -1035,9 +1030,8 @@ static int send_listener (source_t *source, client_t *client)
     }
 
     // do we migrate this listener to the same handler as the source client
-    if (worker->move_allocations)
-        if (listener_change_worker (client, source))
-            return 1;
+    if (listener_change_worker (client, source))
+        return 1;
 
     lag = source->client->queue_pos - client->queue_pos;
     if (source->incoming_rate && lag < source->incoming_rate)
@@ -1137,7 +1131,6 @@ void source_init (source_t *source)
     source->stats_interval = 5;
     /* so the first set of average stats after 3 seconds */
     source->client_stats_update = source->last_read + 3;
-    source->worker_balance_recheck = source->last_read + 20;
     source->skip_duration = 80;
 
     util_dict_free (source->audio_info);
@@ -2200,26 +2193,21 @@ int source_startup (client_t *client, const char *uri)
 /* check to see if the source client can be moved to a less busy worker thread.
  * we only move the source client, not the listeners, they will move later
  */
-int source_change_worker (source_t *source)
+static int source_change_worker (client_t *client)
 {
-    client_t *client = source->client;
     worker_t *this_worker = client->worker, *worker;
     int ret = 0;
 
-#if 0
-    if (this_worker->current_time.tv_sec >= source->worker_balance_recheck)
+    if (this_worker->move_allocations == 0 || worker_count < 2)
         return 0;
-
-    recheck = global.sources > 6 ? global.sources : 6;
-    source->worker_balance_recheck = this_worker->current_time.tv_sec + recheck;
-#endif
-
     thread_rwlock_rlock (&workers_lock);
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
         if (worker->count + 40 < client->worker->count)
         {
+            source_t *source = (source_t *)client->shared_data;
+
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
             ret = client_change_worker (client, worker);
@@ -2243,6 +2231,8 @@ int listener_change_worker (client_t *client, source_t *source)
     long diff;
     int ret = 0;
 
+    if (this_worker->move_allocations == 0 || worker_count < 2)
+        return 0;
     thread_rwlock_rlock (&workers_lock);
     dest_worker = source->client->worker;
 
@@ -2258,7 +2248,7 @@ int listener_change_worker (client_t *client, source_t *source)
         dest_worker = worker_selected ();
         // do not move if least busy worker is less than 50 clients than ours
         diff = this_worker->count - dest_worker->count;
-        if (diff < 40)
+        if (diff < 30)
             dest_worker = NULL;
     }
     if (dest_worker)

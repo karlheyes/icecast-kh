@@ -29,7 +29,6 @@ typedef struct source_tag
 
     client_t *client;
     time_t client_stats_update;
-    time_t worker_balance_recheck;
 
     struct _format_plugin_tag *format;
 
