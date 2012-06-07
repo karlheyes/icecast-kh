@@ -258,6 +258,11 @@ relay_server *config_clear_relay (relay_server *relay)
         if (master->mount) xmlFree (master->mount);
         free (master);
     }
+    if (relay->stream_name)        xmlFree (relay->stream_name);
+    if (relay->stream_description) xmlFree (relay->stream_description);
+    if (relay->stream_url)         xmlFree (relay->stream_url);
+    if (relay->stream_genre)       xmlFree (relay->stream_genre);
+    if (relay->user_agent)       xmlFree (relay->user_agent);
     if (relay->localmount)  xmlFree (relay->localmount);
     if (relay->username)    xmlFree (relay->username);
     if (relay->password)    xmlFree (relay->password);
@@ -1050,6 +1055,12 @@ static int _parse_relay (xmlNodePtr node, void *arg)
         { "username",       config_get_str,     &relay->username },
         { "password",       config_get_str,     &relay->password },
         { "enable",         config_get_bool,    &relay->running },
+        { "stream-name",        config_get_str,     &relay->stream_name },
+        { "stream-description", config_get_str,     &relay->stream_description },
+        { "stream-url",         config_get_str,     &relay->stream_url },
+        { "genre",              config_get_str,     &relay->stream_genre },
+        { "user-agent",         config_get_str,     &relay->user_agent },
+
         { NULL, NULL, NULL },
     };
 

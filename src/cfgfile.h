@@ -217,6 +217,11 @@ typedef struct _relay_server
     int on_demand;
     int running;
     int cleanup;
+    char *stream_name;
+    char *stream_description;
+    char *stream_url;
+    char *stream_genre;
+    char *user_agent;
 } relay_server;
 
 
