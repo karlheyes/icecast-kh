@@ -477,14 +477,12 @@ int source_read (source_t *source)
                 skip = 0;
                 break;
             }
-            source->skip_duration = (int)(source->skip_duration * 1.3);
+            source->skip_duration = (int)((source->skip_duration+6) * 1.1);
             if (source->skip_duration > 400)
                 source->skip_duration = 400;
             break;
         }
         source->skip_duration = (long)(source->skip_duration * 0.9);
-        if (source->skip_duration < 10) /* not too low or else it will not be able to increase */
-            source->skip_duration = 10;
 
         source->last_read = current;
         do
@@ -573,9 +571,7 @@ int source_read (source_t *source)
     } while (0);
 
     if (skip)
-        client->schedule_ms += (source->skip_duration | 0xF);
-    else
-        client->schedule_ms += 15;
+        client->schedule_ms += source->skip_duration;
     thread_rwlock_unlock (&source->lock);
     return 0;
 }
@@ -700,7 +696,7 @@ static int source_queue_advance (client_t *client)
         {
             static unsigned char offset = 0;
             // most listeners will be through here, so a minor spread should limit a wave of sends
-            int x = offset % 9;
+            int x = offset % 5;
             offset++;
             client->schedule_ms = source->client->schedule_ms + x;
             return -1;
@@ -1069,7 +1065,7 @@ static int send_listener (source_t *source, client_t *client)
            sleep for too long if more data can be sent */
         if (loop == 0 || total_written > limiter)
         {
-            client->schedule_ms = client->worker->time_ms + 15;
+            client->schedule_ms = client->worker->time_ms + 1;
             break;
         }
         bytes = client->check_buffer (client);
@@ -1131,7 +1127,7 @@ void source_init (source_t *source)
     source->stats_interval = 5;
     /* so the first set of average stats after 3 seconds */
     source->client_stats_update = source->last_read + 3;
-    source->skip_duration = 80;
+    source->skip_duration = 50;
 
     util_dict_free (source->audio_info);
     source->audio_info = util_dict_new();

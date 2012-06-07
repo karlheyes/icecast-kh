@@ -454,7 +454,7 @@ static client_t **worker_add_pending_clients (worker_t *worker)
 
 static client_t **worker_wait (worker_t *worker)
 {
-    int ret, duration = 2;
+    int ret, duration = 0;
 
     if (global.running == ICE_RUNNING)
     {
@@ -463,8 +463,6 @@ static client_t **worker_wait (worker_t *worker)
             duration = (int)(worker->wakeup_ms - tm);
         if (duration > 60000) /* make duration between 2ms and 60s */
             duration = 60000;
-        if (duration < 2)
-            duration = 2;
     }
 
     ret = util_timed_wait_for_fd (worker->wakeup_fd[0], duration);
@@ -546,7 +544,7 @@ void *worker (void *arg)
     while (1)
     {
         client_t *client = *prevp;
-        uint64_t sched_ms = worker->time_ms+6;
+        uint64_t sched_ms = worker->time_ms + 2;
 
         while (client)
         {
