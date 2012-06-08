@@ -1446,6 +1446,7 @@ void stats_set_conv (long handle, const char *name, const char *value, const cha
 void stats_listener_to_xml (client_t *listener, xmlNodePtr parent)
 {
     const char *useragent;
+    const char *ip;
     char buf[30];
 
     xmlNodePtr node = xmlNewChild (parent, NULL, XMLSTR("listener"), NULL);
@@ -1453,7 +1454,8 @@ void stats_listener_to_xml (client_t *listener, xmlNodePtr parent)
     snprintf (buf, sizeof (buf), "%lu", listener->connection.id);
     xmlSetProp (node, XMLSTR("id"), XMLSTR(buf));
 
-    xmlNewChild (node, NULL, XMLSTR("IP"), XMLSTR(listener->connection.ip));
+    ip = httpp_getvar (listener->parser, "x-forwarded-for");
+    xmlNewChild (node, NULL, XMLSTR("IP"), XMLSTR(ip == NULL ? listener->connection.ip: ip));
 
     useragent = httpp_getvar (listener->parser, "user-agent");
     if (useragent && xmlCheckUTF8((unsigned char *)useragent))
