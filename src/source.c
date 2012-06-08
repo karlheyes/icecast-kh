@@ -414,13 +414,12 @@ int source_read (source_t *source)
         {
             if (source->termination_count)
             {
-                if (client->timer_start + 1500 < client->worker->time_ms)
+                if (client->timer_start + 1000 < client->worker->time_ms)
                 {
                     source->flags &= ~(SOURCE_RUNNING|SOURCE_LISTENERS_SYNC);
                     WARN1 ("stopping %s as sync mode lasted too long", source->mount);
                 }
                 client->schedule_ms += 30;
-                thread_rwlock_unlock (&source->lock);
                 return 0;
             }
             if (source->fallback.mount)
@@ -460,6 +459,7 @@ int source_read (source_t *source)
             {
                 WARN0 ("Error while waiting on socket, Disconnecting source");
                 source->flags &= ~SOURCE_RUNNING;
+                return 0;
             }
             break;
         }
@@ -474,8 +474,7 @@ int source_read (source_t *source)
                 WARN1 ("Disconnecting %s due to socket timeout", source->mount);
                 source->flags &= ~SOURCE_RUNNING;
                 source->flags |= SOURCE_TIMEOUT;
-                skip = 0;
-                break;
+                return 0;
             }
             source->skip_duration = (int)((source->skip_duration+6) * 1.1);
             if (source->skip_duration > 400)
@@ -550,7 +549,7 @@ int source_read (source_t *source)
                 {
                     INFO1 ("End of Stream %s", source->mount);
                     source->flags &= ~SOURCE_RUNNING;
-                    skip = 0;
+                    return 0;
                 }
                 break;
             }
@@ -572,7 +571,6 @@ int source_read (source_t *source)
 
     if (skip)
         client->schedule_ms += source->skip_duration;
-    thread_rwlock_unlock (&source->lock);
     return 0;
 }
 
@@ -622,56 +620,58 @@ static int source_client_read (client_t *client)
                 return 0;
             }
         }
-        // maybe have source read leave lock if dropping to exit ?
-        return source_read (source);
+        if (source_read (source) > 0)
+            return 1;
+        if (source_running (source))
+        {
+            thread_rwlock_unlock (&source->lock);
+            return 0;
+        }
+    }
+    if ((source->flags & SOURCE_TERMINATING) == 0)
+    {
+        source_shutdown (source, 1);
+
+        // actually prevent this source being found unless already referenced
+        avl_tree_wlock (global.source_tree);
+        DEBUG1 ("removing source %s from tree", source->mount);
+        avl_delete (global.source_tree, source, NULL);
+        avl_tree_unlock (global.source_tree);
+    }
+
+    if (source->termination_count && source->termination_count <= source->listeners)
+    {
+        if (client->timer_start + 1000 < client->worker->time_ms)
+        {
+            WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
+            source->flags &= ~SOURCE_TERMINATING;
+        }
+        else
+            DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
+        client->schedule_ms = client->worker->time_ms + 20;
     }
     else
     {
-        if ((source->flags & SOURCE_TERMINATING) == 0)
+        if (source->listeners)
         {
-            source_shutdown (source, 1);
-
-            // actually prevent this source being found unless already referenced
-            avl_tree_wlock (global.source_tree);
-            DEBUG1 ("removing source %s from tree", source->mount);
-            avl_delete (global.source_tree, source, NULL);
-            avl_tree_unlock (global.source_tree);
+            INFO1 ("listeners on terminating source %s, rechecking", source->mount);
+            source->termination_count = source->listeners;
+            client->timer_start = client->worker->time_ms;
+            source->flags &= ~SOURCE_PAUSE_LISTENERS;
+            source->flags |= SOURCE_LISTENERS_SYNC;
+            source_listeners_wakeup (source);
+            thread_rwlock_unlock (&source->lock);
+            return 0;
         }
-
-        if (source->termination_count && source->termination_count <= source->listeners)
-        {
-            if (client->timer_start + 1000 < client->worker->time_ms)
-            {
-                WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
-                source->flags &= ~SOURCE_TERMINATING;
-            }
-            else
-                DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
-            client->schedule_ms = client->worker->time_ms + 20;
-        }
-        else
-        {
-            if (source->listeners)
-            {
-                INFO1 ("listeners on terminating source %s, rechecking", source->mount);
-                source->termination_count = source->listeners;
-                client->timer_start = client->worker->time_ms;
-                source->flags &= ~SOURCE_PAUSE_LISTENERS;
-                source->flags |= SOURCE_LISTENERS_SYNC;
-                source_listeners_wakeup (source);
-                thread_rwlock_unlock (&source->lock);
-                return 0;
-            }
-            INFO1 ("no more listeners on %s", source->mount);
-            stats_event_args (source->mount, "listeners", "%lu", source->listeners);
-            client->connection.discon_time = 0;
-            client->ops = &source_client_halt_ops;
-            free (source->fallback.mount);
-            source->fallback.mount = NULL;
-            source->flags &= ~SOURCE_LISTENERS_SYNC;
-        }
-        thread_rwlock_unlock (&source->lock);
+        INFO1 ("no more listeners on %s", source->mount);
+        stats_event_args (source->mount, "listeners", "%lu", source->listeners);
+        client->connection.discon_time = 0;
+        client->ops = &source_client_halt_ops;
+        free (source->fallback.mount);
+        source->fallback.mount = NULL;
+        source->flags &= ~SOURCE_LISTENERS_SYNC;
     }
+    thread_rwlock_unlock (&source->lock);
     return 0;
 }
 

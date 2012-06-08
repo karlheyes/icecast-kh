@@ -1303,7 +1303,13 @@ static int relay_read (client_t *client)
             source->flags &= ~SOURCE_RUNNING;
         if (relay->on_demand && source->listeners == 0 && source->format->read_bytes > 1000000)
             source->flags &= ~SOURCE_RUNNING;
-        return source_read (source);
+        if (source_read (source) > 0)
+            return 1;
+        if (source_running (source))
+        {
+            thread_rwlock_unlock (&source->lock);
+            return 0;
+        }
     }
     if ((source->flags & SOURCE_TERMINATING) == 0)
     {
