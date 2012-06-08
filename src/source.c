@@ -249,9 +249,6 @@ int source_compare_sources(void *arg, void *a, void *b)
 
 void source_clear_source (source_t *source)
 {
-    int do_twice = 0;
-    refbuf_t *p;
-
     DEBUG1 ("clearing source \"%s\"", source->mount);
 
     if (source->dumpfile)
@@ -268,22 +265,14 @@ void source_clear_source (source_t *source)
     refbuf_release (source->stream_data_tail);
 
     /* remove the reference for buffers on the queue */
-    p = source->stream_data;
-    while (p)
+    while (source->stream_data)
     {
-        refbuf_t *to_go = p;
-        p = to_go->next;
+        refbuf_t *to_go = source->stream_data;
+        source->stream_data = to_go->next;
         to_go->next = NULL;
-        // DEBUG1 ("queue refbuf count is %d", to_go->_count);
-        if (do_twice || to_go == source->min_queue_point)
-        { /* burst data is also counted */
-            refbuf_release (to_go); 
-            do_twice = 1;
-        }
         refbuf_release (to_go);
     }
     source->min_queue_point = NULL;
-    source->stream_data = NULL;
     source->stream_data_tail = NULL;
 
     source->min_queue_size = 0;
@@ -515,9 +504,6 @@ int source_read (source_t *source)
                 source->stream_data_tail = refbuf;
                 source->queue_size += refbuf->len;
 
-                /* increase refcount for keeping burst data */
-                refbuf_addref (refbuf);
-
                 /* move the starting point for new listeners */
                 source->min_queue_offset += refbuf->len;
                 while (source->min_queue_offset > source->min_queue_size)
@@ -527,7 +513,6 @@ int source_read (source_t *source)
                     {
                         source->min_queue_offset -= to_release->len;
                         source->min_queue_point = to_release->next;
-                        refbuf_release (to_release);
                         continue;
                     }
                     if (source->min_queue_point != refbuf)
