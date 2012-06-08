@@ -114,8 +114,7 @@ void source_set_fallback (source_t *source, const char *dest_mount);
 void source_listeners_wakeup (source_t *source);
 
 #define SOURCE_BLOCK_SYNC           01
-#define SOURCE_BLOCK_RELEASE        02
-#define SOURCE_QUEUE_BLOCK          04
+#define SOURCE_QUEUE_BLOCK          02
 
 #endif
 

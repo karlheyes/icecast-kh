@@ -392,6 +392,7 @@ int source_read (source_t *source)
     refbuf_t *refbuf = NULL;
     int skip = 1, loop = 1;
     time_t current = client->worker->current_time.tv_sec;
+    long queue_size_target;
     int fds = 0;
 
     if (global.running != ICE_RUNNING)
@@ -542,14 +543,16 @@ int source_read (source_t *source)
         } while (loop);
 
         /* lets see if we have too much data in the queue */
-        while (source->queue_size > source->queue_size_limit)
+        if (source->listeners)
+            queue_size_target = source->queue_size_limit;
+        else
+            queue_size_target = source->min_queue_size;
+        while (source->queue_size > queue_size_target)
         {
             refbuf_t *to_go = source->stream_data;
             source->stream_data = to_go->next;
             source->queue_size -= to_go->len;
             to_go->next = NULL;
-            /* mark for delete to tell others holding it and release it ourselves */
-            to_go->flags |= SOURCE_BLOCK_RELEASE;
             refbuf_release (to_go);
         }
     } while (0);
