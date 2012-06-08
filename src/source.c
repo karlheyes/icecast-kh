@@ -628,18 +628,26 @@ static int source_client_read (client_t *client)
     else
     {
         if ((source->flags & SOURCE_TERMINATING) == 0)
+        {
             source_shutdown (source, 1);
+
+            // actually prevent this source being found unless already referenced
+            avl_tree_wlock (global.source_tree);
+            DEBUG1 ("removing source %s from tree", source->mount);
+            avl_delete (global.source_tree, source, NULL);
+            avl_tree_unlock (global.source_tree);
+        }
 
         if (source->termination_count && source->termination_count <= source->listeners)
         {
-            if (client->timer_start + 1500 < client->worker->time_ms)
+            if (client->timer_start + 1000 < client->worker->time_ms)
             {
                 WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
                 source->flags &= ~SOURCE_TERMINATING;
             }
             else
                 DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
-            client->schedule_ms = client->worker->time_ms + 100;
+            client->schedule_ms = client->worker->time_ms + 20;
         }
         else
         {
@@ -1834,7 +1842,7 @@ void source_client_release (client_t *client)
 
     thread_rwlock_unlock (&source->lock);
 
-    source_free_source (source);
+    _free_source (source);
     slave_update_all_mounts();
     client_destroy (client);
 }
