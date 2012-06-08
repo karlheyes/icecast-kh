@@ -317,11 +317,8 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
     }
     client->refbuf = refbuf;
     if (refbuf)
-    {
-        if (refbuf->flags & 04) // trap SOURCE_QUEUE_BLOCK for now
-            abort();
         refbuf_addref (client->refbuf);
-    }
+
     client->pos = 0;
     if (to_release)
         refbuf_release (to_release);
