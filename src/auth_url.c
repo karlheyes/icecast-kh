@@ -423,11 +423,18 @@ static auth_result url_add_listener (auth_client *auth_user)
 
     if (url->stop_req_until)
     {
-        if (url->presume_innocent)
-            client->flags |= CLIENT_AUTHENTICATED;
-        if (url->stop_req_until >= time(NULL))
+        time_t now = time(NULL);
+        if (url->stop_req_until <= now)
+            url->stop_req_until = 0;
+        else
+        {
+            if (url->presume_innocent)
+            {
+                client->flags |= CLIENT_AUTHENTICATED;
+                return AUTH_OK;
+            }
             return AUTH_FAILED;
-        url->stop_req_until = 0;
+        }
     }
 
     config = config_get_config ();
