@@ -668,11 +668,12 @@ static int source_queue_advance (client_t *client)
 {
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
+    int lag;
 
     if (client->refbuf == NULL && locate_start_on_queue (source, client) < 0)
         return -1;
 
-    int lag = source->client->queue_pos - client->queue_pos;
+    lag = source->client->queue_pos - client->queue_pos;
 
     if (lag > source->queue_size)
     {
