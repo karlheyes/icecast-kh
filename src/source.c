@@ -965,7 +965,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         source_listener_detach (source, client);
         thread_rwlock_unlock (&source->lock);
         move_failed = move_listener (client, &source->fallback);
-        thread_rwlock_rlock (&source->lock);
+        thread_rwlock_wlock (&source->lock);
         if (move_failed == 0)
             return 0;
         source_setup_listener (source, client);
