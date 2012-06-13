@@ -2197,10 +2197,10 @@ static int source_change_worker (client_t *client)
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
-        if (worker->count + 40 < client->worker->count)
+        source_t *source = (source_t *)client->shared_data;
+        if (source->listeners+1 < (this_worker->count - worker->count) ||
+                worker->count + 40 < this_worker->count)
         {
-            source_t *source = (source_t *)client->shared_data;
-
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
             ret = client_change_worker (client, worker);
