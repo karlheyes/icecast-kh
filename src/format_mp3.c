@@ -454,17 +454,12 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
              * could race against the source client use of it. */
             metadata = associated->data;
             meta_len = associated->len;
-            if (client->flags & CLIENT_USING_BLANK_META)
-                client->flags &= ~CLIENT_USING_BLANK_META;
-            else
-                refbuf_release (client_mp3->associated);
-            refbuf_addref (associated);
             client_mp3->associated = associated;
         }
         else
         {
             /* previously sent metadata does not need to be sent again */
-            if (associated || client->flags & CLIENT_USING_BLANK_META)
+            if (associated)
             {
                 metadata = "\0";
                 meta_len = 1;
@@ -474,8 +469,6 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
                 char *meta = blank_meta.data;
                 metadata = meta + client_mp3->metadata_offset;
                 meta_len = blank_meta.len - client_mp3->metadata_offset;
-                client->flags |= CLIENT_USING_BLANK_META;
-                refbuf_release (client_mp3->associated);
                 client_mp3->associated = &blank_meta;
             }
         }
@@ -1008,8 +1001,6 @@ static void free_mp3_client_data (client_t *client)
     else
         mpeg_cleanup (client_mp3->specific);
     free (client_mp3->specific);
-    if ((client->flags & CLIENT_USING_BLANK_META) == 0)
-        refbuf_release (client_mp3->associated);
     client_mp3->associated = NULL;
     free (client->format_data);
     client->format_data = NULL;
