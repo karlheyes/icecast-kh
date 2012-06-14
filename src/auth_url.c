@@ -352,9 +352,9 @@ static auth_result url_remove_listener (auth_client *auth_user)
 
     snprintf (post, sizeof (post),
             "action=listener_remove&server=%s&port=%d&client=%lu&mount=%s"
-            "&user=%s&pass=%s&ip=%s&duration=%lu",
+            "&user=%s&pass=%s&ip=%s&duration=%lu&sent=%lu",
             server, auth_user->port, client->connection.id, mount, username,
-            password, ipaddr, (long unsigned)duration);
+            password, ipaddr, (long unsigned)duration, client->connection.sent_bytes);
     free (ipaddr);
     free (server);
     free (mount);
@@ -411,9 +411,9 @@ static auth_result url_add_listener (auth_client *auth_user)
     auth_url *url = auth->state;
     auth_thread_data *atd = auth_user->thread_data;
     int res = 0, port, ret = AUTH_FAILED;
-    const char *agent, *qargs;
+    const char *tmp;
     char *user_agent, *username, *password;
-    char *mount, *ipaddr, *server;
+    char *mount, *ipaddr, *server, *referrer;
     ice_config_t *config;
     struct build_intro_contents *x;
     char *userpwd = NULL, post [4096];
@@ -441,10 +441,10 @@ static auth_result url_add_listener (auth_client *auth_user)
     server = util_url_escape (config->hostname);
     port = config->port;
     config_release_config ();
-    agent = httpp_getvar (client->parser, "user-agent");
-    if (agent == NULL)
-        agent = "-";
-    user_agent = util_url_escape (agent);
+    tmp = httpp_getvar (client->parser, "user-agent");
+    if (tmp == NULL)
+        tmp = "-";
+    user_agent = util_url_escape (tmp);
     if (client->username)
         username  = util_url_escape (client->username);
     else
@@ -455,18 +455,21 @@ static auth_result url_add_listener (auth_client *auth_user)
         password = strdup ("");
 
     /* get the full uri (with query params if available) */
-    qargs = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
-    snprintf (post, sizeof post, "%s%s", auth_user->mount, qargs ? qargs : "");
+    tmp = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
+    snprintf (post, sizeof post, "%s%s", auth_user->mount, tmp ? tmp : "");
     mount = util_url_escape (post);
     ipaddr = util_url_escape (client->connection.ip);
+    tmp = httpp_getvar (client->parser, "referrer");
+    referrer = tmp ? util_url_escape (tmp) : strdup ("");
 
     snprintf (post, sizeof (post),
             "action=listener_add&server=%s&port=%d&client=%lu&mount=%s"
-            "&user=%s&pass=%s&ip=%s&agent=%s",
+            "&user=%s&pass=%s&ip=%s&agent=%s&referrer=%s",
             server, port, client->connection.id, mount, username,
-            password, ipaddr, user_agent);
+            password, ipaddr, user_agent, referrer);
     free (server);
     free (mount);
+    free (referrer);
     free (user_agent);
     free (username);
     free (password);
