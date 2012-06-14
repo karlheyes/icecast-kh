@@ -46,7 +46,7 @@
 #undef CATMODULE
 #define CATMODULE "client"
 
-int worker_count, min_count;
+int worker_count, worker_min_count;
 worker_t *worker_balance_to_check, *worker_least_used;
 
 
@@ -333,16 +333,16 @@ static worker_t *find_least_busy_handler (int log)
     {
         worker_t *handler = workers->next;
 
-        min_count = min->count + min->pending_count;
-        if (log) DEBUG2 ("handler %p has %d clients", min, min_count);
+        worker_min_count = min->count + min->pending_count;
+        if (log) DEBUG2 ("handler %p has %d clients", min, worker_min_count);
         while (handler)
         {
             int cur_count = handler->count + handler->pending_count;
             if (log) DEBUG2 ("handler %p has %d clients", handler, cur_count);
-            if (cur_count < min_count)
+            if (cur_count < worker_min_count)
             {
                 min = handler;
-                min_count = cur_count;
+                worker_min_count = cur_count;
             }
             handler = handler->next;
         }
@@ -353,7 +353,7 @@ static worker_t *find_least_busy_handler (int log)
 
 worker_t *worker_selected (void)
 {
-    if ((worker_least_used->count + worker_least_used->pending_count) - min_count > 20)
+    if ((worker_least_used->count + worker_least_used->pending_count) - worker_min_count > 20)
         worker_least_used = find_least_busy_handler(1);
     return worker_least_used;
 }
@@ -603,7 +603,7 @@ void worker_balance_trigger (time_t now)
     int log_counts = (now % 10) == 0 ? 1 : 0;
 
     if (worker_count == 1)
-       return; // no balance required, leave quickly
+        return; // no balance required, leave quickly
     thread_rwlock_rlock (&workers_lock);
 
     // lets only search for this once a second, not many times
