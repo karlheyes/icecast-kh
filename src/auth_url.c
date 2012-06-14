@@ -413,7 +413,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     int res = 0, port, ret = AUTH_FAILED;
     const char *tmp;
     char *user_agent, *username, *password;
-    char *mount, *ipaddr, *server, *referrer;
+    char *mount, *ipaddr, *server, *referer;
     ice_config_t *config;
     struct build_intro_contents *x;
     char *userpwd = NULL, post [4096];
@@ -459,17 +459,18 @@ static auth_result url_add_listener (auth_client *auth_user)
     snprintf (post, sizeof post, "%s%s", auth_user->mount, tmp ? tmp : "");
     mount = util_url_escape (post);
     ipaddr = util_url_escape (client->connection.ip);
-    tmp = httpp_getvar (client->parser, "referrer");
-    referrer = tmp ? util_url_escape (tmp) : strdup ("");
+    tmp = httpp_getvar (client->parser, "referer");
+    referer = tmp ? util_url_escape (tmp) : strdup ("");
 
     snprintf (post, sizeof (post),
             "action=listener_add&server=%s&port=%d&client=%lu&mount=%s"
             "&user=%s&pass=%s&ip=%s&agent=%s&referrer=%s",
             server, port, client->connection.id, mount, username,
-            password, ipaddr, user_agent, referrer);
+            password, ipaddr, user_agent, referer);
+    DEBUG1 ("post is %s", post);
     free (server);
     free (mount);
-    free (referrer);
+    free (referer);
     free (user_agent);
     free (username);
     free (password);
