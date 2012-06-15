@@ -399,7 +399,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
             break;
         if (source)
         {
-            thread_rwlock_rlock (&source->lock);
+            thread_rwlock_wlock (&source->lock);
             if (source_available (source))
             {
                 // an unused on-demand relay will still have an unitialised type

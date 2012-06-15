@@ -620,11 +620,13 @@ static int source_client_read (client_t *client)
     {
         source_shutdown (source, 1);
 
+        thread_rwlock_unlock (&source->lock);
         // actually prevent this source being found unless already referenced
         avl_tree_wlock (global.source_tree);
         DEBUG1 ("removing source %s from tree", source->mount);
         avl_delete (global.source_tree, source, NULL);
         avl_tree_unlock (global.source_tree);
+        thread_rwlock_wlock (&source->lock);
     }
 
     if (source->termination_count && source->termination_count <= source->listeners)
@@ -1701,8 +1703,10 @@ void source_recheck_mounts (int update_all)
         {
             source_t *source = (source_t*)node->key;
 
+            thread_rwlock_wlock (&source->lock);
             if (source_available (source))
                 source_update_settings (config, source, config_find_mount (config, source->mount));
+            thread_rwlock_unlock (&source->lock);
             node = avl_get_next (node);
         }
     }
