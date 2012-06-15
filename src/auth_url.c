@@ -464,7 +464,7 @@ static auth_result url_add_listener (auth_client *auth_user)
 
     snprintf (post, sizeof (post),
             "action=listener_add&server=%s&port=%d&client=%lu&mount=%s"
-            "&user=%s&pass=%s&ip=%s&agent=%s&referrer=%s",
+            "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s",
             server, port, client->connection.id, mount, username,
             password, ipaddr, user_agent, referer);
     DEBUG1 ("post is %s", post);
