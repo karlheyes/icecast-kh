@@ -1301,7 +1301,7 @@ static int relay_read (client_t *client)
         if (relay->cleanup) relay->running = 0;
         if (relay->running == 0)
             source->flags &= ~SOURCE_RUNNING;
-        if (relay->on_demand && source->listeners == 0 && source->format->read_bytes > 1000000)
+        if (source->listeners == 0 && relay->on_demand && client->worker->current_time.tv_sec - client->connection.con_time > 60)
             source->flags &= ~SOURCE_RUNNING;
         if (source_read (source) > 0)
             return 1;
