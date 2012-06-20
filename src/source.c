@@ -76,7 +76,7 @@ static int  http_source_listener (client_t *client);
 static int  http_source_intro (client_t *client);
 static int  locate_start_on_queue (source_t *source, client_t *client);
 static int  listener_change_worker (client_t *client, source_t *source);
-static int  source_change_worker (client_t *client);
+static int  source_change_worker (source_t *source, client_t *client);
 static int  source_client_callback (client_t *client);
 static int  source_set_override (const char *mount, source_t *dest_source, format_type_t type);
 
@@ -445,7 +445,7 @@ int source_read (source_t *source)
             source->client_stats_update = current + source->stats_interval;
         }
 
-        if (source_change_worker (client))
+        if (source_change_worker (source, client))
             return 1;
 
         fds = util_timed_wait_for_fd (client->connection.sock, 0);
@@ -2202,7 +2202,7 @@ int source_startup (client_t *client, const char *uri)
 /* check to see if the source client can be moved to a less busy worker thread.
  * we only move the source client, not the listeners, they will move later
  */
-static int source_change_worker (client_t *client)
+static int source_change_worker (source_t *source, client_t *client)
 {
     worker_t *this_worker = client->worker, *worker;
     int ret = 0;
@@ -2213,7 +2213,6 @@ static int source_change_worker (client_t *client)
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
-        source_t *source = (source_t *)client->shared_data;
         if (source->listeners+1 < (this_worker->count - worker->count) ||
                 worker->count + 40 < this_worker->count)
         {
