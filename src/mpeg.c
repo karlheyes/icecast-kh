@@ -56,8 +56,16 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
     int frame_len = get_aac_frame_len (p);
     int blocks, header_len = 9;
     unsigned char *s = p;
+    int samplerate_idx = (p[2] & 0x3C) >> 2, samplerate;
     if (len - frame_len < 0)
         return 0;
+
+    samplerate = aacp_sample_freq [samplerate_idx];
+    if (samplerate != mp->samplerate)
+    {
+        WARN3 ("detected samplerate change from %d to %d on %s", mp->samplerate, samplerate, mp->mount);
+        mp->samplerate = samplerate;
+    }
 
     blocks = (p[6] & 0x3) + 1;
     if (p[1] & 0x1) // no crc
