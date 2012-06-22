@@ -635,7 +635,7 @@ static int source_client_read (client_t *client)
         avl_delete (global.source_tree, source, NULL);
         avl_tree_unlock (global.source_tree);
         thread_rwlock_wlock (&source->lock);
-        source->stats = NULL; // source detached from tree so slave thread could of flushed stats
+        source->stats = 0; // source detached from tree so slave thread could of flushed stats
     }
 
     if (source->termination_count && source->termination_count <= source->listeners)
