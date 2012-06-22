@@ -1842,8 +1842,6 @@ void source_client_release (client_t *client)
     if (source->format)
         client->connection.sent_bytes = source->format->read_bytes;
 
-    thread_rwlock_unlock (&source->lock);
-
     _free_source (source);
     slave_update_all_mounts();
     client_destroy (client);
