@@ -16,7 +16,7 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
-2.3.2-kh34
+2.3.3-kh1
 . Big change with rwlocks replacing mutexes. It's internal but can have a big effect
   on load pattern usage. In cases with many listeners on a single mount we can now
   spread clients across all workers. A number of balancing changes were done to
