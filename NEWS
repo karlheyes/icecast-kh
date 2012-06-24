@@ -16,6 +16,29 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.2-kh34
+. Big change with rwlocks replacing mutexes. It's internal but can have a big effect
+  on load pattern usage. In cases with many listeners on a single mount we can now
+  spread clients across all workers. A number of balancing changes were done to
+  assist in localising related clients but may need more tweaking.  A side effect
+  of these changes is that queues are only shrunk when there are no listeners, so
+  queues can take up more memory than usual but that could of happened before.
+. fix bad reference for file-based content like intro/fallback with FLV
+. make the minimum duration of an on-demand relay last until it would be classed as
+  working, any less then it could be skipped or disabled for a short time.
+. skip entity decoding if none required.  For cases where metadata has & causing
+  the libxml2 to spit out warnings like "no name".
+. If no sockets are opened at the start then exit.
+. Win32. standardize on format for date, back to proper timezone numbers
+. Log AAC samplerate change in stream.
+. Add <inactivity-timeout> in <limits> to stop icecast when there are no sources
+. Add <x-forwarded-for> into <paths> for IP substitution from load balancers
+. Added referer= to listener_add POST.
+. Added sent= to listener_remove POST (bytes)
+. sync ebml/webm format parser with 2.3.3, not tried it myself.
+. minor tweaks for rescheduling on high bitrate streams, terminating sources, URL
+  auth handling if disabled and busy relay restarting.
+
 2.3.2-kh33
 . Expand file open limit to match <clients> if possible, warn if less.
 . Fix possible client leak. legacy code removal.
