@@ -1154,8 +1154,8 @@ void connection_thread_startup ()
     pthread_sigmask (SIG_SETMASK, &mask, NULL);
 #endif
     connection_running = 0;
-    while (conn_tid)
-        thread_sleep (100001);
+    if (conn_tid)
+        WARN0("id for connection thread still set");
 
     conn_tid = thread_create ("connection", connection_thread, NULL, THREAD_ATTACHED);
 }
