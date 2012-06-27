@@ -1283,7 +1283,6 @@ static void relay_reset (relay_server *relay)
 {
     relay_server_master *server = relay->masters;
 
-    source_clear_source (relay->source);
     for (; server; server = server->next)
        server->skip = 0;
     INFO1 ("servers to be retried on %s", relay->localmount);
@@ -1413,6 +1412,7 @@ static int relay_read (client_t *client)
         }
         source->flags &= ~SOURCE_ON_DEMAND;
         stats_set_args (source->stats, "listeners", "%lu", source->listeners);
+        source_clear_source (relay->source);
         relay_reset (relay);
         stats_event (relay->localmount, NULL, NULL);
         slave_update_all_mounts();
