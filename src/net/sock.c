@@ -63,6 +63,7 @@
 #define ENOTSOCK WSAENOTSOCK
 #define EWOULDBLOCK WSAEWOULDBLOCK
 #define EALREADY WSAEALREADY
+#define SOCK_CLOEXEC 0
 #endif
 
 #include "sock.h"
@@ -74,6 +75,12 @@
 #endif
 #ifndef AI_ADDRCONFIG
 # define AI_ADDRCONFIG 0
+#endif
+#ifdef SOCK_CLOEXEC 
+ #define sock_set_cloexec(a)
+#else
+ #define SOCK_CLOEXEC 0
+ #define sock_set_cloexec(a)     fcntl(a,F_SETFD,FD_CLOEXEC)
 #endif
 
 /* sock_initialize
@@ -666,9 +673,10 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
     ai = head;
     while (ai)
     {
-        if ((sock = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol)) 
-                > -1)
+        int type = SOCK_CLOEXEC|ai->ai_socktype;
+        if ((sock = socket (ai->ai_family, type, ai->ai_protocol)) > -1)
         {
+            sock_set_cloexec(sock);
             sock_set_blocking (sock, 0);
             if (connect(sock, ai->ai_addr, ai->ai_addrlen) < 0 && 
                     !sock_connect_pending(sock_error()))
@@ -707,8 +715,10 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
     ai = head;
     while (ai)
     {
-        if ((sock = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol)) >= 0)
+        int type = SOCK_CLOEXEC|ai->ai_socktype;
+        if ((sock = socket (ai->ai_family, type, ai->ai_protocol)) >= 0)
         {
+            sock_set_cloexec (sock);
             if (timeout > 0)
                 sock_set_blocking (sock, 0);
 
@@ -786,10 +796,12 @@ sock_t sock_get_server_socket (int port, const char *sinterface)
     do
     {
         int on = 1;
-        sock = socket (ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        int type = SOCK_CLOEXEC|ai->ai_socktype;
+        sock = socket (ai->ai_family, type, ai->ai_protocol);
         if (sock < 0)
             continue;
 
+        sock_set_cloexec (sock);
         setsockopt (sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&on, sizeof(on));
         on = 0;
 #ifdef IPV6_V6ONLY
@@ -849,10 +861,11 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
 {
     sock_t sock;
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
     if (sock == SOCK_ERROR)
         return SOCK_ERROR;
 
+    sock_set_cloexec (sock);
     sock_set_blocking (sock, 0);
     sock_try_connection (sock, hostname, port);
     
@@ -863,10 +876,11 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
 {
     sock_t sock;
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
     if (sock == SOCK_ERROR)
         return SOCK_ERROR;
 
+    sock_set_cloexec (sock);
     if (bnd)
     {
         struct sockaddr_in sa;
@@ -945,10 +959,11 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
     }
 
     /* get a socket */
-    sock = socket (AF_INET, SOCK_STREAM, 0);
+    sock = socket (AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
     if (sock == -1)
         return SOCK_ERROR;
 
+    sock_set_cloexec (sock);
     /* reuse it if we can */
     opt = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt, sizeof(int));
@@ -994,6 +1009,7 @@ sock_t sock_accept(sock_t serversock, char *ip, size_t len)
 
     if (ret != SOCK_ERROR)
     {
+        sock_set_cloexec (ret);
         if (ip)
         {
 #ifdef HAVE_GETNAMEINFO
