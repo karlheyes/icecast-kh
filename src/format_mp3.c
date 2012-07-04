@@ -364,6 +364,7 @@ static void mp3_set_title (source_t *source)
         }
         if (source_mp3->url_artist && source_mp3->url_title)
         {
+            stats_set_conv (source->stats, "artist", source_mp3->url_artist, charset);
             stats_set_conv (source->stats, "title", source_mp3->url_title, charset);
             r = snprintf (p->data, size, "%c%s%s - %s", len_byte, streamtitle,
                     source_mp3->url_artist, source_mp3->url_title);
@@ -376,6 +377,7 @@ static void mp3_set_title (source_t *source)
         {
             r = snprintf (p->data, size, "%c%s%s", len_byte, streamtitle, source_mp3->url_title);
             stats_set_conv (source->stats, "title", p->data+14, charset);
+            stats_set (source->stats, "artist", NULL);
         }
         logging_playlist (source->mount, p->data+14, source->listeners);
         strcat (p->data+14, "';");
