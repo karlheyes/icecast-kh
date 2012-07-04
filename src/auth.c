@@ -415,12 +415,13 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
             }
             thread_rwlock_unlock (&source->lock);
         }
-        free (where.mount);
         if (minfo && minfo->fallback_mount)
+        {
+            free (where.mount);
             where.mount = strdup (minfo->fallback_mount);
+        }
         else
         {
-            where.mount = NULL;
             break;
         }
     } while (loop--);
