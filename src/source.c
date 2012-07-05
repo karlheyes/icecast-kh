@@ -2111,6 +2111,7 @@ static void source_swap_client (source_t *source, client_t *client)
     old_client->shared_data = NULL;
     old_client->flags &= ~CLIENT_AUTHENTICATED;
     old_client->connection.sent_bytes = source->format->read_bytes;
+    client->queue_pos = old_client->queue_pos;
 
     source->format->read_bytes = 0;
     source->format->parser = source->client->parser;
