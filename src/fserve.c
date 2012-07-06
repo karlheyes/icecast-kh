@@ -590,6 +590,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
             *eol = '\0';
         doc = stats_get_xml (0, reference);
         free (reference);
+        free (fullpath);
         return admin_send_response (doc, httpclient, XSLT, "xspf.xsl");
     }
 
