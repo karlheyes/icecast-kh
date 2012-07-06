@@ -582,11 +582,7 @@ static int send_iceblock_to_client (client_t *client)
     {
         client->pos = refbuf->len;
         if (refbuf->associated != client_mpg->associated)
-        {
-            refbuf_addref (refbuf->associated);
-            refbuf_release (client_mpg->associated);
             client_mpg->associated = refbuf->associated;
-        }
         client_mpg->metadata_offset = 0;
     }
     else
