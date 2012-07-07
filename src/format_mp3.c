@@ -200,6 +200,11 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
             free (source_mp3->url_title);
             source_mp3->url_title = s;
             INFO2 ("incoming title for %s %s", name, s);
+            if (source_mp3->url_artist)
+            {
+                free (source_mp3->url_artist);
+                source_mp3->url_artist = NULL;
+            }
         }
         else if (strncmp (metadata, "StreamUrl='", 11) == 0)
         {
