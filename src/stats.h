@@ -60,6 +60,7 @@ char *stats_get_value(const char *source, const char *name);
 long stats_handle (const char *mount);
 long stats_lock (long handle, const char *mount);
 void stats_release (long handle);
+void stats_flush (long handle);
 void stats_set (long handle, const char *name, const char *value);
 void stats_set_args (long handle, const char *name, const char *format, ...);
 void stats_set_flags (long handle, const char *name, const char *value, int flags);

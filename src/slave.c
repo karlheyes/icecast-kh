@@ -1394,9 +1394,9 @@ static int relay_read (client_t *client)
             if (client->connection.con_time && relay->in_use)
             {
                 INFO1 ("standing by to restart relay on %s", relay->localmount);
+                stats_flush (source->stats);
                 if (relay->on_demand && source->listeners == 0)
                     relay_reset (relay);
-                stats_event (relay->localmount, NULL, NULL);
                 client->ops = &relay_init_ops;
                 break;
             }

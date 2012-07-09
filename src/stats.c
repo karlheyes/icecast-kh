@@ -1334,6 +1334,28 @@ void stats_release (long handle)
 }
 
 
+// drops stats attached to this handle but don't remove the handle itself
+void stats_flush (long handle)
+{
+    if (handle)
+    {
+        stats_source_t *src_stats = (stats_source_t *)handle;
+        avl_tree *t = src_stats->stats_tree;
+        avl_node *node;
+
+        avl_tree_wlock (src_stats->stats_tree);
+        while ((node = src_stats->stats_tree->root->right))
+        {
+            stats_node_t *stats = (stats_node_t*)node->key;
+            DEBUG2 ("Removing %s from %s", stats->name, src_stats->source);
+            avl_delete (t, (void*)stats, _free_stats);
+        }
+        stats_listener_send (src_stats->flags, "FLUSH %s\n", src_stats->source);
+        avl_tree_unlock (src_stats->stats_tree);
+    }
+}
+
+
 // assume source stats are write locked 
 void stats_set (long handle, const char *name, const char *value)
 {
