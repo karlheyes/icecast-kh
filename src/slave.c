@@ -1509,6 +1509,23 @@ static int relay_startup (client_t *client)
         client->schedule_ms = client->worker->time_ms + 50;
         return 0;
     }
+    if (worker->move_allocations)
+    {
+        int ret = 0;
+        worker_t *dest_worker;
+
+        thread_rwlock_rlock (&workers_lock);
+        dest_worker = worker_selected ();
+        if (dest_worker != worker)
+        {
+            worker->move_allocations--;
+            ret = client_change_worker (client, dest_worker);
+        }
+        thread_rwlock_unlock (&workers_lock);
+        if (ret)
+            return ret;
+    }
+
     if (relay->on_demand)
     {
         source_t *source = relay->source;
