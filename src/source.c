@@ -2214,8 +2214,8 @@ static int source_change_worker (source_t *source, client_t *client)
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
-        if (source->listeners+1 < (this_worker->count - worker->count) ||
-                worker->count + 40 < this_worker->count)
+        long diff = this_worker->count - worker->count;
+        if (diff > 35 || diff > (source->listeners>>1))
         {
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
@@ -2248,16 +2248,16 @@ int listener_change_worker (client_t *client, source_t *source)
     if (this_worker != dest_worker)
     {
         diff = dest_worker->count - this_worker->count;
-        // do not move listener if source client worker is at least 100 clients more
-        if (diff > 30)
+        // do not move listener if source client worker has sufficiently more clients
+        if (diff > 15)
             dest_worker = NULL;
     }
     else
     {
         dest_worker = worker_selected ();
-        // do not move if least busy worker is less than 50 clients than ours
+        // do not move if least busy worker is significantly less than ours
         diff = this_worker->count - dest_worker->count;
-        if (diff < 30)
+        if (diff < 25)
             dest_worker = NULL;
     }
     if (dest_worker)
