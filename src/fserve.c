@@ -872,7 +872,10 @@ static int file_send (client_t *client)
         }
         bytes = client->check_buffer (client);
         if (bytes < 0)
+        {
+            client->schedule_ms += (written ? 120 : 250);
             break;
+        }
         written += bytes;
         client->schedule_ms += 3;
     }
