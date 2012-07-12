@@ -1203,6 +1203,7 @@ static int source_set_override (const char *mount, source_t *dest_source, format
                 {
                     source->fallback.limit = 0;
                     source->fallback.mount = strdup (dest);
+                    source->fallback.flags = FS_FALLBACK;
                     source->fallback.type = type;
                     source->termination_count = source->listeners;
                     source->client->timer_start = dest_source->client->worker->time_ms;
