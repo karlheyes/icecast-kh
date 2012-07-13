@@ -93,7 +93,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
              *ua = user_agent ? util_url_escape (user_agent) : strdup ("-");
 
         log_write_direct (accesslog->logid,
-                "%s - %s %s %s %d %" PRIu64 " %.50s %.50s %lu",
+                "%s - %s %s %s %d %" PRIu64 " %.150s %.150s %lu",
                 ip, un, datebuf, rq, client->respcode, client->connection.sent_bytes,
                 rf, ua, (unsigned long)stayed);
         free (ua);
@@ -108,7 +108,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
         if (user_agent == NULL)         user_agent = "-";
 
         log_write_direct (accesslog->logid,
-                "%s - %s [%s] \"%s\" %d %" PRIu64 " \"%.50s\" \"%.50s\" %lu",
+                "%s - %s [%s] \"%s\" %d %" PRIu64 " \"%.150s\" \"%.150s\" %lu",
                 ip, username, datebuf, reqbuf, client->respcode, client->connection.sent_bytes,
                 referrer, user_agent, (unsigned long)stayed);
     }
