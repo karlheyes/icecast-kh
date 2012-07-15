@@ -16,6 +16,17 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh2
+. sent value passed to listener_remove in kh1 could be wrong on 32bit setups
+. avoid clearing queue on relay restart, it exposed a crash case with lock changes
+. make TCP sockets not pass to on-[dis]connect scripts. useless work avoided
+. hijack source fix required with lock changes, to avoid mis-calculated lags drops
+. refcount bug missed for sending to master relays. possible memory corruption
+. more worker balancing changes, to spread loading more evenly.
+. missing delay for blocking file client, has an effect of higher cpu usage
+. rare override failure case handled better.
+. various minor fixes, including log format, memory leak and stats.
+
 2.3.3-kh1
 . Big change with rwlocks replacing mutexes. It's internal but can have a big effect
   on load pattern usage. In cases with many listeners on a single mount we can now
