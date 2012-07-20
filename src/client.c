@@ -239,7 +239,11 @@ int client_send_404 (client_t *client, const char *message)
     }
     client_set_queue (client, NULL);
     if (client->respcode)
+    {
+        worker_t *worker = client->worker;
         client->flags = CLIENT_ACTIVE | (client->flags & ~CLIENT_AUTHENTICATED);
+        worker_wakeup (worker);
+    }
     else
     {
         if (message == NULL)
