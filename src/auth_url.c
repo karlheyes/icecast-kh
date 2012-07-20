@@ -351,7 +351,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     ipaddr = util_url_escape (client->connection.ip);
 
     snprintf (post, sizeof (post),
-            "action=listener_remove&server=%s&port=%d&client=%lu&mount=%s"
+            "action=listener_remove&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
             "&user=%s&pass=%s&ip=%s&duration=%lu&sent=%" PRIu64,
             server, auth_user->port, client->connection.id, mount, username,
             password, ipaddr, (long unsigned)duration, client->connection.sent_bytes);
@@ -463,7 +463,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     referer = tmp ? util_url_escape (tmp) : strdup ("");
 
     snprintf (post, sizeof (post),
-            "action=listener_add&server=%s&port=%d&client=%lu&mount=%s"
+            "action=listener_add&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
             "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s",
             server, port, client->connection.id, mount, username,
             password, ipaddr, user_agent, referer);

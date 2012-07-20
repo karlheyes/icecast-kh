@@ -34,7 +34,7 @@ typedef struct connection_tag connection_t;
 
 struct connection_tag
 {
-    unsigned long id;
+    uint64_t id;
 
     time_t con_time;
     time_t discon_time;

@@ -116,7 +116,7 @@ typedef struct
 } cache_file_contents;
 
 static spin_t _connection_lock;
-static volatile unsigned long _current_id = 0;
+static volatile uint64_t _current_id = 0;
 thread_type *conn_tid;
 int sigfd;
 
@@ -232,9 +232,9 @@ void connection_shutdown(void)
     thread_spin_destroy (&_connection_lock);
 }
 
-static unsigned long _next_connection_id(void)
+static uint64_t _next_connection_id(void)
 {
-    unsigned long id;
+    uint64_t id;
 
     thread_spin_lock (&_connection_lock);
     id = _current_id++;

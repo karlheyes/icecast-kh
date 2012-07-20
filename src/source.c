@@ -688,7 +688,7 @@ static int source_queue_advance (client_t *client)
 
     if (lag > source->queue_size)
     {
-        INFO3 ("Client %lu (%s) has fallen too far behind on %s, removing",
+        INFO3 ("Client %" PRIu64 " (%s) has fallen too far behind on %s, removing",
                 client->connection.id, client->connection.ip, source->mount);
         stats_event_inc (source->mount, "slow_listeners");
         client->refbuf = NULL;
@@ -1023,7 +1023,7 @@ static int send_listener (source_t *source, client_t *client)
     /* check for limited listener time */
     if (client->connection.discon_time && now >= client->connection.discon_time)
     {
-        INFO1 ("time limit reached for client #%lu", client->connection.id);
+        INFO1 ("time limit reached for client #%" PRIu64, client->connection.id);
         return -1;
     }
     if (source_running (source) == 0)

@@ -1472,7 +1472,7 @@ void stats_listener_to_xml (client_t *listener, xmlNodePtr parent)
 
     xmlNodePtr node = xmlNewChild (parent, NULL, XMLSTR("listener"), NULL);
 
-    snprintf (buf, sizeof (buf), "%lu", listener->connection.id);
+    snprintf (buf, sizeof (buf), "%" PRIu64, listener->connection.id);
     xmlSetProp (node, XMLSTR("id"), XMLSTR(buf));
 
     xmlNewChild (node, NULL, XMLSTR("IP"), XMLSTR(listener->connection.ip));
