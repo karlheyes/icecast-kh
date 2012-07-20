@@ -131,7 +131,7 @@ static struct admin_command admin_mount[] =
 /* build an XML doc containing information about currently running sources.
  * If a mountpoint is passed then that source will not be added to the XML
  * doc even if the source is running */
-xmlDocPtr admin_build_sourcelist (const char *mount)
+xmlDocPtr admin_build_sourcelist (const char *mount, int show_listeners)
 {
     avl_node *node;
     source_t *source;
@@ -194,6 +194,8 @@ xmlDocPtr admin_build_sourcelist (const char *mount)
                 }
                 xmlNewChild (srcnode, NULL, XMLSTR("content-type"), 
                         XMLSTR(source->format->contenttype));
+                if (show_listeners)
+                    admin_source_listeners (source, srcnode);
             }
         }
         thread_rwlock_unlock (&source->lock);
@@ -443,7 +445,7 @@ static int command_move_clients (client_t *client, source_t *source, int respons
         parameters_passed = 1;
     }
     if (!parameters_passed) {
-        doc = admin_build_sourcelist(source->mount);
+        doc = admin_build_sourcelist(source->mount, 0);
         thread_rwlock_unlock (&source->lock);
         return admin_send_response(doc, client, response, "moveclients.xsl");
     }
@@ -1177,8 +1179,9 @@ int command_list_mounts(client_t *client, int response)
     else
     {
         xmlDocPtr doc;
+        int show_listeners = httpp_get_query_param (client->parser, "with_listeners") ? 1 : 0;
         avl_tree_rlock (global.source_tree);
-        doc = admin_build_sourcelist(NULL);
+        doc = admin_build_sourcelist (NULL, show_listeners);
         avl_tree_unlock (global.source_tree);
 
         return admin_send_response (doc, client, response, "listmounts.xsl");
