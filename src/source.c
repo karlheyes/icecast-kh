@@ -688,8 +688,8 @@ static int source_queue_advance (client_t *client)
 
     if (lag > source->queue_size)
     {
-        INFO3 ("Client %" PRIu64 " (%s) has fallen too far behind on %s, removing",
-                client->connection.id, client->connection.ip, source->mount);
+        INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
+                client->connection.id, client->connection.ip, client->queue_pos, source->mount);
         stats_event_inc (source->mount, "slow_listeners");
         client->refbuf = NULL;
         client->connection.error = 1;
@@ -2104,7 +2104,7 @@ static void source_swap_client (source_t *source, client_t *client)
 {
     client_t *old_client = source->client;
 
-    INFO1 ("source %s hijacked by another client, terminating old one", source->mount);
+    INFO2 ("source %s hijacked by another client, terminating previous (at %"PRIu64")", source->mount, old_client->queue_pos);
     client->shared_data = source;
     source->client = client;
 
