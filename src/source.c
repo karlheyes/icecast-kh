@@ -879,7 +879,7 @@ void source_listener_detach (source_t *source, client_t *client)
         refbuf_t *ref = client->refbuf;
 
         client->check_buffer = source->format->write_buf_to_client;
-        if (ref && client->pos < ref->len && ref->flags&SOURCE_QUEUE_BLOCK)
+        if (ref && client->connection.error == 0 && client->pos < ref->len && ref->flags&SOURCE_QUEUE_BLOCK)
         {
             /* make a private copy so that a write can complete */
             refbuf_t *copy = refbuf_copy (client->refbuf);
