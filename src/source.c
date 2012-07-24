@@ -686,6 +686,8 @@ static int source_queue_advance (client_t *client)
 
     lag = source->client->queue_pos - client->queue_pos;
 
+    if (client->flags & CLIENT_HAS_INTRO_CONTENT) abort(); // trap
+
     if (lag > source->queue_size)
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
@@ -764,6 +766,8 @@ static int locate_start_on_queue (source_t *source, client_t *client)
             client->intro_offset = -1;
             client->pos = 0;
             client->queue_pos = source->client->queue_pos - lag;
+            client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
+            DEBUG3 ("Joining queue on %s (%"PRIu64 ", %"PRIu64 ")", source->mount, source->client->queue_pos, client->queue_pos);
             return 0;
         }
         lag -= refbuf->len;
@@ -846,6 +850,7 @@ static int http_source_listener (client_t *client)
             ERROR0 ("internal problem, dropping client");
             return -1;
         }
+        client->flags |= CLIENT_HAS_INTRO_CONTENT;
         stats_event_inc (source->mount, "listener_connections");
     }
     ret = format_generic_write_to_client (client);
@@ -853,17 +858,15 @@ static int http_source_listener (client_t *client)
     {
         client->check_buffer = http_source_intro;
         client->intro_offset = 0;
-        if (client->flags & CLIENT_HAS_INTRO_CONTENT)
-        {
-            client->refbuf = refbuf->next;
-            refbuf->next = NULL;
-            refbuf_release (refbuf);
-            if (client->refbuf == NULL)
-                client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
-            client->pos = 0;
-        }
-        else
-            client_set_queue (client, NULL);
+        //if (client->flags & CLIENT_HAS_INTRO_CONTENT)
+        //{
+         //   client->refbuf = refbuf->next;
+          //  refbuf->next = NULL;
+           // refbuf_release (refbuf);
+          //  if (client->refbuf == NULL)
+           //     client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
+            //client->pos = 0;
+        //}
         client->connection.sent_bytes = 0;
         return ret;
     }
@@ -874,21 +877,29 @@ static int http_source_listener (client_t *client)
 
 void source_listener_detach (source_t *source, client_t *client)
 {
-    if (client->check_buffer != http_source_listener)
+    refbuf_t *ref = client->refbuf;
+
+    if (ref && client->check_buffer != http_source_listener)
     {
-        refbuf_t *ref = client->refbuf;
-
-        client->check_buffer = source->format->write_buf_to_client;
-        if (ref && client->connection.error == 0 && client->pos < ref->len && ref->flags&SOURCE_QUEUE_BLOCK)
+        if (client->flags & CLIENT_HAS_INTRO_CONTENT)
         {
-            /* make a private copy so that a write can complete */
-            refbuf_t *copy = refbuf_copy (client->refbuf);
-
-            client->refbuf = copy;
-            client->flags |= CLIENT_HAS_INTRO_CONTENT;
+            client_set_queue (client, NULL);
+            client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
         }
-        if ((client->flags & CLIENT_HAS_INTRO_CONTENT) == 0)
-            client->refbuf = NULL;
+        else
+        {
+            client->check_buffer = source->format->write_buf_to_client;
+            if (client->connection.error == 0 && client->pos < ref->len)
+            {
+                /* make a private copy so that a write can complete */
+                refbuf_t *copy = refbuf_copy (client->refbuf);
+
+                client->refbuf = copy;
+                client->flags |= CLIENT_HAS_INTRO_CONTENT;
+            }
+            else
+                client->refbuf = NULL;
+        }
     }
     avl_delete (source->clients, client, NULL);
     source->listeners--;
