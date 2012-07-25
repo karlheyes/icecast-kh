@@ -472,7 +472,7 @@ int source_read (source_t *source)
                 source->flags |= SOURCE_TIMEOUT;
                 return 0;
             }
-            source->skip_duration = (int)((source->skip_duration+6) * 1.1);
+            source->skip_duration = (int)((source->skip_duration + 25) * 1.1);
             if (source->skip_duration > 400)
                 source->skip_duration = 400;
             break;
