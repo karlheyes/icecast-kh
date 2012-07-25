@@ -1,0 +1,26 @@
+#!/bin/sh
+
+GVF=git_hash.h
+DEF_VER=WIP
+
+# First see if there is a version file (included in release tarballs),
+# then try git-describe, then default.
+if test -f version
+then
+	VN=$(cat version) || VN="$DEF_VER"
+elif test -d .git -o -f .git && 
+	VN=$(git describe --match icecast\* --dirty=-modified 2>/dev/null | cut -d - -f 4-) &&
+        test -z "$VN" 
+then
+	VN="$DEF_VER"
+fi
+if test -r $GVF
+then
+	VC=$(cut -d\" -f 2 <$GVF)
+else
+	VC=unset
+fi
+test "$VN" = "$VC" || {
+	echo "#define GIT_VERSION    \"$VN\"" >$GVF
+}
+echo >&2 "GIT_VERSION=$VN"

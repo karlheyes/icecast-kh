@@ -24,6 +24,7 @@
 #include <libxml/parserInternals.h>
 #include <libxml/tree.h>
 
+#include <git_hash.h>
 #include "thread/thread.h"
 #include "avl/avl.h"
 #include "httpp/httpp.h"
@@ -163,6 +164,9 @@ void stats_initialize(void)
     stats_event_flags (NULL, "stats", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "banned_IPs", "0", STATS_COUNTERS);
     stats_event (NULL, "listeners", "0");
+#ifdef GIT_VERSION
+    stats_event (NULL, "build", GIT_VERSION);
+#endif
 
     /* global accumulating stats */
     stats_event_flags (NULL, "client_connections", "0", STATS_COUNTERS);

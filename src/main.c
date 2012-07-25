@@ -30,6 +30,7 @@
 #ifdef HAVE_CURL
 #include <curl/curl.h>
 #endif
+#include <git_hash.h>
 
 #include "thread/thread.h"
 #include "avl/avl.h"
@@ -166,7 +167,7 @@ static int _parse_config_opts(int argc, char **argv, char *filename, int size)
 #endif
         }
         if (strcmp(argv[i], "-v") == 0) {
-            fprintf(stdout, "%s\n", ICECAST_VERSION_STRING);
+            fprintf(stdout, "%s\n", ICECAST_VERSION_STRING "-" GIT_VERSION);
             exit(0);
         }
 
