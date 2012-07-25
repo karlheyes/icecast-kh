@@ -1039,7 +1039,7 @@ static int http_client_request (client_t *client)
                         client->ops = &http_req_stats_ops;
                         break;
                     default:
-                        WARN0("unhandled request type from client");
+                        WARN1("unhandled request type from %s", client->connection.ip);
                         return client_send_501 (client);
                 }
                 client->counter = 0;
