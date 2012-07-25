@@ -135,30 +135,25 @@ int format_file_read (client_t *client, format_plugin_t *plugin, FILE *fp)
             if (fp == NULL)
                 return -2;
             refbuf = client->refbuf = refbuf_new (4096);
+            client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
             client->intro_offset = 0;
             client->queue_pos = 0;
         }
         if (client->pos < refbuf->len)
             break;
-        if (fp == NULL || client->flags & CLIENT_HAS_INTRO_CONTENT)
+
+        if (refbuf->next)
         {
-            if (refbuf->next)
-            {
-                //DEBUG1 ("next intro block is %d", refbuf->next->len);
-                client->refbuf = refbuf->next;
-                refbuf->next = NULL;
-                refbuf_release (refbuf);
-                client->pos = 0;
-                return 0;
-            }
-            //DEBUG0 ("No more intro data ");
-            client_set_queue (client, NULL);
-            client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
-            client->intro_offset = client->connection.sent_bytes;
-            refbuf = NULL;
-            continue;
+            //DEBUG1 ("next intro block is %d", refbuf->next->len);
+            client->refbuf = refbuf->next;
+            refbuf->next = NULL;
+            refbuf_release (refbuf);
+            client->pos = 0;
+            return 0;
         }
+
+        if (fp == NULL) return -2;
 
         if (fseek (fp, client->intro_offset, SEEK_SET) < 0 ||
                 (bytes = fread (refbuf->data, 1, 4096, fp)) <= 0)
