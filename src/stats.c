@@ -1092,7 +1092,6 @@ int stats_transform_xslt (client_t *client, const char *uri)
 
     ret = xslt_transform (doc, xslpath, client);
 
-    xmlFreeDoc(doc);
     free (xslpath);
     return ret;
 }

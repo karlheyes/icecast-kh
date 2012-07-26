@@ -245,7 +245,6 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
         DEBUG1("Sending XSLT (%s)", fullpath_xslt_template);
         ret = xslt_transform (doc, fullpath_xslt_template, client);
         free(fullpath_xslt_template);
-        xmlFreeDoc(doc);
     }
     return ret;
 }

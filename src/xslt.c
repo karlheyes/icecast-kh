@@ -56,6 +56,7 @@ typedef struct {
     char              *filename;
     time_t             last_modified;
     time_t             cache_age;
+    time_t             last_checked;
     xsltStylesheetPtr  stylesheet;
 } stylesheet_cache_t;
 
@@ -155,15 +156,21 @@ int xslt_SaveResultToBuf (refbuf_t **bptr, int *len, xmlDocPtr result, xsltStyle
 }
 
 /* Keep it small... */
-#define CACHESIZE 3
+#define CACHESIZE       10 
 
 static stylesheet_cache_t cache[CACHESIZE];
 static mutex_t xsltlock;
+static rwlock_t xslt_lock;
+static spin_t update_lock;
+int    xsl_updating;
 
 void xslt_initialize(void)
 {
     memset(cache, 0, sizeof(stylesheet_cache_t)*CACHESIZE);
     thread_mutex_create(&xsltlock);
+    thread_rwlock_create (&xslt_lock);
+    thread_spin_create (&update_lock);
+    xsl_updating = 0;
     xmlInitParser();
     LIBXML_TEST_VERSION
     xmlSubstituteEntitiesDefault(1);
@@ -181,96 +188,190 @@ void xslt_shutdown(void) {
     }
 
     thread_mutex_destroy (&xsltlock);
+    thread_rwlock_destroy (&xslt_lock);
+    thread_spin_destroy (&update_lock);
     xmlCleanupParser();
     xsltCleanupGlobals();
 }
 
-static int evict_cache_entry(void) {
-    int i, age=0, oldest=0;
+static int xslt_client (client_t *client);
 
-    for(i=0; i < CACHESIZE; i++) {
-        if(cache[i].cache_age > age) {
-            age = cache[i].cache_age;
-            oldest = i;
+typedef struct
+{
+    int index;
+    client_t *client;
+    xmlDocPtr doc;
+    stylesheet_cache_t cache;
+} xsl_req;
+
+struct _client_functions xslt_ops =
+{
+    xslt_client,
+    client_destroy
+};
+
+
+/* thread to read xsl file and add to the cache */
+void *xslt_update (void *arg)
+{
+    xsl_req *x = arg;
+    client_t *client = x->client;
+    worker_t *worker = client ? client->worker : NULL;
+    char *fn = x->cache.filename;
+
+    x->cache.stylesheet = xsltParseStylesheetFile (XMLSTR(fn));
+    if (x->cache.stylesheet)
+    {
+        int i = x->index;
+
+        if (client) fn = strdup (fn); // need to copy the filename if another lookup is to do
+        INFO1 ("loaded stylesheet %s", x->cache.filename);
+        thread_rwlock_wlock (&xslt_lock);
+        free (cache[i].filename);
+        xsltFreeStylesheet (cache[i].stylesheet);
+        memcpy (&cache[i], &x->cache, sizeof (stylesheet_cache_t));
+        thread_rwlock_unlock (&xslt_lock);
+        memset (&x->cache, 0, sizeof (stylesheet_cache_t));
+
+        if (client)
+        {
+            x->cache.filename = fn;
+            client->flags |= CLIENT_ACTIVE;
         }
     }
-
-    if (cache[oldest].stylesheet)
-        xsltFreeStylesheet(cache[oldest].stylesheet);
-    free(cache[oldest].filename);
-
-    return oldest;
+    else
+    {
+        WARN1 ("problem reading stylesheet \"%s\"", x->cache.filename);
+        free (fn);
+        if (client) client_send_404 (client, "Could not parse XSLT file");
+    }
+    thread_spin_lock (&update_lock);
+    xsl_updating--;
+    thread_spin_unlock (&update_lock);
+    if (worker) worker_wakeup (worker); // wakeup after the decrease or it may delay
+    if (client == NULL) free (x);
+    return NULL;
 }
 
-static xsltStylesheetPtr xslt_get_stylesheet(const char *fn) {
-    int i;
-    int empty = -1;
+
+static int xslt_cached (const char *fn, client_t *client)
+{
+    worker_t *worker = client->worker;
+    time_t now = worker->current_time.tv_sec, oldest = now;
+    int evict = 0, i;
     struct stat file;
 
-    if(stat(fn, &file)) {
-        WARN2("Error checking for stylesheet file \"%s\": %s", fn, 
-                strerror(errno));
-        return NULL;
-    }
-
-    for(i=0; i < CACHESIZE; i++) {
+    for(i=0; i < CACHESIZE; i++)
+    {
         if(cache[i].filename)
         {
 #ifdef _WIN32
-            if(!stricmp(fn, cache[i].filename))
+            if (stricmp(fn, cache[i].filename) == 0)
 #else
-            if(!strcmp(fn, cache[i].filename))
+            if (strcmp(fn, cache[i].filename) == 0)
 #endif
             {
-                if(file.st_mtime > cache[i].last_modified)
+                if (now - cache[i].last_checked > 10)
                 {
-                    xsltFreeStylesheet(cache[i].stylesheet);
+                    cache[i].last_checked = now;
+                    if (stat (fn, &file))
+                    {
+                        WARN2("Error checking for stylesheet file \"%s\": %s", fn, strerror(errno));
+                        return i;
+                    }
+                    DEBUG1 ("rechecked file time on %s", fn);
 
-                    cache[i].last_modified = file.st_mtime;
-                    cache[i].stylesheet = xsltParseStylesheetFile(XMLSTR(fn));
-                    cache[i].cache_age = time(NULL);
+                    thread_spin_lock (&update_lock);
+                    if (file.st_mtime > cache[i].last_modified)
+                    {
+                        cache[i].last_modified = file.st_mtime;
+                        thread_spin_unlock (&update_lock);
+                        break;
+                    }
                 }
-                DEBUG1("Using cached sheet %i", i);
-                return cache[i].stylesheet;
+                thread_spin_unlock (&update_lock);
+                cache[i].cache_age = now;
+                return i;
             }
+            if (oldest < cache[i].cache_age)
+                continue;
         }
-        else
-            empty = i;
+        evict = i;
     }
-
-    if(empty>=0)
-        i = empty;
+    xsl_req *x = calloc (1, sizeof (xsl_req));
+    if (i < CACHESIZE)
+    {
+        x->index = i;
+    }
     else
-        i = evict_cache_entry();
+    {
+        if (stat (fn, &file))
+        {
+            WARN2("Error checking for stylesheet file \"%s\": %s", fn, strerror(errno));
+            free (x);
+            return -2;
+        }
+        x->client = client;
+        x->index = evict;
+    }
+    x->doc = client->shared_data;
+    x->cache.filename = strdup (fn);
+    x->cache.last_modified = file.st_mtime;
+    x->cache.cache_age = now;
+    x->cache.last_checked = now;
+    client->shared_data = x;
+    client->schedule_ms = worker->time_ms;
+    client->ops = &xslt_ops;
 
-    cache[i].last_modified = file.st_mtime;
-    cache[i].filename = strdup(fn);
-    cache[i].stylesheet = xsltParseStylesheetFile(XMLSTR(fn));
-    cache[i].cache_age = time(NULL);
-    return cache[i].stylesheet;
+    thread_spin_lock (&update_lock);
+    if (xsl_updating < 3)
+    {
+        xsl_updating++;
+        thread_spin_unlock (&update_lock);
+        if (x->client)   client->flags &= ~CLIENT_ACTIVE;
+        thread_create ("update xslt", xslt_update, x, THREAD_DETACHED);
+        if (x->client == NULL)   return i;
+    }
+    else
+    {
+        thread_spin_unlock (&update_lock);
+        x->client = client;
+        client->schedule_ms += 10;
+        if ((client->flags & CLIENT_ACTIVE) == 0)
+        {
+            client->flags |= CLIENT_ACTIVE;
+            worker_wakeup (worker);
+        }
+    }
+    return -1;
 }
+
 
 
 int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
 {
     xmlDocPtr    res;
     xsltStylesheetPtr cur;
-    int len;
-    refbuf_t *content = NULL;
+    int len, i;
     char **params = NULL;
+    refbuf_t *content = NULL;
 
-    xmlSetGenericErrorFunc ("", log_parse_failure);
-    xsltSetGenericErrorFunc ("", log_parse_failure);
-
-    thread_mutex_lock(&xsltlock);
-    cur = xslt_get_stylesheet(xslfilename);
-
-    if (cur == NULL)
+    client->shared_data = doc;
+    thread_rwlock_rlock (&xslt_lock);
+    i = xslt_cached (xslfilename, client);
+    if (i < 0)
     {
-        thread_mutex_unlock(&xsltlock);
-        ERROR1 ("problem reading stylesheet \"%s\"", xslfilename);
-        return client_send_404 (client, "Could not parse XSLT file");
+        thread_rwlock_unlock (&xslt_lock);
+        if (i == -2)
+        {
+            xmlFreeDoc (doc);
+            client->shared_data = NULL;
+            return client_send_404 (client, "Could not parse XSLT file");
+        }
+        return 0;
     }
+    cur = cache[i].stylesheet;
+    client->shared_data = NULL;
     if (client->parser->queryvars)
     {
         // annoying but we need to surround the args with ' when passing them in
@@ -296,8 +397,9 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
 
     if (res == NULL || xslt_SaveResultToBuf (&content, &len, res, cur) < 0)
     {
-        thread_mutex_unlock (&xsltlock);
+        thread_rwlock_unlock (&xslt_lock);
         xmlFreeDoc (res);
+        xmlFreeDoc (doc);
         WARN1 ("problem applying stylesheet \"%s\"", xslfilename);
         return client_send_404 (client, "XSLT problem");
     }
@@ -329,7 +431,7 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
                 "\r\n",
                 mediatype, len);
 
-        thread_mutex_unlock (&xsltlock);
+        thread_rwlock_unlock (&xslt_lock);
         client->respcode = 200;
         client_set_queue (client, NULL);
         client->refbuf = refbuf;
@@ -337,6 +439,17 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
         refbuf->next = content;
     }
     xmlFreeDoc(res);
+    xmlFreeDoc(doc);
     return fserve_setup_client (client);
+}
+
+
+int xslt_client (client_t *client)
+{
+   xsl_req *x = client->shared_data;
+   int ret = xslt_transform (x->doc, x->cache.filename, client);
+   free (x->cache.filename);
+   free (x);
+   return ret;
 }
 
