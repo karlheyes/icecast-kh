@@ -34,6 +34,8 @@ typedef enum _format_type_tag
     FORMAT_TYPE_GENERIC
 } format_type_t;
 
+#include "fserve.h"
+
 typedef struct _format_plugin_tag format_plugin_t;
 
 struct _format_plugin_tag
@@ -70,7 +72,7 @@ format_type_t format_get_type(const char *contenttype);
 int format_get_plugin (format_plugin_t *plugin, client_t *client);
 int format_generic_write_to_client (client_t *client);
 
-int format_file_read (client_t *client, format_plugin_t *plugin, FILE *fp);
+int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f);
 int format_general_headers (format_plugin_t *plugin, client_t *client);
 
 void format_send_general_headers(format_plugin_t *format, 

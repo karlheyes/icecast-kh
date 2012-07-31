@@ -154,6 +154,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src->format = calloc (1, sizeof(format_plugin_t));
         src->clients = avl_tree_new (client_compare, NULL);
         src->stats = stats_handle (mount);
+        src->intro_file = -1;
 
         thread_rwlock_create (&src->lock);
         thread_spin_create (&src->spinlock);
@@ -287,11 +288,7 @@ void source_clear_source (source_t *source)
     free(source->dumpfilename);
     source->dumpfilename = NULL;
 
-    if (source->intro_file)
-    {
-        fclose (source->intro_file);
-        source->intro_file = NULL;
-    }
+    file_close (&source->intro_file);
 }
 
 
@@ -1513,11 +1510,7 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
         source->dumpfilename = strdup (buffer);
     }
     /* handle changes in intro file setting */
-    if (source->intro_file)
-    {
-        fclose (source->intro_file);
-        source->intro_file = NULL;
-    }
+    file_close (&source->intro_file);
     if (mountinfo && mountinfo->intro_filename)
     {
         ice_config_t *config = config_get_config_unlocked ();
@@ -1526,15 +1519,11 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
         char *path = malloc (len);
         if (path)
         {
-            FILE *f;
             snprintf (path, len, "%s" PATH_SEPARATOR "%s", config->webroot_dir,
                     mountinfo->intro_filename);
 
             DEBUG1 ("intro file is %s", mountinfo->intro_filename);
-            f = fopen (path, "rb");
-            if (f)
-                source->intro_file = f;
-            else
+            if (file_open (&source->intro_file, path) < 0)
                 WARN2 ("Cannot open intro file \"%s\": %s", path, strerror(errno));
             free (path);
         }

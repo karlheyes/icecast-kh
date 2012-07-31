@@ -23,6 +23,9 @@
 #include <sys/stat.h>
 #endif
 #include <errno.h>
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
 
 #ifdef HAVE_POLL
 #include <sys/poll.h>
@@ -44,12 +47,16 @@
 #  define PRI_OFF_T PRIdMAX
 # endif
 #endif
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
 
 #include "thread/thread.h"
 #include "avl/avl.h"
 #include "httpp/httpp.h"
 #include "net/sock.h"
 
+#include "fserve.h"
 #include "connection.h"
 #include "global.h"
 #include "refbuf.h"
@@ -62,7 +69,6 @@
 #include "admin.h"
 #include "slave.h"
 
-#include "fserve.h"
 #include "format_mp3.h"
 
 #undef CATMODULE
@@ -73,6 +79,9 @@
 static spin_t pending_lock;
 static avl_tree *mimetypes = NULL;
 static avl_tree *fh_cache = NULL;
+#ifndef HAVE_PREAD
+static mutex_t seekread_lock;
+#endif
 
 typedef struct {
     char *ext;
@@ -85,7 +94,7 @@ typedef struct {
     int refcount;
     int peak;
     int max;
-    FILE *fp;
+    icefile_handle f;
     time_t stats_update;
     long stats;
     format_plugin_t *format;
@@ -106,6 +115,9 @@ void fserve_initialize(void)
 
     mimetypes = NULL;
     thread_spin_create (&pending_lock);
+#ifndef HAVE_PREAD
+    thread_mutex_create (&seekread_lock);
+#endif
     fh_cache = avl_tree_new (_compare_fh, NULL);
 
     fserve_recheck_mime_types (config);
@@ -134,6 +146,9 @@ void fserve_shutdown(void)
     }
 
     thread_spin_destroy (&pending_lock);
+#ifndef HAVE_PREAD
+    thread_mutex_destroy (&seekread_lock);
+#endif
     INFO0("file serving stopped");
 }
 
@@ -206,8 +221,7 @@ static int _delete_fh (void *mapping)
     else
         thread_mutex_destroy (&fh->lock);
 
-    if (fh->fp)
-        fclose (fh->fp);
+    file_close (&fh->f);
     if (fh->format)
     {
         free (fh->format->mount);
@@ -335,8 +349,7 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
             else
                 INFO1 ("lookup of \"%s\"", finfo->mount);
         }
-        fh->fp = fopen (fullpath, "rb");
-        if (fh->fp == NULL)
+        if (file_open (&fh->f, fullpath) < 0)
         {
             if (client)
                 INFO1 ("Failed to open \"%s\"", fullpath);
@@ -426,7 +439,7 @@ static int fill_http_headers (client_t *client, const char *path, struct stat *f
             off_t endpos;
             fh_node * fh = client->shared_data;
 
-            ret = fseeko (fh->fp, rangenumber, SEEK_SET);
+            ret = lseek (fh->f, rangenumber, SEEK_SET);
             if (ret == -1)
                 return -1;
 
@@ -785,7 +798,7 @@ static int prefile_send (client_t *client)
             {
                 if (fh)
                 {
-                    if (fh->fp) // is there a file to read from
+                    if (file_in_use (fh->f)) // is there a file to read from
                     {
                         int len = 8192;
                         if (fh->finfo.flags & FS_FALLBACK)
@@ -830,28 +843,6 @@ static int prefile_send (client_t *client)
     return 0;
 }
 
-static int read_file (client_t *client, int blksize)
-{
-    refbuf_t *refbuf = client->refbuf;
-    fh_node *fh = client->shared_data;
-    int bytes = 0;
-
-    switch (fseeko (fh->fp, client->intro_offset, SEEK_SET))
-    {
-        case -1:
-            client->connection.error = 1;
-            break;
-        default:
-            bytes = fread (refbuf->data, 1, blksize, fh->fp);
-            if (bytes > 0)
-            {
-                refbuf->len = bytes;
-                client->intro_offset += bytes;
-            }
-    }
-    return bytes;
-}
-
 
 /* fast send routine */
 static int file_send (client_t *client)
@@ -880,9 +871,7 @@ static int file_send (client_t *client)
             return -1;
         if (client->pos == refbuf->len)
         {
-            thread_mutex_lock (&fh->lock);
-            ret = read_file (client, 8192);
-            thread_mutex_unlock (&fh->lock);
+            ret = pread (fh->f, refbuf->data, 8192, client->intro_offset);
             if (ret == 0)
                 return -1;
             client->pos = 0;
@@ -951,7 +940,7 @@ static int throttled_file_send (client_t *client)
     if (client->pos == refbuf->len)
     {
         //DEBUG1 ("reading another block from offset %ld", client->intro_offset);
-        int ret = format_file_read (client, fh->format, fh->fp);
+        int ret = format_file_read (client, fh->format, fh->f);
 
         switch (ret)
         {
@@ -1322,3 +1311,39 @@ int fserve_query_count (fbinfo *finfo)
     return ret;
 }
 
+
+int file_in_use (icefile_handle f)
+{
+    return f != -1;
+}
+
+
+void file_close (icefile_handle *f)
+{
+   if (*f != -1)
+       close (*f);
+   *f = -1;
+}
+
+
+int file_open (icefile_handle *f, const char *fn)
+{
+    *f = open (fn, O_RDONLY|O_CLOEXEC);
+    return (*f) < 0 ? -1 : 0;
+}
+
+
+#ifndef HAVE_PREAD
+ssize_t pread (icefile_handle f, void *data, size_t count, off_t offset)
+{
+    ssize_t bytes = -1;
+
+    // we do not want another thread to modifiy handle between seek and read 
+    // win32 may be able to use the overlapped io struct in ReadFile
+    thread_mutex_lock (&seekread_lock);
+    if (lseek (f, offset, SEEK_SET) != (off_t)-1)
+        bytes = read (f, data, count);
+    thread_mutex_unlock (&seekread_lock);
+    return bytes;
+}
+#endif

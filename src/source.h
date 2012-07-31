@@ -37,7 +37,7 @@ typedef struct source_tag
     util_dict *audio_info;
 
     /* name of a file, whose contents are sent at listener connection */
-    FILE *intro_file;
+    icefile_handle intro_file;
 
     char *dumpfilename; /* Name of a file to dump incoming stream to */
     FILE *dumpfile;

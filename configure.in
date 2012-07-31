@@ -36,7 +36,7 @@ dnl Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_HEADERS([signal.h fnmatch.h limits.h sys/timeb.h malloc.h glob.h windows.h])
+AC_CHECK_HEADERS([fcntl.h signal.h fnmatch.h limits.h sys/timeb.h malloc.h glob.h windows.h])
 AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -53,7 +53,7 @@ AC_CHECK_DECLS([localtime_r, FindFirstFile],,, [
 #endif
 #include <time.h>
 #include <pthread.h>])
-AC_CHECK_FUNCS([fnmatch chroot fork poll atoll strtoll strcasecmp getrlimit gettimeofday ftime fsync glob])
+AC_CHECK_FUNCS([fnmatch chroot fork poll atoll strtoll strcasecmp getrlimit gettimeofday ftime fsync glob pread])
 AC_CHECK_TYPES([struct signalfd_siginfo],
                [AC_DEFINE(HAVE_SIGNALFD, 1 ,[Define if signalfd exists])], [],
                [#include <sys/signalfd.h>])

@@ -122,17 +122,17 @@ int format_get_plugin (format_plugin_t *plugin, client_t *client)
 }
 
 
-int format_file_read (client_t *client, format_plugin_t *plugin, FILE *fp)
+int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f)
 {
     refbuf_t *refbuf = client->refbuf;
-    size_t bytes = -1;
+    ssize_t bytes = -1;
     int unprocessed = 0;
 
     do
     {
         if (refbuf == NULL)
         {
-            if (fp == NULL)
+            if (file_in_use (f) == 0)
                 return -2;
             refbuf = client->refbuf = refbuf_new (4096);
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
@@ -153,13 +153,12 @@ int format_file_read (client_t *client, format_plugin_t *plugin, FILE *fp)
             return 0;
         }
 
-        if (fp == NULL) return -2;
+        if (file_in_use (f) == 0) return -2;
 
-        if (fseek (fp, client->intro_offset, SEEK_SET) < 0 ||
-                (bytes = fread (refbuf->data, 1, 4096, fp)) <= 0)
-        {
+        bytes = pread (f, refbuf->data, 4096, client->intro_offset);
+        if (bytes <= 0)
             return bytes < 0 ? -2 : -1;
-        }
+
         refbuf->len = bytes;
         client->pos = 0;
         if (plugin->align_buffer)

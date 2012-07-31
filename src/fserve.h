@@ -15,6 +15,10 @@
 
 #include <stdio.h>
 #include "cfgfile.h"
+
+#define icefile_handle   int
+
+
 #include "format.h"
 
 typedef void (*fserve_callback_t)(client_t *, void *);
@@ -46,6 +50,13 @@ int  fserve_list_clients (client_t *client, const char *mount, int response, int
 int  fserve_list_clients_xml (xmlNodePtr srcnode, fbinfo *finfo);
 int  fserve_kill_client (client_t *client, const char *mount, int response);
 int  fserve_query_count (fbinfo *finfo);
+
+int  file_in_use (icefile_handle f);
+int  file_open (icefile_handle *f, const char *fn);
+void file_close (icefile_handle *f);
+#ifndef HAVE_PREAD
+ssize_t pread (icefile_handle f, void *data, size_t count, off_t offset);
+#endif
 
 
 extern int fserve_running;
