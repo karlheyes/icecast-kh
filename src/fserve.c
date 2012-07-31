@@ -872,8 +872,10 @@ static int file_send (client_t *client)
         if (client->pos == refbuf->len)
         {
             ret = pread (fh->f, refbuf->data, 8192, client->intro_offset);
-            if (ret == 0)
+            if (ret <= 0)
                 return -1;
+            refbuf->len = ret;
+            client->intro_offset += ret;
             client->pos = 0;
         }
         bytes = client->check_buffer (client);
