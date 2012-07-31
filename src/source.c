@@ -1627,6 +1627,9 @@ static int source_client_callback (client_t *client)
     if (client->connection.error) /* did http response fail? */
     {
         thread_rwlock_unlock (&source->lock);
+        avl_tree_wlock (global.source_tree);
+        avl_delete (global.source_tree, source, NULL);
+        avl_tree_unlock (global.source_tree);
         global_lock();
         global.sources--;
         global_unlock();
@@ -2086,8 +2089,12 @@ static int source_client_http_send (client_t *client)
     if (client->pos < client->refbuf->len)
     {
         int ret = format_generic_write_to_client (client);
-        if (ret > 0 && ret < client->refbuf->len)
+        if ((ret < 0 && sock_recoverable (sock_error())) ||
+                (ret < client->refbuf->len))
+        {
+            client->schedule_ms = client->worker->time_ms + 40;
             return 0; /* trap for short writes */
+        }
     }
     stream = client->refbuf->associated;
     client->refbuf->associated = NULL;
