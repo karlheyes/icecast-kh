@@ -61,7 +61,7 @@ char *util_conv_string (const char *string, const char *in_charset, const char *
 
 struct rate_calc *rate_setup (unsigned int samples, unsigned int ssec);
 void rate_add (struct rate_calc *calc, long value, uint64_t t);
-float rate_avg (struct rate_calc *calc);
+long rate_avg (struct rate_calc *calc);
 void rate_free (struct rate_calc *calc);
 void rate_reduce (struct rate_calc *calc, unsigned int range);
 

@@ -762,10 +762,8 @@ void stats_global (ice_config_t *config)
     stats_event_flags (NULL, "host", config->hostname, STATS_GENERAL);
     stats_event (NULL, "location", config->location);
     stats_event (NULL, "admin", config->admin);
-    thread_spin_lock (&global.spinlock);
     global.max_rate = config->max_bandwidth;
     throttle_sends = 0;
-    thread_spin_unlock (&global.spinlock);
 }
 
 static void process_event (stats_event_t *event)

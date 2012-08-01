@@ -46,14 +46,12 @@ void global_initialize(void)
     global.alloc_tree = avl_tree_new(compare_allocs, NULL);
 #endif
     thread_mutex_create(&_global_mutex);
-    thread_spin_create (&global.spinlock);
     global.out_bitrate = rate_setup (20000, 1000);
 }
 
 void global_shutdown(void)
 {
     thread_mutex_destroy(&_global_mutex);
-    thread_spin_destroy (&global.spinlock);
     avl_tree_free(global.source_tree, NULL);
     rate_free (global.out_bitrate);
     global.out_bitrate = NULL;
@@ -74,11 +72,17 @@ void global_unlock(void)
 
 void global_add_bitrates (struct rate_calc *rate, unsigned long value, uint64_t milli)
 {
-    float avg;
-    thread_spin_lock (&global.spinlock);
     rate_add (rate, value, milli);
-    avg = rate_avg (rate);
+}
 
+void global_reduce_bitrate_sampling (struct rate_calc *rate)
+{
+    rate_reduce (rate, 500);
+}
+
+unsigned long global_getrate_avg (struct rate_calc *rate)
+{
+    unsigned long avg = rate_avg (rate);
     if (global.max_rate)
     {
         float ratio = avg / global.max_rate;
@@ -91,23 +95,7 @@ void global_add_bitrates (struct rate_calc *rate, unsigned long value, uint64_t 
         else if (throttle_sends > 0)
             throttle_sends--;
     }
-    thread_spin_unlock (&global.spinlock);
-}
-
-void global_reduce_bitrate_sampling (struct rate_calc *rate)
-{
-    thread_spin_lock (&global.spinlock);
-    rate_reduce (rate, 500);
-    thread_spin_unlock (&global.spinlock);
-}
-
-unsigned long global_getrate_avg (struct rate_calc *rate)
-{
-    unsigned long v;
-    thread_spin_lock (&global.spinlock);
-    v = rate_avg (rate);
-    thread_spin_unlock (&global.spinlock);
-    return v;
+    return avg;
 }
 
 #ifdef MY_ALLOC

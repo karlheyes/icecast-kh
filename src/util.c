@@ -58,6 +58,7 @@ struct rate_calc
 {
     int64_t total;
     struct rate_calc_node *current;
+    spin_t lock;
     unsigned int samples;
     unsigned int ssec;
     unsigned int blocks;
@@ -709,6 +710,7 @@ struct rate_calc *rate_setup (unsigned int samples, unsigned int ssec)
         free (calc);
         return NULL;
     }
+    thread_spin_create (&calc->lock);
     calc->samples = samples;
     calc->ssec = ssec;
     return calc;
@@ -716,7 +718,7 @@ struct rate_calc *rate_setup (unsigned int samples, unsigned int ssec)
 
 static void rate_purge_entries (struct rate_calc *calc, uint64_t cutoff)
 {
-    struct rate_calc_node *node = calc->current->next;
+    struct rate_calc_node *node = calc->current->next, *to_free = NULL;
     int count = calc->blocks;
 
     while (count && node->index <= cutoff)
@@ -727,10 +729,18 @@ static void rate_purge_entries (struct rate_calc *calc, uint64_t cutoff)
         node = node->next;
         calc->current->next = node;
         calc->total -= to_go->value;
-        free (to_go);
+        to_go->next = to_free;
+        to_free = to_go;
         count--;
     }
     calc->blocks = count;
+    thread_spin_unlock (&calc->lock);
+    while (to_free)
+    {
+        struct rate_calc_node *to_go = to_free;
+        to_free = to_go->next;
+        free (to_go);
+    }
 }
 
 /* add a value to sampled data, t is used to determine which sample
@@ -738,69 +748,91 @@ static void rate_purge_entries (struct rate_calc *calc, uint64_t cutoff)
  */
 void rate_add (struct rate_calc *calc, long value, uint64_t sid) 
 {
-    uint64_t cutoff = sid - calc->samples;
+    uint64_t cutoff;
 
+    thread_spin_lock (&calc->lock);
+    cutoff = sid - calc->samples;
     if (value == 0 && calc->current && calc->current->value == 0)
     {
         calc->current->index = sid; /* update the timestamp if 0 already present */
         rate_purge_entries (calc, cutoff);
         return;
     }
-    calc->total += value;
-    if (calc->current == NULL || sid != calc->current->index)
+    while (1)
     {
-        struct rate_calc_node *node = calc->current ? calc->current->next : NULL;
-        if (node == NULL || node->index > cutoff)
+        struct rate_calc_node *next = NULL, *node;
+        int to_insert = 1;
+        if (calc->current)
         {
+            if (sid == calc->current->index)
+            {
+                calc->current->value += value;
+                calc->total += value;
+                thread_spin_unlock (&calc->lock);
+                return;
+            }
+            next = calc->current->next;
+            if (cutoff > next->index)
+                to_insert = 0;
+        }
+        if (to_insert)
+        {
+            thread_spin_unlock (&calc->lock);
             node = calloc (1, sizeof (*node));
 
             node->index = sid;
-            node->value = value;
-            calc->blocks++;
-            if (calc->current)
+            thread_spin_lock (&calc->lock);
+            if ((calc->current && calc->current->next != next) ||
+                (calc->current == NULL && next != NULL))
             {
-                node->next = calc->current->next;
-                calc->current->next = node;
+                thread_spin_unlock (&calc->lock);
+                free (node);
+                thread_spin_lock (&calc->lock);
+                continue;
             }
-            else
-                node->next = node;
+            node->next = next ? next : node;
+            if (calc->current)  calc->current->next = node;
             calc->current = node;
+            calc->blocks++;
         }
-        else
-        {
-            calc->total -= node->value;
-            node->index = sid;
-            node->value = value;
-            calc->current = node;
-        }
-        rate_purge_entries (calc, cutoff);
-        return;
+        calc->current->value += value;
+        break;
     }
-    calc->current->value += value;
+    calc->total += value;
+    rate_purge_entries (calc, cutoff);
 }
+
 
 /* return the average sample value over all the blocks except the 
  * current one, as that may be incomplete
  */
-float rate_avg (struct rate_calc *calc)
+long rate_avg (struct rate_calc *calc)
 {
-    float range;
+    long total = 0, ssec = 1;
+    float range = 1.0;
 
-    if (calc == NULL || calc->blocks < 2)
-        return 0;
-    range = (calc->current->index - calc->current->next->index) + 1;
-    if (range < 1)
-        range = 1;
-    return calc->total / range * calc->ssec;
+    thread_spin_lock (&calc->lock);
+    if (calc && calc->blocks > 1)
+    {
+        range = (float)(calc->current->index - calc->current->next->index) + 1;
+        if (range < 1)
+            range = 1;
+        total = calc->total;
+        ssec = calc->ssec;
+    }
+    thread_spin_unlock (&calc->lock);
+    return (long)(total / range * ssec);
 }
+
 
 /* reduce the samples used to calculate average */
 void rate_reduce (struct rate_calc *calc, unsigned int range)
 {
+    thread_spin_lock (&calc->lock);
     if (calc && range && calc->blocks > 1)
-    {
         rate_purge_entries (calc, calc->current->index - range);
-    }
+    else
+        thread_spin_unlock (&calc->lock);
 }
 
 
@@ -820,6 +852,7 @@ void rate_free (struct rate_calc *calc)
             calc->current = to_go->next;
         free (to_go);
     }
+    thread_spin_destroy (&calc->lock);
     free (calc);
 }
 

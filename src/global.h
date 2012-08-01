@@ -56,7 +56,6 @@ typedef struct ice_global_tag
     /* a copy of what is in the config xml */
     int64_t max_rate;
 
-    spin_t spinlock;
     struct rate_calc *out_bitrate;
 
     cond_t shutdown_cond;

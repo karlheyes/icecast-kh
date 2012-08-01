@@ -157,7 +157,6 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src->intro_file = -1;
 
         thread_rwlock_create (&src->lock);
-        thread_spin_create (&src->spinlock);
         stats_release (src->stats);
 
         avl_insert (global.source_tree, src);
@@ -309,7 +308,6 @@ static int _free_source (void *p)
 
     thread_rwlock_unlock (&source->lock);
     thread_rwlock_destroy (&source->lock);
-    thread_spin_destroy (&source->spinlock);
 
     INFO1 ("freeing source \"%s\"", source->mount);
     format_plugin_clear (source->format, source->client);
@@ -355,10 +353,8 @@ static void update_source_stats (source_t *source)
 
     source->format->sent_bytes += kbytes_sent*1024;
     source->stats = stats_lock (source->stats, source->mount);
-    thread_spin_lock (&source->spinlock);
     stats_set_args (source->stats, "outgoing_kbitrate", "%ld",
             (long)(8 * rate_avg (source->format->out_bitrate))/1024);
-    thread_spin_unlock (&source->spinlock);
     stats_set_args (source->stats, "incoming_bitrate", "%ld", (8 * incoming_rate));
     stats_set_args (source->stats, "total_bytes_read", "%"PRIu64, source->format->read_bytes);
     stats_set_args (source->stats, "total_bytes_sent", "%"PRIu64, source->format->sent_bytes);
@@ -420,11 +416,8 @@ int source_read (source_t *source)
             source->flags &= ~SOURCE_LISTENERS_SYNC;
         }
         if (source->listeners == 0)
-        {
-            thread_spin_lock (&source->spinlock);
             rate_add (source->format->out_bitrate, 0, client->worker->time_ms);
-            thread_spin_unlock (&source->spinlock);
-        }
+
         if (source->prev_listeners != source->listeners)
         {
             INFO2("listener count on %s now %lu", source->mount, source->listeners);
@@ -605,9 +598,7 @@ static int source_client_read (client_t *client)
             source->incoming_rate = (long)rate_avg (source->format->in_bitrate);
             if (source->limit_rate < (8 * source->incoming_rate))
             {
-                thread_spin_lock (&source->spinlock);
                 rate_add (source->format->in_bitrate, 0, client->worker->current_time.tv_sec);
-                thread_spin_unlock (&source->spinlock);
                 thread_rwlock_unlock (&source->lock);
                 client->schedule_ms += 110;
                 return 0;
@@ -1091,9 +1082,7 @@ static int send_listener (source_t *source, client_t *client)
         total_written += bytes;
         loop--;
     }
-    thread_spin_lock (&source->spinlock);
     rate_add (source->format->out_bitrate, total_written, worker->time_ms);
-    thread_spin_unlock (&source->spinlock);
     global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     source->bytes_sent_since_update += total_written;
 
@@ -1866,11 +1855,7 @@ static int source_listener_release (source_t *source, client_t *client)
     source_listener_detach (source, client);
     client->shared_data = NULL;
     if (source->listeners == 0)
-    {
-        thread_spin_lock (&source->spinlock);
-        rate_reduce (source->format->out_bitrate, 1000);
-        thread_spin_unlock (&source->spinlock);
-    }
+        rate_reduce (source->format->out_bitrate, 500);
 
     stats_event_dec (NULL, "listeners");
     /* change of listener numbers, so reduce scope of global sampling */
