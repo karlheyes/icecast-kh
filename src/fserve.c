@@ -1017,8 +1017,11 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
                 client->timer_start -= 2;
             client->counter = 0;
             client->intro_offset = 0;
-            fh->stats_update = client->timer_start + 5;
-            fh->format->out_bitrate = rate_setup (10000, 1000);
+            if (fh->refcount == 1)
+            {
+                fh->stats_update = client->timer_start + 5;
+                fh->format->out_bitrate = rate_setup (10000, 1000);
+            }
             global_reduce_bitrate_sampling (global.out_bitrate);
         }
         thread_mutex_unlock (&fh->lock);

@@ -838,23 +838,23 @@ void rate_reduce (struct rate_calc *calc, unsigned int range)
 
 void rate_free (struct rate_calc *calc)
 {
-    struct rate_calc_node *endoflist;
-
     if (calc == NULL)
         return;
-    endoflist = calc->current;
-    while (calc->current)
+    if (calc->current)
     {
-        struct rate_calc_node *to_go = calc->current;
-        if (to_go->next == endoflist)
-            calc->current = NULL;
-        else
-            calc->current = to_go->next;
-        free (to_go);
+        struct rate_calc_node *node = calc->current->next;
+        calc->current->next = NULL;
+        while (node)
+        {
+            struct rate_calc_node *to_go = node;
+            node = node->next;
+            free (to_go);
+        }
     }
     thread_spin_destroy (&calc->lock);
     free (calc);
 }
+
 
 int get_line(FILE *file, char *buf, size_t siz)
 {
