@@ -891,6 +891,31 @@ static int file_send (client_t *client)
 }
 
 
+static int fserve_change_worker (client_t *client)
+{
+    worker_t *this_worker = client->worker, *worker;
+    int ret = 0;
+
+    if (this_worker->move_allocations == 0 || worker_count < 2)
+        return 0;
+    thread_rwlock_rlock (&workers_lock);
+    worker = worker_selected ();
+    if (worker && worker != client->worker)
+    {
+        long diff = this_worker->count - worker->count;
+        if (diff > 15)
+        {
+            this_worker->move_allocations--;
+            ret = client_change_worker (client, worker);
+            if (ret)
+                DEBUG2 ("moving listener from %p to %p", this_worker, worker);
+        }
+    }
+    thread_rwlock_unlock (&workers_lock);
+    return ret;
+}
+
+
 /* send routine for files sent at a target bitrate, eg fallback files. */
 static int throttled_file_send (client_t *client)
 {
@@ -912,6 +937,9 @@ static int throttled_file_send (client_t *client)
         return -1;
     if (fh->finfo.fallback)
         return fserve_move_listener (client);
+
+    if (fserve_change_worker (client)) // allow for balancing
+        return 1;
 
     if (client->flags & CLIENT_WANTS_FLV) /* increase limit for flv clients as wrapping takes more space */
         limit = (unsigned long)(limit * 1.01);
