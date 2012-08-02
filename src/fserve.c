@@ -946,7 +946,6 @@ static int throttled_file_send (client_t *client)
     if (secs)
         rate = (client->counter+1400)/secs;
     // DEBUG3 ("counter %lld, duration %ld, limit %u", client->counter, secs, rate);
-    thread_mutex_lock (&fh->lock);
     if (rate > limit || secs < 3)
     {
         if (limit >= 1400)
@@ -956,16 +955,24 @@ static int throttled_file_send (client_t *client)
         rate_add (fh->format->out_bitrate, 0, worker->time_ms);
         if (secs > 2)
         {
-            thread_mutex_unlock (&fh->lock);
             global_add_bitrates (global.out_bitrate, 0, worker->time_ms);
             return 0;
         }
     }
     if (fh->stats_update <= now)
     {
-        stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
-                (long)((8 * rate_avg (fh->format->out_bitrate))/1024));
-        fh->stats_update = now + 5;
+        int update_stats = 0;
+        thread_mutex_lock (&fh->lock);
+        if (fh->stats_update <= now)
+        {
+            // only the first client should do this
+            fh->stats_update = now + 5;
+            update_stats = 1;
+        }
+        thread_mutex_unlock (&fh->lock);
+        if (update_stats)
+            stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
+                    (long)((8 * rate_avg (fh->format->out_bitrate))/1024));
     }
     if (client->pos == refbuf->len)
     {
@@ -975,13 +982,11 @@ static int throttled_file_send (client_t *client)
         switch (ret)
         {
             case -1: /* loop fallback file  */
-                thread_mutex_unlock (&fh->lock);
                 // DEBUG0 ("loop of file triggered");
                 client->intro_offset = 0;
                 client->schedule_ms += 150;
                 return 0;
             case -2: /* non-recoverable */
-                thread_mutex_unlock (&fh->lock);
                 // DEBUG0 ("major failure on read, better leave");
                 return -1;
             default:  ;
@@ -993,7 +998,6 @@ static int throttled_file_send (client_t *client)
         bytes = 0;
     //DEBUG3 ("bytes %d, counter %ld, %ld", bytes, client->counter, client->worker->time_ms - (client->timer_start*1000));
     rate_add (fh->format->out_bitrate, bytes, worker->time_ms);
-    thread_mutex_unlock (&fh->lock);
     global_add_bitrates (global.out_bitrate, bytes, worker->time_ms);
     if (limit > 2800)
         client->schedule_ms += (1000/(limit/1400*2));
