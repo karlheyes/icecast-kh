@@ -467,7 +467,6 @@ int source_read (source_t *source)
                 source->skip_duration = 400;
             break;
         }
-        source->skip_duration = (long)(source->skip_duration * 0.9);
 
         source->last_read = current;
         do
@@ -475,6 +474,7 @@ int source_read (source_t *source)
             refbuf = source->format->get_buffer (source);
             if (refbuf)
             {
+                source->skip_duration = (long)(source->skip_duration * 0.9);
                 source->bytes_read_since_update += refbuf->len;
 
                 refbuf->flags |= SOURCE_QUEUE_BLOCK;
@@ -1132,7 +1132,7 @@ void source_init (source_t *source)
     source->stats_interval = 5;
     /* so the first set of average stats after 3 seconds */
     source->client_stats_update = source->last_read + 3;
-    source->skip_duration = 50;
+    source->skip_duration = 40;
 
     util_dict_free (source->audio_info);
     source->audio_info = util_dict_new();
