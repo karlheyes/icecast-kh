@@ -71,9 +71,9 @@ am__objects_1 = cfgfile.$(OBJEXT) main.$(OBJEXT) logging.$(OBJEXT) \
 	admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
 	format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
 	format_midi.$(OBJEXT) format_flac.$(OBJEXT) \
-	format_ebml.$(OBJEXT) auth.$(OBJEXT) auth_htpasswd.$(OBJEXT) \
-	format_kate.$(OBJEXT) format_skeleton.$(OBJEXT) mpeg.$(OBJEXT) \
-	flv.$(OBJEXT)
+	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
+	auth_htpasswd.$(OBJEXT) format_kate.$(OBJEXT) \
+	format_skeleton.$(OBJEXT) mpeg.$(OBJEXT) flv.$(OBJEXT)
 am_libicecast_a_OBJECTS = $(am__objects_1)
 libicecast_a_OBJECTS = $(am_libicecast_a_OBJECTS)
 am__installdirs = "$(DESTDIR)$(bindir)"
@@ -86,9 +86,9 @@ am_icecast_OBJECTS = cfgfile.$(OBJEXT) main.$(OBJEXT) \
 	event.$(OBJEXT) admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
 	format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
 	format_midi.$(OBJEXT) format_flac.$(OBJEXT) \
-	format_ebml.$(OBJEXT) auth.$(OBJEXT) auth_htpasswd.$(OBJEXT) \
-	format_kate.$(OBJEXT) format_skeleton.$(OBJEXT) mpeg.$(OBJEXT) \
-	flv.$(OBJEXT)
+	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
+	auth_htpasswd.$(OBJEXT) format_kate.$(OBJEXT) \
+	format_skeleton.$(OBJEXT) mpeg.$(OBJEXT) flv.$(OBJEXT)
 icecast_OBJECTS = $(am_icecast_OBJECTS)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -315,13 +315,13 @@ noinst_HEADERS = admin.h cfgfile.h logging.h sighandler.h connection.h \
     auth.h auth_htpasswd.h auth_cmd.h auth_url.h \
     fnmatch_loop.c fnmatch.h \
     format.h format_ogg.h format_mp3.h format_ebml.h \
-    format_vorbis.h format_theora.h format_flac.h format_speex.h format_midi.h \
+    format_vorbis.h format_theora.h format_flac.h format_speex.h format_midi.h format_opus.h \
     format_kate.h format_skeleton.h mpeg.h flv.h
 
 icecast_SOURCES = cfgfile.c main.c logging.c sighandler.c connection.c global.c \
     util.c slave.c source.c stats.c refbuf.c client.c \
     xslt.c fserve.c event.c admin.c md5.c \
-    format.c format_ogg.c format_mp3.c format_midi.c format_flac.c format_ebml.c \
+    format.c format_ogg.c format_mp3.c format_midi.c format_flac.c format_ebml.c format_opus.c \
     auth.c auth_htpasswd.c format_kate.c format_skeleton.c mpeg.c flv.c
 
 EXTRA_icecast_SOURCES = yp.c \
@@ -450,6 +450,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_midi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_mp3.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_ogg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_opus.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_skeleton.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_speex.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_theora.Po@am__quote@
