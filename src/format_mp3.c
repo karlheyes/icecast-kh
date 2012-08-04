@@ -537,7 +537,7 @@ static int format_mp3_write_buf_to_client (client_t *client)
         ret = client_send_bytes (client, buf, len);
 
         if (ret < len)
-            client->schedule_ms += 50;
+            client->schedule_ms += (ret < 0) ? 150 : 50;
         if (ret > 0)
         {
             client_mp3->since_meta_block += ret;
