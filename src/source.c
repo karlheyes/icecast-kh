@@ -1664,7 +1664,6 @@ static void source_run_script (char *command, char *mountpoint)
                     ERROR2 ("Unable to run command %s (%s)", command, strerror (errno));
                     exit(0);
                 default: /* parent */
-                    waitpid (pid, NULL, 0);
                     break;
             }
             exit (0);
