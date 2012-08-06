@@ -726,12 +726,20 @@ static void rate_purge_entries (struct rate_calc *calc, uint64_t cutoff)
         struct rate_calc_node *to_go = node;
         if (node == NULL || node->next == NULL)
             abort();
-        node = node->next;
-        calc->current->next = node;
-        calc->total -= to_go->value;
+        count--;
+        if (count)
+        {
+            node = node->next;
+            calc->current->next = node;
+            calc->total -= to_go->value;
+        }
+        else
+        {
+             calc->current = NULL;
+             calc->total = 0;
+        }
         to_go->next = to_free;
         to_free = to_go;
-        count--;
     }
     calc->blocks = count;
     thread_spin_unlock (&calc->lock);
@@ -830,8 +838,10 @@ long rate_avg (struct rate_calc *calc)
 /* reduce the samples used to calculate average */
 void rate_reduce (struct rate_calc *calc, unsigned int range)
 {
+    if (calc == NULL)
+        return;
     thread_spin_lock (&calc->lock);
-    if (calc && range && calc->blocks > 1)
+    if (range && calc->blocks > 1)
         rate_purge_entries (calc, calc->current->index - range);
     else
         thread_spin_unlock (&calc->lock);
