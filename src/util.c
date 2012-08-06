@@ -811,6 +811,8 @@ long rate_avg (struct rate_calc *calc)
     long total = 0, ssec = 1;
     float range = 1.0;
 
+    if (calc == NULL)
+        return total;
     thread_spin_lock (&calc->lock);
     if (calc && calc->blocks > 1)
     {
