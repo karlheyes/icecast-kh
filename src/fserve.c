@@ -50,6 +50,9 @@
 #ifndef O_CLOEXEC
 #define O_CLOEXEC 0
 #endif
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 
 #include "thread/thread.h"
 #include "avl/avl.h"
@@ -1365,7 +1368,7 @@ void file_close (icefile_handle *f)
 
 int file_open (icefile_handle *f, const char *fn)
 {
-    *f = open (fn, O_RDONLY|O_CLOEXEC);
+    *f = open (fn, O_RDONLY|O_CLOEXEC|O_BINARY);
     return (*f) < 0 ? -1 : 0;
 }
 
