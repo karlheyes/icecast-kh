@@ -2207,7 +2207,7 @@ static int source_change_worker (source_t *source, client_t *client)
     if (worker && worker != client->worker)
     {
         long diff = this_worker->count - worker->count;
-        if (diff > 35 || (diff > (source->listeners>>1) + 3))
+        if (diff > 20 || (diff > (source->listeners>>1) + 3))
         {
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
@@ -2241,7 +2241,7 @@ int listener_change_worker (client_t *client, source_t *source)
     {
         diff = dest_worker->count - this_worker->count;
         // do not move listener if source client worker has sufficiently more clients
-        if (diff > 15)
+        if (diff > 10)
             dest_worker = NULL;
     }
     else
