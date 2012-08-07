@@ -35,12 +35,10 @@ This section will describe each section of the config file and is grouped into t
     &lt;limits&gt;
         &lt;clients&gt;100&lt;/clients&gt;
         &lt;sources&gt;2&lt;/sources&gt;
-        &lt;threadpool&gt;5&lt;/threadpool&gt;
-        &lt;queue-size&gt;102400&lt;/queue-size&gt;
+        &lt;queue-size&gt;512000&lt;/queue-size&gt;
         &lt;client-timeout&gt;30&lt;/client-timeout&gt;
         &lt;header-timeout&gt;15&lt;/header-timeout&gt;
         &lt;source-timeout&gt;10&lt;/source-timeout&gt;
-        &lt;burst-on-connect&gt;1&lt;/burst-on-connect&gt;
         &lt;burst-size&gt;65536&lt;/burst-size&gt;
     &lt;/limits&gt;
 </pre>
@@ -69,10 +67,6 @@ The maximum time (in seconds) to wait for a request to come in once the client h
 <h4>source-timeout</h4>
 <div class="indentedbox">
 If a connected source does not send any data within this timeout period (in seconds), then the source connection will be removed from the server.
-</div>
-<h4>burst-on-connect</h4>
-<div class="indentedbox">
-This is an alias for burst-size, enabled it's 64k, disabled it's 0. 
 </div>
 <h4>burst-size</h4>
 <div class="indentedbox">
@@ -175,8 +169,7 @@ The URL which icecast2 uses to communicate with the Directory server.  The value
 <p>This section contains miscellaneous server settings.  Note that multiple listen-socket
 sections may be configured in order to have icecast2 listen on multiple network interfaces.
 If a bind-address is not specified for a particular listen-socket, then the socket will be
-bound to all interfaces. Generally, you won't need to set bind-address. There is an internal
-limit of 20 listening sockets currently, which may be extended in later releases.
+bound to all interfaces. Generally, you won't need to set bind-address.
 <p>One example where multiple ports are used is when shoutcast source clients are used to 
 stream data to icecast.  Shoutcast source clients use a limited protocol, they require two
 sequential ports. The base port acts like a normal web servre type port used for metadata
@@ -205,6 +198,13 @@ for backward compatability.
 This optional flag will indicate that this port will operate in 'shoutcast-compatibility' mode.  Due to major differences in the source client connection protocol, if you wish to use any of the shoutcast DJ tools, you will need to configure at least one socket as shoutcast-compatible.  Note that when in this mode, only source clients (and specifically shoutcast source clients) will be able to attach to this port.  All listeners may connect to any of the ports defined without this flag.  Also, for proper Shoutcast DSP compatibility, you must define a listen socket with a port one less than the one defined as 'shoutcast-compat'.  This means if you define 8001 as shoutcast-compat, then you will need to define a listen port of 8000 and it must not also be defined as shoutcast-compat.  See the example config file is the distribution for more info.
 </div>
 <p>The following are general server settings
+<h4>hostname</h4>
+<div class="indentedbox">
+This is the default hostname to be used for external references like for referencing from the
+stream directory or for creating the playlists if no Host header is supplied. While localhost
+is given as an example, in practice you would specify a real DNS name or IP address that your
+listeners could use.
+</div>
 <h4>fileserve</h4>
 <div class="indentedbox">
 This flag turns on the icecast2 fileserver from which static files can be served.  All files are served relative to the path specified in the &lt;paths&gt;&lt;webroot&gt; configuration setting.
@@ -224,12 +224,9 @@ certain formats.
 </p>
 <a name="relay"></a>
 <h2>Relay Settings</h2>
+<p> The following set of tags are for compatability with the main relaease. This build allows for
+other changes which will be identified.
 <pre>
-    &lt;master-server&gt;127.0.0.1&lt;/master-server&gt;
-    &lt;master-server-port&gt;8001&lt;/master-server-port&gt;
-    &lt;master-update-interval&gt;120&lt;/master-update-interval&gt;
-    &lt;master-username&gt;relay&lt;/master-username&gt;
-    &lt;master-password&gt;hackme&lt;/master-password&gt;
     &lt;relays-on-demand&gt;0&lt;/relays-on-demand&gt;
 
     &lt;relay&gt;
@@ -243,30 +240,31 @@ certain formats.
         &lt;on-demand&gt;0&lt;/on-demand&gt;
         &lt;enable&gt;1&lt;/enable&gt;
     &lt;/relay&gt;
+
 </pre>
-<p>This section contains the server's relay settings. There are two types of relays: a "Master server relay" or a "Specific Mountpoint relay."  A Master server relay is only supported between icecast2 servers and is used to relays all mountpoints on a remote icecast2 server.   
+<h4>relays-on-demand</h4>
+<div class="indentedbox">
+<p>The default on-demand setting for any relays created.</p>
+</div>
+<p>This section contains the server relay settings. There are two types of relays: A "Master server
+relay" or a "Specific Mountpoint relay."  A Master server relay is only supported between icecast2
+servers and is used to relays all publically available mountpoints on a remote icecast2 server. A
+"Specific Mountpoint relay" requests a single stream from remote server which does not have to be
+an icecast2 server.
 </p>
 <h3>Master Relay</h3>
 <p>
-The following diagram shows the basics of doing a Master relay.  Note that Server 1 is configured with the &lt;master-server&gt;, &lt;master-server-port&gt;, etc settings and Server 2 is the server from which Server 1 will pull all attached mountpoints and relay them.  Using a Master Server relay, ALL mountpoints on Server 2 will be relayed.  If only specific mountpoints need to be relayed, then you must configure Server 1 as a "Specific Mountpoint Relay".  Both Master server relays and Specific Mountpoint relays begin their "relaying" when the Server is started.
-</p>
+A server is configured as a Master Server relay (Slave) by specifying a series of tags that identify
+the master.  The server that is being relayed does not require any special configuration but you will
+usually want some sort of authentication to allow the slave to relay streams. The traditional set of
+tags for a slave are</p>
 <pre>
-      |-----|                       |-----|
-      |     |  all mountpoints      |     | /mount1
-      |     | &lt;-------------------  |     | /mount2.ogg
-      |-----|                       |-----| /mount3
-      Icecast 2                     Icecast 2 
-      Server 1                      Server 2
-      (RELAY SERVER)                (MASTER SERVER)
-
-     configured with
-     &lt;master-server&gt;
-     settings 
-
+    &lt;master-server&gt;127.0.0.1&lt;/master-server&gt;
+    &lt;master-server-port&gt;8001&lt;/master-server-port&gt;
+    &lt;master-update-interval&gt;120&lt;/master-update-interval&gt;
+    &lt;master-username&gt;relay&lt;/master-username&gt;
+    &lt;master-password&gt;hackme&lt;/master-password&gt;
 </pre>
-<p>
-A server is configured as a Master Server relay by specifying the &lt;master-server&gt;, &lt;master-server-port&gt;,&lt;master-update-interval&gt;,&lt;master-password&gt; values in the config file.  The server that is being relayed does not need any special configuration.
-</p>
 
 <h4>master-server</h4>
 <div class="indentedbox">
@@ -307,29 +305,40 @@ by the hostname setting and this specifies the port to redirect listeners to.
 When running as a master server, this will limit the maximum number of authenicating slaves
 that we will redirect new listeners to. Default is 0.
 </div>
-<h4>relays-on-demand</h4>
-<div class="indentedbox">
-    <p>Changes the default on-demand setting for relays, so a stream is only relayed if
-    listeners are connected. 1=enabled, 0=disabled (default).
-    </p>
-</div>
 
+<p>In this build you can also use a syntax like</p>
+<pre>
+
+   &lt;master&gt;
+       &lt;server&gt;a.b.c.d&lt;/server&gt;
+       &lt;port&gt;8000&lt;/port&gt;
+       &lt;username&gt;joe&lt;/username&gt;
+       &lt;password&gt;hackme&lt;/password&gt;
+       &lt;on-demand&gt;true&lt;/on-demand&gt;
+       &lt;interval&gt;60&lt;/interval&gt;
+   &lt;/master&gt;
+
+</pre>
+<p>Which ever way the tags are defined, a set of relays are dynamically added/removed  based upon
+information retrieved from the master. This information is typically queried from the master at
+fixed intervals.</p>
 <br />
 <h3>Specific Mountpoint Relay</h3>
-The following diagram shows the basics of doing a Specific Mountpoint relay.  Note that Server 1 is configured with the &lt;relay&gt; settings and Server 2 is the server from which Server 1 will pull the specified mountpoint(s) and relay them.  Using a Specific Mountpoint Relay, only those mountpoints specified on Server 1 will be relayed from Server 2.
-
+The following diagram shows the basics of doing a Specific Mountpoint relay.  Note that Server 1
+is configured with the &lt;relay&gt; settings and Server 2 is the server from which Server 1 will
+pull the specified mountpoint(s) and relay them.  Using a Specific Mountpoint Relay, only those
+mountpoints specified on Server 1 will be relayed from Server 2.
 <pre>
-      |-----|                       |-----|
+
+      +-----+                       +-----+
       |     |      /mount3          |     | /mount1
       |     | &lt;-------------------  |     | /mount2.ogg
-      |-----|                       |-----| /mount3
+      +-----+                       +-----+ /mount3
       Icecast 2                     Icecast 2/Shoutcast/Icecast
       Server 1                      Server 2
       (RELAY SERVER)                (REMOTE SERVER)
 
-     configured with
-     &lt;relay&gt;
-     settings 
+     configured with &lt;relay&gt; settings 
 
 </pre>
 
@@ -394,8 +403,31 @@ If you are relaying a Shoutcast stream, you need to specify this indicator to al
     </p>
 </div>
 
-<p>
-<br />
+<p>In this build, it is also possible to specify multiple locations of where to get content from.
+This may be because you want to allow for high availability, so that if one master becomes
+inaccessible from this relay then an alternative one can be tried.</p>
+<pre>
+
+  &lt;relay&gt;
+      &lt;local-mount&gt;/stream&lt;/local-mount&gt;
+      &lt;retry-delay&gt;60&lt;/retry-delay&gt;
+      &lt;master&gt;
+         &lt;server&gt;a.b.c.d&lt;/server&gt;
+         &lt;port&gt;8000&lt;/port&gt;
+         &lt;mount&gt;/feed-1&lt;/mount&gt;
+      &lt;/master&gt;
+      &lt;master&gt;
+         &lt;server&gt;e.f.g.h&lt;/server&gt;
+         &lt;port&gt;9000&lt;/port&gt;
+         &lt;mount&gt;/feed-2&lt;/mount&gt;
+      &lt;/master&gt;
+  &lt;/relay&gt;
+
+</pre>
+<p>The first one listed is tried first and if that fails for any reason then the second one is
+tried and so on. If a particular feed connects but terminates after a short time then it is treated
+as failed so the next is tried.  If all feeds have failed then a a complete retry is attempted after
+some time has elapsed.</p>
 <br />
 <br />
 </p>
@@ -434,20 +466,23 @@ If you are relaying a Shoutcast stream, you need to specify this indicator to al
         &lt;on-disconnect&gt;/home/icecast/bin/source-end&lt;/on-disconnect&gt;
     &lt;/mount&gt;
 </pre>
-<p>This section contains the settings which apply only to a specific mountpoint and applies to
-an incoming stream whether it is a relay or a source client. The purpose of the mount definition
-is to state certain information that can override either global/default settings or settings
+<p>This section contains the settings which can be appledy to a specific mountpoint and applies to
+an incoming stream whether it is a relay or a source client.  The purpose of the mount definition
+is to specify  certain information that can override either global/default settings or settings
 provided from the incoming stream.
 </p>
-<p>A mount does not need to be stated for each incoming source although you may want to
-specific certain settings like the maximum number of listeners or a mountpoint specific
-username/password.  As a general rule, only define what you need to but each mount definition
+<p>A mount does not need to be specified for each incoming source although you may want to
+specify certain settings like the maximum number of listeners or a mountpoint specific username
+password for example.  As a general rule, only define what you need to but each mount definition
 needs at least the mount-name.  Changes to most of these will apply across a configuration file
 re-read even on active streams, however some only apply when the stream starts or ends.
 </p>
 <h4>mount-name</h4>
 <div class="indentedbox">
-The name of the mount point for which these settings apply.
+The name of the mount point for which these settings apply.  In this build you can use wildcards to
+apply the same settings to a range of mounts that are similar, eg /*.mp3 would be valid.  One thing
+to be careful of with wildcards is the order if multiple patterns would match. A /* would match all,
+so the order is important if you also wanted /*.mp3
 </div>
 <h4>username</h4>
 <div class="indentedbox">
@@ -495,10 +530,9 @@ This multi-level fallback allows clients to cascade several mountpoints.
     As per usual, the file format should match the stream format, failing to do so may cause
     problems with playback.
     </p>
-    <p>Note that the fallback file is not timed so be careful if you intend to relay this.
-    They are fine on slave streams but don't use them on master streams, if you do then the
-    relay will consume stream data at a faster rate and the listeners on the relay would
-    eventually get kicked off.
+    <p>Note that a fallback file is now timed based on the rate of the stream or a limit that
+    has been previously specified. You can also embed the bitrate into the filename eg</br></br>
+    &lt;fallback-mount&gt;/files/fallback[128].mp3&lt;fallback-mount&gt;
     </p>
 </div>
 <h4>fallback-override</h4>
@@ -612,9 +646,15 @@ Enable this to prevent this mount from being shown on the xsl pages.  This is ma
 for cases where a local relay is configured and you do not want the source of the local
 relay to be shown
 </div>
+<h4>skip-accesslog</h4>
+<div class="indentedbox">
+Enable this to prevent a requesting listener from being logged in the access log. This is mainly
+to prevent excessive logging in cases you are not bothered about, like xsl or m3u etc
+</div>
 <h4>authentication</h4>
 <div class="indentedbox">
-This specifies that the named mount point will require listener authentication.  Currently, we only support a file-based authentication scheme (type=htpasswd).  Users and encrypted password are placed in this file (separated by a :) and all requests for this mountpoint will require that a user and password be supplied for authentication purposes.  These values are passed in via normal HTTP Basic Authentication means (i.e. http://user:password@stream:port/mountpoint.ogg).  Users and Passwords are maintained via the web admin interface.  A mountpoint configured with an authenticator will display a red key next to the mount point name on the admin screens.  You can read more about listener authentication <a href="icecast2_listenerauth.html">here</a>.
+This specifies that the named mount point will require listener authentication.  You can read more
+about authentication <a href="icecast2_listenerauth.html">here</a>.
 </div>
 <h4>on-connect</h4>
 <div class="indentedbox">
@@ -630,9 +670,20 @@ This specifies that the named mount point will require listener authentication. 
     script to end. This option is not available on win32
     </p>
 </div>
-<p>
 <br />
-<br />
+<p>Mount sections can be appled to relays, source clients and file requests so you can apply
+authentication on most requests.  The exception is the /admin requests as they are specially
+handled. Most admin based calls require either an admin user/pass combination or if specific
+to a stream, then the source authentication details would need to be supplied.</p>
+<p>In this build, there is a special admin mount reserved for use with authenticating relays.
+Orignially, relays from slaves used the normal request to retrieve the streams but now we can
+use a specially reserved mount /admin/streams for allowing slave relays to connect bypassing
+the usual limiters such as max-listeners and at the same time use the same authentication
+mechanism that the slave polling would use.<p>
+<p>By defining a &lt;mount&gt; block for /admin/streams, you can define an &lt;authentication&gt;
+section that the slave will use to gain acces for relaying. That authentication section can
+be like any other so multiple user/passwords or URL based auth can be used to validate the
+connection attempts.</p>
 <br />
 </p>
 <a name="path"></a>
