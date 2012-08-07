@@ -16,6 +16,19 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh3
+. crash fix with invalid stats handle with fallback to file
+. merge Opus module from trunk
+. Force NTPL to prefer writers over readers for rwlocks
+. bitrate estimation scales better now.
+. where possible, use pread to avoid mutex locks on file reads, win32 needs fixing up
+. make xsl lookup cache scale better, force a reload via a separate thread to prevent
+  worker stalls.
+. various tunings for client rescheduling
+. small changes to client balancing across workers
+. small changes to log messages.
+. reference a git hash code is available
+
 2.3.3-kh2
 . sent value passed to listener_remove in kh1 could be wrong on 32bit setups
 . avoid clearing queue on relay restart, it exposed a crash case with lock changes
