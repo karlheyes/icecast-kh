@@ -192,7 +192,6 @@ void slave_initialize(void)
     ERROR0 ("streamlist request disabled, rebuild with libcurl if required");
 #endif
     _slave_thread ();
-    slave_running = 0;
     yp_stop ();
     workers_adjust(0);
 }
@@ -200,10 +199,13 @@ void slave_initialize(void)
 
 void slave_shutdown(void)
 {
+    if (slave_running == 0)
+        return;
     thread_rwlock_destroy (&slaves_lock);
     thread_rwlock_destroy (&workers_lock);
     thread_spin_destroy (&relay_start_lock);
     yp_shutdown();
+    slave_running = 0;
 }
 
 
