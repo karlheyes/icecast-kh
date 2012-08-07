@@ -478,13 +478,16 @@ void thread_cond_wait_c(cond_t *cond, mutex_t *mutex,int line, char *file)
 
 void thread_rwlock_create_c(const char *name, rwlock_t *rwlock, int line, const char *file)
 {
+#ifdef PTHREAD_RWLOCK_PREFER_WRITER_NP
     pthread_rwlockattr_t attr;
     pthread_rwlockattr_init (&attr);
-#ifdef PTHREAD_RWLOCK_PREFER_WRITER_NP
     pthread_rwlockattr_setkind_np (&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
-#endif
     pthread_rwlock_init(&rwlock->sys_rwlock, &attr);
     pthread_rwlockattr_destroy (&attr);
+#else
+    // win32 at least has issues if attributes are passed
+    pthread_rwlock_init(&rwlock->sys_rwlock, NULL);
+#endif
 #ifdef THREAD_DEBUG
     rwlock->name = strdup (name);
     LOG_DEBUG3 ("rwlock %s created (%s:%d)", rwlock->name, file, line);
