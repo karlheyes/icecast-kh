@@ -88,8 +88,6 @@ void format_plugin_clear (format_plugin_t *format, client_t *client)
         return;
     if (format->free_plugin)
         format->free_plugin (format, client);
-    rate_free (format->in_bitrate);
-    rate_free (format->out_bitrate);
     free (format->charset);
     if (format->parser && format->parser != client->parser) // a relay client may have a new parser
         httpp_destroy (format->parser);
@@ -161,7 +159,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
         refbuf->len = bytes;
         client->pos = 0;
-        if (plugin->align_buffer)
+        if (plugin && plugin->align_buffer)
         {
             /* here the buffer may require truncating to keep the buffers aligned on
              * certain boundaries */
@@ -185,7 +183,10 @@ int format_generic_write_to_client (client_t *client)
     ret = client_send_bytes (client, buf, len);
 
     if (ret > 0)
+    {
         client->pos += ret;
+        client->counter += ret;
+    }
 
     return ret;
 }

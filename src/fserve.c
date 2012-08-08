@@ -101,6 +101,7 @@ typedef struct {
     time_t stats_update;
     long stats;
     format_plugin_t *format;
+    struct rate_calc *out_bitrate;
     avl_tree *clients;
 } fh_node;
 
@@ -232,6 +233,7 @@ static int _delete_fh (void *mapping)
         free (fh->format);
     }
     avl_tree_free (fh->clients, NULL);
+    rate_free (fh->out_bitrate);
     free (fh->finfo.mount);
     free (fh->finfo.fallback);
     free (fh);
@@ -299,27 +301,24 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
             return NULL;
         }
         result->refcount++;
-        if (client)
+        if (result->stats)
         {
-            if (finfo->mount && (finfo->flags & FS_FALLBACK))
+            stats_lock (result->stats, NULL);
+            stats_set_args (result->stats, "listeners", "%ld", result->refcount);
+            if (result->refcount > result->peak)
             {
-                stats_lock (result->stats, NULL);
-                stats_set_args (result->stats, "listeners", "%ld", result->refcount);
-                if (result->refcount > result->peak)
-                {
-                    result->peak = result->refcount;
-                    stats_set_args (result->stats, "listener_peak", "%ld", result->peak);
-                }
-                stats_release (result->stats);
+                result->peak = result->refcount;
+                stats_set_args (result->stats, "listener_peak", "%ld", result->peak);
             }
-            avl_insert (result->clients, client);
-            if (result->format)
-            {
-                if (result->format->create_client_data && client->format_data == NULL)
-                    result->format->create_client_data (result->format, client);
-                if (result->format->write_buf_to_client)
-                    client->check_buffer = result->format->write_buf_to_client;
-            }
+            stats_release (result->stats);
+        }
+        avl_insert (result->clients, client);
+        if (result->format)
+        {
+            if (result->format->create_client_data && client->format_data == NULL)
+                result->format->create_client_data (result->format, client);
+            if (result->format->write_buf_to_client)
+                client->check_buffer = result->format->write_buf_to_client;
         }
         DEBUG2 ("refcount now %d for %s", result->refcount, result->finfo.mount);
         return result;
@@ -335,27 +334,23 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         free (contenttype);
         if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
             fh->finfo.type = type;
-        if (client)
+        if (finfo->flags & FS_FALLBACK)
         {
-            if (finfo->flags & FS_FALLBACK)
+            if (fh->finfo.type != type && fh->finfo.type != FORMAT_TYPE_UNDEFINED)
             {
-                if (fh->finfo.type != type && fh->finfo.type != FORMAT_TYPE_UNDEFINED)
-                {
-                    avl_tree_unlock (fh_cache);
-                    free (fullpath);
-                    free (fh);
-                    WARN1 ("format mismatched for %s", finfo->mount);
-                    return NULL;
-                }
-                INFO2 ("lookup of fallback file \"%s\" (%d)", finfo->mount, finfo->limit);
+                avl_tree_unlock (fh_cache);
+                free (fullpath);
+                free (fh);
+                WARN1 ("format mismatched for %s", finfo->mount);
+                return NULL;
             }
-            else
-                INFO1 ("lookup of \"%s\"", finfo->mount);
+            INFO2 ("lookup of fallback file \"%s\" (%d)", finfo->mount, finfo->limit);
         }
+        else
+            INFO1 ("lookup of \"%s\"", finfo->mount);
         if (file_open (&fh->f, fullpath) < 0)
         {
-            if (client)
-                INFO1 ("Failed to open \"%s\"", fullpath);
+            INFO1 ("Failed to open \"%s\"", fullpath);
             if (finfo->flags & FS_FALLBACK)
             {
                 avl_tree_unlock (fh_cache);
@@ -365,10 +360,9 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
             }
         }
         free (fullpath);
-        if (client && finfo->flags & FS_FALLBACK)
+        if (fh->finfo.type != FORMAT_TYPE_UNDEFINED)
         {
-            int len = strlen (finfo->mount) + 6;
-            char *str;
+            int len = strlen (finfo->mount) + 10;
             fh->format = calloc (1, sizeof (format_plugin_t));
             fh->format->type = fh->finfo.type;
             fh->format->mount = strdup (fh->finfo.mount);
@@ -379,11 +373,14 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
                 free (fh);
                 return NULL;
             }
-            str = alloca (len);
-            snprintf (str, len, "file-%s", finfo->mount);
-            fh->stats = stats_handle (str);
-            stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
-            stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
+            if (fh->finfo.limit)
+            {
+                char *str = alloca (len);
+                snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
+                fh->stats = stats_handle (str);
+                stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
+                stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
+            }
             if (fh->format->create_client_data && client->format_data == NULL)
                 fh->format->create_client_data (fh->format, client);
             if (fh->format->write_buf_to_client)
@@ -395,16 +392,15 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
     fh->clients = avl_tree_new (client_compare, NULL);
     fh->refcount = 1;
     fh->peak = 1;
-    if (client)
+    if (fh->finfo.limit)
+        fh->out_bitrate = rate_setup (10000, 1000);
+    if (fh->stats)
     {
-        if (finfo->mount && (finfo->flags & FS_FALLBACK))
-        {
-            stats_set_flags (fh->stats, "listeners", "1", STATS_GENERAL|STATS_HIDDEN);
-            stats_set_flags (fh->stats, "listener_peak", "1", STATS_GENERAL|STATS_HIDDEN);
-            stats_release (fh->stats);
-        }
-        avl_insert (fh->clients, client);
+        stats_set_flags (fh->stats, "listeners", "1", STATS_GENERAL|STATS_HIDDEN);
+        stats_set_flags (fh->stats, "listener_peak", "1", STATS_GENERAL|STATS_HIDDEN);
+        stats_release (fh->stats);
     }
+    avl_insert (fh->clients, client);
     fh->finfo.mount = strdup (finfo->mount);
     if (finfo->fallback)
         fh->finfo.fallback = strdup (finfo->fallback);
@@ -679,10 +675,10 @@ static void fh_release (fh_node *fh)
         fh->peak = 0;
         if (fh->stats) // drop fallback file stats
         {
-            int len = strlen (fh->finfo.mount) + 6;
+            int len = strlen (fh->finfo.mount) + 10;
             char *str = alloca (len);
-            snprintf (str, len, "file-%s", fh->finfo.mount);
-            stats_event (str, "fallback", NULL); // is the fallback stat hack needed now?
+            snprintf (str, len, "%s-%s", (fh->finfo.flags & FS_FALLBACK) ? "fallback" : "file", fh->finfo.mount);
+            stats_set (fh->stats, "fallback", NULL); // is the fallback stat hack needed now?
             stats_event (str, NULL, NULL);
         }
         _delete_fh (fh);
@@ -804,7 +800,7 @@ static int prefile_send (client_t *client)
                     if (file_in_use (fh->f)) // is there a file to read from
                     {
                         int len = 8192;
-                        if (fh->finfo.flags & FS_FALLBACK)
+                        if (fh->finfo.limit)
                             client->ops = &throttled_file_content_ops;
                         else
                             client->ops = &file_content_ops;
@@ -955,7 +951,7 @@ static int throttled_file_send (client_t *client)
             client->schedule_ms += 1000/(limit/1400);
         else
             client->schedule_ms += 50; // should not happen but guard against it
-        rate_add (fh->format->out_bitrate, 0, worker->time_ms);
+        rate_add (fh->out_bitrate, 0, worker->time_ms);
         if (secs > 2)
         {
             global_add_bitrates (global.out_bitrate, 0, worker->time_ms);
@@ -975,7 +971,7 @@ static int throttled_file_send (client_t *client)
         thread_mutex_unlock (&fh->lock);
         if (update_stats)
             stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
-                    (long)((8 * rate_avg (fh->format->out_bitrate))/1024));
+                    (long)((8 * rate_avg (fh->out_bitrate))/1024));
     }
     if (client->pos == refbuf->len)
     {
@@ -1000,7 +996,7 @@ static int throttled_file_send (client_t *client)
     if (bytes < 0)
         bytes = 0;
     //DEBUG3 ("bytes %d, counter %ld, %ld", bytes, client->counter, client->worker->time_ms - (client->timer_start*1000));
-    rate_add (fh->format->out_bitrate, bytes, worker->time_ms);
+    rate_add (fh->out_bitrate, bytes, worker->time_ms);
     global_add_bitrates (global.out_bitrate, bytes, worker->time_ms);
     if (limit > 2800)
         client->schedule_ms += (1000/(limit/1400*2));
@@ -1052,11 +1048,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
                 client->timer_start -= 2;
             client->counter = 0;
             client->intro_offset = 0;
-            if (fh->refcount == 1)
-            {
-                fh->stats_update = client->timer_start + 5;
-                fh->format->out_bitrate = rate_setup (10000, 1000);
-            }
             global_reduce_bitrate_sampling (global.out_bitrate);
         }
         thread_mutex_unlock (&fh->lock);
@@ -1064,7 +1055,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             fill_http_headers (client, finfo->mount, NULL);
         client->mount = fh->finfo.mount;
     }
-    else
+    if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
 
     client->ops = &buffer_content_ops;

@@ -656,7 +656,7 @@ static int complete_read (source_t *source)
         int bytes = client_read_bytes (client, buf, read_in);
         if (bytes > 0)
         {
-            rate_add (format->in_bitrate, bytes, client->worker->current_time.tv_sec);
+            rate_add (source->in_bitrate, bytes, client->worker->current_time.tv_sec);
             source_mp3->read_count += bytes;
             format->read_bytes += bytes;
             // increase retry delay on small read, to reduce rescheduling

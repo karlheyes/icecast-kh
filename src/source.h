@@ -53,6 +53,8 @@ typedef struct source_tag
     unsigned long listeners;
     unsigned long prev_listeners;
     long incoming_rate;
+    struct rate_calc *in_bitrate;
+    struct rate_calc *out_bitrate;
 
     int yp_public;
 

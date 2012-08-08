@@ -283,6 +283,10 @@ void source_clear_source (source_t *source)
     source->client_stats_update = 0;
     util_dict_free (source->audio_info);
     source->audio_info = NULL;
+    rate_free (source->out_bitrate);
+    source->out_bitrate = NULL;
+    rate_free (source->in_bitrate);
+    source->in_bitrate = NULL;
 
     free(source->dumpfilename);
     source->dumpfilename = NULL;
@@ -347,14 +351,14 @@ client_t *source_find_client(source_t *source, int id)
  */
 static void update_source_stats (source_t *source)
 {
-    unsigned long incoming_rate = (long)rate_avg (source->format->in_bitrate);
+    unsigned long incoming_rate = (long)rate_avg (source->in_bitrate);
     unsigned long kbytes_sent = source->bytes_sent_since_update/1024;
     unsigned long kbytes_read = source->bytes_read_since_update/1024;
 
     source->format->sent_bytes += kbytes_sent*1024;
     source->stats = stats_lock (source->stats, source->mount);
     stats_set_args (source->stats, "outgoing_kbitrate", "%ld",
-            (long)(8 * rate_avg (source->format->out_bitrate))/1024);
+            (long)(8 * rate_avg (source->out_bitrate))/1024);
     stats_set_args (source->stats, "incoming_bitrate", "%ld", (8 * incoming_rate));
     stats_set_args (source->stats, "total_bytes_read", "%"PRIu64, source->format->read_bytes);
     stats_set_args (source->stats, "total_bytes_sent", "%"PRIu64, source->format->sent_bytes);
@@ -416,7 +420,7 @@ int source_read (source_t *source)
             source->flags &= ~SOURCE_LISTENERS_SYNC;
         }
         if (source->listeners == 0)
-            rate_add (source->format->out_bitrate, 0, client->worker->time_ms);
+            rate_add (source->out_bitrate, 0, client->worker->time_ms);
 
         if (source->prev_listeners != source->listeners)
         {
@@ -595,10 +599,10 @@ static int source_client_read (client_t *client)
     {
         if (source->limit_rate)
         {
-            source->incoming_rate = (long)rate_avg (source->format->in_bitrate);
+            source->incoming_rate = (long)rate_avg (source->in_bitrate);
             if (source->limit_rate < (8 * source->incoming_rate))
             {
-                rate_add (source->format->in_bitrate, 0, client->worker->current_time.tv_sec);
+                rate_add (source->in_bitrate, 0, client->worker->current_time.tv_sec);
                 thread_rwlock_unlock (&source->lock);
                 client->schedule_ms += 110;
                 return 0;
@@ -1082,7 +1086,7 @@ static int send_listener (source_t *source, client_t *client)
         total_written += bytes;
         loop--;
     }
-    rate_add (source->format->out_bitrate, total_written, worker->time_ms);
+    rate_add (source->out_bitrate, total_written, worker->time_ms);
     global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     source->bytes_sent_since_update += total_written;
 
@@ -1145,8 +1149,8 @@ void source_init (source_t *source)
             stats_event_flags (source->mount, "audio_info", str, STATS_GENERAL);
         }
     }
-    source->format->in_bitrate = rate_setup (60, 1);
-    source->format->out_bitrate = rate_setup (9000, 1000);
+    source->in_bitrate = rate_setup (60, 1);
+    source->out_bitrate = rate_setup (9000, 1000);
 
     source->flags |= SOURCE_RUNNING;
     thread_rwlock_unlock (&source->lock);
@@ -1245,7 +1249,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 
     connected = client->worker->current_time.tv_sec - client->connection.con_time;
     if (connected > 40)
-        bitrate = (int)rate_avg (source->format->in_bitrate);
+        bitrate = (int)rate_avg (source->in_bitrate);
     if (bitrate == 0 && source->limit_rate)
         bitrate = source->limit_rate;
 
@@ -1854,7 +1858,7 @@ static int source_listener_release (source_t *source, client_t *client)
     source_listener_detach (source, client);
     client->shared_data = NULL;
     if (source->listeners == 0)
-        rate_reduce (source->format->out_bitrate, 500);
+        rate_reduce (source->out_bitrate, 500);
 
     stats_event_dec (NULL, "listeners");
     /* change of listener numbers, so reduce scope of global sampling */
@@ -1903,7 +1907,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             }
             avl_tree_unlock (global.source_tree);
             if (minfo && minfo->limit_rate)
-                rate = minfo->limit_rate;
+                rate = minfo->limit_rate/8;
             if (minfo == NULL || minfo->fallback_mount == NULL)
             {
                 if (rate == 0)
@@ -1912,7 +1916,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 if (rate)
                 {
                     fbinfo f;
-                    f.flags = FS_FALLBACK;
+                    f.flags = 0;
                     f.mount = (char *)mount;
                     f.fallback = NULL;
                     f.limit = rate;
@@ -1942,7 +1946,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         }
         if (source->format)
         {
-            stream_bitrate  = 8 * rate_avg (source->format->in_bitrate);
+            stream_bitrate  = 8 * rate_avg (source->in_bitrate);
 
             if (config->max_bandwidth)
             {

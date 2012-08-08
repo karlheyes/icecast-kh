@@ -474,7 +474,7 @@ static refbuf_t *ogg_get_buffer (source_t *source)
         }
         total += bytes;
         format->read_bytes += bytes;
-        rate_add (format->in_bitrate, bytes, source->client->worker->current_time.tv_sec);
+        rate_add (source->in_bitrate, bytes, source->client->worker->current_time.tv_sec);
         ogg_sync_wrote (&ogg_info->oy, bytes);
     }
     return NULL;

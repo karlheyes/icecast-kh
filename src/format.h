@@ -49,8 +49,6 @@ struct _format_plugin_tag
     char *charset;
     uint64_t read_bytes;
     uint64_t sent_bytes;
-    struct rate_calc *in_bitrate;
-    struct rate_calc *out_bitrate;
     http_parser_t *parser;
 
     refbuf_t *(*get_buffer)(struct source_tag *);
