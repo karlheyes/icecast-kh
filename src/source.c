@@ -1756,7 +1756,7 @@ void source_recheck_mounts (int update_all)
  * there is auth. This may flag an existing listener to terminate.
  * return 1 if ok to add or 0 to prevent
  */
-static int check_duplicate_logins (source_t *source, client_t *client, auth_t *auth)
+int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client, auth_t *auth)
 {
     avl_node *node;
 
@@ -1767,7 +1767,7 @@ static int check_duplicate_logins (source_t *source, client_t *client, auth_t *a
     if (client->username == NULL || client->flags & CLIENT_IS_SLAVE)
         return 1;
 
-    node = avl_get_first (source->clients);
+    node = avl_get_first (tree);
     while (node)
     {
         client_t *existing_client = (client_t *)node->key;
@@ -1776,7 +1776,7 @@ static int check_duplicate_logins (source_t *source, client_t *client, auth_t *a
         {
             if (auth->drop_existing_listener)
             {
-                INFO2 ("Found %s on %s, dropping previous account", existing_client->username, source->mount);
+                INFO2 ("Found %s on %s, dropping previous account", existing_client->username, mount);
                 existing_client->connection.error = 1;
                 return 1;
             }
@@ -1888,6 +1888,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     do
     {
         int64_t stream_bitrate = 0;
+        int flags = 0;
 
         do
         {
@@ -1916,7 +1917,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 if (rate)
                 {
                     fbinfo f;
-                    f.flags = 0;
+                    f.flags = flags;
                     f.mount = (char *)mount;
                     f.fallback = NULL;
                     f.limit = rate;
@@ -1933,6 +1934,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             }
             mount = minfo->fallback_mount;
             minfo = config_find_mount (config_get_config_unlocked(), mount);
+            flags = FS_FALLBACK;
             loop--;
         } while (1);
 
@@ -1965,7 +1967,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         if (mountinfo == NULL)
             break; /* allow adding listeners, no mount limits imposed */
 
-        if (check_duplicate_logins (source, client, mountinfo->auth) == 0)
+        if (check_duplicate_logins (source->mount, source->clients, client, mountinfo->auth) == 0)
         {
             thread_rwlock_unlock (&source->lock);
             return client_send_403 (client, "Account already in use");

@@ -247,7 +247,7 @@ static int remove_fh_from_cache (fh_node *fh)
     int ret = 0;
     avl_tree_wlock (fh_cache);
     thread_mutex_lock (&fh->lock);
-    fh->refcount--;
+    if (fh->refcount) fh->refcount--;
     if (fh->stats)
         stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
     if (fh->refcount == 0)
@@ -279,8 +279,34 @@ static fh_node *find_fh (fbinfo *finfo)
 }
 
 
+static void fh_add_client (fh_node *fh, client_t *client)
+{
+    fh->refcount++;
+    if (fh->stats)
+    {
+        stats_lock (fh->stats, NULL);
+        stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
+        if (fh->refcount > fh->peak)
+        {
+            fh->peak = fh->refcount;
+            stats_set_args (fh->stats, "listener_peak", "%ld", fh->peak);
+        }
+        stats_release (fh->stats);
+    }
+    avl_insert (fh->clients, client);
+    if (fh->format)
+    {
+        if (fh->format->create_client_data && client->format_data == NULL)
+            fh->format->create_client_data (fh->format, client);
+        if (fh->format->write_buf_to_client)
+            client->check_buffer = fh->format->write_buf_to_client;
+    }
+    DEBUG2 ("refcount now %d for %s", fh->refcount, fh->finfo.mount);
+}
+
+
 /* find/create handle and return it with the structure in a locked state */
-static fh_node *open_fh (fbinfo *finfo, client_t *client)
+static fh_node *open_fh (fbinfo *finfo)
 {
     fh_node *fh, *result;
 
@@ -288,7 +314,6 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         finfo->mount = "";
     fh = calloc (1, sizeof (fh_node));
     memcpy (&fh->finfo, finfo, sizeof (fbinfo));
-    avl_tree_wlock (fh_cache);
     if (avl_get_by_key (fh_cache, fh, (void**)&result) == 0)
     {
         free (fh);
@@ -300,27 +325,6 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
             thread_mutex_unlock (&result->lock);
             return NULL;
         }
-        result->refcount++;
-        if (result->stats)
-        {
-            stats_lock (result->stats, NULL);
-            stats_set_args (result->stats, "listeners", "%ld", result->refcount);
-            if (result->refcount > result->peak)
-            {
-                result->peak = result->refcount;
-                stats_set_args (result->stats, "listener_peak", "%ld", result->peak);
-            }
-            stats_release (result->stats);
-        }
-        avl_insert (result->clients, client);
-        if (result->format)
-        {
-            if (result->format->create_client_data && client->format_data == NULL)
-                result->format->create_client_data (result->format, client);
-            if (result->format->write_buf_to_client)
-                client->check_buffer = result->format->write_buf_to_client;
-        }
-        DEBUG2 ("refcount now %d for %s", result->refcount, result->finfo.mount);
         return result;
     }
 
@@ -362,11 +366,10 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
         free (fullpath);
         if (fh->finfo.type != FORMAT_TYPE_UNDEFINED)
         {
-            int len = strlen (finfo->mount) + 10;
             fh->format = calloc (1, sizeof (format_plugin_t));
             fh->format->type = fh->finfo.type;
             fh->format->mount = strdup (fh->finfo.mount);
-            if (len > 2000 || format_get_plugin (fh->format, NULL) < 0)
+            if (format_get_plugin (fh->format, NULL) < 0)
             {
                 avl_tree_unlock (fh_cache);
                 free (fh->format);
@@ -374,38 +377,33 @@ static fh_node *open_fh (fbinfo *finfo, client_t *client)
                 return NULL;
             }
             if (fh->finfo.limit)
-            {
-                char *str = alloca (len);
-                snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
-                fh->stats = stats_handle (str);
-                stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
-                stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
-            }
-            if (fh->format->create_client_data && client->format_data == NULL)
-                fh->format->create_client_data (fh->format, client);
-            if (fh->format->write_buf_to_client)
-                client->check_buffer = fh->format->write_buf_to_client;
+                fh->out_bitrate = rate_setup (10000, 1000);
         }
     }
+    fh->clients = avl_tree_new (client_compare, NULL);
     thread_mutex_create (&fh->lock);
     thread_mutex_lock (&fh->lock);
-    fh->clients = avl_tree_new (client_compare, NULL);
-    fh->refcount = 1;
-    fh->peak = 1;
+    avl_insert (fh_cache, fh);
+    avl_tree_unlock (fh_cache);
+
+    fh->refcount = 0;
+    fh->peak = 0;
     if (fh->finfo.limit)
-        fh->out_bitrate = rate_setup (10000, 1000);
-    if (fh->stats)
     {
+        int len = strlen (finfo->mount) + 10;
+        char *str = alloca (len);
+        snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
+        fh->stats = stats_handle (str);
+        stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
+        stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
         stats_set_flags (fh->stats, "listeners", "1", STATS_GENERAL|STATS_HIDDEN);
         stats_set_flags (fh->stats, "listener_peak", "1", STATS_GENERAL|STATS_HIDDEN);
         stats_release (fh->stats);
     }
-    avl_insert (fh->clients, client);
     fh->finfo.mount = strdup (finfo->mount);
     if (finfo->fallback)
         fh->finfo.fallback = strdup (finfo->fallback);
-    avl_insert (fh_cache, fh);
-    avl_tree_unlock (fh_cache);
+
     return fh;
 }
 
@@ -641,13 +639,15 @@ int fserve_client_create (client_t *httpclient, const char *path)
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
 
-    fh = open_fh (&finfo, httpclient);
+    avl_tree_wlock (fh_cache);
+    fh = open_fh (&finfo);
     if (fh == NULL)
     {
         WARN1 ("Problem accessing file \"%s\"", fullpath);
         free (fullpath);
         return client_send_404 (httpclient, "File not readable");
     }
+    fh_add_client (fh, httpclient);
     free (fullpath);
 
     httpclient->intro_offset = 0;
@@ -1026,19 +1026,46 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         fh_node *fh;
         if (finfo->flags & FS_FALLBACK && finfo->limit == 0)
             return -1;
-        fh = open_fh (finfo, client);
-        if (fh == NULL)
-            return -1;
+        avl_tree_wlock (fh_cache);
+        fh = find_fh (finfo);
         minfo = config_find_mount (config_get_config(), finfo->mount);
-        if (minfo && minfo->max_listeners >= 0 && fh->refcount > minfo->max_listeners)
+        if (fh)
         {
-            config_release_config();
-            remove_from_fh (fh, client);
-            fh_release (fh);
+            thread_mutex_lock (&fh->lock);
+            avl_tree_unlock (fh_cache);
             client->shared_data = NULL;
-            return client_send_403redirect (client, finfo->mount, "max listeners reached");
+            if (minfo)
+            {
+                if (minfo->max_listeners >= 0 && fh->refcount > minfo->max_listeners)
+                {
+                    thread_mutex_unlock (&fh->lock);
+                    config_release_config();
+                    return client_send_403redirect (client, finfo->mount, "max listeners reached");
+                }
+                if (check_duplicate_logins (finfo->mount, fh->clients, client, minfo->auth) == 0)
+                {
+                    thread_mutex_unlock (&fh->lock);
+                    config_release_config();
+                    return client_send_403 (client, "Account already in use");
+                }
+            }
+            config_release_config();
         }
-        config_release_config();
+        else
+        {
+            if (minfo && minfo->max_listeners == 0)
+            {
+                config_release_config();
+                fh_release (fh);
+                client->shared_data = NULL;
+                return client_send_403redirect (client, finfo->mount, "max listeners reached");
+            }
+            config_release_config();
+            fh = open_fh (finfo);
+            if (fh == NULL)
+                return -1;
+        }
+        fh_add_client (fh, client);
         client->shared_data = fh;
 
         if (fh->finfo.limit)
