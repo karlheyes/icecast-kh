@@ -410,6 +410,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                     source_setup_listener (source, client);
                     client->flags |= CLIENT_HAS_MOVED;
                     thread_rwlock_unlock (&source->lock);
+                    free (where.mount);
                     return 0;
                 }
             }
