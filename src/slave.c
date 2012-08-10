@@ -1520,8 +1520,12 @@ static int relay_startup (client_t *client)
         dest_worker = worker_selected ();
         if (dest_worker != worker)
         {
-            worker->move_allocations--;
-            ret = client_change_worker (client, dest_worker);
+            long diff = worker->count - dest_worker->count;
+            if (diff > 5)
+            {
+                worker->move_allocations--;
+                ret = client_change_worker (client, dest_worker);
+            }
         }
         thread_rwlock_unlock (&workers_lock);
         if (ret)
