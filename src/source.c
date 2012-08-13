@@ -259,12 +259,6 @@ void source_clear_source (source_t *source)
     }
 
     /* flush out the stream data, we don't want any left over */
-
-    /* the source holds a reference on the very latest so that one
-     * always exists */
-    refbuf_release (source->stream_data_tail);
-
-    /* remove the reference for buffers on the queue */
     while (source->stream_data)
     {
         refbuf_t *to_go = source->stream_data;
@@ -482,8 +476,6 @@ int source_read (source_t *source)
                 source->bytes_read_since_update += refbuf->len;
 
                 refbuf->flags |= SOURCE_QUEUE_BLOCK;
-                /* the latest refbuf is counted twice so that it stays */
-                refbuf_addref (refbuf);
 
                 /* append buffer to the in-flight data queue,  */
                 if (source->stream_data == NULL)
@@ -493,15 +485,8 @@ int source_read (source_t *source)
                     source->min_queue_offset = 0;
                 }
                 if (source->stream_data_tail)
-                {
-                    if (source->min_queue_offset > source->min_queue_size)
-                    {
-                        ERROR3 ("queue oddity, stream %s, %d, %d", source->mount, source->min_queue_offset, source->min_queue_size);
-                        source->flags &= ~SOURCE_RUNNING;
-                    }
                     source->stream_data_tail->next = refbuf;
-                    refbuf_release (source->stream_data_tail);
-                }
+
                 source->stream_data_tail = refbuf;
                 source->queue_size += refbuf->len;
 
@@ -546,14 +531,16 @@ int source_read (source_t *source)
         if (source->listeners)
             queue_size_target = source->queue_size_limit;
         else
-            queue_size_target = source->min_queue_size;
-        while (source->queue_size > queue_size_target)
+            queue_size_target = source->stream_data_tail ? source->stream_data_tail->len : source->min_queue_size;
+        loop = 8;
+        while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
             source->stream_data = to_go->next;
             source->queue_size -= to_go->len;
             to_go->next = NULL;
             refbuf_release (to_go);
+            loop--;
         }
     } while (0);
 
