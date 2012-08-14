@@ -526,13 +526,17 @@ int source_read (source_t *source)
         if (source->listeners)
             queue_size_target = source->queue_size_limit;
         else
-            queue_size_target = source->stream_data_tail ? source->stream_data_tail->len : source->min_queue_size;
+            queue_size_target = source->min_queue_size;
         loop = 8;
         while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
+            if (to_go->next == NULL) // always leave at least one on the queue
+                break;
             source->stream_data = to_go->next;
             source->queue_size -= to_go->len;
+            if (source->min_queue_point == to_go)
+                abort();
             to_go->next = NULL;
             refbuf_release (to_go);
             loop--;
