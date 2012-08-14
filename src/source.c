@@ -501,11 +501,6 @@ int source_read (source_t *source)
                         source->min_queue_point = to_release->next;
                         continue;
                     }
-                    if (source->min_queue_point != refbuf)
-                    {
-                        ERROR0 ("weird state of min_queue point");
-                        abort();
-                    }
                     break;
                 }
 
