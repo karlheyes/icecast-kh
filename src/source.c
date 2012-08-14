@@ -1949,6 +1949,19 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     return client_send_403redirect (client, passed_mount, "server bandwidth reached");
                 }
             }
+            if (httpp_getvar (client->parser, "range"))
+            {
+                refbuf_t *p;
+                // Range request for a stream, just send back a small write then drop, probably Apple
+                client->pos = 0;
+                client->refbuf->len = 0;
+                format_general_headers (source->format, client);
+                thread_rwlock_unlock (&source->lock);
+                p = refbuf_new (1);
+                p->next = client->refbuf->next;
+                client->refbuf->next = p;
+                return fserve_setup_client_fb (client, NULL);
+            }
         }
 
         if (mountinfo == NULL)

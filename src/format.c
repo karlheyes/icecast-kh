@@ -207,6 +207,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *protocol = "HTTP/1.0";
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
+        int respcode = (httpp_getvar (client->parser, "range")) ? 206: 200;
 
         if (useragent)
         {
@@ -243,11 +244,11 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
                 contenttype = "audio/aac";
         }
-        bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
-                "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+        bytes = snprintf (ptr, remaining, "%s %d OK\r\n"
+                "%s: %s\r\n", protocol, respcode, contenttypehdr, contenttype);
         remaining -= bytes;
         ptr += bytes;
-        client->respcode = 200;
+        client->respcode = respcode;
     }
 
     if (plugin->parser)
