@@ -926,15 +926,6 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
         remaining -= bytes;
         ptr += bytes;
     }
-    /* avoid browser caching, reported via forum */
-    bytes = snprintf (ptr, remaining, "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n");
-    remaining -= bytes;
-    ptr += bytes; 
-
-    bytes = snprintf (ptr, remaining, "Pragma: no-cache\r\n");
-    remaining -= bytes;
-    ptr += bytes; 
-
     if (httpp_getvar (client->parser, "iceblocks"))
     {
         client->flags |= CLIENT_WANTS_META;

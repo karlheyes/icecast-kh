@@ -207,7 +207,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *protocol = "HTTP/1.0";
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
-        int respcode = (httpp_getvar (client->parser, "range")) ? 206: 200;
+        off_t pos1, pos2 = -1;
+        const char *range = httpp_getvar (client->parser, "range");
 
         if (useragent)
         {
@@ -244,11 +245,23 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
                 contenttype = "audio/aac";
         }
-        bytes = snprintf (ptr, remaining, "%s %d OK\r\n"
-                "%s: %s\r\n", protocol, respcode, contenttypehdr, contenttype);
+        if (range && sscanf (range, "bytes=%" SCNdMAX "-%" SCNdMAX, &pos1, &pos2) == 2)
+        {
+            client->respcode = 206;
+            bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
+                    "%s: %s\r\n"
+                    "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/*\r\n",
+                    protocol, contenttypehdr, contenttype,
+                    pos1, pos2);
+        }
+        else
+        {
+            client->respcode = 200;
+            bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
+                    "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+        }
         remaining -= bytes;
         ptr += bytes;
-        client->respcode = respcode;
     }
 
     if (plugin->parser)
@@ -319,7 +332,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     ptr += bytes;
 
     /* prevent proxy servers from caching */
-    bytes = snprintf (ptr, remaining, "Cache-Control: no-cache\r\n");
+    bytes = snprintf (ptr, remaining, "Cache-Control: no-cache\r\nPragma: no-cache\r\n"
+            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n");
     remaining -= bytes;
     ptr += bytes;
 
