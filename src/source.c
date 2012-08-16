@@ -799,7 +799,7 @@ static int http_source_listener (client_t *client)
     source_t *source = client->shared_data;
     int ret;
 
-    if (refbuf == NULL || client->respcode)
+    if (refbuf == NULL || client->pos == refbuf->len)
     {
         client->check_buffer = http_source_intro;
         return http_source_intro (client);
@@ -836,15 +836,6 @@ static int http_source_listener (client_t *client)
     {
         client->check_buffer = http_source_intro;
         client->intro_offset = 0;
-        //if (client->flags & CLIENT_HAS_INTRO_CONTENT)
-        //{
-         //   client->refbuf = refbuf->next;
-          //  refbuf->next = NULL;
-           // refbuf_release (refbuf);
-          //  if (client->refbuf == NULL)
-           //     client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
-            //client->pos = 0;
-        //}
         client->connection.sent_bytes = 0;
         return ret;
     }
@@ -1950,16 +1941,31 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             }
             if (httpp_getvar (client->parser, "range"))
             {
-                refbuf_t *p;
-                // Range request for a stream, just send back a small write then drop, probably Apple
-                client->pos = 0;
+                int ret;
+                int (*build_headers)(format_plugin_t *, client_t *) = format_general_headers;
+
+                if (source->format->create_client_data)
+                    build_headers = source->format->create_client_data;
+
                 client->refbuf->len = 0;
-                format_general_headers (source->format, client);
-                thread_rwlock_unlock (&source->lock);
-                p = refbuf_new (1);
-                p->next = client->refbuf->next;
-                client->refbuf->next = p;
-                return fserve_setup_client_fb (client, NULL);
+                ret = build_headers (source->format, client);
+
+                if (ret < 0)
+                {
+                    thread_rwlock_unlock (&source->lock);
+                    return ret;
+                }
+                if (client->respcode == 206)
+                {
+                    refbuf_t *p; // a range on stream is cut short, not accounted for on source
+                    thread_rwlock_unlock (&source->lock);
+                    p = refbuf_new (1);
+                    p->data[0] = 255;
+                    p->next = client->refbuf->next;
+                    client->refbuf->next = p;
+                    return fserve_setup_client_fb (client, NULL);
+                }
+                stats_event_inc (source->mount, "listener_connections");
             }
         }
 
@@ -2015,8 +2021,11 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     } while (1);
     client->connection.sent_bytes = 0;
 
-    client->refbuf->len = PER_CLIENT_REFBUF_SIZE;
-    memset (client->refbuf->data, 0, PER_CLIENT_REFBUF_SIZE);
+    if (client->respcode == 0)
+    {
+        client->refbuf->len = PER_CLIENT_REFBUF_SIZE;
+        memset (client->refbuf->data, 0, PER_CLIENT_REFBUF_SIZE);
+    }
 
     source_setup_listener (source, client);
     if ((client->flags & CLIENT_ACTIVE) && (source->flags & SOURCE_RUNNING))
