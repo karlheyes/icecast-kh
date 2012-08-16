@@ -509,7 +509,6 @@ int fserve_client_create (client_t *httpclient, const char *path)
     int xspf_requested = 0, xspf_file_available = 1;
     int ret = -1;
     ice_config_t *config;
-    fh_node *fh;
     fbinfo finfo;
 
     fullpath = util_get_path_from_normalised_uri (path, 0);
@@ -633,34 +632,14 @@ int fserve_client_create (client_t *httpclient, const char *path)
         return client_send_404 (httpclient, "The file you requested could not be found");
     }
 
+    free (fullpath);
     finfo.flags = 0;
     finfo.mount = (char *)path;
     finfo.fallback = NULL;
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
 
-    avl_tree_wlock (fh_cache);
-    fh = open_fh (&finfo);
-    if (fh == NULL)
-    {
-        WARN1 ("Problem accessing file \"%s\"", fullpath);
-        free (fullpath);
-        return client_send_404 (httpclient, "File not readable");
-    }
-    fh_add_client (fh, httpclient);
-    free (fullpath);
-
-    httpclient->intro_offset = 0;
-    httpclient->shared_data = fh;
-    if (fill_http_headers (httpclient, path, &file_buf) < 0)
-    {
-        thread_mutex_unlock (&fh->lock);
-        return client_send_416 (httpclient);
-    }
-
-    thread_mutex_unlock (&fh->lock);
-    stats_event_inc (NULL, "file_connections");
-    return fserve_setup_client_fb (httpclient, NULL);
+    return fserve_setup_client_fb (httpclient, &finfo);
 }
 
 

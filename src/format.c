@@ -76,9 +76,7 @@ format_type_t format_get_type(const char *content_type)
     else if(strcmp(contenttype, "audio/mpeg") == 0)
         return FORMAT_TYPE_MPEG;
     else
-        /* We default to the Generic format handler, which
-           can handle many more formats than just mp3 */
-        return FORMAT_TYPE_GENERIC;
+        return FORMAT_TYPE_UNDEFINED;
 }
 
 
@@ -108,7 +106,6 @@ int format_get_plugin (format_plugin_t *plugin, client_t *client)
             break;
         case FORMAT_TYPE_AAC:
         case FORMAT_TYPE_MPEG:
-        case FORMAT_TYPE_GENERIC:
             ret = format_mp3_get_plugin (plugin, client);
             break;
         default:
