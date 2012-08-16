@@ -638,6 +638,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
     finfo.fallback = NULL;
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
+    stats_event_inc (NULL, "file_connections");
 
     return fserve_setup_client_fb (httpclient, &finfo);
 }
