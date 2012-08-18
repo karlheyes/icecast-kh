@@ -81,7 +81,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     const char *s;
 
     plugin->get_buffer = mp3_get_no_meta;
-    plugin->write_buf_to_client = format_mp3_write_buf_to_client;
+    plugin->write_buf_to_client = write_mpeg_buf_to_client;
     plugin->write_buf_to_file = write_mp3_to_file;
     plugin->create_client_data = format_mp3_create_client_data;
     plugin->free_plugin = format_mp3_free_plugin;
@@ -674,14 +674,13 @@ int mpeg_process_buffer (client_t *client, format_plugin_t *plugin)
 {
     refbuf_t *refbuf = client->refbuf;
     mp3_client_data *client_mp3 = client->format_data;
-    mpeg_sync *file_sync = client_mp3->specific;
     int unprocessed = -1;
 
     if (refbuf)
     {
         if (client->flags & CLIENT_WANTS_FLV)
-            return flv_process_buffer (client_mp3->specific, refbuf);
-        unprocessed = mpeg_complete_frames (file_sync, refbuf, 0);
+            return flv_process_buffer (client->format_data, refbuf);
+        unprocessed = mpeg_complete_frames (client_mp3->specific, refbuf, 0);
     }
     return unprocessed;
 }
@@ -882,7 +881,7 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
 
 static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *client)
 {
-    mp3_client_data *client_mp3 = calloc(1,sizeof(mp3_client_data));
+    mp3_client_data *client_mp3;
     mp3_state *source_mp3 = plugin->_state;
     const char *metadata;
     size_t  remaining;
@@ -890,11 +889,6 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     int bytes;
     const char *useragent;
 
-    if (client_mp3 == NULL)
-        return -1;
-
-    client->format_data = client_mp3;
-    client->free_client_data = free_mp3_client_data;
     client->refbuf->len = 0;
 
     if (client->flags & CLIENT_WANTS_FLV)
@@ -902,6 +896,12 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
         flv_create_client_data (plugin, client); // special case
         return 0;
     }
+    client->free_client_data = free_mp3_client_data;
+    client_mp3 = calloc(1,sizeof(mp3_client_data));
+    if (client_mp3 == NULL)
+        return -1;
+
+    client->format_data = client_mp3;
     if (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG)
     {
         client_mp3->specific = calloc (1, sizeof(mpeg_sync));
@@ -991,9 +991,11 @@ static void free_mp3_client_data (client_t *client)
     mp3_client_data *client_mp3 = client->format_data;
 
     if (client->flags & CLIENT_WANTS_FLV)
-        free_flv_client_data (client_mp3->specific);
-    else
-        mpeg_cleanup (client_mp3->specific);
+    {
+        free_flv_client_data (client);
+        abort ();
+    }
+    mpeg_cleanup (client_mp3->specific);
     free (client_mp3->specific);
     client_mp3->associated = NULL;
     free (client->format_data);

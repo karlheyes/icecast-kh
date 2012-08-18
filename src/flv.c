@@ -303,8 +303,7 @@ int flv_process_buffer (struct flv *flv, refbuf_t *refbuf)
 int write_flv_buf_to_client (client_t *client) 
 {
     refbuf_t *ref = client->refbuf, *scmeta = ref->associated;
-    mp3_client_data *client_mp3 = client->format_data;
-    struct flv *flv = client_mp3->specific;
+    struct flv *flv = client->format_data;
     int ret;
 
     if (client->pos >= ref->len)
@@ -467,14 +466,15 @@ void flv_meta_append_string (refbuf_t *buffer, const char *tag, const char *valu
 
 void flv_create_client_data (format_plugin_t *plugin, client_t *client)
 {
-    mp3_client_data *client_mp3 = client->format_data;
     struct flv *flv = calloc (1, sizeof (struct flv));
     int bytes;
     char *ptr = client->refbuf->data;
 
     mpeg_setup (&flv->mpeg_sync, client->connection.ip);
     mpeg_check_numframes (&flv->mpeg_sync, 1); 
-    client_mp3->specific = flv;
+    client->format_data = flv;
+    client->free_client_data = free_flv_client_data;
+    client->refbuf->flags |= WRITE_BLOCK_GENERIC;
 
     bytes = snprintf (ptr, 200, "HTTP/1.0 200 OK\r\n"
             "content-type: video/x-flv\r\n"
@@ -505,10 +505,12 @@ void flv_create_client_data (format_plugin_t *plugin, client_t *client)
 }
 
 
-void free_flv_client_data (struct flv *flv)
+void free_flv_client_data (client_t *client)
 {
+    struct flv *flv = client->format_data;
     flv->mpeg_sync.mount = NULL;
     mpeg_cleanup (&flv->mpeg_sync);
     connection_bufs_release (&flv->bufs);
+    free (client->format_data);
 }
 

@@ -779,14 +779,13 @@ static int prefile_send (client_t *client)
                 {
                     if (file_in_use (fh->f)) // is there a file to read from
                     {
-                        int len = 8192;
                         if (fh->finfo.limit)
                             client->ops = &throttled_file_content_ops;
                         else
                             client->ops = &file_content_ops;
                         refbuf_release (client->refbuf);
-                        client->refbuf = refbuf_new(len);
-                        client->pos = len;
+                        client->refbuf = NULL;
+                        client->pos = 0;
                         return client->ops->process (client);
                     }
                 }
@@ -826,8 +825,7 @@ static int prefile_send (client_t *client)
 /* fast send routine */
 static int file_send (client_t *client)
 {
-    refbuf_t *refbuf = client->refbuf;
-    int loop = 6, bytes, written = 0, ret = 0;
+    int loop = 6, bytes, written = 0;
     fh_node *fh = client->shared_data;
     worker_t *worker = client->worker;
     time_t now;
@@ -848,15 +846,8 @@ static int file_send (client_t *client)
             return -1;
         if (client->connection.discon_time && now >= client->connection.discon_time)
             return -1;
-        if (client->pos == refbuf->len)
-        {
-            ret = pread (fh->f, refbuf->data, 8192, client->intro_offset);
-            if (ret <= 0)
-                return -1;
-            refbuf->len = ret;
-            client->intro_offset += ret;
-            client->pos = 0;
-        }
+        if (format_file_read (client, fh->format, fh->f) < 0)
+            return -1;
         bytes = client->check_buffer (client);
         if (bytes < 0)
         {
@@ -898,7 +889,6 @@ static int fserve_change_worker (client_t *client)
 /* send routine for files sent at a target bitrate, eg fallback files. */
 static int throttled_file_send (client_t *client)
 {
-    refbuf_t *refbuf = client->refbuf;
     int  bytes;
     fh_node *fh = client->shared_data;
     time_t now;
@@ -953,24 +943,16 @@ static int throttled_file_send (client_t *client)
             stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
                     (long)((8 * rate_avg (fh->out_bitrate))/1024));
     }
-    if (client->pos == refbuf->len)
+    switch (format_file_read (client, fh->format, fh->f))
     {
-        //DEBUG1 ("reading another block from offset %ld", client->intro_offset);
-        int ret = format_file_read (client, fh->format, fh->f);
-
-        switch (ret)
-        {
-            case -1: /* loop fallback file  */
-                // DEBUG0 ("loop of file triggered");
-                client->intro_offset = 0;
-                client->schedule_ms += 150;
-                return 0;
-            case -2: /* non-recoverable */
-                // DEBUG0 ("major failure on read, better leave");
-                return -1;
-            default:  ;
-        }
-        client->pos = 0;
+        case -1: // DEBUG0 ("loop of file triggered");
+            client->intro_offset = 0;
+            client->schedule_ms += 150;
+            return 0;
+        case -2: // DEBUG0 ("major failure on read, better leave");
+            return -1;
+        default: //DEBUG1 ("reading from offset %ld", client->intro_offset);
+            break;
     }
     bytes = client->check_buffer (client);
     if (bytes < 0)

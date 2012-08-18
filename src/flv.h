@@ -32,7 +32,7 @@ struct flv
 
 int  write_flv_buf_to_client (client_t *client);
 void flv_create_client_data (format_plugin_t *plugin, client_t *client);
-void free_flv_client_data (struct flv *flv);
+void free_flv_client_data (client_t *client);
 int  flv_process_buffer (struct flv *flv, refbuf_t *refbuf);
 
 refbuf_t *flv_meta_allocate (size_t len);

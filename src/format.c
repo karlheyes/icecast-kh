@@ -129,7 +129,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
         {
             if (file_in_use (f) == 0)
                 return -2;
-            refbuf = client->refbuf = refbuf_new (4096);
+            refbuf = client->refbuf = refbuf_new (8192);
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
             client->intro_offset = 0;
@@ -150,7 +150,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
         if (file_in_use (f) == 0) return -2;
 
-        bytes = pread (f, refbuf->data, 4096, client->intro_offset);
+        bytes = pread (f, refbuf->data, 8192, client->intro_offset);
         if (bytes <= 0)
             return bytes < 0 ? -2 : -1;
 
@@ -166,7 +166,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
         }
         client->intro_offset += (bytes - unprocessed);
     } while (1);
-    return 0;
+    return refbuf->len - client->pos;
 }
 
 
