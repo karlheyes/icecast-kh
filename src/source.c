@@ -611,9 +611,9 @@ static int source_client_read (client_t *client)
         avl_tree_wlock (global.source_tree);
         DEBUG1 ("removing source %s from tree", source->mount);
         avl_delete (global.source_tree, source, NULL);
+        source->stats = 0; // source detached from tree so slave thread could flush stats
         avl_tree_unlock (global.source_tree);
         thread_rwlock_wlock (&source->lock);
-        source->stats = 0; // source detached from tree so slave thread could of flushed stats
     }
 
     if (source->termination_count && source->termination_count <= source->listeners)
@@ -625,7 +625,7 @@ static int source_client_read (client_t *client)
         }
         else
             DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
-        client->schedule_ms = client->worker->time_ms + 20;
+        client->schedule_ms = client->worker->time_ms + 50;
     }
     else
     {
@@ -641,7 +641,7 @@ static int source_client_read (client_t *client)
             return 0;
         }
         INFO1 ("no more listeners on %s", source->mount);
-        stats_event_args (source->mount, "listeners", "%lu", source->listeners);
+        //stats_event_args (source->mount, "listeners", "%lu", source->listeners);
         client->connection.discon_time = 0;
         client->ops = &source_client_halt_ops;
         free (source->fallback.mount);
@@ -1254,7 +1254,8 @@ void source_shutdown (source_t *source, int with_fallback)
     if (source->client->connection.con_time)
     {
         /* only do these if source has been running */
-        update_source_stats (source);
+        if (source->stats)
+            update_source_stats (source);
         if (mountinfo)
         {
             if (mountinfo->on_disconnect)
