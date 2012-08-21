@@ -355,13 +355,10 @@ static fh_node *open_fh (fbinfo *finfo)
         if (file_open (&fh->f, fullpath) < 0)
         {
             INFO1 ("Failed to open \"%s\"", fullpath);
-            if (finfo->flags & FS_FALLBACK)
-            {
-                avl_tree_unlock (fh_cache);
-                free (fullpath);
-                free (fh);
-                return NULL;
-            }
+            avl_tree_unlock (fh_cache);
+            free (fullpath);
+            free (fh);
+            return NULL;
         }
         free (fullpath);
         if (fh->finfo.type != FORMAT_TYPE_UNDEFINED)
