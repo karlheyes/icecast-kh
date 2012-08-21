@@ -243,7 +243,13 @@ void *xslt_update (void *arg)
     {
         WARN1 ("problem reading stylesheet \"%s\"", x->cache.filename);
         free (fn);
-        if (client) client_send_404 (client, "Could not parse XSLT file");
+        if (client)
+        {
+            client->shared_data = NULL;
+            client_send_404 (client, "Could not parse XSLT file");
+        }
+        client = NULL;
+        worker = NULL;
     }
     thread_spin_lock (&update_lock);
     xsl_updating--;
