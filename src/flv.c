@@ -309,7 +309,8 @@ int write_flv_buf_to_client (client_t *client)
     if (client->pos >= ref->len)
     {
         WARN2 ("buffer position invalid (%d, %d)", client->pos, ref->len);
-        client->pos = ref->len;
+        // client->pos = ref->len;
+        client->connection.error = 1;
         return -1;
     }
 
