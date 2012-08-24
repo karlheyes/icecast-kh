@@ -945,10 +945,12 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 {
     thread_rwlock_unlock (&source->lock);
     thread_rwlock_wlock (&source->lock);
-    source->termination_count--;
     //DEBUG2 ("termination count on %s now %lu", source->mount, source->termination_count);
     if (client->connection.error)
+    {
+        source->termination_count--;
         return -1;
+    }
     if (source->fallback.mount)
     {
         int move_failed;
@@ -957,10 +959,13 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         thread_rwlock_unlock (&source->lock);
         move_failed = move_listener (client, &source->fallback);
         thread_rwlock_wlock (&source->lock);
+        source->termination_count--;
         if (move_failed == 0)
             return 0;
         source_setup_listener (source, client);
     }
+    else
+        source->termination_count--;
     thread_rwlock_unlock (&source->lock);
     thread_rwlock_rlock (&source->lock);
     if (source->flags & SOURCE_TERMINATING)
