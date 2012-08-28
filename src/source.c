@@ -666,7 +666,7 @@ static int source_queue_advance (client_t *client)
 
     if (client->flags & CLIENT_HAS_INTRO_CONTENT) abort(); // trap
 
-    if (lag > source->queue_size)
+    if (lag >= source->queue_size)
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
                 client->connection.id, client->connection.ip, client->queue_pos, source->mount);
