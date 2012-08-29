@@ -306,13 +306,14 @@ int write_flv_buf_to_client (client_t *client)
     struct flv *flv = client->format_data;
     int ret;
 
-    if (client->pos >= ref->len)
+    if (client->pos > ref->len)
     {
         WARN2 ("buffer position invalid (%d, %d)", client->pos, ref->len);
-        // client->pos = ref->len;
+        client->pos = ref->len;
         client->connection.error = 1;
-        return -1;
     }
+    if (client->pos == ref->len)
+        return -1;
 
     /* check for metadata updates and insert if needed */
     if (flv->mpeg_sync.raw_offset == 0)
