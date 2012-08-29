@@ -655,6 +655,8 @@ static int source_client_read (client_t *client)
 
 static int source_queue_advance (client_t *client)
 {
+    static unsigned char offset = 0;
+    int ret = -1;
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
     uint64_t lag;
@@ -666,7 +668,15 @@ static int source_queue_advance (client_t *client)
 
     if (client->flags & CLIENT_HAS_INTRO_CONTENT) abort(); // trap
 
-    if (lag >= source->queue_size)
+    if (lag == 0)
+    {
+        // most listeners will be through here, so a minor spread should limit a wave of sends
+        ret = offset % 5;
+        offset++;
+        client->schedule_ms += source->skip_duration + ret;
+        return -1;
+    }
+    if (lag > source->queue_size)
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
                 client->connection.id, client->connection.ip, client->queue_pos, source->mount);
@@ -676,23 +686,18 @@ static int source_queue_advance (client_t *client)
         return -1;
     }
     refbuf = client->refbuf;
+    if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 10000)  abort();
 
+    ret = source->format->write_buf_to_client (client);
     /* move to the next buffer if we have finished with the current one */
     if (client->pos >= refbuf->len)
     {
         if (refbuf->next == NULL)
-        {
-            static unsigned char offset = 0;
-            // most listeners will be through here, so a minor spread should limit a wave of sends
-            int x = offset % 5;
-            offset++;
-            client->schedule_ms += source->skip_duration + x;
-            return -1;
-        }
+            return ret; // should be rare so allow it to come back in
         client->refbuf = refbuf->next;
         client->pos = 0;
     }
-    return source->format->write_buf_to_client (client);
+    return ret;
 }
 
 
