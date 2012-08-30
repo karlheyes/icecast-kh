@@ -269,10 +269,18 @@ static void remove_from_fh (fh_node *fh, client_t *client)
 
 static fh_node *find_fh (fbinfo *finfo)
 {
+    char *s = finfo->mount;
     fh_node fh, *result = NULL;
     if (finfo->mount == NULL)
         finfo->mount = "";
     memcpy (&fh.finfo, finfo, sizeof (fbinfo));
+    if (strncmp (s, "fallback-", 9) == 0)
+    {
+        fh.finfo.flags |= FS_FALLBACK;
+        fh.finfo.mount = s+9;
+    }
+    else if (strncmp (s, "file-", 5) == 0)
+        fh.finfo.mount = s+5;
     if (avl_get_by_key (fh_cache, &fh, (void**)&result) == 0)
         return result;
     return NULL;
@@ -373,9 +381,9 @@ static fh_node *open_fh (fbinfo *finfo)
                 free (fh);
                 return NULL;
             }
-            if (fh->finfo.limit)
-                fh->out_bitrate = rate_setup (10000, 1000);
         }
+        if (fh->finfo.limit)
+            fh->out_bitrate = rate_setup (10000, 1000);
     }
     fh->clients = avl_tree_new (client_compare, NULL);
     thread_mutex_create (&fh->lock);
@@ -1286,7 +1294,7 @@ int fserve_list_clients (client_t *client, const char *mount, int response, int 
     xmlDocPtr doc;
     xmlNodePtr node, srcnode;
 
-    finfo.flags = FS_FALLBACK;
+    finfo.flags = 0;
     finfo.mount = (char*)mount;
     finfo.limit = 0;
     finfo.fallback = NULL;
@@ -1310,7 +1318,7 @@ int fserve_list_clients (client_t *client, const char *mount, int response, int 
         xmlNewChild (srcnode, NULL, XMLSTR("listeners"), XMLSTR(buf));
         return admin_send_response (doc, client, response, "listclients.xsl");
     }
-    xmlFree (doc);
+    xmlFreeDoc (doc);
     return client_send_400 (client, "mount does not exist");
 }
 
