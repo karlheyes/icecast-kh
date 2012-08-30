@@ -1983,11 +1983,13 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         if (mountinfo == NULL)
             break; /* allow adding listeners, no mount limits imposed */
 
+#if 0
         if (check_duplicate_logins (source->mount, source->clients, client, mountinfo->auth) == 0)
         {
             thread_rwlock_unlock (&source->lock);
             return client_send_403 (client, "Account already in use");
         }
+#endif
 
         /* set a per-mount disconnect time if auth hasn't set one already */
         if (mountinfo->max_listener_duration && client->connection.discon_time == 0)

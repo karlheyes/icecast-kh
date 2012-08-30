@@ -297,6 +297,7 @@ static void config_clear_mount (mount_proxy *mount)
         free (option);
         option = nextopt;
     }
+    avl_tree_free (mount->listeners, NULL);
     auth_release (mount->auth);
     if (mount->access_log.logid >= 0)
         log_close (mount->access_log.logid);
@@ -956,6 +957,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     mount->access_log.logid = -1;
     mount->access_log.log_ip = 1;
     mount->fallback_override = 1;
+    mount->listeners = avl_tree_new (client_compare, NULL);
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;

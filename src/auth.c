@@ -494,6 +494,18 @@ static int add_authenticated_listener (const char *mount, mount_proxy *mountinfo
         return stats_transform_xslt (client, mount);
     }
 
+    if (mountinfo)
+    {
+        avl_tree_wlock (mountinfo->listeners);
+        if (check_duplicate_logins (mount, mountinfo->listeners, client, mountinfo->auth) == 0)
+        {
+            avl_tree_unlock (mountinfo->listeners);
+            return client_send_403 (client, "Account already in use");
+        }
+        avl_insert (mountinfo->listeners, client);
+        avl_tree_unlock (mountinfo->listeners);
+    }
+
     ret = source_add_listener (mount, mountinfo, client);
 
     if (ret == -2)
@@ -645,6 +657,12 @@ int auth_release_listener (client_t *client, const char *mount, mount_proxy *mou
     if (client->flags & CLIENT_AUTHENTICATED)
     {
         client_set_queue (client, NULL);
+        if (mountinfo)
+        {
+            avl_tree_wlock (mountinfo->listeners);
+            avl_delete (mountinfo->listeners, client, NULL);
+            avl_tree_unlock (mountinfo->listeners);
+        }
 
         if (mount && mountinfo && mountinfo->auth && mountinfo->auth->release_listener)
         {

@@ -160,6 +160,7 @@ typedef struct _mount_proxy {
     char *type;
     char *subtype;
     int yp_public;
+    avl_tree *listeners;
 
     struct _mount_proxy *next;
 } mount_proxy;
