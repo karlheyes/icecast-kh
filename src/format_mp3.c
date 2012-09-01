@@ -886,8 +886,7 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     const char *metadata;
     size_t  remaining;
     char *ptr;
-    int bytes;
-    const char *useragent;
+    int bytes, send_length = 0;
 
     client->refbuf->len = 0;
 
@@ -916,11 +915,21 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     remaining = 4096 - client->refbuf->len;
     ptr = client->refbuf->data + client->refbuf->len;
 
-    /* hack for flash player, it wants a length.  It has also been reported that the useragent
-     * appears as MSIE if run in internet explorer */
-    useragent = httpp_getvar (client->parser, "user-agent");
-    if (httpp_getvar(client->parser, "x-flash-version") ||
-            (useragent && strstr(useragent, "MSIE")))
+    /* hack for flash player, it wants a length. */
+    if (httpp_getvar (client->parser, "x-flash-version"))
+        send_length = 1;
+    else
+    {
+        // flash may not send above header, so check for swf in referer
+        const char *referer = httpp_getvar (client->parser, "referer");
+        if (referer)
+        {
+            int len = strcspn (referer, "?");
+            if (len >= 4 && strncmp (referer+len-4, ".swf", 4) == 0)
+                send_length = 1;
+        }
+    }
+    if (send_length)
     {
         bytes = snprintf (ptr, remaining, "Content-Length: 221183499\r\n");
         remaining -= bytes;
