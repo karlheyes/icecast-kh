@@ -116,7 +116,7 @@ typedef struct
 } cache_file_contents;
 
 static spin_t _connection_lock;
-static volatile uint64_t _current_id = 0;
+static uint64_t _current_id = 0;
 thread_type *conn_tid;
 int sigfd;
 

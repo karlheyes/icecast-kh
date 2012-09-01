@@ -467,7 +467,6 @@ static auth_result url_add_listener (auth_client *auth_user)
             "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s",
             server, port, client->connection.id, mount, username,
             password, ipaddr, user_agent, referer);
-    DEBUG1 ("post is %s", post);
     free (server);
     free (mount);
     free (referer);

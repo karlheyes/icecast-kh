@@ -791,7 +791,7 @@ void rate_add (struct rate_calc *calc, long value, uint64_t sid)
             node->index = sid;
             thread_spin_lock (&calc->lock);
             if ((calc->current && calc->current->next != next) ||
-                (calc->current == NULL && next != NULL))
+                    (calc->current == NULL && next != NULL))
             {
                 thread_spin_unlock (&calc->lock);
                 free (node);
@@ -935,7 +935,7 @@ int util_get_clf_time (char *buffer, unsigned len, time_t now)
 
     time_hours = (tempnum2 + thetime.tm_hour - gmt.tm_hour);
     time_tz = time_hours * 60 + thetime.tm_min - gmt.tm_min;
-    
+
     if (time_tz < 0) {
         sign = '-';
         time_tz = -time_tz;
