@@ -204,7 +204,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *protocol = "HTTP/1.0";
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
-        off_t pos1, pos2 = -1;
+        uint64_t pos1, pos2 = -1;
         const char *range = httpp_getvar (client->parser, "range");
 
         if (useragent)
