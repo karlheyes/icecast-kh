@@ -759,6 +759,32 @@ static int fserve_move_listener (client_t *client)
     return ret;
 }
 
+
+static int fserve_change_worker (client_t *client)
+{
+    worker_t *this_worker = client->worker, *worker;
+    int ret = 0;
+
+    if (this_worker->move_allocations == 0 || worker_count < 2)
+        return 0;
+    thread_rwlock_rlock (&workers_lock);
+    worker = worker_selected ();
+    if (worker && worker != client->worker)
+    {
+        long diff = this_worker->count - worker->count;
+        if (diff > 15)
+        {
+            this_worker->move_allocations--;
+            ret = client_change_worker (client, worker);
+            if (ret)
+                DEBUG2 ("moving listener from %p to %p", this_worker, worker);
+        }
+    }
+    thread_rwlock_unlock (&workers_lock);
+    return ret;
+}
+
+
 struct _client_functions throttled_file_content_ops;
 
 static int prefile_send (client_t *client)
@@ -835,6 +861,9 @@ static int file_send (client_t *client)
     worker_t *worker = client->worker;
     time_t now;
 
+    if (fserve_change_worker (client)) // allow for balancing
+        return 1;
+
     client->schedule_ms = worker->time_ms;
     now = worker->current_time.tv_sec;
     /* slowdown if max bandwidth is exceeded, but allow for short-lived connections to avoid 
@@ -865,30 +894,6 @@ static int file_send (client_t *client)
     return 0;
 }
 
-
-static int fserve_change_worker (client_t *client)
-{
-    worker_t *this_worker = client->worker, *worker;
-    int ret = 0;
-
-    if (this_worker->move_allocations == 0 || worker_count < 2)
-        return 0;
-    thread_rwlock_rlock (&workers_lock);
-    worker = worker_selected ();
-    if (worker && worker != client->worker)
-    {
-        long diff = this_worker->count - worker->count;
-        if (diff > 15)
-        {
-            this_worker->move_allocations--;
-            ret = client_change_worker (client, worker);
-            if (ret)
-                DEBUG2 ("moving listener from %p to %p", this_worker, worker);
-        }
-    }
-    thread_rwlock_unlock (&workers_lock);
-    return ret;
-}
 
 
 /* send routine for files sent at a target bitrate, eg fallback files. */
