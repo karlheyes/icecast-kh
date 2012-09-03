@@ -1004,6 +1004,8 @@ static int send_listener (source_t *source, client_t *client)
     worker_t *worker = client->worker;
     time_t now = worker->current_time.tv_sec;
 
+    client->schedule_ms = worker->time_ms;
+
     if (source->flags & SOURCE_LISTENERS_SYNC)
         return listener_waiting_on_source (source, client);
 
@@ -1063,7 +1065,7 @@ static int send_listener (source_t *source, client_t *client)
            sleep for too long if more data can be sent */
         if (loop == 0 || total_written > limiter)
         {
-            client->schedule_ms = client->worker->time_ms + 1;
+            client->schedule_ms += 2;
             break;
         }
         bytes = client->check_buffer (client);
