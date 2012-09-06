@@ -423,7 +423,8 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining)
     if (p)
     {
         skip = p - start;
-        memmove (start, p, remaining - skip);
+        if (mp->check_numframes > 1)
+            memmove (start, p, remaining - skip);
         mp->resync_count += skip;
     }
     return skip;
@@ -474,8 +475,13 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                 start += frame_len;
                 continue;
             }
-            memmove (start, start+1, remaining-1);
-            new_block->len--;
+            if (mp->check_numframes > 1)
+            {
+                memmove (start, start+1, remaining-1);
+                new_block->len--;
+            }
+            else
+                start++;
             continue;
         }
 
@@ -490,8 +496,9 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                 INFO1 ("no frame sync after 20k on %s", mp->mount);
                 return -1;
             }
-            DEBUG2 ("no frame sync, re-checking after skipping %d (%d)", ret, new_block->len);
-            new_block->len -= ret;
+            INFO3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
+            if (mp->check_numframes > 1)
+                new_block->len -= ret;
             continue;
         }
         if (mp->mask == 0)
@@ -507,7 +514,8 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             {
                 if (remaining > 20000)
                     return -1;
-                new_block->len = offset;
+                if (mp->check_numframes > 1)
+                    new_block->len = offset;
                 return remaining;
             }
         }
@@ -518,7 +526,8 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         ERROR2 ("block inconsistency (%d, %d)", remaining, new_block->len);
         abort();
     }
-    new_block->len -= remaining;
+    if (mp->check_numframes > 1 && remaining)
+        new_block->len -= remaining;
     return remaining;
 }
 
