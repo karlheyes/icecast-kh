@@ -395,7 +395,7 @@ int sock_write_bytes(sock_t sock, const void *buff, size_t len)
     /* sanity check */
     if (!buff) {
         return SOCK_ERROR;
-    } else if (len <= 0) {
+    } else if (len < 0) {
         return SOCK_ERROR;
     } /*else if (!sock_valid_socket(sock)) {
         return SOCK_ERROR;

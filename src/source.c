@@ -656,7 +656,7 @@ static int source_client_read (client_t *client)
 static int source_queue_advance (client_t *client)
 {
     static unsigned char offset = 0;
-    int ret = -1;
+    int ret;
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
     uint64_t lag;
@@ -688,12 +688,13 @@ static int source_queue_advance (client_t *client)
     refbuf = client->refbuf;
     if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 10000)  abort();
 
-    ret = source->format->write_buf_to_client (client);
+    if (client->pos < refbuf->len)
+        ret = source->format->write_buf_to_client (client);
+    else
+        ret = 0;
     /* move to the next buffer if we have finished with the current one */
-    if (client->pos >= refbuf->len)
+    if (client->pos >= refbuf->len && refbuf->next)
     {
-        if (refbuf->next == NULL)
-            return ret; // should be rare so allow it to come back in
         client->refbuf = refbuf->next;
         client->pos = 0;
     }
