@@ -248,7 +248,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
                     "%s: %s\r\n"
                     "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/*\r\n",
-                    protocol, contenttypehdr, contenttype,
+                    protocol, contenttypehdr, contenttype ? contenttype : "application/octet-stream",
                     pos1, pos2);
         }
         else

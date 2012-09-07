@@ -1979,6 +1979,12 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     client->refbuf->next = p;
                     return fserve_setup_client_fb (client, NULL);
                 }
+                if ((source->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) == SOURCE_ON_DEMAND)
+                {
+                    // inactive ondemand relay to kick off, reset client, try headers later
+                    client->respcode = 0;
+                    client->pos = 0;
+                }
                 stats_event_inc (source->mount, "listener_connections");
             }
         }
