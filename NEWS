@@ -16,6 +16,28 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh4
+. burst size of less than 1400 was not handled correctly with recent rwlock changes
+. some memory reduction for FLV listeners.
+. Missing xsl could cause a busy loop.
+. fixed a crash when listener reached end of the queue. Certain assumptions about buffer
+  of queue accounting were changed with rwlocks, exposed a crash case.
+. on some multi-processor setups, it was possible that certain listeners could trigger
+  a busy worker due to old (cached?) data, work around applied.
+. A listener that started off a new on-demand relay could be only partially initialised
+  a lead to a crash later on
+. report of recent flash update on FF15 when requesting non-FLV content. Expected header
+  identifying flash is no longer present so now we check for swf in referer.
+. Add short write handler for clients requesting short ranges (eg Apple)
+. The stats handle for normal file or fallback files were altered in a previous release
+  which prevented a lookup of listener details via admin requests. now fixed.
+. only move inactive relay client to another worker when there is sufficient difference
+. honor auth options "allow_duplicate_users" and "drop_existing_listener" settings for
+  webroot files
+. proxy cache avoidance headers more generally used.
+. minor memory leak on moving clients over fallback.
+. code cleanup
+
 2.3.3-kh3
 . crash fix with invalid stats handle with fallback to file
 . merge Opus module from trunk
