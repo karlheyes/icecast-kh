@@ -16,6 +16,9 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh5
+. crash fix with intro files. intro reader requires larger buffer
+
 2.3.3-kh4
 . burst size of less than 1400 was not handled correctly with recent rwlock changes
 . some memory reduction for FLV listeners.
