@@ -686,7 +686,7 @@ static int source_queue_advance (client_t *client)
         return -1;
     }
     refbuf = client->refbuf;
-    if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 10000)  abort();
+    if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 66000)  abort();
 
     if (client->pos < refbuf->len)
         ret = source->format->write_buf_to_client (client);
