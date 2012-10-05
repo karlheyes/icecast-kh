@@ -182,6 +182,7 @@ int format_ogg_get_plugin (format_plugin_t *plugin, client_t *client)
     ogg_sync_init (&state->oy);
 
     plugin->_state = state;
+    state->use_url_metadata = 1;
     state->mount = plugin->mount;
     state->bos_end = &state->header_pages;
 
