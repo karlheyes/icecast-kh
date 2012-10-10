@@ -43,6 +43,7 @@ refbuf_t *refbuf_copy(refbuf_t *orig);
 #define PER_CLIENT_REFBUF_SIZE  4096
 
 #define WRITE_BLOCK_GENERIC     01000
+#define REFBUF_SHARED           02000
 
 #endif  /* __REFBUF_H__ */
 

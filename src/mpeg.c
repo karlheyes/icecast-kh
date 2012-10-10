@@ -497,7 +497,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                 return -1;
             }
             INFO3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
-            if (mp->check_numframes > 1)
+            if ((new_block->flags & REFBUF_SHARED) == 0)
                 new_block->len -= ret;
             continue;
         }
@@ -526,7 +526,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         ERROR2 ("block inconsistency (%d, %d)", remaining, new_block->len);
         abort();
     }
-    if (mp->check_numframes > 1 && remaining)
+    if (remaining && (new_block->flags & REFBUF_SHARED) == 0)
         new_block->len -= remaining;
     return remaining;
 }
