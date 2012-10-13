@@ -1548,8 +1548,8 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
                     {
                         global.server_conn [new] = global.server_conn [old];
                         global.serversock [new] = global.serversock [old];
-                        new++;
                     }
+                    new++;
                     continue;
                 }
             }
