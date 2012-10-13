@@ -1538,8 +1538,18 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
             if (config && all_sockets == 0 && global.server_conn [old]->port < 1024)
             {
                 listener_t *listener = config->listen_sock;
-                while (listener && listener->port != global.server_conn [old]->port)
+                while (listener)
+                {
+                    if (listener->port == global.server_conn [old]->port)
+                    {
+                        const char *new_bind = listener->bind_address ? listener->bind_address : "",
+                              *old_bind = global.server_conn[old]->bind_address ? global.server_conn[old]->bind_address :  "";
+
+                        if (strcmp (new_bind, old_bind) == 0)
+                            break;
+                    }
                     listener = listener->next;
+                }
                 if (listener)
                 {
                     INFO2 ("Leaving port %d (%s) open", listener->port,
@@ -1553,7 +1563,10 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
                     continue;
                 }
             }
-            INFO1 ("Closing port %d", global.server_conn [old]->port);
+            if (global.server_conn [old]->bind_address)
+                INFO2 ("Closing port %d on %s", global.server_conn [old]->port, global.server_conn [old]->bind_address);
+            else
+                INFO1 ("Closing port %d", global.server_conn [old]->port);
             sock_close (global.serversock [old]);
             global.serversock [old] = SOCK_ERROR;
             config_clear_listener (global.server_conn [old]);
