@@ -387,7 +387,7 @@ static int match_syncbits (mpeg_sync *mp, unsigned char *p)
 
 
 /* return number from 0 to remaining */
-static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining)
+static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, int prevent_move)
 {
     int skip = remaining, singlebyte = mp->mask & 0xFFFFFF ? 0 : 1;
     unsigned char *p = start;
@@ -423,7 +423,7 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining)
     if (p)
     {
         skip = p - start;
-        if (mp->check_numframes > 1)
+        if (prevent_move == 0)
             memmove (start, p, remaining - skip);
         mp->resync_count += skip;
     }
@@ -486,7 +486,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         }
 
         // no frame header match, let look elsewhere.
-        ret = find_align_sync (mp, start, remaining);
+        ret = find_align_sync (mp, start, remaining, new_block->flags&REFBUF_SHARED);
         if (ret)
         {
             if (ret == remaining && ret > 800)
