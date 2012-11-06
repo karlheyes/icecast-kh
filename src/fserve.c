@@ -653,7 +653,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
 static void fh_release (fh_node *fh)
 {
     if (fh->finfo.mount[0])
-        DEBUG3 ("refcount now %d on %s%s", fh->refcount, (fh->stats)?"file-": "", fh->finfo.mount);
+        DEBUG3 ("refcount now %d on %s%s", fh->refcount, (fh->stats)?"fallback-": "", fh->finfo.mount);
     thread_mutex_unlock (&fh->lock);
     if (remove_fh_from_cache (fh))
     {
