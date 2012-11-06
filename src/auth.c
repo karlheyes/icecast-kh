@@ -680,7 +680,7 @@ static int get_authenticator (auth_t *auth, config_options_t *options)
                 return -1;
             break;
 #else
-            ERROR0 ("Auth URL disabled");
+            ERROR0 ("Auth URL disabled, no libcurl support");
             return -1;
 #endif
         }
