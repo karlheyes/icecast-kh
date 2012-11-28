@@ -357,7 +357,7 @@ static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
     {
         yp->process = do_yp_add;
         yp_schedule (yp, 1200);
-        ERROR2 ("connection to %s failed with \"%s\"", server->url, server->curl_error);
+        ERROR3 ("connection to %s failed on %s with \"%s\"", server->url, yp->mount, server->curl_error);
         return -2;
     }
     if (yp->cmd_ok == 0)
@@ -564,12 +564,12 @@ static int do_yp_touch (ypdata_t *yp, char *s, unsigned len)
     if (ret >= (signed)len)
         return ret+1; /* space required for above text and nul*/
 
-    if (send_to_yp ("touch", yp, s) == 0)
+    ret = send_to_yp ("touch", yp, s);
+    if (ret == 0)
     {
         yp_schedule (yp, yp->touch_interval);
-        return 0;
     }
-    return -1;
+    return ret;
 }
 
 
@@ -611,24 +611,35 @@ static int process_ypdata (struct yp_server *server, ypdata_t *yp)
 static void yp_process_server (struct yp_server *server)
 {
     ypdata_t *yp;
-    int state = 0;
+    int error = 0, within_limit = 20;
 
     /* DEBUG1("processing yp server %s", server->url); */
     yp = server->mounts;
+    now = time(NULL);
     while (yp)
     {
-        now = time(NULL);
         /* if one of the streams shows that the server cannot be contacted then mark the
-         * other entries for an update later. Assume YP server is dead and skip it for now
+         * other entries for an update later. Assume YP server is stuck and skip it for now
          */
-        if (state == -2)
+        if (error == -2)
         {
+            static unsigned disperse = 0;
+            disperse++;
             DEBUG2 ("skiping %s on %s", yp->mount, server->url);
             yp->process = do_yp_add;
-            yp_schedule (yp, 900);
+            yp_schedule (yp, 30 + (disperse%60));
         }
-        else
-            state = process_ypdata (server, yp);
+        else if (within_limit)
+        {
+            within_limit--;
+            if (now >= yp->next_update)
+            {
+                error = process_ypdata (server, yp);
+                if (error == -2)
+                    WARN1 ("error detected, backing off on %s", server->url);
+                now = time(NULL);
+            }
+        }
         if (yp->remove == 0 && (uint64_t)yp->next_update < ypclient.counter)
             ypclient.counter = (uint64_t)yp->next_update;
 
