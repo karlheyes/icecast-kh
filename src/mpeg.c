@@ -339,7 +339,7 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
 static unsigned long make_val32 (unsigned char *p)
 {
     unsigned long v = *p;
-    int idx = 0;
+    int idx = 1;
 
     for (; idx < 4; idx++)
     {
