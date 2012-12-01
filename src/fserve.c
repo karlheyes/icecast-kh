@@ -94,11 +94,13 @@ typedef struct {
 typedef struct {
     fbinfo finfo;
     mutex_t lock;
+    int prev_count;
     int refcount;
     int peak;
     int max;
     icefile_handle f;
     time_t stats_update;
+    time_t expire;
     long stats;
     format_plugin_t *format;
     struct rate_calc *out_bitrate;
@@ -112,6 +114,9 @@ static int prefile_send (client_t *client);
 static int file_send (client_t *client);
 static int _compare_fh(void *arg, void *a, void *b);
 static int _delete_fh (void *mapping);
+
+static fh_node no_file;
+
 
 void fserve_initialize(void)
 {
@@ -129,6 +134,13 @@ void fserve_initialize(void)
 
     stats_event_flags (NULL, "file_connections", "0", STATS_COUNTERS);
     fserve_running = 1;
+    memset (&no_file, 0, sizeof (no_file));
+    thread_mutex_create (&no_file.lock);
+    no_file.clients = avl_tree_new (client_compare, NULL);
+    no_file.refcount = 1;
+    no_file.expire = (time_t)-1;
+    no_file.f = -1;
+    avl_insert (fh_cache, &no_file);
     INFO0("file serving started");
 }
 
@@ -140,7 +152,8 @@ void fserve_shutdown(void)
     if (fh_cache)
     {
         int count = 20;
-        while (fh_cache->length && count)
+        avl_delete (fh_cache, &no_file, NULL);
+        while (fh_cache->length > 1 && count)
         {
             DEBUG1 ("waiting for %u entries to clear", fh_cache->length);
             thread_sleep (100000);
@@ -208,12 +221,19 @@ char *fserve_content_type (const char *path)
 static int _compare_fh(void *arg, void *a, void *b)
 {
     fh_node *x = a, *y = b;
-    int r = strcmp (x->finfo.mount, y->finfo.mount);
+    int r = 0;
 
-    if (r) return r;
+    if (x->finfo.mount == NULL && y->finfo.mount)
+       return -1;
+    if (x->finfo.mount && y->finfo.mount == NULL)
+       return 1;
+    if (x->finfo.mount && y->finfo.mount)
+    {
+        r = strcmp (x->finfo.mount, y->finfo.mount);
+        if (r) return r;
+    }
     r = (int)x->finfo.flags - y->finfo.flags;
-    if (r) return r;
-    return 0;
+    return r;
 }
 
 
@@ -242,28 +262,34 @@ static int _delete_fh (void *mapping)
 }
 
 
-static int remove_fh_from_cache (fh_node *fh)
+static void remove_fh_from_cache (fh_node *fh)
 {
-    int ret = 0;
-    avl_tree_wlock (fh_cache);
-    thread_mutex_lock (&fh->lock);
-    if (fh->refcount) fh->refcount--;
-    if (fh->stats)
-        stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
-    if (fh->refcount == 0)
-    {
-        avl_delete (fh_cache, fh, NULL);
-        ret = 1;
-    }
-    thread_mutex_unlock (&fh->lock);
-    avl_tree_unlock (fh_cache);
-    return ret;
+    if (fh->refcount)
+        WARN2 ("removing %s with %d still on", fh->finfo.mount, fh->refcount);
+    avl_delete (fh_cache, fh, NULL);
 }
 
 
 static void remove_from_fh (fh_node *fh, client_t *client)
 {
+    thread_mutex_lock (&fh->lock);
     avl_delete (fh->clients, client, NULL);
+    fh->refcount--;
+    if (fh->clients->length == 0 && fh->finfo.mount)
+    {
+        if (fh->finfo.flags & FS_DELETE)
+        {
+            thread_mutex_unlock (&fh->lock);
+            _delete_fh (fh);
+            return;
+        }
+        else
+        {
+            DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
+            fh->expire = time(NULL) + 6;
+        }
+    }
+    thread_mutex_unlock (&fh->lock);
 }
 
 
@@ -282,7 +308,11 @@ static fh_node *find_fh (fbinfo *finfo)
     else if (strncmp (s, "file-", 5) == 0)
         fh.finfo.mount = s+5;
     if (avl_get_by_key (fh_cache, &fh, (void**)&result) == 0)
+    {
+        DEBUG2 ("mount %s (%d)", finfo->mount, finfo->flags);
         return result;
+    }
+    DEBUG2 ("%s (%d) not found", finfo->mount, finfo->flags);
     return NULL;
 }
 
@@ -290,18 +320,10 @@ static fh_node *find_fh (fbinfo *finfo)
 static void fh_add_client (fh_node *fh, client_t *client)
 {
     fh->refcount++;
-    if (fh->stats)
-    {
-        stats_lock (fh->stats, NULL);
-        stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
-        if (fh->refcount > fh->peak)
-        {
-            fh->peak = fh->refcount;
-            stats_set_args (fh->stats, "listener_peak", "%ld", fh->peak);
-        }
-        stats_release (fh->stats);
-    }
+    if (fh->refcount > fh->peak)
+        fh->peak = fh->refcount;
     avl_insert (fh->clients, client);
+    fh->expire = 0;
     if (fh->format)
     {
         if (fh->format->create_client_data && client->format_data == NULL)
@@ -309,7 +331,8 @@ static void fh_add_client (fh_node *fh, client_t *client)
         if (fh->format->write_buf_to_client)
             client->check_buffer = fh->format->write_buf_to_client;
     }
-    DEBUG2 ("refcount now %d for %s", fh->refcount, fh->finfo.mount);
+    if (fh->finfo.mount)
+        DEBUG2 ("refcount now %d for %s", fh->refcount, fh->finfo.mount);
 }
 
 
@@ -393,18 +416,6 @@ static fh_node *open_fh (fbinfo *finfo)
 
     fh->refcount = 0;
     fh->peak = 0;
-    if (fh->finfo.limit)
-    {
-        int len = strlen (finfo->mount) + 10;
-        char *str = alloca (len);
-        snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
-        fh->stats = stats_handle (str);
-        stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
-        stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
-        stats_set_flags (fh->stats, "listeners", "1", STATS_GENERAL|STATS_HIDDEN);
-        stats_set_flags (fh->stats, "listener_peak", "1", STATS_GENERAL|STATS_HIDDEN);
-        stats_release (fh->stats);
-    }
     fh->finfo.mount = strdup (finfo->mount);
     if (finfo->fallback)
         fh->finfo.fallback = strdup (finfo->fallback);
@@ -649,28 +660,6 @@ int fserve_client_create (client_t *httpclient, const char *path)
 }
 
 
-// fh must be locked before calling this
-static void fh_release (fh_node *fh)
-{
-    if (fh->finfo.mount[0])
-        DEBUG3 ("refcount now %d on %s%s", fh->refcount, (fh->stats)?"fallback-": "", fh->finfo.mount);
-    thread_mutex_unlock (&fh->lock);
-    if (remove_fh_from_cache (fh))
-    {
-        fh->peak = 0;
-        if (fh->stats) // drop fallback file stats
-        {
-            int len = strlen (fh->finfo.mount) + 10;
-            char *str = alloca (len);
-            snprintf (str, len, "%s-%s", (fh->finfo.flags & FS_FALLBACK) ? "fallback" : "file", fh->finfo.mount);
-            stats_set (fh->stats, "fallback", NULL); // is the fallback stat hack needed now?
-            stats_event (str, NULL, NULL);
-        }
-        _delete_fh (fh);
-    }
-}
-
-
 static void _free_fserve_buffers (client_t *client)
 {
     refbuf_t *buf = client->refbuf;
@@ -690,14 +679,10 @@ static void file_release (client_t *client)
     fh_node *fh = client->shared_data;
     int ret = -1;
 
-    if (fh)
-    {
-        thread_mutex_lock (&fh->lock);
         if (fh->finfo.flags & FS_FALLBACK)
             stats_event_dec (NULL, "listeners");
         remove_from_fh (fh, client);
-        fh_release (fh);
-    }
+
     _free_fserve_buffers (client);
     if (client->flags & CLIENT_AUTHENTICATED)
     {
@@ -738,23 +723,22 @@ static int fserve_move_listener (client_t *client)
     int ret = 0;
     fbinfo f;
 
+    memset (&f, 0, sizeof (f));
     _free_fserve_buffers (client);
-    thread_mutex_lock (&fh->lock);
-    f.flags = fh->finfo.flags|FS_OVERRIDE;
+    f.flags = fh->finfo.flags & (~FS_DELETE);
     f.limit = fh->finfo.limit;
     f.mount = fh->finfo.fallback;
-    f.fallback = fh->finfo.mount;
     f.type = fh->finfo.type;
     if (move_listener (client, &f) < 0)
     {
-        thread_mutex_unlock (&fh->lock);
         WARN1 ("moved failed, terminating listener on %s", fh->finfo.mount);
         ret = -1;
     }
     else
     {
+        DEBUG3 ("moved %s from %s (%d)", client->connection.ip, fh->finfo.mount, fh->finfo.flags);
+        ret = 0;
         remove_from_fh (fh, client);
-        fh_release (fh);
     }
     return ret;
 }
@@ -801,37 +785,32 @@ static int prefile_send (client_t *client)
             return -1;
         if (refbuf == NULL || client->pos == refbuf->len)
         {
-            if (fh && fh->finfo.fallback)
+            if (fh->finfo.fallback)
                 return fserve_move_listener (client);
 
             if (refbuf == NULL || refbuf->next == NULL)
             {
-                if (fh)
+                if (file_in_use (fh->f)) // is there a file to read from
                 {
-                    if (file_in_use (fh->f)) // is there a file to read from
-                    {
-                        if (fh->finfo.limit)
-                            client->ops = &throttled_file_content_ops;
-                        else
-                            client->ops = &file_content_ops;
-                        refbuf_release (client->refbuf);
-                        client->refbuf = NULL;
-                        client->pos = 0;
-                        return client->ops->process (client);
-                    }
+                    if (fh->finfo.limit)
+                        client->ops = &throttled_file_content_ops;
+                    else
+                        client->ops = &file_content_ops;
+                    refbuf_release (client->refbuf);
+                    client->refbuf = NULL;
+                    client->pos = 0;
+                    return client->ops->process (client);
                 }
                 if (client->respcode)
                     return -1;
-                thread_mutex_lock (&fh->lock);
-                fh_release (fh);
                 return client_send_404 (client, NULL);
             }
             else
             {
-                refbuf = refbuf->next;
-                client->refbuf->next = NULL;
-                refbuf_release (client->refbuf);
-                client->refbuf = refbuf;
+                refbuf_t *to_go = client->refbuf;
+                client->refbuf = to_go->next;
+                to_go->next = NULL;
+                refbuf_release (to_go);
             }
             client->pos = 0;
         }
@@ -938,21 +917,6 @@ static int throttled_file_send (client_t *client)
             return 0;
         }
     }
-    if (fh->stats_update <= now)
-    {
-        int update_stats = 0;
-        thread_mutex_lock (&fh->lock);
-        if (fh->stats_update <= now)
-        {
-            // only the first client should do this
-            fh->stats_update = now + 5;
-            update_stats = 1;
-        }
-        thread_mutex_unlock (&fh->lock);
-        if (update_stats)
-            stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
-                    (long)((8 * rate_avg (fh->out_bitrate))/1024));
-    }
     switch (format_file_read (client, fh->format, fh->f))
     {
         case -1: // DEBUG0 ("loop of file triggered");
@@ -992,10 +956,10 @@ struct _client_functions throttled_file_content_ops =
 /* return 0 for success, -1 for fallback invalid */
 int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
 {
+    fh_node *fh;
     if (finfo)
     {
         mount_proxy *minfo;
-        fh_node *fh;
         if (finfo->flags & FS_FALLBACK && finfo->limit == 0)
             return -1;
         avl_tree_wlock (fh_cache);
@@ -1028,7 +992,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             if (minfo && minfo->max_listeners == 0)
             {
                 config_release_config();
-                fh_release (fh);
                 client->shared_data = NULL;
                 return client_send_403redirect (client, finfo->mount, "max listeners reached");
             }
@@ -1037,9 +1000,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             if (fh == NULL)
                 return -1;
         }
-        fh_add_client (fh, client);
-        client->shared_data = fh;
-
         if (fh->finfo.limit)
         {
             client->timer_start = client->worker->current_time.tv_sec;
@@ -1049,11 +1009,19 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             client->intro_offset = 0;
             global_reduce_bitrate_sampling (global.out_bitrate);
         }
-        thread_mutex_unlock (&fh->lock);
         if (client->respcode == 0)
             fill_http_headers (client, finfo->mount, NULL);
-        client->mount = fh->finfo.mount;
     }
+    else
+    {
+        fh = &no_file;
+        thread_mutex_lock (&fh->lock);
+    }
+    client->mount = fh->finfo.mount;
+    client->shared_data = fh;
+    fh_add_client (fh, client);
+    thread_mutex_unlock (&fh->lock);
+
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
 
@@ -1094,18 +1062,18 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
     fh.finfo.type = type;
 
     avl_tree_wlock (fh_cache);
-    if (avl_get_by_key (fh_cache, &fh, (void**)&result) == 0 && result->finfo.type == type)
+    result = find_fh (&fh.finfo);
+    if (result)
     {
-        char *tmp = result->finfo.fallback;
-        thread_mutex_lock (&result->lock);
         avl_delete (fh_cache, result, NULL);
+        thread_mutex_lock (&result->lock);
         avl_tree_unlock (fh_cache);
 
-        result->finfo.flags |= FS_OVERRIDE;
+        result->finfo.flags |= FS_DELETE;
         result->finfo.fallback = strdup (dest);
         result->finfo.type = type;
+        result->stats = 0;
         thread_mutex_unlock (&result->lock);
-        free (tmp);
         INFO2 ("move clients from %s to %s", mount, dest);
         return 1;
     }
@@ -1377,3 +1345,92 @@ ssize_t pread (icefile_handle f, void *data, size_t count, off_t offset)
     return bytes;
 }
 #endif
+
+
+void fserve_scan (time_t now)
+{
+    avl_node *node;
+    avl_tree_wlock (fh_cache);
+    node = avl_get_first (fh_cache);
+    while (node)
+    {
+        fh_node *fh = node->key;
+        node = avl_get_next (node);
+
+        if (global.running != ICE_RUNNING)
+            fh->expire = 0;
+	if (fh->finfo.limit)
+        {
+            fbinfo *finfo = &fh->finfo;
+            thread_mutex_lock (&fh->lock);
+            if (fh->stats == 0)
+            {
+                int len = strlen (finfo->mount) + 10;
+                char *str = alloca (len);
+                char buf[20];
+                snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
+                fh->stats = stats_handle (str);
+                stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
+                stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
+		snprintf (buf, sizeof (buf), "%d", fh->refcount);
+                stats_set_flags (fh->stats, "listeners", buf, STATS_GENERAL|STATS_HIDDEN);
+		snprintf (buf, sizeof (buf), "%d", fh->peak);
+                stats_set_flags (fh->stats, "listener_peak", buf, STATS_GENERAL|STATS_HIDDEN);
+		fh->prev_count = fh->refcount;
+            }
+            else
+            {
+                stats_lock (fh->stats, NULL);
+                if (fh->prev_count != fh->refcount)
+                {
+                    fh->prev_count = fh->refcount;
+                    stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
+                    stats_set_args (fh->stats, "listener_peak", "%ld", fh->peak);
+                }
+            }
+            if (fh->stats_update <= now)
+            {
+                fh->stats_update = now + 5;
+		stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
+			(long)((8 * rate_avg (fh->out_bitrate))/1024));
+	    }
+            stats_release (fh->stats);
+	    thread_mutex_unlock (&fh->lock);
+	}
+        if (fh->refcount == 0 && now >= fh->expire)
+        {
+            DEBUG1 ("timeout of %s", fh->finfo.mount);
+            if (fh->stats)
+            {
+                stats_lock (fh->stats, NULL);
+                stats_set (fh->stats, NULL, NULL);
+            }
+            remove_fh_from_cache (fh);
+            _delete_fh (fh);
+        }
+    }
+    avl_tree_unlock (fh_cache);
+}
+
+
+
+int fserve_contains (const char *name)
+{
+    int ret = -1;
+    fbinfo finfo;
+    memset (&finfo, 0, sizeof (finfo));
+    if (strncmp (name, "fallback-/", 10) == 0)
+    {
+        finfo.mount = (char*)name+9;
+        finfo.flags = FS_FALLBACK;
+    }
+    else if (strncmp (name, "file-/", 6) == 0)
+        finfo.mount = (char*)name;
+    DEBUG1 ("looking for %s", name);
+    avl_tree_rlock (fh_cache);
+    if (find_fh (&finfo))
+       ret = 0;
+    avl_tree_unlock (fh_cache);
+    return ret;
+}
+

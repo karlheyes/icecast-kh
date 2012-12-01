@@ -431,13 +431,6 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
     config_release_config();
     if (where.mount && ((client->flags & CLIENT_IS_SLAVE) == 0))
     {
-        if (finfo->flags & FS_OVERRIDE)
-        {
-            free (where.mount);
-            where.mount = strdup (where.fallback);
-            where.fallback = NULL;
-            where.flags &= ~FS_OVERRIDE;
-        }
         if (where.limit == 0)
         {
             if (rate == 0)

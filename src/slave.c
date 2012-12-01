@@ -1097,6 +1097,7 @@ static void _slave_thread(void)
             }
         }
         stats_global_calc();
+        fserve_scan (current.tv_sec);
 
         /* allow for terminating icecast if no streams running */
         if (inactivity_timer)

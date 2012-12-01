@@ -32,10 +32,11 @@ typedef struct _fbinfo
     format_type_t type;
 } fbinfo;
 
-#define FS_USE_ADMIN            01
-#define FS_FALLBACK             02
-#define FS_FALLBACK_EOF         04
-#define FS_OVERRIDE             010
+#define FS_USE_ADMIN            (1)
+#define FS_DELETE               (1<<1)
+#define FS_FALLBACK             (1<<2)
+#define FS_FALLBACK_EOF         (1<<3)
+#define FS_OVERRIDE             (1<<4)
 
 void fserve_initialize(void);
 void fserve_shutdown(void);
@@ -57,6 +58,8 @@ void file_close (icefile_handle *f);
 #ifndef HAVE_PREAD
 ssize_t pread (icefile_handle f, void *data, size_t count, off_t offset);
 #endif
+void fserve_scan (time_t now);
+int  fserve_contains (const char *name);
 
 
 extern int fserve_running;

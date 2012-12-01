@@ -1239,24 +1239,22 @@ void stats_clear_virtual_mounts (void)
     while (snode)
     {
         stats_source_t *src = (stats_source_t *)snode->key;
-        source_t *source = source_find_mount_raw (src->source);
-
-        if (source == NULL)
-        {
-            stats_node_t *node;
-            avl_tree_wlock (src->stats_tree);
-            node = _find_node (src->stats_tree, "fallback");
-            if (node == NULL)
-            {
-                /* no source_t and no fallback file stat, so delete */
-                snode = avl_get_next (snode);
-                avl_delete (_stats.source_tree, src, _free_source_stats);
-                continue;
-            }
-            avl_tree_unlock (src->stats_tree);
-        }
 
         snode = avl_get_next (snode);
+        if (src->source[0] == '/')
+        {
+            source_t *source = source_find_mount_raw (src->source);
+
+            if (source == NULL)
+                avl_delete (_stats.source_tree, src, _free_source_stats);
+            continue;
+        }
+        if (fserve_contains (src->source) < 0)
+        {
+            /* no source_t and no fallback file stat, so delete */
+            DEBUG1 ("dropping unreferenced stats for %s", src->source);
+            avl_delete (_stats.source_tree, src, _free_source_stats);
+        }
     }
     avl_tree_unlock (_stats.source_tree);
 }
