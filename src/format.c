@@ -162,7 +162,10 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
              * certain boundaries */
             unprocessed = plugin->align_buffer (client, plugin);
             if (unprocessed < 0 || unprocessed >= bytes)
+            {
                 unprocessed = 0;
+                client->connection.error = 1;
+            }
         }
         client->intro_offset += (bytes - unprocessed);
     } while (1);
