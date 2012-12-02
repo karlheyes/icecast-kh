@@ -411,7 +411,7 @@ void thread_mutex_lock_c(mutex_t *mutex, int line, char *file)
     _mutex_lock_c(mutex, file, line);
 #ifdef THREAD_DEBUG
     mutex->lock_start = get_count();
-    mutex->file = strdup (file);
+    mutex->file = file;
     mutex->line = line;
     LOG_DEBUG3("Lock on %s acquired at %s:%d", mutex->name, file, line);
 #endif /* THREAD_DEBUG */
@@ -423,7 +423,6 @@ void thread_mutex_unlock_c(mutex_t *mutex, int line, char *file)
 #ifdef THREAD_DEBUG
     LOG_DEBUG4 ("lock %s, at %s:%d lasted %llu", mutex->name, mutex->file,
             mutex->line, get_count() - mutex->lock_start);
-    free (mutex->file);
     mutex->file = NULL;
 #endif
 }
@@ -490,7 +489,7 @@ void thread_rwlock_create_c(const char *name, rwlock_t *rwlock, int line, const 
 #endif
 #ifdef THREAD_DEBUG
     rwlock->name = strdup (name);
-    LOG_DEBUG3 ("rwlock %s created (%s:%d)", rwlock->name, file, line);
+    LOG_DEBUG4 ("rwlock %s (%p) created (%s:%d)", rwlock->name, rwlock, file, line);
 #endif
 }
 
@@ -507,7 +506,7 @@ void thread_rwlock_destroy(rwlock_t *rwlock)
 void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
 {
 #ifdef THREAD_DEBUG
-    LOG_DEBUG3("rLock on %s requested at %s:%d", rwlock->name, file, line);
+    LOG_DEBUG4("rLock on %s (%p) requested at %s:%d", rwlock->name, rwlock, file, line);
 #endif
 #if _POSIX_C_SOURCE>=200112L
     if (lock_problem_abort)
@@ -519,7 +518,7 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
         rc = pthread_rwlock_timedrdlock (&rwlock->sys_rwlock, &now);
         if (rc)
         {
-            log_write (thread_log, 1, "thread/", "rwlock", "rlock error triggered at %s:%d (%d)", file, line, rc);
+            log_write (thread_log, 1, "thread/", "rwlock", "rlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
             abort();
         }
         return;
@@ -534,7 +533,7 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
 void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
 {
 #ifdef THREAD_DEBUG
-    LOG_DEBUG3("wLock on %s requested at %s:%d", rwlock->name, file, line);
+    LOG_DEBUG4("wLock on %s (%p) requested at %s:%d", rwlock->name, rwlock,  file, line);
 #endif
 #if _POSIX_C_SOURCE>=200112L
     if (lock_problem_abort)
@@ -546,7 +545,7 @@ void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
         rc = pthread_rwlock_timedwrlock (&rwlock->sys_rwlock, &now);
         if (rc)
         {
-            log_write (thread_log, 1, "thread/", "rwlock", "wlock error triggered at %s:%d (%d)", file, line, rc);
+            log_write (thread_log, 1, "thread/", "rwlock", "wlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
             abort();
         }
         return;
@@ -563,12 +562,12 @@ void thread_rwlock_unlock_c(rwlock_t *rwlock, int line, const char *file)
     int rc = pthread_rwlock_unlock(&rwlock->sys_rwlock);
     if (rc)
     {
-        log_write (thread_log, 1, "thread/", "rwlock", "unlock error triggered at %s:%d (%d)", file, line, rc);
+        log_write (thread_log, 1, "thread/", "rwlock", "unlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
         abort ();
     }
 
 #ifdef THREAD_DEBUG
-    LOG_DEBUG3 ("unlock %s, at %s:%d", rwlock->name, file, line);
+    LOG_DEBUG4 ("unlock %s (%p) at %s:%d", rwlock->name, rwlock, file, line);
 #endif
 }
 
@@ -844,7 +843,6 @@ static int _free_mutex(void *key)
     m = (mutex_t *)key;
 
     if (m && m->file) {
-        free(m->file);
         m->file = NULL;
     }
 

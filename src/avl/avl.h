@@ -101,7 +101,12 @@ typedef struct _avl_tree {
 #endif
 } avl_tree;
 
-avl_tree * avl_tree_new (avl_key_compare_fun_type compare_fun, void * compare_arg);
+#define avl_tree_new(x,y)       avl_tree_new_c(x,y, __LINE__, __FILE__)
+#define avl_tree_rlock(x)       avl_tree_rlock_c(x,__LINE__,__FILE__)
+#define avl_tree_wlock(x)       avl_tree_wlock_c(x,__LINE__,__FILE__)
+#define avl_tree_unlock(x)      avl_tree_unlock_c(x,__LINE__,__FILE__)
+
+avl_tree * avl_tree_new_c (avl_key_compare_fun_type compare_fun, void * compare_arg, int line, const char *file);
 avl_node * avl_node_new (void * key, avl_node * parent);
 
 void avl_tree_free (
@@ -189,9 +194,9 @@ int avl_get_item_by_key_least (
   );
 
 /* optional locking stuff */
-void avl_tree_rlock(avl_tree *tree);
-void avl_tree_wlock(avl_tree *tree);
-void avl_tree_unlock(avl_tree *tree);
+void avl_tree_rlock_c(avl_tree *tree, int line, const char *file);
+void avl_tree_wlock_c(avl_tree *tree, int line, const char *file);
+void avl_tree_unlock_c(avl_tree *tree, int line, const char *file);
 void avl_node_rlock(avl_node *node);
 void avl_node_wlock(avl_node *node);
 void avl_node_unlock(avl_node *node);

@@ -62,8 +62,8 @@ avl_node_new (void *        key,
 }         
 
 avl_tree *
-avl_tree_new (avl_key_compare_fun_type compare_fun,
-          void * compare_arg)
+avl_tree_new_c (avl_key_compare_fun_type compare_fun,
+          void * compare_arg, int line, const char *file)
 {
   avl_tree * t = (avl_tree *) malloc (sizeof (avl_tree));
 
@@ -80,7 +80,7 @@ avl_tree_new (avl_key_compare_fun_type compare_fun,
       t->length = 0;
       t->compare_fun = compare_fun;
       t->compare_arg = compare_arg;
-      thread_rwlock_create(&t->rwlock);
+      thread_rwlock_create_c(__FILE__, &t->rwlock, line, file);
       return t;
     }
   }
@@ -1161,19 +1161,19 @@ avl_print_tree (avl_tree * tree, avl_key_printer_fun_type key_printer)
 }
 
 
-void avl_tree_rlock(avl_tree *tree)
+void avl_tree_rlock_c(avl_tree *tree, int line, const char *file)
 {
-    thread_rwlock_rlock(&tree->rwlock);
+    thread_rwlock_rlock_c(&tree->rwlock, line, file);
 }
 
-void avl_tree_wlock(avl_tree *tree)
+void avl_tree_wlock_c(avl_tree *tree, int line, const char *file)
 {
-    thread_rwlock_wlock(&tree->rwlock);
+    thread_rwlock_wlock_c(&tree->rwlock, line, file);
 }
 
-void avl_tree_unlock(avl_tree *tree)
+void avl_tree_unlock_c(avl_tree *tree, int line, const char *file)
 {
-    thread_rwlock_unlock(&tree->rwlock);
+    thread_rwlock_unlock_c(&tree->rwlock, line, file);
 }
 
 #ifdef HAVE_AVL_NODE_LOCK

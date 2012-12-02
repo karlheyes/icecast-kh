@@ -58,11 +58,19 @@
 #include <netdb.h>
 #endif
 
-#ifdef _WIN32
+#ifndef EINPROGRESS
 #define EINPROGRESS WSAEINPROGRESS
+#endif
+#ifndef ENOTSOCK
 #define ENOTSOCK WSAENOTSOCK
+#endif
+#ifndef EWOULDBLOCK
 #define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
+#ifndef EALREADY
 #define EALREADY WSAEALREADY
+#endif
+#ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC 0
 #endif
 
