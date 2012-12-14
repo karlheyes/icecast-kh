@@ -438,6 +438,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                     rate = rate * 1000/8;
             where.limit = rate;
         }
+        client->intro_offset = 0;
         ret = fserve_setup_client_fb (client, &where);
     }
     free (where.mount);

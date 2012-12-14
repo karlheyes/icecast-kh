@@ -1904,6 +1904,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 rate = minfo->limit_rate/8;
             if (minfo == NULL || minfo->fallback_mount == NULL)
             {
+                int ret = -2;
                 if (rate == 0)
                     if (sscanf (mount, "%*[^[][%d]", &rate) == 1)
                         rate = rate * 1000 / 8;
@@ -1922,8 +1923,9 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                         stats_event_inc (NULL, "listener_connections");
                         return 0;
                     }
+		    ret = -1;
                 }
-                return -2;
+                return ret;
             }
             mount = minfo->fallback_mount;
             minfo = config_find_mount (config_get_config_unlocked(), mount);

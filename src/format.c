@@ -132,7 +132,6 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             refbuf = client->refbuf = refbuf_new (8192);
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
-            client->intro_offset = 0;
             client->queue_pos = 0;
         }
         if (client->pos < refbuf->len)
@@ -200,6 +199,22 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     int bitrate_filtered = 0;
     avl_node *node;
     ice_config_t *config;
+    uint64_t length = 0; 
+
+    /* hack for flash player, it wants a length. */
+    if (httpp_getvar (client->parser, "x-flash-version"))
+        length = 221183499;
+    else
+    {
+        // flash may not send above header, so check for swf in referer
+        const char *referer = httpp_getvar (client->parser, "referer");
+        if (referer)
+        {
+            int len = strcspn (referer, "?");
+            if (len >= 4 && strncmp (referer+len-4, ".swf", 4) == 0)
+                length = 221183499;
+        }
+    }
 
     if (client->respcode == 0)
     {
@@ -207,7 +222,6 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *protocol = "HTTP/1.0";
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
-        uint64_t pos1, pos2 = -1;
         const char *range = httpp_getvar (client->parser, "range");
 
         if (useragent)
@@ -245,26 +259,58 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
                 contenttype = "audio/aac";
         }
-        if (range && sscanf (range, "bytes=%" SCNdMAX "-%" SCNdMAX, &pos1, &pos2) == 2)
+        if (range)
         {
+            uint64_t pos1 = 0, pos2 = -1, max = -1; 
+            const char *fs = httpp_getvar (client->parser, "__FILESIZE");
+
+            if (fs)
+                sscanf (fs, "%" SCNuMAX, &max);
+            if (strncmp (range, "bytes=-", 7) == 0)
+            {
+                sscanf (range, "bytes=-%" SCNuMAX, &pos2);
+                pos1 = max-pos2;
+                pos2 = max-1;
+            }
+            else
+            {
+                if (sscanf (range, "bytes=%" SCNuMAX "-%" SCNuMAX, &pos1, &pos2) < 2)
+                    pos2 = max-1;
+            }
+            if (pos2 >= max || pos1 >= pos2)
+            {
+                DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", pos1, pos2);
+                return -1;
+            }
+            if (length == 0)
+                length = pos2 - pos1 + 1;
             client->respcode = 206;
+            client->intro_offset = pos1;
             bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
-                    "%s: %s\r\n"
-                    "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/*\r\n",
-                    protocol, contenttypehdr, contenttype ? contenttype : "application/octet-stream",
-                    pos1, pos2);
+                            "%s: %s\r\n"
+                            "Content-Length: %" PRIu64 "\r\n"
+                            "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
+                    protocol, contenttypehdr,
+                    contenttype ? contenttype : "application/octet-stream",
+                    length,
+                    pos1, pos2, max);
         }
         else
         {
             client->respcode = 200;
-            bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
-                    "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+            if (length)
+                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
+                                "Content-Length: %" PRIu64 "\r\n"
+                                "%s: %s\r\n", protocol, length, contenttypehdr, contenttype);
+            else
+                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
+                                "%s: %s\r\n", protocol, contenttypehdr, contenttype);
         }
         remaining -= bytes;
         ptr += bytes;
     }
 
-    if (plugin->parser)
+    if (plugin && plugin->parser)
     {
         /* iterate through source http headers and send to client */
         avl_tree_rlock (plugin->parser->vars);

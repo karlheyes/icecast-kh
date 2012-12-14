@@ -324,13 +324,6 @@ static void fh_add_client (fh_node *fh, client_t *client)
         fh->peak = fh->refcount;
     avl_insert (fh->clients, client);
     fh->expire = 0;
-    if (fh->format)
-    {
-        if (fh->format->create_client_data && client->format_data == NULL)
-            fh->format->create_client_data (fh->format, client);
-        if (fh->format->write_buf_to_client)
-            client->check_buffer = fh->format->write_buf_to_client;
-    }
     if (fh->finfo.mount)
         DEBUG2 ("refcount now %d for %s", fh->refcount, fh->finfo.mount);
 }
@@ -366,7 +359,6 @@ static fh_node *open_fh (fbinfo *finfo)
         char *contenttype = fserve_content_type (fullpath);
         format_type_t type = format_get_type (contenttype);
 
-        free (contenttype);
         if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
             fh->finfo.type = type;
         if (finfo->flags & FS_FALLBACK)
@@ -374,6 +366,7 @@ static fh_node *open_fh (fbinfo *finfo)
             if (fh->finfo.type != type && fh->finfo.type != FORMAT_TYPE_UNDEFINED)
             {
                 avl_tree_unlock (fh_cache);
+                free (contenttype);
                 free (fullpath);
                 free (fh);
                 WARN1 ("format mismatched for %s", finfo->mount);
@@ -387,15 +380,18 @@ static fh_node *open_fh (fbinfo *finfo)
         {
             INFO1 ("Failed to open \"%s\"", fullpath);
             avl_tree_unlock (fh_cache);
+            free (contenttype);
             free (fullpath);
             free (fh);
             return NULL;
         }
         free (fullpath);
+        fh->format = calloc (1, sizeof (format_plugin_t));
+        fh->format->type = fh->finfo.type;
+        fh->format->contenttype = strdup (contenttype);
+        free (contenttype);
         if (fh->finfo.type != FORMAT_TYPE_UNDEFINED)
         {
-            fh->format = calloc (1, sizeof (format_plugin_t));
-            fh->format->type = fh->finfo.type;
             fh->format->mount = strdup (fh->finfo.mount);
             if (format_get_plugin (fh->format, NULL) < 0)
             {
@@ -424,96 +420,6 @@ static fh_node *open_fh (fbinfo *finfo)
 }
 
 
-static int fill_http_headers (client_t *client, const char *path, struct stat *file_buf)
-{
-    char *type;
-    off_t content_length = 0;
-    const char *range = httpp_getvar (client->parser, "range");
-    refbuf_t *ref = client->refbuf;
-
-
-    if (file_buf)
-        content_length = file_buf->st_size;
-    /* full http range handling is currently not done but we deal with the common case */
-    if (range)
-    {
-        off_t new_content_len = 0, rangenumber = 0;
-        int ret = 0;
-
-        if (strncasecmp (range, "bytes=", 6) == 0)
-            ret = sscanf (range+6, "%" SCN_OFF_T "-", &rangenumber);
-
-        if (ret == 1 && rangenumber>=0 && rangenumber < content_length)
-        {
-            /* Date: is required on all HTTP1.1 responses */
-            char currenttime[50];
-            time_t now;
-            struct tm result;
-            off_t endpos;
-            fh_node * fh = client->shared_data;
-
-            ret = lseek (fh->f, rangenumber, SEEK_SET);
-            if (ret == -1)
-                return -1;
-
-            client->intro_offset = rangenumber;
-            new_content_len = content_length - rangenumber;
-            endpos = rangenumber + new_content_len - 1;
-            if (endpos < 0)
-                endpos = 0;
-
-            now = client->worker->current_time.tv_sec;
-            strftime(currenttime, 50, "%a, %d-%b-%Y %X GMT",
-                    gmtime_r (&now, &result));
-            client->respcode = 206;
-            type = fserve_content_type (path);
-            snprintf (ref->data, BUFSIZE,
-                    "HTTP/1.1 206 Partial Content\r\n"
-                    "Date: %s\r\n"
-                    "Accept-Ranges: bytes\r\n"
-                    "Content-Length: %" PRI_OFF_T "\r\n"
-                    "Content-Range: bytes %" PRI_OFF_T
-                    "-%" PRI_OFF_T 
-                    "/%" PRI_OFF_T "\r\n"
-                    "Content-Type: %s\r\n\r\n",
-                    currenttime,
-                    new_content_len,
-                    rangenumber,
-                    endpos,
-                    content_length,
-                    type);
-        }
-        else
-            return -1;
-    }
-    else
-    {
-        type = fserve_content_type (path);
-        client->respcode = 200;
-        if (content_length)
-            snprintf (ref->data, BUFSIZE,
-                    "HTTP/1.0 200 OK\r\n"
-                    "Accept-Ranges: bytes\r\n"
-                    "Content-Type: %s\r\n"
-                    "Content-Length: %" PRI_OFF_T "\r\n"
-                    "\r\n",
-                    type,
-                    content_length);
-        else
-            snprintf (ref->data, BUFSIZE,
-                    "HTTP/1.0 200 OK\r\n"
-                    "Content-Type: %s\r\n"
-                    "\r\n",
-                    type);
-    }
-    free (type);
-    client->refbuf->len = strlen (ref->data);
-    client->pos = 0;
-    ref->flags |= WRITE_BLOCK_GENERIC;
-    return 0;
-}
-
-
 /* client has requested a file, so check for it and send the file.  Do not
  * refer to the client_t afterwards.  return 0 for success, -1 on error.
  */
@@ -526,6 +432,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
     int ret = -1;
     ice_config_t *config;
     fbinfo finfo;
+    char fsize[20];
 
     fullpath = util_get_path_from_normalised_uri (path, 0);
     DEBUG2 ("checking for file %s (%s)", path, fullpath);
@@ -555,7 +462,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
         xspf_file_available = 0;
     }
 
-    httpclient->refbuf->len = PER_CLIENT_REFBUF_SIZE;
+    client_set_queue (httpclient, refbuf_new (4096));
 
     if (m3u_requested && m3u_file_available == 0)
     {
@@ -654,6 +561,8 @@ int fserve_client_create (client_t *httpclient, const char *path)
     finfo.fallback = NULL;
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
+    snprintf (fsize, 20, "%" PRId64, (int64_t)file_buf.st_size);
+    httpp_setvar (httpclient->parser, "__FILESIZE", fsize);
     stats_event_inc (NULL, "file_connections");
 
     return fserve_setup_client_fb (httpclient, &finfo);
@@ -953,10 +862,11 @@ struct _client_functions throttled_file_content_ops =
 };
 
 
-/* return 0 for success, -1 for fallback invalid */
 int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
 {
-    fh_node *fh;
+    fh_node *fh = &no_file;
+    int ret = 0;
+
     if (finfo)
     {
         mount_proxy *minfo;
@@ -991,6 +901,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         {
             if (minfo && minfo->max_listeners == 0)
             {
+                avl_tree_unlock (fh_cache);
                 config_release_config();
                 client->shared_data = NULL;
                 return client_send_403redirect (client, finfo->mount, "max listeners reached");
@@ -998,7 +909,10 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             config_release_config();
             fh = open_fh (finfo);
             if (fh == NULL)
+            {
+                avl_tree_unlock (fh_cache);
                 return -1;
+            }
         }
         if (fh->finfo.limit)
         {
@@ -1009,18 +923,31 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             client->intro_offset = 0;
             global_reduce_bitrate_sampling (global.out_bitrate);
         }
+    }
+    client->mount = fh->finfo.mount;
+    if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
+    {
         if (client->respcode == 0)
-            fill_http_headers (client, finfo->mount, NULL);
+        {
+            client->refbuf->len = 0;
+            ret = format_general_headers (fh->format, client);
+        }
     }
     else
     {
-        fh = &no_file;
-        thread_mutex_lock (&fh->lock);
+        if (fh->format->create_client_data && client->format_data == NULL)
+            ret = fh->format->create_client_data (fh->format, client);
+        if (fh->format->write_buf_to_client)
+            client->check_buffer = fh->format->write_buf_to_client;
     }
-    client->mount = fh->finfo.mount;
-    client->shared_data = fh;
+    if (ret < 0)
+    {
+        thread_mutex_unlock (&fh->lock);
+        return client_send_416 (client);
+    }
     fh_add_client (fh, client);
     thread_mutex_unlock (&fh->lock);
+    client->shared_data = fh;
 
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
@@ -1359,54 +1286,67 @@ void fserve_scan (time_t now)
 
         if (global.running != ICE_RUNNING)
             fh->expire = 0;
-	if (fh->finfo.limit)
+        if (fh->refcount)
         {
-            fbinfo *finfo = &fh->finfo;
-            thread_mutex_lock (&fh->lock);
-            if (fh->stats == 0)
+            if (fh->finfo.limit)
             {
-                int len = strlen (finfo->mount) + 10;
-                char *str = alloca (len);
-                char buf[20];
-                snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
-                fh->stats = stats_handle (str);
-                stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
-                stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
-		snprintf (buf, sizeof (buf), "%d", fh->refcount);
-                stats_set_flags (fh->stats, "listeners", buf, STATS_GENERAL|STATS_HIDDEN);
-		snprintf (buf, sizeof (buf), "%d", fh->peak);
-                stats_set_flags (fh->stats, "listener_peak", buf, STATS_GENERAL|STATS_HIDDEN);
-		fh->prev_count = fh->refcount;
-            }
-            else
-            {
-                stats_lock (fh->stats, NULL);
-                if (fh->prev_count != fh->refcount)
+                fbinfo *finfo = &fh->finfo;
+                thread_mutex_lock (&fh->lock);
+                if (fh->stats == 0)
                 {
+                    int len = strlen (finfo->mount) + 10;
+                    char *str = alloca (len);
+                    char buf[20];
+                    snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
+                    fh->stats = stats_handle (str);
+                    stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
+                    stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
+                    snprintf (buf, sizeof (buf), "%d", fh->refcount);
+                    stats_set_flags (fh->stats, "listeners", buf, STATS_GENERAL|STATS_HIDDEN);
+                    snprintf (buf, sizeof (buf), "%d", fh->peak);
+                    stats_set_flags (fh->stats, "listener_peak", buf, STATS_GENERAL|STATS_HIDDEN);
                     fh->prev_count = fh->refcount;
-                    stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
-                    stats_set_args (fh->stats, "listener_peak", "%ld", fh->peak);
                 }
+                else
+                {
+                    stats_lock (fh->stats, NULL);
+                    if (fh->prev_count != fh->refcount)
+                    {
+                        fh->prev_count = fh->refcount;
+                        stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
+                        stats_set_args (fh->stats, "listener_peak", "%ld", fh->peak);
+                    }
+                }
+                if (fh->stats_update <= now)
+                {
+                    fh->stats_update = now + 5;
+                    stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
+                            (long)((8 * rate_avg (fh->out_bitrate))/1024));
+                }
+                stats_release (fh->stats);
+                thread_mutex_unlock (&fh->lock);
             }
-            if (fh->stats_update <= now)
-            {
-                fh->stats_update = now + 5;
-		stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
-			(long)((8 * rate_avg (fh->out_bitrate))/1024));
-	    }
-            stats_release (fh->stats);
-	    thread_mutex_unlock (&fh->lock);
-	}
-        if (fh->refcount == 0 && now >= fh->expire)
+        }
+        else
         {
-            DEBUG1 ("timeout of %s", fh->finfo.mount);
-            if (fh->stats)
+            if (fh->stats && fh->prev_count != fh->refcount)
             {
+                fh->prev_count = fh->refcount;
                 stats_lock (fh->stats, NULL);
-                stats_set (fh->stats, NULL, NULL);
+                stats_set (fh->stats, "listeners", "0");
+                stats_release (fh->stats);
             }
-            remove_fh_from_cache (fh);
-            _delete_fh (fh);
+            if (now >= fh->expire)
+            {
+                DEBUG1 ("timeout of %s", fh->finfo.mount);
+                if (fh->stats)
+                {
+                    stats_lock (fh->stats, NULL);
+                    stats_set (fh->stats, NULL, NULL);
+                }
+                remove_fh_from_cache (fh);
+                _delete_fh (fh);
+            }
         }
     }
     avl_tree_unlock (fh_cache);
@@ -1418,6 +1358,7 @@ int fserve_contains (const char *name)
 {
     int ret = -1;
     fbinfo finfo;
+
     memset (&finfo, 0, sizeof (finfo));
     if (strncmp (name, "fallback-/", 10) == 0)
     {
