@@ -440,6 +440,17 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
         return 0;  /* leave as-is */
     
     mp->sample_count = 0;
+    if (offset == 0)
+    {
+        if (new_block->flags&REFBUF_SHARED)
+        {
+            if (mp->check_numframes > 1)
+                mp->check_numframes = 1;
+        }
+        else
+            if (mp->check_numframes == 1)
+                mp->check_numframes = 4;
+    }
     if (mp->surplus)
     {
         if (offset >= mp->surplus->len)
