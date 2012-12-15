@@ -682,12 +682,12 @@ struct _client_functions throttled_file_content_ops;
 
 static int prefile_send (client_t *client)
 {
-    refbuf_t *refbuf = client->refbuf;
     int loop = 8, bytes, written = 0;
     worker_t *worker = client->worker;
 
     while (loop)
     {
+        refbuf_t *refbuf = client->refbuf;
         fh_node *fh = client->shared_data;
         loop--;
         if (fserve_running == 0 || client->connection.error)
