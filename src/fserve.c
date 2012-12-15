@@ -924,6 +924,8 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             global_reduce_bitrate_sampling (global.out_bitrate);
         }
     }
+    else
+        thread_mutex_lock (&fh->lock);
     client->mount = fh->finfo.mount;
     if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
     {
