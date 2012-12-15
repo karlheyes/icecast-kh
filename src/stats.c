@@ -1246,13 +1246,17 @@ void stats_clear_virtual_mounts (void)
             source_t *source = source_find_mount_raw (src->source);
 
             if (source == NULL)
+            {
+                avl_tree_wlock (src->stats_tree);
                 avl_delete (_stats.source_tree, src, _free_source_stats);
+            }
             continue;
         }
         if (fserve_contains (src->source) < 0)
         {
             /* no source_t and no fallback file stat, so delete */
             DEBUG1 ("dropping unreferenced stats for %s", src->source);
+            avl_tree_wlock (src->stats_tree);
             avl_delete (_stats.source_tree, src, _free_source_stats);
         }
     }
