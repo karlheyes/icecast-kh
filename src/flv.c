@@ -96,7 +96,7 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
             case 22050: flv->tag[15] |= (2<<2); break;
             default:    flv->tag[15] |= (3<<2); break;
         }
-        if (mp->channels == 2)
+        if (mpeg_get_channels (mp) == 2)
             flv->tag[15] |= 0x1;
     }
     memcpy (mp->raw->data + mp->raw_offset, &flv->tag[0], 16);
@@ -151,7 +151,7 @@ static int  audio_specific_config (mpeg_sync *mp, unsigned char *p)
             return 0;
     }
     p[0] = ((2 << 3) | (count >> 1));
-    p[1] = ((unsigned char)(count << 7) | (mp->channels << 3));
+    p[1] = ((unsigned char)(count << 7) | (mpeg_get_channels (mp) << 3));
     return 2;
 }
 

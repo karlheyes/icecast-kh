@@ -36,14 +36,41 @@ int aacp_num_channels[] = {
 };
 
 int mpeg_samplerates [4][4] = {
-    { 11025, 0, 22050, 44100},
+    { 11025, 0, 22050, 44100 },
     { 12000, 0, 24000, 48000 },
     {  8000, 0, 16000, 32000 },
     { 0,0,0 } };
 
-#define LAYER_1     3
-#define LAYER_2     2
-#define LAYER_3     1
+//  settings is a bitmask
+//  bit 7          settings changed
+//  bit 6, 5, 4    channels
+//  bit 3, 2       version
+//  bit 1, 0       layer
+
+
+int mpeg_has_changed (struct mpeg_sync *mp)
+{
+    int v = mp->settings & 0x80;
+    if (v) mp->settings &= ~0x80; // reset
+    return v ? 1 : 0;
+}
+
+int mpeg_get_channels (struct mpeg_sync *mp)
+{
+    return (mp->settings & 0x70) >> 4;
+}
+
+
+int mpeg_get_version (struct mpeg_sync *mp)
+{
+    return (mp->settings & 0xC) >> 2;
+}
+
+
+int mpeg_get_layer (struct mpeg_sync *mp)
+{
+    return (mp->settings & 0x3);
+}
 
 
 static int get_aac_frame_len (unsigned char *p)
@@ -93,22 +120,23 @@ static int get_mpeg_bitrate (struct mpeg_sync *mp, unsigned char *p)
 {
     int bitrate = -1;
     int bitrate_code = (p[2] & 0xF0) >> 4;
+    int layer = mpeg_get_layer (mp);
 
-    if (mp->ver == 3) // MPEG1
+    if (mpeg_get_version (mp) == 0x11) // MPEG1
     {
         static int bitrates [3][16] = {
             { 0, 32, 40, 48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, -1 },
             { 0, 32, 48, 56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 348, -1 },
             { 0, 32, 54, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1 } };
-        if (mp->layer != 0)
-            bitrate = bitrates [mp->layer-1][bitrate_code];
+        if (layer != MPEG_AAC)
+            bitrate = bitrates [layer-1][bitrate_code];
     }
     else // MPEG2/2.5
     {
         static int bitrates [2][16] = { 
             { 0,  8, 16, 24, 32, 40, 48,  56,  64,  80,  96, 112, 128, 144, 160, -1 },
             { 0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, -1 } };
-        if (mp->layer == 3)
+        if (layer == MPEG_LAYER_1)
             bitrate = bitrates [1][bitrate_code];
         else
             bitrate = bitrates [0][bitrate_code];
@@ -117,7 +145,7 @@ static int get_mpeg_bitrate (struct mpeg_sync *mp, unsigned char *p)
 }
 
 
-static int get_samples_per_mpegframe(int version, int layer)
+static int get_samples_per_mpegframe (int version, int layer)
 {
     int samples_per_frame [4][4] = {
         { -1,  576, 1152, 384 },    /* v2.5 - L3, L2, L1 */
@@ -135,7 +163,8 @@ static int get_mpeg_frame_length (struct mpeg_sync *mp, unsigned char *p)
     int frame_len = 0;
 
     int64_t bitrate = get_mpeg_bitrate (mp, p);
-    int samples = get_samples_per_mpegframe (mp->ver, mp->layer);
+    int layer = mpeg_get_layer (mp);
+    int samples = get_samples_per_mpegframe (mpeg_get_version (mp), layer);
     int samplerate = get_mpegframe_samplerate (p);
 
     if (samplerate == 0 || (mp->mask && mp->samplerate != samplerate))
@@ -144,7 +173,7 @@ static int get_mpeg_frame_length (struct mpeg_sync *mp, unsigned char *p)
     if (bitrate > 0 && samples > 0)
     {
         bitrate *= 1000;
-        if (mp->layer == LAYER_1)
+        if (layer == MPEG_LAYER_1)
         {
             frame_len = (int)(12 * bitrate / samplerate + padding) * 4; // ??
         }
@@ -202,13 +231,12 @@ static int handle_ts_frame (struct mpeg_sync *mp, unsigned char *p, int remainin
 static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
     //nocrc = p[1] & 0x1;
-    if (mp->layer == 0 && (p[1] >= 0xF0))
+    if (mpeg_get_layer (mp) == 0 && (p[1] >= 0xF0) && (p[1] <= 0xF9))
     {
         int samplerate_idx = (p[2] & 0x3C) >> 2,
-            v = (p[2] << 8) + p[3],
-            channels_idx = (v & 0x1C0) >> 6;
+            channels_idx = (((p[2] << 8) + p[3]) & 0x1C0) >> 6;
         int id =  p[1] & 0x8;
-        int checking = mp->check_numframes;
+        int checking = mp->check_numframes, channels;
         unsigned char *fh = p;
 
         while (checking)
@@ -228,17 +256,19 @@ static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         }
         // profile = p[1] & 0xC0;
         mp->samplerate = aacp_sample_freq [samplerate_idx];
-        mp->channels = aacp_num_channels [channels_idx];
-        if (mp->samplerate == -1 || mp->channels == -1)
+        channels = aacp_num_channels [channels_idx];
+        if (mp->samplerate == -1 || channels == -1)
         {
             DEBUG0 ("ADTS samplerate/channel setting invalid");
             return -1;
         }
         mp->marker = 0xFF;
         mp->mask = 0xFFFEFDC0; // match these bits from the marker
+        mp->settings |= (channels << 4);
         if (mp->check_numframes > 1)
-            INFO4 ("detected AAC MPEG-%s, rate %d, channels %d on %s", id ? "2" : "4", mp->samplerate, mp->channels, mp->mount);
+            INFO4 ("detected AAC MPEG-%s, rate %d, channels %d on %s", id ? "2" : "4", mp->samplerate, channels, mp->mount);
         mp->process_frame = handle_aac_frame;
+        mp->settings |= 0x80;
         return 1;
     }
     return -1;
@@ -246,18 +276,20 @@ static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remai
 
 static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
-    if (mp->layer && (p[1] >= 0xE0))
+    int layer = mpeg_get_layer (mp);
+    if (layer != MPEG_AAC && (p[1] >= 0xE0))
     {
         const char *version[] = { "MPEG 2.5", NULL, "MPEG 2", "MPEG 1" };
-        const char *layer[] =   { NULL, "Layer 3", "Layer 2", "Layer 1" };
-        mp->ver = (p[1] & 0x18) >> 3;
-        if (mp->layer && version [(int)mp->ver] && layer[(int)mp->layer]) 
+        const char *layer_names[] = { NULL, "Layer 3", "Layer 2", "Layer 1" };
+        int ver_id = (p[1] & 0x18) >> 3;
+        if (version [ver_id] && layer_names [layer])
         {
-            int checking = mp->check_numframes, samplerate;
+            int checking = mp->check_numframes, samplerate, channels = 2;
             unsigned char *fh = p;
             char stream_type[20];
 
             // au.crc = (p[1] & 0x1) == 0;
+            mp->settings |= (ver_id << 2);
             samplerate = get_mpegframe_samplerate (p);
             if (samplerate == 0)
                 return -1;
@@ -288,14 +320,14 @@ static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 fh += frame_len;
             } while (--checking);
             if  (((p[3] & 0xC0) >> 6) == 3)
-                mp->channels = 1;
-            else
-                mp->channels = 2;
+                channels = 1;
+            mp->settings |= (channels << 4);
             mp->marker = 0xFF;
             mp->mask = 0xFFFE0000;
-            snprintf (stream_type, sizeof (stream_type), "%s %s", version [(int)mp->ver], layer[(int)mp->layer]);
+            snprintf (stream_type, sizeof (stream_type), "%s %s", version [ver_id], layer_names[layer]);
             if (mp->check_numframes > 1)
-                INFO4 ("%s detected (%d, %d) on %s", stream_type, mp->samplerate, mp->channels, mp->mount);
+                INFO4 ("%s detected (%d, %d) on %s", stream_type, mp->samplerate, channels, mp->mount);
+            mp->settings |= 0x80;
             mp->process_frame = handle_mpeg_frame;
             return 1;
         }
@@ -355,13 +387,14 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
 {
     int ret = -1;
 
+    mp->settings = 0;
     if (p[0] == 0x47)
         ret = check_for_ts (mp, p, remaining);
     if (ret < 0)
     {
         if (p[1] < 0xE0)
             return -1;
-        mp->layer = (p[1] & 0x6) >> 1;
+        mp->settings |= ((p[1] & 0x6) >> 1);
         ret = check_for_aac (mp, p, remaining);
         if (ret < 0)
             ret = check_for_mp3 (mp, p, remaining);
@@ -416,8 +449,14 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
     else
     {
         int offset = remaining;
-        for (; offset && *p != 0xFF && *p != 0x47; offset--)
-            p++;
+        do {
+           if (offset < 3) break;
+           if (*p == 0x47) break;
+           if (*p == 0xFF)
+	      if (p[1] != 0xFF || p[2] <= 0xFB) break;
+           p++;
+           offset--;
+        } while (1);
         if (offset == 0) p = NULL;
     }
     if (p)

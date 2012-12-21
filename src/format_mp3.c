@@ -348,7 +348,7 @@ static void mp3_set_title (source_t *source)
                 free (str);
             }
             else
-                flv_meta_append_bool (flvmeta, "stereo", (mpeg_sync->channels == 2));
+                flv_meta_append_bool (flvmeta, "stereo", (mpeg_get_channels (mpeg_sync) == 2));
             str = stats_retrieve (source->stats, "ice-samplerate");
             if (str)
             {
@@ -365,7 +365,8 @@ static void mp3_set_title (source_t *source)
                 flv_meta_append_number (flvmeta, "audiodatarate", rate);
                 free (str);
             }
-            flv_meta_append_number (flvmeta, "audiocodecid", (double)(mpeg_sync->layer ? 2 : 10));
+            flv_meta_append_number (flvmeta, "audiocodecid",
+                            (double)(mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2));
         }
         if (source_mp3->url_artist && source_mp3->url_title)
         {
@@ -739,8 +740,14 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     else
         client->pos = 0;
 
-    if (source->format->read_bytes < 2500)
-        stats_event_args (source->mount, "audio_codecid", "%d", (mpeg_sync->layer ? 2 : 10));
+    if (mpeg_has_changed (mpeg_sync))
+    {
+        stats_lock (source->stats, NULL);
+        stats_set_args (source->stats, "audio_codecid", "%d", (mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2));
+        stats_set_args (source->stats, "mpeg_samplerate", "%d", mpeg_sync->samplerate);
+        stats_set_args (source->stats, "mpeg_channels", "%d", mpeg_get_channels (mpeg_sync));
+        stats_release (source->stats);
+    }
     return refbuf->len ? 0 : -1;
 }
 

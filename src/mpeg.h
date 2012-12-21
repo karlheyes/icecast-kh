@@ -22,20 +22,18 @@ typedef struct mpeg_sync
     unsigned long mask;
     unsigned long match;
 
+    unsigned short samplerate;
     unsigned char marker;
-    char layer;
-    char ver;
-    char channels;
+    unsigned char settings;
+    unsigned short check_numframes;
+    unsigned short resync_count;
 
     refbuf_t *surplus;
     long sample_count;
     void *callback_key;
     int (*frame_callback)(struct mpeg_sync *mp, unsigned char *p, unsigned int len);
     refbuf_t *raw;
-    unsigned int resync_count;
     int raw_offset;
-    int samplerate;
-    int check_numframes;
     const char *mount;
 } mpeg_sync;
 
@@ -45,5 +43,17 @@ void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count);
 
 int  mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset);
 void mpeg_data_insert (mpeg_sync *mp, refbuf_t *inserted);
+
+int  mpeg_get_layer (struct mpeg_sync *mp);
+int  mpeg_get_version (struct mpeg_sync *mp);
+int  mpeg_get_channels (struct mpeg_sync *mp);
+int  mpeg_has_changed (struct mpeg_sync *mp);
+
+
+#define MPEG_AAC         0
+#define MPEG_LAYER_3     0x01
+#define MPEG_LAYER_2     0x10
+#define MPEG_LAYER_1     0x11
+
 
 #endif /* __MPEG_SYNC_H */
