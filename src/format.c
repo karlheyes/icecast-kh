@@ -263,6 +263,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         {
             uint64_t pos1 = 0, pos2 = -1, max = -1; 
             const char *fs = httpp_getvar (client->parser, "__FILESIZE");
+            char buf[30];
 
             if (fs)
                 sscanf (fs, "%" SCNuMAX, &max);
@@ -284,6 +285,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             }
             if (length == 0)
                 length = pos2 - pos1 + 1;
+            snprintf (buf, 30, "%" PRIu64, length);
+            httpp_setvar (client->parser, "__LENGTH", buf);
             client->respcode = 206;
             client->intro_offset = pos1;
             bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"

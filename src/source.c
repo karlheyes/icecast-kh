@@ -1975,13 +1975,19 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 }
                 if (client->respcode == 206)
                 {
-                    refbuf_t *p; // a range on stream is cut short, not accounted for on source
-                    thread_rwlock_unlock (&source->lock);
-                    p = refbuf_new (1);
-                    p->data[0] = 255;
-                    p->next = client->refbuf->next;
-                    client->refbuf->next = p;
-                    return fserve_setup_client_fb (client, NULL);
+                    const char *str = httpp_getvar (client->parser, "__LENGTH");
+                    uint64_t length = 0;
+
+                    if (str && sscanf (str, "%" SCNu64, &length) == 1 && length < 4000)
+                    {
+                        refbuf_t *p; // a range on stream is cut short, not accounted for on source
+                        thread_rwlock_unlock (&source->lock);
+                        p = refbuf_new (length);
+                        memset (p->data, 255, length);
+                        p->next = client->refbuf->next;
+                        client->refbuf->next = p;
+                        return fserve_setup_client_fb (client, NULL);
+                    }
                 }
                 if ((source->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) == SOURCE_ON_DEMAND)
                 {
