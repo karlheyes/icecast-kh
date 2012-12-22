@@ -462,7 +462,8 @@ int fserve_client_create (client_t *httpclient, const char *path)
         xspf_file_available = 0;
     }
 
-    client_set_queue (httpclient, refbuf_new (4096));
+    client_set_queue (httpclient, NULL);
+    httpclient->refbuf = refbuf_new (4096);
 
     if (m3u_requested && m3u_file_available == 0)
     {

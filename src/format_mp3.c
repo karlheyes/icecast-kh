@@ -624,7 +624,6 @@ static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *client)
     free (format_mp3->url);
     refbuf_release (format_mp3->metadata);
     refbuf_release (format_mp3->read_data);
-    free (plugin->contenttype);
     free (format_mp3);
 }
 

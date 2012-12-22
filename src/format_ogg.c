@@ -201,7 +201,6 @@ static void format_ogg_free_plugin (format_plugin_t *plugin, client_t *client)
 
     ogg_sync_clear (&state->oy);
     free (state);
-    free (plugin->contenttype);
 }
 
 
