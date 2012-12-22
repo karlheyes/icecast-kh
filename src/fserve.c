@@ -717,7 +717,7 @@ static int prefile_send (client_t *client)
             else
             {
                 refbuf_t *to_go = client->refbuf;
-                client->refbuf = to_go->next;
+                refbuf = client->refbuf = to_go->next;
                 to_go->next = NULL;
                 refbuf_release (to_go);
             }
