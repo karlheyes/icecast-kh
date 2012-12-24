@@ -122,7 +122,7 @@ static int get_mpeg_bitrate (struct mpeg_sync *mp, unsigned char *p)
     int bitrate_code = (p[2] & 0xF0) >> 4;
     int layer = mpeg_get_layer (mp);
 
-    if (mpeg_get_version (mp) == 0x11) // MPEG1
+    if (mpeg_get_version (mp) == 0x3) // MPEG1
     {
         static int bitrates [3][16] = {
             { 0, 32, 40, 48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, -1 },
