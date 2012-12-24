@@ -51,9 +51,9 @@ int  mpeg_has_changed (struct mpeg_sync *mp);
 
 
 #define MPEG_AAC         0
-#define MPEG_LAYER_3     0x01
-#define MPEG_LAYER_2     0x10
-#define MPEG_LAYER_1     0x11
+#define MPEG_LAYER_3     0x1
+#define MPEG_LAYER_2     0x2
+#define MPEG_LAYER_1     0x3
 
 
 #endif /* __MPEG_SYNC_H */
