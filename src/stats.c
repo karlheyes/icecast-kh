@@ -1373,6 +1373,21 @@ void stats_set (long handle, const char *name, const char *value)
 }
 
 
+void stats_set_inc (long handle, const char *name)
+{
+    if (handle)
+    {
+        stats_source_t *src_stats = (stats_source_t *)handle;
+        stats_event_t event;
+        char buffer[VAL_BUFSIZE] = "1";
+
+        build_event (&event, src_stats->source, name, buffer);
+        event.action = STATS_EVENT_INC;
+        process_source_stat (src_stats, &event);
+    }
+}
+
+
 void stats_set_args (long handle, const char *name, const char *format, ...)
 {
     va_list val;

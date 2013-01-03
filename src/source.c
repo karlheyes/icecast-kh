@@ -350,7 +350,7 @@ static void update_source_stats (source_t *source)
     unsigned long kbytes_read = source->bytes_read_since_update/1024;
 
     source->format->sent_bytes += kbytes_sent*1024;
-    source->stats = stats_lock (source->stats, source->mount);
+    stats_lock (source->stats, source->mount);
     stats_set_args (source->stats, "outgoing_kbitrate", "%ld",
             (long)(8 * rate_avg (source->out_bitrate))/1024);
     stats_set_args (source->stats, "incoming_bitrate", "%ld", (8 * incoming_rate));
@@ -420,12 +420,14 @@ int source_read (source_t *source)
         {
             INFO2("listener count on %s now %lu", source->mount, source->listeners);
             source->prev_listeners = source->listeners;
-            stats_event_args (source->mount, "listeners", "%lu", source->listeners);
+            stats_lock (source->stats, source->mount);
+            stats_set_args (source->stats, "listeners", "%lu", source->listeners);
             if (source->listeners > source->peak_listeners)
             {
                 source->peak_listeners = source->listeners;
-                stats_event_args (source->mount, "listener_peak", "%lu", source->peak_listeners);
+                stats_set_args (source->stats, "listener_peak", "%lu", source->peak_listeners);
             }
+            stats_release (source->stats);
         }
         if (current >= source->client_stats_update)
         {
@@ -680,7 +682,9 @@ static int source_queue_advance (client_t *client)
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
                 client->connection.id, client->connection.ip, client->queue_pos, source->mount);
-        stats_event_inc (source->mount, "slow_listeners");
+        stats_lock (source->stats, source->mount);
+        stats_set_inc (source->stats, "slow_listeners");
+        stats_release (source->stats);
         client->refbuf = NULL;
         client->connection.error = 1;
         return -1;
@@ -1107,20 +1111,21 @@ void source_init (source_t *source)
 
     /* start off the statistics */
     stats_event_inc (NULL, "source_total_connections");
-    stats_event_flags (source->mount, "slow_listeners", "0", STATS_COUNTERS);
-    stats_event (source->mount, "server_type", source->format->contenttype);
-    stats_event_flags (source->mount, "listener_peak", "0", STATS_COUNTERS);
-    stats_event_args (source->mount, "listener_peak", "%lu", source->peak_listeners);
-    stats_event_flags (source->mount, "listener_connections", "0", STATS_COUNTERS);
-    stats_event_time (source->mount, "stream_start", STATS_COUNTERS);
-    stats_event_flags (source->mount, "total_mbytes_sent", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "total_bytes_sent", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "total_bytes_read", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "outgoing_kbitrate", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "incoming_bitrate", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "queue_size", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "connected", "0", STATS_COUNTERS);
-    stats_event_flags (source->mount, "source_ip", source->client->connection.ip, STATS_COUNTERS);
+    stats_lock (source->stats, source->mount);
+    stats_set_flags (source->stats, "slow_listeners", "0", STATS_COUNTERS);
+    stats_set (source->stats, "server_type", source->format->contenttype);
+    stats_set_flags (source->stats, "listener_peak", "0", STATS_COUNTERS);
+    stats_set_args (source->stats, "listener_peak", "%lu", source->peak_listeners);
+    stats_set_flags (source->stats, "listener_connections", "0", STATS_COUNTERS);
+    stats_set_time (source->stats, "stream_start", STATS_COUNTERS, source->client->worker->current_time.tv_sec);
+    stats_set_flags (source->stats, "total_mbytes_sent", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "total_bytes_sent", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "total_bytes_read", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "outgoing_kbitrate", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "incoming_bitrate", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "queue_size", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "connected", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "source_ip", source->client->connection.ip, STATS_COUNTERS);
 
     source->last_read = time(NULL);
     source->prev_listeners = -1;
@@ -1138,9 +1143,10 @@ void source_init (source_t *source)
         if (str)
         {
             _parse_audio_info (source, str);
-            stats_event_flags (source->mount, "audio_info", str, STATS_GENERAL);
+            stats_set_flags (source->stats, "audio_info", str, STATS_GENERAL);
         }
     }
+    stats_release (source->stats);
     source->in_bitrate = rate_setup (60, 1);
     source->out_bitrate = rate_setup (9000, 1000);
 
@@ -1309,7 +1315,7 @@ static void _parse_audio_info (source_t *source, const char *s)
                 if (esc)
                 {
                     util_dict_set (source->audio_info, name, esc);
-                    stats_event_flags (source->mount, name, esc, STATS_COUNTERS);
+                    stats_set_flags (source->stats, name, esc, STATS_COUNTERS);
                 }
                 free (esc);
             }
@@ -1622,9 +1628,6 @@ static int source_client_callback (client_t *client)
         return -1;
     }
 
-    agent = httpp_getvar (source->client->parser, "user-agent");
-    if (agent)
-        stats_event_flags (source->mount, "user_agent", agent, STATS_COUNTERS);
     stats_event_inc(NULL, "source_client_connections");
     client_set_queue (client, NULL);
 
@@ -1636,6 +1639,13 @@ static int source_client_callback (client_t *client)
     }
     else
         source_init (source);
+    agent = httpp_getvar (source->client->parser, "user-agent");
+    if (agent)
+    {
+        stats_lock (source->stats, source->mount);
+        stats_set_flags (source->stats, "user_agent", agent, STATS_COUNTERS);
+        stats_release (source->stats);
+    }
     return 0;
 }
 
@@ -1995,7 +2005,9 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     client->respcode = 0;
                     client->pos = 0;
                 }
-                stats_event_inc (source->mount, "listener_connections");
+                stats_lock (source->stats, source->mount);
+                stats_set_inc (source->stats, "listener_connections");
+                stats_release (source->stats);
             }
         }
 
