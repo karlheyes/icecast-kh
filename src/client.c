@@ -424,6 +424,7 @@ static void worker_control_create (worker_t *worker)
         abort();
     }
     sock_set_blocking (worker->wakeup_fd[0], 0);
+    sock_set_blocking (worker->wakeup_fd[1], 0);
 }
 
 
@@ -469,7 +470,7 @@ static client_t **worker_wait (worker_t *worker)
     ret = util_timed_wait_for_fd (worker->wakeup_fd[0], duration);
     if (ret > 0) /* may of been several wakeup attempts */
     {
-        char ca[30];
+        char ca[100];
         do
         {
             ret = pipe_read (worker->wakeup_fd[0], ca, sizeof ca);
