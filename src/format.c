@@ -262,7 +262,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         }
         if (range)
         {
-            uint64_t pos1 = 0, pos2 = -1, max = -1; 
+            uint64_t pos1 = 0, pos2 = 50000000, max = pos2;
             const char *fs = httpp_getvar (client->parser, "__FILESIZE");
             char buf[30];
 
