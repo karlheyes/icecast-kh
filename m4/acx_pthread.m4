@@ -174,7 +174,10 @@ if test "x$acx_pthread_ok" = xyes; then
             PTHREAD_CPPFLAGS="$flag $PTHREAD_CPPFLAGS"
         fi
 
-        AC_CHECK_FUNCS([pthread_spin_lock])
+        case "${host_cpu}-${host_os}" in
+            *bsd*) ;;  # avoid spinlocks on bsd systems for now
+            *) AC_CHECK_FUNCS([pthread_spin_lock]);;
+        esac
         LIBS="$save_LIBS"
         CFLAGS="$save_CFLAGS"
 
