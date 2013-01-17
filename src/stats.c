@@ -559,10 +559,10 @@ static void process_source_stat (stats_source_t *src_stats, stats_event_t *event
             return;
         if (src_stats->flags & STATS_HIDDEN)
         {
-            stats_node_t *ct = _find_node (src_stats->stats_tree, "content-type");
+            stats_node_t *ct = _find_node (src_stats->stats_tree, "server_type");
             const char *type = "audio/mpeg";
             if (ct)
-                type = ct->name;
+                type = ct->value;
             src_stats->flags &= ~STATS_HIDDEN;
             stats_listener_send (src_stats->flags, "NEW %s %s\n", type, src_stats->source);
             visible = 1;
@@ -959,10 +959,10 @@ static void _register_listener (client_t *client)
 
         if (snode->flags & listener->mask)
         {
-            stats_node_t *ct = _find_node (snode->stats_tree, "content-type");
+            stats_node_t *ct = _find_node (snode->stats_tree, "server_type");
             const char *type = "audio/mpeg";
             if (ct)
-                type = ct->name;
+                type = ct->value;
             if (_append_to_buffer (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
             {
                 _add_node_to_stats_client (client, refbuf);
