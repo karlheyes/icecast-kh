@@ -1933,7 +1933,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                         stats_event_inc (NULL, "listener_connections");
                         return 0;
                     }
-		    ret = -1;
+                    ret = -1;
                 }
                 return ret;
             }
@@ -1982,28 +1982,6 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 {
                     thread_rwlock_unlock (&source->lock);
                     return ret;
-                }
-                if (client->respcode == 206)
-                {
-                    const char *str = httpp_getvar (client->parser, "__LENGTH");
-                    uint64_t length = 0;
-
-                    if (str && sscanf (str, "%" SCNu64, &length) == 1 && length < 4000)
-                    {
-                        refbuf_t *p; // a range on stream is cut short, not accounted for on source
-                        thread_rwlock_unlock (&source->lock);
-                        p = refbuf_new (length);
-                        memset (p->data, 255, length);
-                        p->next = client->refbuf->next;
-                        client->refbuf->next = p;
-                        return fserve_setup_client_fb (client, NULL);
-                    }
-                }
-                if ((source->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) == SOURCE_ON_DEMAND)
-                {
-                    // inactive ondemand relay to kick off, reset client, try headers later
-                    client->respcode = 0;
-                    client->pos = 0;
                 }
                 stats_lock (source->stats, source->mount);
                 stats_set_inc (source->stats, "listener_connections");
@@ -2069,6 +2047,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         memset (client->refbuf->data, 0, PER_CLIENT_REFBUF_SIZE);
     }
 
+    httpp_deletevar (client->parser, "range");
     source_setup_listener (source, client);
     if ((client->flags & CLIENT_ACTIVE) && (source->flags & SOURCE_RUNNING))
         do_process = 1;
