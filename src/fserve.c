@@ -589,9 +589,9 @@ static void file_release (client_t *client)
     fh_node *fh = client->shared_data;
     int ret = -1;
 
-        if (fh->finfo.flags & FS_FALLBACK)
-            stats_event_dec (NULL, "listeners");
-        remove_from_fh (fh, client);
+    if (fh->finfo.flags & FS_FALLBACK)
+        stats_event_dec (NULL, "listeners");
+    remove_from_fh (fh, client);
 
     _free_fserve_buffers (client);
     if (client->flags & CLIENT_AUTHENTICATED)
@@ -910,10 +910,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             config_release_config();
             fh = open_fh (finfo);
             if (fh == NULL)
-            {
-                avl_tree_unlock (fh_cache);
-                return -1;
-            }
+                return client_send_404 (client, NULL);
         }
         if (fh->finfo.limit)
         {
