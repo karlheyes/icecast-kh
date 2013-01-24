@@ -52,6 +52,8 @@
 
 #include "logging.h"
 
+static int xslt_client (client_t *client);
+
 typedef struct {
     char              *filename;
     time_t             last_modified;
@@ -59,6 +61,40 @@ typedef struct {
     time_t             last_checked;
     xsltStylesheetPtr  stylesheet;
 } stylesheet_cache_t;
+
+
+typedef struct
+{
+    int index;
+    client_t *client;
+    xmlDocPtr doc;
+    stylesheet_cache_t cache;
+} xsl_req;
+
+
+struct _client_functions xslt_ops =
+{
+    xslt_client,
+    client_destroy
+};
+
+
+struct bufs
+{
+    refbuf_t *head, **tail;
+    int len;
+};
+
+
+/* Keep it small... */
+#define CACHESIZE       10
+
+static stylesheet_cache_t cache[CACHESIZE];
+static rwlock_t xslt_lock;
+static spin_t update_lock;
+int    xsl_updating;
+
+
 
 #ifndef HAVE_XSLTSAVERESULTTOSTRING
 int xsltSaveResultToString(xmlChar **doc_txt_ptr, int * doc_txt_len, xmlDocPtr result, xsltStylesheetPtr style) {
@@ -85,12 +121,6 @@ int xsltSaveResultToString(xmlChar **doc_txt_ptr, int * doc_txt_len, xmlDocPtr r
     return 0;
 }
 #endif
-
-struct bufs
-{
-    refbuf_t *head, **tail;
-    int len;
-};
 
 
 static int xslt_write_callback (void *ctxt, const char *data, int len)
@@ -155,19 +185,11 @@ int xslt_SaveResultToBuf (refbuf_t **bptr, int *len, xmlDocPtr result, xsltStyle
     return 0;
 }
 
-/* Keep it small... */
-#define CACHESIZE       10 
 
-static stylesheet_cache_t cache[CACHESIZE];
-static mutex_t xsltlock;
-static rwlock_t xslt_lock;
-static spin_t update_lock;
-int    xsl_updating;
 
 void xslt_initialize(void)
 {
     memset(cache, 0, sizeof(stylesheet_cache_t)*CACHESIZE);
-    thread_mutex_create(&xsltlock);
     thread_rwlock_create (&xslt_lock);
     thread_spin_create (&update_lock);
     xsl_updating = 0;
@@ -187,28 +209,12 @@ void xslt_shutdown(void) {
             xsltFreeStylesheet(cache[i].stylesheet);
     }
 
-    thread_mutex_destroy (&xsltlock);
     thread_rwlock_destroy (&xslt_lock);
     thread_spin_destroy (&update_lock);
     xmlCleanupParser();
     xsltCleanupGlobals();
 }
 
-static int xslt_client (client_t *client);
-
-typedef struct
-{
-    int index;
-    client_t *client;
-    xmlDocPtr doc;
-    stylesheet_cache_t cache;
-} xsl_req;
-
-struct _client_functions xslt_ops =
-{
-    xslt_client,
-    client_destroy
-};
 
 
 /* thread to read xsl file and add to the cache */
@@ -218,6 +224,9 @@ void *xslt_update (void *arg)
     client_t *client = x->client;
     worker_t *worker = client ? client->worker : NULL;
     char *fn = x->cache.filename;
+
+    xmlSetGenericErrorFunc ("", log_parse_failure);
+    xsltSetGenericErrorFunc ("", log_parse_failure);
 
     x->cache.stylesheet = xsltParseStylesheetFile (XMLSTR(fn));
     if (x->cache.stylesheet)
@@ -452,10 +461,10 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
 
 int xslt_client (client_t *client)
 {
-   xsl_req *x = client->shared_data;
-   int ret = xslt_transform (x->doc, x->cache.filename, client);
-   free (x->cache.filename);
-   free (x);
-   return ret;
+    xsl_req *x = client->shared_data;
+    int ret = xslt_transform (x->doc, x->cache.filename, client);
+    free (x->cache.filename);
+    free (x);
+    return ret;
 }
 
