@@ -1983,6 +1983,12 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     thread_rwlock_unlock (&source->lock);
                     return ret;
                 }
+                if ((source->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) == SOURCE_ON_DEMAND)
+                {
+                    // inactive ondemand relay to kick off, reset client, try headers later
+                    client->respcode = 0;
+                    client->pos = 0;
+                }
                 stats_lock (source->stats, source->mount);
                 stats_set_inc (source->stats, "listener_connections");
                 stats_release (source->stats);
