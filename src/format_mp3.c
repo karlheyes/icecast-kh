@@ -440,7 +440,7 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
 {
     int ret = 0;
     char *metadata;
-    int meta_len, block_len, icy_data_remain;
+    int meta_len, block_len;
     refbuf_t *associated = refbuf->associated;
     mp3_client_data *client_mp3 = client->format_data;
     struct connection_bufs bufs;
@@ -483,13 +483,13 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
     }
     block_len = refbuf->len - client->pos;
 
-    icy_data_remain = client_mp3->interval - client_mp3->since_meta_block;
-    if (block_len > icy_data_remain)
-        block_len = icy_data_remain; // handle small intervals
+    if (block_len > client_mp3->interval)
+        block_len = client_mp3->interval; // handle small intervals
 
     connection_bufs_init (&bufs, 2);
     connection_bufs_append (&bufs, metadata, meta_len);
-    connection_bufs_append (&bufs, refbuf->data + client->pos, block_len);
+    if (block_len)
+        connection_bufs_append (&bufs, refbuf->data + client->pos, block_len);
     ret = connection_bufs_send (&client->connection, &bufs, 0);
     connection_bufs_release (&bufs);
 
