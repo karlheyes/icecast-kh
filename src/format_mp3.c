@@ -453,6 +453,7 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         /* rare but possible case of resuming a send part way through a metadata block */
         metadata = client_mp3->associated->data + client_mp3->metadata_offset;
         meta_len = client_mp3->associated->len - client_mp3->metadata_offset;
+        if (client_mp3->metadata_offset > client_mp3->associated->len) abort();
     }
     else
     {
