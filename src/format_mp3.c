@@ -561,7 +561,7 @@ static int send_iceblock_to_client (client_t *client)
     unsigned char lengthbytes[2];
     struct connection_bufs v;
 
-    connection_bufs_init (&v, 2);
+    connection_bufs_init (&v, 3);
     if (refbuf->associated != client_mpg->associated)
     {
         refbuf_t *meta = refbuf->associated;
@@ -581,9 +581,10 @@ static int send_iceblock_to_client (client_t *client)
 
     if (ret > 0)
     {
+        client->queue_pos += ret;
+        if (client_mpg->metadata_offset < skip)
+            client->queue_pos -= (skip - client_mpg->metadata_offset);
         client_mpg->metadata_offset += ret;
-        if (client_mpg->metadata_offset > skip)
-            client->queue_pos += (client_mpg->metadata_offset - skip);
     }
 
     if (client_mpg->metadata_offset >= len)
@@ -593,8 +594,8 @@ static int send_iceblock_to_client (client_t *client)
             client_mpg->associated = refbuf->associated;
         client_mpg->metadata_offset = 0;
     }
-    else
-        client->schedule_ms += 50;
+    if (ret < len)
+        client->schedule_ms += (ret < 0 ? 200 : 50);
     return ret;
 }
 
