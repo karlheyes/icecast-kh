@@ -840,7 +840,9 @@ static int http_source_listener (client_t *client)
             return -1;
         }
         client->flags |= CLIENT_HAS_INTRO_CONTENT;
-        stats_event_inc (source->mount, "listener_connections");
+        stats_lock (source->stats, source->mount);
+        stats_set_inc (source->stats, "listener_connections");
+        stats_release (source->stats);
     }
     ret = format_generic_write_to_client (client);
     if (client->pos == refbuf->len)
