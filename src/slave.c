@@ -153,6 +153,7 @@ relay_server *relay_copy (relay_server *r)
 void slave_update_all_mounts (void)
 {
     update_settings = 1;
+    update_all_sources = 1;
 }
 
 
@@ -445,7 +446,6 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     if (parser)
         httpp_destroy (parser);
     connection_close (con);
-    con->con_time = time (NULL);
     if (relay->in_use) relay->in_use->skip = 1;
     return -1;
 }
@@ -529,14 +529,11 @@ static void *start_relay_stream (void *arg)
     if (failed)
     {
         /* failed to start any connection, better clean up and reset */
-        if (relay->on_demand)
-            src->flags &= ~SOURCE_ON_DEMAND;
-        else
+        if (relay->on_demand == 0)
         {
             yp_remove (relay->localmount);
             src->yp_public = -1;
         }
-
         relay->in_use = NULL;
         INFO2 ("listener count remaining on %s is %d", src->mount, src->listeners);
         src->flags &= ~SOURCE_PAUSE_LISTENERS;
@@ -1413,15 +1410,13 @@ static int relay_read (client_t *client)
             INFO1 ("Relay %s is disabled", relay->localmount);
             client->schedule_ms = client->worker->time_ms + 3600000;
         }
-        source->flags &= ~SOURCE_ON_DEMAND;
         stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         source_clear_source (relay->source);
         relay_reset (relay);
         stats_event (relay->localmount, NULL, NULL);
+        source->stats = 0;
         slave_update_all_mounts();
     } while (0);
-    client->connection.con_time = 0;
-    source->stats = 0;
 
     thread_rwlock_unlock (&source->lock);
     connection_close (&client->connection);
@@ -1570,6 +1565,8 @@ static int relay_startup (client_t *client)
         config_release_config();
         if (start_relay == 0)
         {
+            if (source->stats == 0)
+                slave_update_all_mounts();
             client->schedule_ms = worker->time_ms + (fallback_def ? (relay->interval*1000) : 60000);
             return 0;
         }
