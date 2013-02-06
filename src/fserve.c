@@ -1284,6 +1284,7 @@ void fserve_scan (time_t now)
         fh_node *fh = node->key;
         node = avl_get_next (node);
 
+        thread_mutex_lock (&fh->lock);
         if (global.running != ICE_RUNNING)
             fh->expire = 0;
         if (fh->refcount)
@@ -1291,7 +1292,6 @@ void fserve_scan (time_t now)
             if (fh->finfo.limit)
             {
                 fbinfo *finfo = &fh->finfo;
-                thread_mutex_lock (&fh->lock);
                 if (fh->stats == 0)
                 {
                     int len = strlen (finfo->mount) + 10;
@@ -1324,7 +1324,6 @@ void fserve_scan (time_t now)
                             (long)((8 * rate_avg (fh->out_bitrate))/1024));
                 }
                 stats_release (fh->stats);
-                thread_mutex_unlock (&fh->lock);
             }
         }
         else
@@ -1345,9 +1344,12 @@ void fserve_scan (time_t now)
                     stats_set (fh->stats, NULL, NULL);
                 }
                 remove_fh_from_cache (fh);
+                thread_mutex_unlock (&fh->lock);
                 _delete_fh (fh);
+                continue;
             }
         }
+        thread_mutex_unlock (&fh->lock);
     }
     avl_tree_unlock (fh_cache);
 }
