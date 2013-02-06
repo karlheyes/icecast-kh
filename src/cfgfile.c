@@ -877,7 +877,11 @@ static int _parse_directory (xmlNodePtr node, void *arg)
         return -1;
     }
 
+    config->yp_url_timeout [config->num_yp_directories] = 10;
+    config->yp_touch_interval [config->num_yp_directories] = 600;
     if (parse_xml_tags (node, icecast_tags))
+        return -1;
+    if (config->yp_url [config->num_yp_directories] == NULL)
         return -1;
     config->num_yp_directories++;
     return 0;
