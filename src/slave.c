@@ -1381,14 +1381,16 @@ static int relay_read (client_t *client)
             return 0; /* listeners may be paused, recheck and let them leave this stream */
         }
         INFO1 ("shutting down relay %s", relay->localmount);
-        stats_event_args (source->mount, "listeners", "%lu", source->listeners);
+        stats_lock (source->stats, NULL);
+        stats_set_args (source->stats, "listeners", "%lu", source->listeners);
+        stats_set (source->stats, NULL, NULL);
         thread_rwlock_unlock (&source->lock);
-        stats_event (relay->localmount, NULL, NULL);
         slave_update_all_mounts();
         return -1;
     }
     client->ops = &relay_startup_ops;
     do {
+        stats_lock (source->stats, NULL);
         if (relay->running)
         {
             if (client->connection.con_time && relay->in_use)
@@ -1398,6 +1400,7 @@ static int relay_read (client_t *client)
                 if (relay->on_demand && source->listeners == 0)
                     relay_reset (relay);
                 client->ops = &relay_init_ops;
+                stats_release (source->stats);
                 break;
             }
             if (relay->interval < 3)
@@ -1413,7 +1416,7 @@ static int relay_read (client_t *client)
         stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         source_clear_source (relay->source);
         relay_reset (relay);
-        stats_event (relay->localmount, NULL, NULL);
+        stats_set (source->stats, NULL, NULL);
         source->stats = 0;
         slave_update_all_mounts();
     } while (0);
