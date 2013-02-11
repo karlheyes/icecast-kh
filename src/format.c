@@ -196,7 +196,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 {
     unsigned remaining = 4096 - client->refbuf->len;
     char *ptr = client->refbuf->data + client->refbuf->len;
-    int bytes;
+    int bytes = 0;
     int bitrate_filtered = 0;
     avl_node *node;
     ice_config_t *config;
