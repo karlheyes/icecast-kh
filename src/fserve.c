@@ -363,7 +363,7 @@ static fh_node *open_fh (fbinfo *finfo)
             fh->finfo.type = type;
         if (finfo->flags & FS_FALLBACK)
         {
-            if (fh->finfo.type != type && fh->finfo.type != FORMAT_TYPE_UNDEFINED)
+            if (fh->finfo.type != type && type != FORMAT_TYPE_UNDEFINED && fh->finfo.type != FORMAT_TYPE_UNDEFINED)
             {
                 avl_tree_unlock (fh_cache);
                 free (contenttype);

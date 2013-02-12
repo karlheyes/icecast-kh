@@ -392,7 +392,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     DEBUG1 ("...handler %d sending request", auth_user->handler);
     if (curl_easy_perform (atd->curl))
     {
-        WARN2 ("auth to server %s failed with %s", url->removeurl, atd->errormsg);
+        WARN2 ("auth to server %s failed with \"%s\"", url->removeurl, atd->errormsg);
         url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
     }
     else

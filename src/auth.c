@@ -70,6 +70,7 @@ struct _client_functions auth_release_ops =
 static int wait_for_auth (client_t *client)
 {
     DEBUG0 ("client finished with auth");
+    client->flags &= ~CLIENT_AUTHENTICATED;
     return -1;
 }
 
