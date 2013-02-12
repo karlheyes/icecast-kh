@@ -241,7 +241,9 @@ int client_send_404 (client_t *client, const char *message)
     if (client->respcode)
     {
         worker_t *worker = client->worker;
-        client->flags = CLIENT_ACTIVE | (client->flags & ~CLIENT_AUTHENTICATED);
+        if (client->respcode >= 300)
+            client->flags = client->flags & ~CLIENT_AUTHENTICATED;
+        client->flags |= CLIENT_ACTIVE;
         worker_wakeup (worker);
     }
     else
