@@ -153,11 +153,9 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src->listener_send_trigger = 4000;
         src->format = calloc (1, sizeof(format_plugin_t));
         src->clients = avl_tree_new (client_compare, NULL);
-        src->stats = stats_handle (mount);
         src->intro_file = -1;
 
         thread_rwlock_create (&src->lock);
-        stats_release (src->stats);
 
         avl_insert (global.source_tree, src);
 
@@ -2192,6 +2190,8 @@ int source_startup (client_t *client, const char *uri)
             global_unlock();
             thread_rwlock_wlock (&source->lock);
             source->client = client;
+            source->stats = stats_lock (source->stats, source->mount);
+            stats_release (source->stats);
             if (connection_complete_source (source) < 0)
             {
                 source->client = NULL;
