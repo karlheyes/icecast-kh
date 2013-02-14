@@ -247,10 +247,13 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     fmtcode = FMT_LOWERCASE_TYPE;
                 // if (strstr (useragent, "Sonos"))
                 //    contenttypehdr = "content-type";
-                if (plugin->type == FORMAT_TYPE_AAC)
+                if (plugin->type == FORMAT_TYPE_AAC && strstr (useragent, "AppleWebKit"))
+                    fmtcode |= FMT_FORCE_AAC;
+                if (strstr (useragent, "BlackBerry"))
                 {
-                    if (strstr (useragent, "BlackBerry"))
-                        fmtcode = FMT_FORCE_AAC;
+                    fmtcode |= FMT_RETURN_ICY;
+                    if (plugin->type == FORMAT_TYPE_AAC)
+                        fmtcode |= FMT_FORCE_AAC;
                 }
             }
             if (fmtcode & FMT_RETURN_ICY)
