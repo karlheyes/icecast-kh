@@ -1113,7 +1113,7 @@ void source_init (source_t *source)
 
     /* start off the statistics */
     stats_event_inc (NULL, "source_total_connections");
-    stats_lock (source->stats, source->mount);
+    source->stats = stats_lock (source->stats, source->mount);
     stats_set_flags (source->stats, "slow_listeners", "0", STATS_COUNTERS);
     stats_set (source->stats, "server_type", source->format->contenttype);
     stats_set_flags (source->stats, "listener_peak", "0", STATS_COUNTERS);
@@ -1558,7 +1558,7 @@ void source_update_settings (ice_config_t *config, source_t *source, mount_proxy
     source->min_queue_size = config->min_queue_size;
     source->timeout = config->source_timeout;
     source->default_burst_size = config->burst_size;
-    source->stats = stats_handle (source->mount);
+    stats_lock (source->stats, source->mount);
 
     len = strlen (config->hostname) + strlen(source->mount) + 16;
     listen_url = alloca (len);

@@ -1470,6 +1470,11 @@ static int relay_initialise (client_t *client)
                 config = config_get_config();
                 mountinfo = config_find_mount (config, source->mount);
                 source->flags |= SOURCE_ON_DEMAND;
+                if (source->stats == 0)
+                {
+                    source->stats = stats_lock (source->stats, source->mount);
+                    stats_release (source->stats);
+                }
                 source_update_settings (config, source, mountinfo);
                 thread_rwlock_unlock (&source->lock);
                 config_release_config();
@@ -1569,7 +1574,11 @@ static int relay_startup (client_t *client)
         if (start_relay == 0)
         {
             if (source->stats == 0)
+            {
+                source->stats = stats_lock (source->stats, source->mount);
+                stats_release (source->stats);
                 slave_update_all_mounts();
+            }
             client->schedule_ms = worker->time_ms + (fallback_def ? (relay->interval*1000) : 60000);
             return 0;
         }
