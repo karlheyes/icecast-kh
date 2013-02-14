@@ -23,9 +23,7 @@
 #include <glob.h>
 #endif
 
-#ifdef HAVE_FNMATCH_H
 #include <fnmatch.h>
-#endif
 #include "thread/thread.h"
 #include "cfgfile.h"
 #include "refbuf.h"
