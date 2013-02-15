@@ -31,6 +31,10 @@
    don't. */
 #undef HAVE_DECL_FINDFIRSTFILE
 
+/* Define to 1 if you have the declaration of `gmtime_r', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GMTIME_R
+
 /* Define to 1 if you have the declaration of `localtime_r', and to 0 if you
    don't. */
 #undef HAVE_DECL_LOCALTIME_R
@@ -52,6 +56,9 @@
 
 /* Define to 1 if you have the `fork' function. */
 #undef HAVE_FORK
+
+/* Define to 1 if you have the `fseeko' function. */
+#undef HAVE_FSEEKO
 
 /* Define to 1 if you have the `fsync' function. */
 #undef HAVE_FSYNC
@@ -146,6 +153,9 @@
 /* Define if Speex support is available */
 #undef HAVE_SPEEX
 
+/* Define to 1 if you have the <stdbool.h> header file. */
+#undef HAVE_STDBOOL_H
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 
@@ -160,6 +170,9 @@
 
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strsep' function. */
+#undef HAVE_STRSEP
 
 /* Define to 1 if you have the `strtoll' function. */
 #undef HAVE_STRTOLL
@@ -193,6 +206,9 @@
 
 /* Define if Theora support is available */
 #undef HAVE_THEORA
+
+/* Define to 1 if the system has the type `uint32_t'. */
+#undef HAVE_UINT32_T
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
