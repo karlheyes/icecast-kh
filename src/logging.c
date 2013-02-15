@@ -14,8 +14,8 @@
 #include <config.h>
 #endif
 
+#include "compat.h"
 #include <stdio.h>
-#include <time.h>
 #include <string.h>
 
 #include "thread/thread.h"
@@ -25,7 +25,6 @@
 #include "refbuf.h"
 #include "client.h"
 
-#include "compat.h"
 #include "cfgfile.h"
 #include "logging.h"
 #include "util.h"

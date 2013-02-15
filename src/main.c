@@ -15,14 +15,14 @@
 #include <config.h>
 #endif
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <process.h>
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-
-#ifdef WIN32
-#include <process.h>
-#include <windows.h>
-#endif
 
 #ifdef HAVE_UNISTD_H
 # include <unistd.h>

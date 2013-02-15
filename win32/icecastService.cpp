@@ -1,4 +1,6 @@
+#include <winsock2.h>
 #include <stdio.h>
+#include <direct.h>
 
 extern "C" {
 #include <config.h>
@@ -147,9 +149,9 @@ void ServiceMain(int argc, char** argv)
     char*	argv2 [3];
 
     argv2 [0] = argv[0];
-    argv2 [1] = "-c";
+    argv2 [1] = (char*)"-c";
     if (argc < 2)
-        argv2 [2] = "icecast.xml";
+        argv2 [2] = (char *)"icecast.xml";
     else
         argv2 [2] = argv[1];
 

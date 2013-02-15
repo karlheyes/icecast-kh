@@ -14,6 +14,9 @@
 #include <config.h>
 #endif
 
+#define _POSIX 1
+
+#include "compat.h"
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
@@ -30,6 +33,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <unistd.h>
 #endif
 
 #include "net/sock.h"
@@ -37,7 +41,6 @@
 
 #include "cfgfile.h"
 #include "util.h"
-#include "compat.h"
 #include "refbuf.h"
 #include "connection.h"
 #include "client.h"

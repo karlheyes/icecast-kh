@@ -20,8 +20,11 @@
  * Solaris.
  */
 
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
+
+#if defined(_WIN32) || defined(__MINGW32__)
+#  define PATH_SEPARATOR "\\"
+#else
+#  define PATH_SEPARATOR "/"
 #endif
 
 #ifdef TIME_WITH_SYS_TIME
@@ -35,25 +38,17 @@
 #  endif
 #endif
 
-/* Make sure we define 64 bit types */
-#if defined(_WIN32) || defined(_MINGW32_)
-#  define PATH_SEPARATOR "\\"
-#  define size_t unsigned int
-#  define ssize_t int
-#  define uint32_t unsigned int
-#  define fseeko fseek
-#  include <malloc.h> // for alloca
-//#  define alloca _alloca
-#  define SCN_OFF_T "ld"
-#  define PRI_OFF_T "ld"
-#else
-#  define PATH_SEPARATOR "/"
-#endif
-
 #if defined(HAVE_INTTYPES_H)
 #    include <inttypes.h>
 #elif defined(HAVE_STDINT_H)
 #    include <stdint.h>
+#endif
+
+#ifndef HAVE_UINT32_T
+#  define uint32_t unsigned int
+#endif
+#ifndef HAVE_FSEEKO
+#  define fseeko fseek
 #endif
 
 #endif /* __COMPAT_H__ */

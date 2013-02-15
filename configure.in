@@ -36,7 +36,7 @@ dnl Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_HEADERS([fcntl.h signal.h fnmatch.h limits.h sys/timeb.h malloc.h glob.h windows.h])
+AC_CHECK_HEADERS([fcntl.h signal.h fnmatch.h limits.h sys/timeb.h malloc.h glob.h windows.h stdbool.h])
 AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -47,21 +47,22 @@ AC_TYPE_OFF_T
 AC_CHECK_TYPES([struct timespec])
 
 dnl Checks for library functions.
-AC_CHECK_DECLS([localtime_r, FindFirstFile],,, [
+AC_CHECK_DECLS([localtime_r, gmtime_r, FindFirstFile],,, [
+AC_INCLUDES_DEFAULT
 #if HAVE_WINDOWS_H
 #include <windows.h>
 #endif
 #include <time.h>
 #include <pthread.h>])
-AC_CHECK_FUNCS([fnmatch chroot fork poll atoll strtoll strcasecmp getrlimit gettimeofday ftime fsync glob pread])
-AC_CHECK_TYPES([struct signalfd_siginfo],
+AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp getrlimit gettimeofday ftime fsync glob pread])
+AC_CHECK_TYPES([struct signalfd_siginfo, uint32_t],
                [AC_DEFINE(HAVE_SIGNALFD, 1 ,[Define if signalfd exists])], [],
                [#include <sys/signalfd.h>])
 if test "x$ac_cv_func_fnmatch" != "xyes" 
 then
 AC_CHECK_LIB(fnmatch, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-lfnmatch"])],
-        [ AC_CHECK_LIB(iberty, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-liberty"])])
-        ])
+        [ AC_CHECK_LIB(iberty, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-liberty"])],
+        [ICECAST_OPTIONAL="$ICECAST_OPTIONAL fnmatch.o"])])
 fi
 AC_SEARCH_LIBS(nanosleep, rt posix4,
         AC_DEFINE(HAVE_NANOSLEEP, 1, [Define if you have nanosleep]))
