@@ -1662,12 +1662,21 @@ static void source_run_script (char *command, char *mountpoint)
         case 0:
             switch (pid = fork ())
             {
+#define MAX_SCRIPT_ARGS          20
+                int i = 0;
+                char *p, *args [MAX_SCRIPT_ARGS+1];
+
                 case -1:
                     ERROR2 ("Unable to fork %s (%s)", command, strerror (errno));
                     break;
                 case 0:  /* child */
                     DEBUG1 ("Starting command %s", command);
-                    execl (command, command, mountpoint, (char *)NULL);
+                    p = strdup (command);
+                    while (i < MAX_SCRIPT_ARGS && (args[i] = strsep (&p, " \t")))
+                        i++;
+                    if (i == 1) // default is to supply mountpoint
+                        args[1] = mountpoint;
+                    execvp ((const char *)args[0], args);
                     ERROR2 ("Unable to run command %s (%s)", command, strerror (errno));
                     exit(0);
                 default: /* parent */
