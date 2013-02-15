@@ -1189,42 +1189,58 @@ static int source_set_override (const char *mount, source_t *dest_source, format
 {
     source_t *source;
     const char *dest = dest_source->mount;
-    int ret = 0;
+    int ret = 0, loop = 15;
+    mount_proxy *mountinfo;
+    ice_config_t *config = config_get_config_unlocked();
 
+    INFO1 ("for %s", dest_source->mount);
     avl_tree_rlock (global.source_tree);
-    source = source_find_mount (mount);
-    if (source)
+    while (loop--)
     {
-        if (strcmp (source->mount, dest) != 0)
+        DEBUG2 ("checking for %s on %s", mount, dest_source->mount);
+        source = source_find_mount_raw (mount);
+        if (source)
         {
-            thread_rwlock_wlock (&source->lock);
-            if (source->format->type == type)
+            if (strcmp (source->mount, dest) == 0) // back where we started, drop out
             {
-                if (source->listeners && source->fallback.mount == NULL)
-                {
-                    source->fallback.limit = 0;
-                    source->fallback.mount = strdup (dest);
-                    source->fallback.flags = FS_FALLBACK;
-                    source->fallback.type = type;
-                    source->termination_count = source->listeners;
-                    source->client->timer_start = dest_source->client->worker->time_ms;
-                    source->flags |= SOURCE_LISTENERS_SYNC;
-                    source_listeners_wakeup (source);
-                    ret = 1;
-                }
+                avl_tree_unlock (global.source_tree);
+                break;
             }
-            else
-                ERROR4("%s (%d) and %s(%d) are different formats", mount, type, dest, source->format->type);
+            thread_rwlock_wlock (&source->lock);
+            if (source_running (source))
+            {
+                avl_tree_unlock (global.source_tree);
+                if (source->format->type == type)
+                {
+                    if (source->listeners && source->fallback.mount == NULL)
+                    {
+                        source->fallback.limit = 0;
+                        source->fallback.mount = strdup (dest);
+                        source->fallback.flags = FS_FALLBACK;
+                        source->fallback.type = type;
+                        source->termination_count = source->listeners;
+                        source->client->timer_start = dest_source->client->worker->time_ms;
+                        source->flags |= SOURCE_LISTENERS_SYNC;
+                        source_listeners_wakeup (source);
+                        ret = 1;
+                    }
+                }
+                else
+                    ERROR4("%s (%d) and %s(%d) are different formats", mount, type, dest, source->format->type);
+                thread_rwlock_unlock (&source->lock);
+                break;
+            }
             thread_rwlock_unlock (&source->lock);
         }
-        avl_tree_unlock (global.source_tree);
-        if (ret)
-            INFO2 ("moving from %s to %s", mount, dest);
-    }
-    else
-    {
+        mountinfo = config_find_mount (config, mount);
+        if (mountinfo && mountinfo->fallback_mount && mountinfo->fallback_override)
+        {
+            mount = mountinfo->fallback_mount;
+            continue;
+        }
         avl_tree_unlock (global.source_tree);
         ret = fserve_set_override (mount, dest, type);
+        break;
     }
     return ret;
 }
