@@ -21,5 +21,6 @@ icecast_DEPENDENCIES = ../src/libicecast.a ../src/net/libicenet.la \
 
 icecast_SOURCES = icecastService.cpp
 icecast_CPPFLAGS = -I../src @XIPH_CFLAGS@ @XIPH_CPPFLAGS@
+icecast_LDFLAGS = -static-libgcc
 icecast_LDADD = $(icecast_DEPENDENCIES) @XIPH_LDFLAGS@ @XIPH_LIBS@ @KATE_LIBS@
 

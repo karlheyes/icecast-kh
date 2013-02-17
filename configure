@@ -16248,6 +16248,7 @@ fi
 
 ac_fn_c_check_decl "$LINENO" "localtime_r" "ac_cv_have_decl_localtime_r" "
 $ac_includes_default
+#define _POSIX 1
 #if HAVE_WINDOWS_H
 #include <windows.h>
 #endif
@@ -16265,6 +16266,7 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 ac_fn_c_check_decl "$LINENO" "gmtime_r" "ac_cv_have_decl_gmtime_r" "
 $ac_includes_default
+#define _POSIX 1
 #if HAVE_WINDOWS_H
 #include <windows.h>
 #endif
@@ -16282,6 +16284,7 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 ac_fn_c_check_decl "$LINENO" "FindFirstFile" "ac_cv_have_decl_FindFirstFile" "
 $ac_includes_default
+#define _POSIX 1
 #if HAVE_WINDOWS_H
 #include <windows.h>
 #endif

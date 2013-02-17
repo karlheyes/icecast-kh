@@ -49,6 +49,7 @@ AC_CHECK_TYPES([struct timespec])
 dnl Checks for library functions.
 AC_CHECK_DECLS([localtime_r, gmtime_r, FindFirstFile],,, [
 AC_INCLUDES_DEFAULT
+#define _POSIX 1
 #if HAVE_WINDOWS_H
 #include <windows.h>
 #endif
