@@ -70,9 +70,6 @@
 #ifndef EALREADY
 #define EALREADY WSAEALREADY
 #endif
-#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC 0
-#endif
 
 #include "sock.h"
 #include "resolver.h"
@@ -83,12 +80,6 @@
 #endif
 #ifndef AI_ADDRCONFIG
 # define AI_ADDRCONFIG 0
-#endif
-#ifdef SOCK_CLOEXEC 
- #define sock_set_cloexec(a)
-#else
- #define SOCK_CLOEXEC 0
- #define sock_set_cloexec(a)     fcntl(a,F_SETFD,FD_CLOEXEC)
 #endif
 
 /* sock_initialize
@@ -325,6 +316,49 @@ int sock_set_keepalive(sock_t sock)
     return setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive, 
             sizeof(int));
 }
+
+
+#ifdef FD_CLOEXEC
+#define sock_set_cloexec(a)     fcntl(a,F_SETFD,FD_CLOEXEC)
+#else
+#define sock_set_cloexec(a)
+#endif
+
+sock_t _sock_open (int domain, int type, int protocol)
+{
+    sock_t s = socket (domain, type, protocol);
+    if (s != SOCK_ERROR)
+        sock_set_cloexec (s);
+    return s;
+}
+
+#ifdef SOCK_CLOEXEC
+sock_t _sock_open_cloexec (int domain, int type, int protocol);
+
+sock_t (*sock_open)(int domain, int type, int protocol) = _sock_open_cloexec;
+
+sock_t _sock_open_cloexec (int domain, int type, int protocol)
+{
+    static int sock_cloexec = SOCK_CLOEXEC;
+    sock_t s = socket (domain, type|sock_cloexec, protocol);
+    if (s >= 0) 
+    {
+        if (sock_cloexec == 0) sock_set_cloexec (s);
+        return s;
+    }
+    if (sock_cloexec && (errno == EINVAL || errno == ENOSYS))
+    {
+        sock_cloexec = 0;
+        sock_open = _sock_open;
+        s = _sock_open (domain, type, protocol);
+    }
+    return s;
+}
+#else
+sock_t (*sock_open)(int domain, int type, int protocol) = _sock_open;
+#endif
+
+
 
 /* sock_close
 **
@@ -681,8 +715,8 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
     ai = head;
     while (ai)
     {
-        int type = SOCK_CLOEXEC|ai->ai_socktype;
-        if ((sock = socket (ai->ai_family, type, ai->ai_protocol)) > -1)
+        int type = ai->ai_socktype;
+        if ((sock = sock_open (ai->ai_family, type, ai->ai_protocol)) > -1)
         {
             sock_set_cloexec(sock);
             sock_set_blocking (sock, 0);
@@ -723,8 +757,8 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
     ai = head;
     while (ai)
     {
-        int type = SOCK_CLOEXEC|ai->ai_socktype;
-        if ((sock = socket (ai->ai_family, type, ai->ai_protocol)) >= 0)
+        int type = ai->ai_socktype;
+        if ((sock = sock_open (ai->ai_family, type, ai->ai_protocol)) >= 0)
         {
             sock_set_cloexec (sock);
             if (timeout > 0)
@@ -804,12 +838,11 @@ sock_t sock_get_server_socket (int port, const char *sinterface)
     do
     {
         int on = 1;
-        int type = SOCK_CLOEXEC|ai->ai_socktype;
-        sock = socket (ai->ai_family, type, ai->ai_protocol);
+        int type = ai->ai_socktype;
+        sock = sock_open (ai->ai_family, type, ai->ai_protocol);
         if (sock < 0)
             continue;
 
-        sock_set_cloexec (sock);
         setsockopt (sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&on, sizeof(on));
         on = 0;
 #ifdef IPV6_V6ONLY
@@ -869,11 +902,10 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
 {
     sock_t sock;
 
-    sock = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
+    sock = sock_open (AF_INET, SOCK_STREAM, 0);
     if (sock == SOCK_ERROR)
         return SOCK_ERROR;
 
-    sock_set_cloexec (sock);
     sock_set_blocking (sock, 0);
     sock_try_connection (sock, hostname, port);
     
@@ -884,11 +916,10 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
 {
     sock_t sock;
 
-    sock = socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
+    sock = sock_open (AF_INET, SOCK_STREAM, 0);
     if (sock == SOCK_ERROR)
         return SOCK_ERROR;
 
-    sock_set_cloexec (sock);
     if (bnd)
     {
         struct sockaddr_in sa;
@@ -967,7 +998,7 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
     }
 
     /* get a socket */
-    sock = socket (AF_INET, SOCK_STREAM|SOCK_CLOEXEC, 0);
+    sock = sock_open (AF_INET, SOCK_STREAM, 0);
     if (sock == -1)
         return SOCK_ERROR;
 
