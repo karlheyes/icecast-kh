@@ -13,6 +13,9 @@ install-data-hook:
 	test -f $(DESTDIR)$(sysconfdir)/icecast.xml || \
 	$(INSTALL_DATA) icecast.xml.dist $(DESTDIR)$(sysconfdir)/icecast.xml
 
+uninstall-hook:
+	-rm -f $(DESTDIR)$(sysconfdir)/icecast.xml
+
 edit = sed -e 's,@pkgdatadir\@,$(pkgdatadir),g' \
 	-e 's,@localstatedir\@,$(localstatedir),g' \
 	-e 's,@PACKAGE\@,$(PACKAGE),g'
