@@ -16,6 +16,21 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh6
+. update response header code for returning 200/206. On streams, do not send 206, but
+  allow it for file requests.
+. migrate some legacy source stats calls to newer API, reduces workload.
+. fix some corner cases for queue handling.
+. tweaks for response headers for iphone and blackberry
+. fix for some cases where listener_remove is not triggered.
+. fix for override fallback file through cascade. 
+. do not use spin locks on BSD for now, use mutexes.
+. mpeg parsing for processing files handled better now.
+. fix for handling privileged ports over reload.
+. fix for SOCK_CLOEXEC on linux where it is not implemented
+. allow for multiple args to be supplied to on-[dis]connect scripts.
+. various performance tunings all over, along with a few race fixes and memory leaks 
+
 2.3.3-kh5
 . crash fix with intro files. intro reader requires larger buffer
 
