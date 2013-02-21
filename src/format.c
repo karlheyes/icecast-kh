@@ -161,7 +161,9 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             /* here the buffer may require truncating to keep the buffers aligned on
              * certain boundaries */
             unprocessed = plugin->align_buffer (client, plugin);
-            if (unprocessed < 0 || unprocessed >= bytes)
+            if (unprocessed == bytes)
+                return -1;
+            if (unprocessed < 0 || unprocessed > bytes)
             {
                 unprocessed = 0;
                 client->connection.error = 1;
