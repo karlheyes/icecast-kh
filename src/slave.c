@@ -536,9 +536,9 @@ static void *start_relay_stream (void *arg)
         }
         relay->in_use = NULL;
         INFO2 ("listener count remaining on %s is %d", src->mount, src->listeners);
-        src->flags &= ~SOURCE_PAUSE_LISTENERS;
-        thread_rwlock_unlock (&src->lock);
+        src->flags &= ~(SOURCE_PAUSE_LISTENERS|SOURCE_RUNNING);
     }
+    thread_rwlock_unlock (&src->lock);
 
     thread_spin_lock (&relay_start_lock);
     relays_connecting--;

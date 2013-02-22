@@ -1153,7 +1153,6 @@ void source_init (source_t *source)
     source->out_bitrate = rate_setup (9000, 1000);
 
     source->flags |= SOURCE_RUNNING;
-    thread_rwlock_unlock (&source->lock);
 
     mountinfo = config_find_mount (config_get_config(), source->mount);
     if (mountinfo)
@@ -1651,13 +1650,11 @@ static int source_client_callback (client_t *client)
 
     client->ops = &source_client_ops;
     if (source_running (source))
-    {
-        thread_rwlock_unlock (&source->lock);
         stats_event_inc (NULL, "source_total_connections");
-    }
     else
         source_init (source);
     agent = httpp_getvar (source->client->parser, "user-agent");
+    thread_rwlock_unlock (&source->lock);
     if (agent)
     {
         stats_lock (source->stats, source->mount);
