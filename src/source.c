@@ -1692,15 +1692,18 @@ static void source_run_script (char *command, char *mountpoint)
                         while (i < MAX_SCRIPT_ARGS && (args[i] = strsep (&p, " \t")))
                             i++;
                         if (i == 1) // default is to supply mountpoint
+                        {
                             args[1] = mountpoint;
+                            args[2] = NULL;
+                        }
                         execvp ((const char *)args[0], args);
                     }
 #else
                     execl (command, command, mountpoint, (char *)NULL);
                     if (strchr (command, ' '))
-                        WARN0 ("args ro command not supported");
+                        WARN1 ("arguments to command on %s not supported", mountpoint);
 #endif
-                    ERROR2 ("Unable to run command %s (%s)", command, strerror (errno));
+                    ERROR3 ("Unable to run command %s (%s) on %s", command, strerror (errno), mountpoint);
                     exit(0);
                 default: /* parent */
                     break;
