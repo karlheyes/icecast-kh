@@ -419,8 +419,8 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         {
             if (httpp_getvar (parser, HTTPP_VAR_ERROR_MESSAGE))
             {
-                ERROR2("Error from relay request: %s (%s)", relay->localmount,
-                        httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
+                ERROR3 ("Error from relay request on %s (%s %s)", relay->localmount,
+                        master->mount, httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
                 client->parser = NULL;
                 break;
             }
