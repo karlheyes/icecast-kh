@@ -885,7 +885,6 @@ void source_listener_detach (source_t *source, client_t *client)
         }
     }
     avl_delete (source->clients, client, NULL);
-    source->listeners--;
 }
 
 
@@ -975,7 +974,10 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         thread_rwlock_wlock (&source->lock);
         source->termination_count--;
         if (move_failed == 0)
+        {
+            source->listeners--;
             return 0;
+        }
         source_setup_listener (source, client);
     }
     else
@@ -1894,6 +1896,7 @@ static int source_listener_release (source_t *source, client_t *client)
 
     /* search through sources client list to find previous link in list */
     source_listener_detach (source, client);
+    source->listeners--;
     client->shared_data = NULL;
     if (source->listeners == 0)
         rate_reduce (source->out_bitrate, 500);
