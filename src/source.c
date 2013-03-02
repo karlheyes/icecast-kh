@@ -16,6 +16,10 @@
 #endif
 
 #define _POSIX 1
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#endif
 
 #include "compat.h"
 #include <stdio.h>
@@ -28,13 +32,14 @@
 #include <ogg/ogg.h>
 #include <errno.h>
 
-#ifndef _WIN32
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
+#ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
-#else
-#include <winsock2.h>
-#include <windows.h>
 #endif
 
 #include "thread/thread.h"
