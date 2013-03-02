@@ -71,7 +71,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
-#ifndef _WIN32
+#ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
 #ifdef HAVE_STRINGS_H

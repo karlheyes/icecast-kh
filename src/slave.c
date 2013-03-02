@@ -22,16 +22,20 @@
 #include <config.h>
 #endif
 
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 
-#ifndef _WIN32
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
-#else
-#include <winsock2.h>
 #endif
 #ifdef HAVE_CURL
 #include <curl/curl.h>

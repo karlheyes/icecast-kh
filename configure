@@ -16149,7 +16149,7 @@ $as_echo "#define TIME_WITH_SYS_TIME 1" >>confdefs.h
 fi
 
 
-for ac_header in fcntl.h signal.h fnmatch.h limits.h sys/timeb.h malloc.h glob.h windows.h stdbool.h
+for ac_header in fcntl.h signal.h fnmatch.h limits.h sys/timeb.h sys/wait.h malloc.h glob.h windows.h stdbool.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -16325,7 +16325,11 @@ _ACEOF
 $as_echo "#define HAVE_SIGNALFD 1 " >>confdefs.h
 
 fi
-ac_fn_c_check_type "$LINENO" "uint32_t" "ac_cv_type_uint32_t" "#include <sys/signalfd.h>
+
+ac_fn_c_check_type "$LINENO" "uint32_t" "ac_cv_type_uint32_t" "
+#include <inttypes.h>
+#include <stdint.h>
+
 "
 if test "x$ac_cv_type_uint32_t" = xyes; then :
 
@@ -16333,8 +16337,6 @@ cat >>confdefs.h <<_ACEOF
 #define HAVE_UINT32_T 1
 _ACEOF
 
-
-$as_echo "#define HAVE_SIGNALFD 1 " >>confdefs.h
 
 fi
 
