@@ -409,6 +409,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                     config_release_config();
                     avl_tree_unlock (global.source_tree);
                     source_setup_listener (source, client);
+                    source->listeners++;
                     client->flags |= CLIENT_HAS_MOVED;
                     thread_rwlock_unlock (&source->lock);
                     free (where.mount);

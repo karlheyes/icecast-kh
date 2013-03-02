@@ -642,7 +642,7 @@ static int source_client_read (client_t *client)
             source->termination_count = source->listeners;
             client->timer_start = client->worker->time_ms;
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
-            source->flags |= SOURCE_LISTENERS_SYNC;
+            source->flags |= (SOURCE_TERMINATING|SOURCE_LISTENERS_SYNC);
             source_listeners_wakeup (source);
             thread_rwlock_unlock (&source->lock);
             return 0;
@@ -2098,6 +2098,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
 
     httpp_deletevar (client->parser, "range");
     source_setup_listener (source, client);
+    source->listeners++;
     if ((client->flags & CLIENT_ACTIVE) && (source->flags & SOURCE_RUNNING))
         do_process = 1;
     else
@@ -2138,7 +2139,6 @@ void source_setup_listener (source_t *source, client_t *client)
     client->check_buffer = http_source_listener;
     // add client to the source
     avl_insert (source->clients, client);
-    source->listeners++;
     if ((source->flags & (SOURCE_ON_DEMAND|SOURCE_RUNNING)) == SOURCE_ON_DEMAND)
     {
         source->client->schedule_ms = 0;
