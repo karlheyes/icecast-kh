@@ -51,5 +51,13 @@
 #  define fseeko fseek
 #endif
 
+#ifdef HAVE_ALLOCA_H
+#include <alloca.h>
+#endif
+
+#ifdef HAVE_MALLOC_H
+#include <malloc.h>
+#endif
+
 #endif /* __COMPAT_H__ */
 
