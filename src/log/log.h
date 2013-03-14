@@ -27,7 +27,7 @@ int log_open_file(FILE *file);
 int log_open(const char *filename);
 int log_open_with_buffer(const char *filename, int size);
 void log_set_level(int log_id, unsigned level);
-void log_set_trigger(int id, unsigned trigger);
+void log_set_trigger(int id, unsigned long trigger);
 void log_set_reopen_after (int id, unsigned int trigger);
 int  log_set_filename(int id, const char *filename);
 void log_set_lines_kept (int log_id, unsigned int count);

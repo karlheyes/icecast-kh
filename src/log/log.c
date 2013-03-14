@@ -184,6 +184,8 @@ int log_open_file(FILE *file)
     loglist[log_id].logfile = file;
     loglist[log_id].filename = NULL;
     loglist[log_id].size = 0;
+    loglist[log_id].reopen_at = 0;
+    loglist[log_id].archive_timestamp = 0;
 
     return log_id;
 }
@@ -219,12 +221,12 @@ int log_open(const char *filename)
 }
 
 
-/* set the trigger level to trigger, represented in kilobytes */
-void log_set_trigger(int id, unsigned trigger)
+/* set the trigger level to trigger, represented in bytes */
+void log_set_trigger(int id, unsigned long trigger)
 {
     if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
-         loglist [id] . trigger_level = trigger*1024;
+         loglist [id] . trigger_level = trigger;
     }
 }
 
@@ -234,7 +236,7 @@ void log_set_reopen_after (int id, unsigned int trigger)
     if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
          loglist [id] . duration = trigger;
-         loglist [id] . reopen_at = time (NULL) + trigger;
+         loglist [id] . reopen_at = trigger ? time (NULL) + trigger : 0;
     }
 }
 
