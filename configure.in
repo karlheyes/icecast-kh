@@ -1,4 +1,4 @@
-AC_INIT([Icecast], [2.3.3-kh6], [karl@xiph.org])
+AC_INIT([Icecast], [2.3.3-kh6.x], [karl@xiph.org])
 
 LT_INIT
 AC_PREREQ(2.59)
@@ -8,6 +8,7 @@ dnl Process this file with autoconf to produce a configure script.
 AM_INIT_AUTOMAKE
 AM_CONFIG_HEADER(config.h)
 AM_MAINTAINER_MODE
+AC_CONFIG_MACRO_DIR([m4])
 
 AC_PROG_CXX
 AC_PROG_CC
@@ -36,7 +37,7 @@ dnl Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_HEADERS([fcntl.h signal.h fnmatch.h limits.h sys/timeb.h sys/wait.h malloc.h glob.h windows.h stdbool.h])
+AC_CHECK_HEADERS([fcntl.h signal.h fnmatch.h limits.h sys/timeb.h sys/wait.h alloca.h malloc.h glob.h windows.h stdbool.h])
 AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
