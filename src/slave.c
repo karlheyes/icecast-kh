@@ -1369,7 +1369,7 @@ static int relay_read (client_t *client)
     client->parser = NULL;
     free (source->fallback.mount);
     source->fallback.mount = NULL;
-    source->flags &= ~(SOURCE_TERMINATING|SOURCE_LISTENERS_SYNC);
+    source->flags &= ~(SOURCE_TERMINATING|SOURCE_LISTENERS_SYNC|SOURCE_ON_DEMAND);
     if (relay->cleanup)
     {
         connection_close (&client->connection);
