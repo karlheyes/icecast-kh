@@ -594,7 +594,7 @@ static void file_release (client_t *client)
     remove_from_fh (fh, client);
 
     _free_fserve_buffers (client);
-    if (client->flags & CLIENT_AUTHENTICATED)
+    if (client->flags & CLIENT_AUTHENTICATED && client->parser->req_type == httpp_req_get)
     {
         const char *mount = httpp_getvar (client->parser, HTTPP_VAR_URI);
         ice_config_t *config = config_get_config ();
