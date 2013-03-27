@@ -523,6 +523,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             if (frame_len > 0)
             {
                 start += frame_len;
+                mp->resync_count = 0;
                 continue;
             }
             if ((new_block->flags & REFBUF_SHARED) == 0)
@@ -569,7 +570,6 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                 return remaining;
             }
         }
-        mp->resync_count = 0;
         loop--;
     }
     if (remaining < 0 || remaining > new_block->len)
