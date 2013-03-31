@@ -19,8 +19,8 @@
 typedef struct mpeg_sync
 {
     int (*process_frame) (struct mpeg_sync *mp, unsigned char *p, int len);
-    unsigned long mask;
-    unsigned long match;
+    uint32_t mask;
+    uint32_t match;
 
     unsigned short samplerate;
     unsigned char marker;
