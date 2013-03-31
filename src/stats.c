@@ -1446,7 +1446,12 @@ static void stats_set_entity_decode (long handle, const char *name, const char *
 
     if (parser)
     {
-        xmlChar *decoded = xmlStringDecodeEntities (parser,
+        stats_source_t *src_stats = (stats_source_t *)handle;
+        xmlChar *decoded;
+        char details[200];
+        snprintf (details, sizeof details, "mount %s, name %s, value %s :", src_stats->source, name, value);
+        xmlSetGenericErrorFunc (details, log_parse_failure);
+        decoded = xmlStringDecodeEntities (parser,
                 (const xmlChar *) value, XML_SUBSTITUTE_BOTH, 0, 0, 0);
         stats_set (handle, name, (void*)decoded);
         xmlFreeParserCtxt (parser);
