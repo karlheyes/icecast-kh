@@ -803,6 +803,11 @@ static int _append_to_buffer (refbuf_t *refbuf, int max_len, const char *fmt, ..
     va_start (va, fmt);
     ret = _append_to_bufferv (refbuf, max_len, fmt, va);
     va_end(va);
+    if (refbuf->len == 0) // trap for stupid case, report and then ignore it
+    {
+        ERROR1 ("message too big to append, ignoring \"%.25s...\"", refbuf->data);
+        return 0;
+    } 
     return ret;
 }
 
