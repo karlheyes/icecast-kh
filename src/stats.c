@@ -942,12 +942,11 @@ static void _register_listener (client_t *client)
 
         if (stat->flags & listener->mask)
         {
-            if (_append_to_buffer (refbuf, size, "EVENT global %s %s\n", stat->name, stat->value) < 0)
+            while (_append_to_buffer (refbuf, size, "EVENT global %s %s\n", stat->name, stat->value) < 0)
             {
                 _add_node_to_stats_client (client, refbuf);
                 refbuf = refbuf_new (size);
                 refbuf->len = 0;
-                continue;
             }
         }
         node = avl_get_next(node);
@@ -958,8 +957,6 @@ static void _register_listener (client_t *client)
     node = avl_get_first(_stats.source_tree);
     while (node)
     {
-        avl_node *node2;
-        stats_node_t *metadata_stat = NULL;
         stats_source_t *snode = (stats_source_t *)node->key;
 
         if (snode->flags & listener->mask)
@@ -968,46 +965,59 @@ static void _register_listener (client_t *client)
             const char *type = "audio/mpeg";
             if (ct)
                 type = ct->value;
-            if (_append_to_buffer (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
+            while (_append_to_buffer (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
             {
                 _add_node_to_stats_client (client, refbuf);
                 refbuf = refbuf_new (size);
                 refbuf->len = 0;
-                continue;
             }
         }
         node = avl_get_next(node);
-        avl_tree_rlock (snode->stats_tree);
-        node2 = avl_get_first(snode->stats_tree);
-        while (node2)
+    }
+    _add_node_to_stats_client (client, refbuf);
+
+    refbuf = refbuf_new (size);
+    refbuf->len = 0;
+
+    node = avl_get_first(_stats.source_tree);
+    while (node)
+    {
+        stats_source_t *snode = (stats_source_t *)node->key;
+
+        if (snode->flags & listener->mask)
         {
-            stats_node_t *stat = node2->key;
-            if (metadata_stat == NULL && strcmp (stat->name, "metadata_updated") == 0)
-                metadata_stat = stat;
-            else if (stat->flags & listener->mask)
-            {
-                if (_append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, stat->name, stat->value) < 0)
+            stats_node_t *metadata_stat = NULL;
+            avl_node *node2;
+
+            avl_tree_rlock (snode->stats_tree);
+            node2 = avl_get_first(snode->stats_tree);
+            while (node2)
+            { 
+                stats_node_t *stat = node2->key;
+                if (stat->flags & listener->mask)
                 {
-                    _add_node_to_stats_client (client, refbuf);
-                    refbuf = refbuf_new (size);
-                    refbuf->len = 0;
-                    continue;
+                    if (strcmp (stat->name, "metadata_updated") == 0)
+                        metadata_stat = stat;
+                    else
+                        while (_append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, stat->name, stat->value) < 0)
+                        {
+                            _add_node_to_stats_client (client, refbuf);
+                            refbuf = refbuf_new (size);
+                            refbuf->len = 0;
+                        }
                 }
+                node2 = avl_get_next (node2);
             }
-            node2 = avl_get_next (node2);
-        }
-        while (metadata_stat)
-        {
-            if (_append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, metadata_stat->name, metadata_stat->value) < 0)
+            while (metadata_stat &&
+                    _append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, metadata_stat->name, metadata_stat->value) < 0)
             {
                 _add_node_to_stats_client (client, refbuf);
                 refbuf = refbuf_new (size);
                 refbuf->len = 0;
-                continue;
             }
-            break;
+            avl_tree_unlock (snode->stats_tree);
         }
-        avl_tree_unlock (snode->stats_tree);
+        node = avl_get_next(node);
     }
     avl_tree_unlock (_stats.source_tree);
     _add_node_to_stats_client (client, refbuf);
