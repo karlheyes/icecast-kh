@@ -660,9 +660,7 @@ static int stats_listeners_send (client_t *client)
     if (client->refbuf && client->refbuf->flags & STATS_BLOCK_CONNECTION)
         loop = 4;
     else
-        /* allow for 200k lag but only after 2Meg has been sent, give connection time
-         * to cacth up after the large dump at the beginning */
-        if (client->connection.sent_bytes > 2000000 && listener->content_len > 200000)
+        if (listener->content_len > 2000000 && (client->worker->current_time.tv_sec - client->connection.con_time) > 60)
         {
             WARN1 ("dropping stats client, %ld in queue", listener->content_len);
             return -1;
@@ -675,10 +673,10 @@ static int stats_listeners_send (client_t *client)
 
         if (refbuf == NULL)
         {
-            client->schedule_ms = client->worker->time_ms + 60;
+            client->schedule_ms = client->worker->time_ms + 50;
             break;
         }
-        if (loop == 0 || total > 32768)
+        if (loop == 0 || total > 100000)
             break;
         ret = format_generic_write_to_client (client);
         if (ret > 0)
@@ -704,7 +702,7 @@ static int stats_listeners_send (client_t *client)
         }
         else
         {
-            client->schedule_ms = client->worker->time_ms + 200;
+            client->schedule_ms = client->worker->time_ms + (ret > 0 ? 70 : 100);
             break; /* short write, so stop for now */
         }
     }
@@ -837,30 +835,45 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
 {
     event_listener_t *listener = client->shared_data;
     refbuf_t *r = listener->recent_block;
+    worker_t *worker = client->worker;
 
-    if (r && (r->flags & STATS_BLOCK_CONNECTION) == 0)
+    if (worker == NULL) return; // may of left worker
+    if (listener->content_len > 6000000) // max limiter imposed
     {
-        /* lets see if we can append to an existing block */
-        if (r->len < 1390)
-        {
-            int written = _append_to_bufferv (r, 1400, fmt, ap);
-            if (written > 0)
-            {
-                listener->content_len += written;
-                return;
-            }
-        }
-    }
-    r = refbuf_new (1400);
-    r->len = 0;
-    if (_append_to_bufferv (r, 1400, fmt, ap) < 0)
-    {
-        WARN1 ("stat details are too large \"%s\"", fmt);
-        refbuf_release (r);
+        if (client->connection.error == 0)
+            WARN1 ("Detected large send queue for stats, %s flagged for termination", client->connection.ip);
+        client->connection.error = 1;
         return;
     }
+    do
+    {
+        if (r && (r->flags & STATS_BLOCK_CONNECTION) == 0)
+        {
+            /* lets see if we can append to an existing block */
+            if (r->len < 1390)
+            {
+                int written = _append_to_bufferv (r, 1400, fmt, ap);
+                if (written > 0)
+                {
+                    listener->content_len += written;
+                    break;
+                }
+            }
+        }
+        r = refbuf_new (1400);
+        r->len = 0;
+        if (_append_to_bufferv (r, 1400, fmt, ap) < 0)
+        {
+            WARN1 ("stat details are too large \"%s\"", fmt);
+            refbuf_release (r);
+            return;
+        }
+    } while (0);
     _add_node_to_stats_client (client, r);
     client->schedule_ms = 0;
+    // force a wakeup if there is plenty to process
+    if (listener->content_len > 400 && listener->content_len < 750)
+        worker_wakeup (worker);
 }
 
 
@@ -914,8 +927,8 @@ static xmlNodePtr _dump_stats_to_doc (xmlNodePtr root, const char *show_mount, i
 
 
 /* factoring out code for stats loops
-** this function copies all stats to queue, and registers 
-*/
+ ** this function copies all stats to queue, and registers 
+ */
 static void _register_listener (client_t *client)
 {
     event_listener_t *listener = client->shared_data;
