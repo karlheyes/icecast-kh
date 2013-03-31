@@ -1542,10 +1542,14 @@ static int relay_startup (client_t *client)
     if (relay->on_demand)
     {
         source_t *source = relay->source;
-        int fallback_def = 0, start_relay = source->listeners; // 0 or non-zero
-        mount_proxy *mountinfo = config_find_mount (config_get_config(), source->mount);
+        int fallback_def = 0, start_relay;
+        mount_proxy *mountinfo;
 
+        thread_rwlock_wlock (&source->lock);
+        start_relay = source->listeners; // 0 or non-zero
         source->flags |= SOURCE_ON_DEMAND;
+        thread_rwlock_unlock (&source->lock);
+        mountinfo = config_find_mount (config_get_config(), source->mount);
         if (mountinfo && mountinfo->fallback_mount)
         {
             source_t *fallback;
@@ -1555,9 +1559,11 @@ static int relay_startup (client_t *client)
             fallback_def = 1;
             if (fallback)
             {
+                thread_rwlock_rlock (&fallback->lock);
+                avl_tree_unlock (global.source_tree);
                 if (strcmp (fallback->mount, source->mount) != 0 && fallback->listeners)
                     start_relay = 1;
-                avl_tree_unlock (global.source_tree);
+                thread_rwlock_unlock (&fallback->lock);
             }
             else
             {
