@@ -1443,12 +1443,12 @@ void stats_set_flags (long handle, const char *name, const char *value, int flag
 
 static xmlParserCtxtPtr get_parser_for_decode (const char *value)
 {
-    char semi = '\0';
-    const char *p = strchr (value, '&');
-
-    if (p)
+    if (value)
     {
-        if (sscanf (p, "&%*7[^; ]%c", &semi) == 1 && semi == ';')
+        const char *p = strchr (value, '&');
+        char semi = '\0';
+
+        if (p && sscanf (p, "&%*7[^; ]%c", &semi) == 1 && semi == ';')
             return xmlNewParserCtxt();
     }
     return NULL;
