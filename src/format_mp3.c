@@ -381,7 +381,7 @@ static void mp3_set_title (source_t *source)
         }
         else
         {
-            r = snprintf (p->data, size, "%c%s%s", len_byte, streamtitle, source_mp3->url_title);
+            r = snprintf (p->data, size, "%c%s%s", len_byte, streamtitle, source_mp3->url_title ? source_mp3->url_title : "");
             stats_set_conv (source->stats, "title", p->data+14, charset);
             stats_set (source->stats, "artist", NULL);
         }
