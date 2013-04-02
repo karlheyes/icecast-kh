@@ -154,6 +154,13 @@ relay_server *relay_copy (relay_server *r)
 
 /* force a recheck of the mounts.
  */
+void slave_update_mounts (void)
+{
+    update_settings = 1;
+}
+
+/* force a recheck of the mounts.
+ */
 void slave_update_all_mounts (void)
 {
     update_settings = 1;
@@ -1088,9 +1095,12 @@ static void _slave_thread(void)
 
         if (update_settings)
         {
-            source_recheck_mounts (update_all_sources);
-            update_settings = 0;
-            update_all_sources = 0;
+            if (update_all_sources || current.tv_sec%5 == 0)
+            {
+                source_recheck_mounts (update_all_sources);
+                update_settings = 0;
+                update_all_sources = 0;
+            }
             if (restart_connection_thread)
             {
                 connection_thread_startup();
@@ -1389,7 +1399,7 @@ static int relay_read (client_t *client)
         stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         stats_set (source->stats, NULL, NULL);
         thread_rwlock_unlock (&source->lock);
-        slave_update_all_mounts();
+        slave_update_mounts();
         return -1;
     }
     client->ops = &relay_startup_ops;
@@ -1421,7 +1431,7 @@ static int relay_read (client_t *client)
         relay_reset (relay);
         stats_set (source->stats, NULL, NULL);
         source->stats = 0;
-        slave_update_all_mounts();
+        slave_update_mounts();
     } while (0);
 
     thread_rwlock_unlock (&source->lock);
@@ -1481,7 +1491,7 @@ static int relay_initialise (client_t *client)
                 source_update_settings (config, source, mountinfo);
                 thread_rwlock_unlock (&source->lock);
                 config_release_config();
-                slave_update_all_mounts();
+                slave_update_mounts();
                 stats_set_flags (source->stats, "listener_connections", "0", STATS_COUNTERS);
             }
             break;
@@ -1586,7 +1596,7 @@ static int relay_startup (client_t *client)
             {
                 source->stats = stats_lock (source->stats, source->mount);
                 stats_release (source->stats);
-                slave_update_all_mounts();
+                slave_update_mounts();
             }
             client->schedule_ms = worker->time_ms + (fallback_def ? (relay->interval*1000) : 60000);
             return 0;

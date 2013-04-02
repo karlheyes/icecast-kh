@@ -618,7 +618,9 @@ static int source_client_read (client_t *client)
         avl_tree_wlock (global.source_tree);
         DEBUG1 ("removing source %s from tree", source->mount);
         avl_delete (global.source_tree, source, NULL);
-        source->stats = 0; // source detached from tree so slave thread could flush stats
+        stats_lock (source->stats, source->mount);
+        stats_set (source->stats, NULL, NULL);
+        source->stats = 0;
         avl_tree_unlock (global.source_tree);
         thread_rwlock_wlock (&source->lock);
     }
@@ -1186,7 +1188,7 @@ void source_init (source_t *source)
 
     /* on demand relays should of already called this */
     if ((source->flags & SOURCE_ON_DEMAND) == 0)
-        slave_update_all_mounts();
+        slave_update_mounts();
     source->flags &= ~SOURCE_ON_DEMAND;
 }
 
@@ -1885,7 +1887,7 @@ void source_client_release (client_t *client)
         client->connection.sent_bytes = source->format->read_bytes;
 
     _free_source (source);
-    slave_update_all_mounts();
+    slave_update_mounts();
     client_destroy (client);
 }
 
