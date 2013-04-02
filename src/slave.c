@@ -1496,7 +1496,9 @@ static int relay_initialise (client_t *client)
             }
             break;
         }
-        client->schedule_ms = client->worker->time_ms + 10000000;
+        if (relay->cleanup)
+            break;
+        client->schedule_ms = client->worker->time_ms + 1000000;
         return 0;
     } while(0);
     client->ops = &relay_startup_ops;
