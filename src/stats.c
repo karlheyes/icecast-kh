@@ -660,6 +660,8 @@ static int stats_listeners_send (client_t *client)
     if (client->refbuf && client->refbuf->flags & STATS_BLOCK_CONNECTION)
         loop = 4;
     else
+        // impose a queue limit of 2Meg if it has been connected for so many seconds, gives
+        // chance for some catchup on large data sets.
         if (listener->content_len > 2000000 && (client->worker->current_time.tv_sec - client->connection.con_time) > 60)
         {
             WARN1 ("dropping stats client, %ld in queue", listener->content_len);
@@ -682,14 +684,15 @@ static int stats_listeners_send (client_t *client)
         if (ret > 0)
         {
             total += ret;
-            listener->content_len -= ret;
         }
         if (client->pos == refbuf->len)
         {
             client->refbuf = refbuf->next;
+            listener->content_len -= refbuf->len;
             refbuf->next = NULL;
             refbuf_release (refbuf);
             client->pos = 0;
+            //DEBUG2 ("content is %ld, next %p", listener->content_len, client->refbuf);
             if (client->refbuf == NULL)
             {
                 if (listener->content_len)
@@ -805,7 +808,7 @@ static int _append_to_buffer (refbuf_t *refbuf, int max_len, const char *fmt, ..
     {
         ERROR1 ("message too big to append, ignoring \"%.25s...\"", refbuf->data);
         return 0;
-    } 
+    }
     return ret;
 }
 
@@ -815,6 +818,7 @@ static void _add_node_to_stats_client (client_t *client, refbuf_t *refbuf)
     if (refbuf->len)
     {
         event_listener_t *listener = client->shared_data;
+        //DEBUG2 ("content is %ld, next %p", listener->content_len, refbuf);
 
         if (listener->recent_block)
         {
@@ -868,8 +872,8 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
             refbuf_release (r);
             return;
         }
+        _add_node_to_stats_client (client, r);
     } while (0);
-    _add_node_to_stats_client (client, r);
     client->schedule_ms = 0;
     // force a wakeup if there is plenty to process
     if (listener->content_len > 400 && listener->content_len < 750)
@@ -1005,7 +1009,7 @@ static void _register_listener (client_t *client)
             avl_tree_rlock (snode->stats_tree);
             node2 = avl_get_first(snode->stats_tree);
             while (node2)
-            { 
+            {
                 stats_node_t *stat = node2->key;
                 if (stat->flags & listener->mask)
                 {
@@ -1480,7 +1484,7 @@ static void stats_set_entity_decode (long handle, const char *name, const char *
         snprintf (details, sizeof details, "mount %s, name %s, value %s :", src_stats->source, name, value);
         xmlSetGenericErrorFunc (details, log_parse_failure);
         decoded = xmlStringDecodeEntities (parser,
-                (const xmlChar *) value, XML_SUBSTITUTE_BOTH, 0, 0, 0);
+                (const xmlChar *) value, XML_SUBSTITUTE_REF, 0, 0, 0);
         stats_set (handle, name, (void*)decoded);
         xmlFreeParserCtxt (parser);
         xmlFree (decoded);
