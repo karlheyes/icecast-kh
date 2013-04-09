@@ -503,6 +503,26 @@ void thread_rwlock_destroy(rwlock_t *rwlock)
 #endif
 }
 
+
+int thread_rwlock_tryrlock_c(rwlock_t *rwlock, int line, const char *file)
+{
+    int ret = pthread_rwlock_tryrdlock (&rwlock->sys_rwlock);
+#ifdef THREAD_DEBUG
+    LOG_DEBUG3("tryrLock on %s requested at %s:%d", rwlock->name, file, line);
+#endif
+    switch (ret)
+    {
+        default:
+            abort();
+        case 0:
+            return 0;
+        case EBUSY:
+        case EAGAIN:
+            return -1;
+    }
+}
+
+
 void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
 {
 #ifdef THREAD_DEBUG

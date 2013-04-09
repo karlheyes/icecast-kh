@@ -950,7 +950,8 @@ static int send_to_listener (client_t *client)
 
     if (source == NULL)
         return -1;
-    thread_rwlock_rlock (&source->lock);
+    if (thread_rwlock_tryrlock (&source->lock) != 0)
+        return 0; // probably busy, check next client, come back to this 
     ret = send_listener (source, client);
     if (ret == 1)
         return 1; // client moved, and source unlocked

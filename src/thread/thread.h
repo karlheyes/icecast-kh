@@ -129,6 +129,7 @@ typedef mutex_t spin_t;
 #define thread_cond_timedwait(x,m,t) thread_cond_timedwait_c(x,m,t,__LINE__,__FILE__)
 #define thread_rwlock_create(x) thread_rwlock_create_c(__FILE__,(x),__LINE__,__FILE__)
 #define thread_rwlock_rlock(x) thread_rwlock_rlock_c(x,__LINE__,__FILE__)
+#define thread_rwlock_tryrlock(x) thread_rwlock_tryrlock_c(x,__LINE__,__FILE__)
 #define thread_rwlock_wlock(x) thread_rwlock_wlock_c(x,__LINE__,__FILE__)
 #define thread_rwlock_unlock(x) thread_rwlock_unlock_c(x,__LINE__,__FILE__)
 #define thread_exit(x) thread_exit_c(x,__LINE__,__FILE__)
@@ -188,6 +189,7 @@ void thread_cond_timedwait_c(cond_t *cond, mutex_t *mutex, struct timespec *ts, 
 void thread_cond_destroy(cond_t *cond);
 void thread_rwlock_create_c(const char *name, rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file);
+int  thread_rwlock_tryrlock_c(rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_unlock_c(rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_destroy(rwlock_t *rwlock);
