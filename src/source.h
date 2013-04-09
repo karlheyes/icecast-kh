@@ -67,6 +67,10 @@ typedef struct source_tag
     unsigned int queue_size;
     unsigned int queue_size_limit;
 
+    spin_t shrink_lock;
+    uint64_t shrink_pos;
+    uint64_t shrink_time; 
+
     unsigned timeout;  /* source timeout in seconds */
     unsigned long bytes_sent_since_update;
     unsigned long bytes_read_since_update;

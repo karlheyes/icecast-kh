@@ -163,6 +163,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src->intro_file = -1;
 
         thread_rwlock_create (&src->lock);
+        thread_spin_create (&src->shrink_lock);
 
         avl_insert (global.source_tree, src);
 
@@ -280,6 +281,8 @@ void source_clear_source (source_t *source)
     source->queue_size = 0;
     source->queue_size_limit = 0;
     source->client_stats_update = 0;
+    source->shrink_pos = 0;
+    source->shrink_time = 0;
     util_dict_free (source->audio_info);
     source->audio_info = NULL;
     rate_free (source->out_bitrate);
@@ -311,6 +314,7 @@ static int _free_source (void *p)
 
     thread_rwlock_unlock (&source->lock);
     thread_rwlock_destroy (&source->lock);
+    thread_spin_destroy (&source->shrink_lock);
 
     INFO1 ("freeing source \"%s\"", source->mount);
     format_plugin_clear (source->format, source->client);
@@ -470,6 +474,11 @@ int source_read (source_t *source)
             source->skip_duration = (int)((source->skip_duration + 25) * 1.1);
             if (source->skip_duration > 400)
                 source->skip_duration = 400;
+            if (source->shrink_pos == 0 && source->listeners)
+            {
+                source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
+                source->shrink_time = client->worker->time_ms + 800;
+            } 
             break;
         }
 
@@ -530,11 +539,18 @@ int source_read (source_t *source)
         } while (loop);
 
         /* lets see if we have too much data in the queue */
-        if (source->listeners)
+        loop = 8;
+        if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
+        {
+            queue_size_target = 4000 + (source->client->queue_pos - source->shrink_pos);
+            source->shrink_pos = 0;
+            source->shrink_time = 0;
+            loop = 24;
+        }
+        else if (source->listeners)
             queue_size_target = source->queue_size_limit;
         else
             queue_size_target = source->min_queue_size;
-        loop = 8;
         while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
@@ -1098,6 +1114,12 @@ static int send_listener (source_t *source, client_t *client)
     global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     source->bytes_sent_since_update += total_written;
 
+    if (source->shrink_pos && client->queue_pos < source->shrink_pos)
+    {
+        thread_spin_lock (&source->shrink_lock);
+        source->shrink_pos = client->queue_pos;
+        thread_spin_unlock (&source->shrink_lock);
+    } 
     return ret;
 }
 
