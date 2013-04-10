@@ -894,8 +894,10 @@ void source_listener_detach (source_t *source, client_t *client)
         }
         else
         {
+            int lag = source->client->queue_pos - client->queue_pos;
             client->check_buffer = source->format->write_buf_to_client;
-            if (client->connection.error == 0 && client->pos < ref->len)
+            if (client->connection.error == 0 && client->pos < ref->len &&
+                    source->fallback.mount && lag < source->queue_size)
             {
                 /* make a private copy so that a write can complete */
                 refbuf_t *copy = refbuf_copy (client->refbuf);
