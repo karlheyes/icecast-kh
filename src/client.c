@@ -577,7 +577,7 @@ void *worker (void *arg)
                         continue;
                     }
                 }
-                if (client->schedule_ms < worker->wakeup_ms)
+                if ((client->flags & CLIENT_ACTIVE) && client->schedule_ms < worker->wakeup_ms)
                     worker->wakeup_ms = client->schedule_ms;
             }
             prevp = &client->next_on_worker;
