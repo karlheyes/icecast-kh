@@ -820,7 +820,6 @@ static void *yp_update_thread(void *arg)
 
     /* do the YP communication */
     thread_rwlock_rlock (&yp_lock);
-    ypclient.counter = -1;
     server = (struct yp_server *)active_yps;
     while (server)
     {
@@ -849,6 +848,7 @@ static void *yp_update_thread(void *arg)
     yp_thread = NULL;
     /* DEBUG0("YP thread shutdown"); */
 
+    ypclient.schedule_ms = ypclient.worker->time_ms + 1000;
     ypclient.flags |= CLIENT_ACTIVE;
     worker_wakeup (ypclient.worker);
 
