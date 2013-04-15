@@ -311,22 +311,24 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
     if (to_release && client->flags & CLIENT_HAS_INTRO_CONTENT)
     {
         refbuf_t *intro = to_release->next;
-        while (intro)
+        while (intro && (intro->flags & REFBUF_SHARED) == 0)
         {
             refbuf_t *r = intro->next;
             intro->next = NULL;
             refbuf_release (intro);
             intro = r;
         }
+        if (intro) // leave shared data, someone else should be freeing it
+           ERROR1 ("intro content has a shared flag status for %s", client->connection.ip);
         to_release->next = NULL;
-        client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
     }
+    client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
     client->refbuf = refbuf;
     if (refbuf)
         refbuf_addref (client->refbuf);
 
     client->pos = 0;
-    if (to_release)
+    if (to_release && (to_release->flags & REFBUF_SHARED) == 0)
         refbuf_release (to_release);
 }
 
