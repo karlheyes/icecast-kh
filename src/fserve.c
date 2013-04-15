@@ -570,19 +570,6 @@ int fserve_client_create (client_t *httpclient, const char *path)
 }
 
 
-static void _free_fserve_buffers (client_t *client)
-{
-    refbuf_t *buf = client->refbuf;
-    while (buf)
-    {
-        refbuf_t *old = buf;
-        buf = old->next;
-        old->next = NULL;
-        refbuf_release (old);
-    }
-    client->refbuf = NULL;
-}
-
 
 static void file_release (client_t *client)
 {
@@ -593,7 +580,8 @@ static void file_release (client_t *client)
         stats_event_dec (NULL, "listeners");
     remove_from_fh (fh, client);
 
-    _free_fserve_buffers (client);
+    client_set_queue (client, NULL);
+
     if (client->flags & CLIENT_AUTHENTICATED && client->parser->req_type == httpp_req_get)
     {
         const char *mount = httpp_getvar (client->parser, HTTPP_VAR_URI);
@@ -634,7 +622,7 @@ static int fserve_move_listener (client_t *client)
     fbinfo f;
 
     memset (&f, 0, sizeof (f));
-    _free_fserve_buffers (client);
+    client_set_queue (client, NULL);
     f.flags = fh->finfo.flags & (~FS_DELETE);
     f.limit = fh->finfo.limit;
     f.mount = fh->finfo.fallback;

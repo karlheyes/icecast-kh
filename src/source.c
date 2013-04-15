@@ -885,29 +885,26 @@ void source_listener_detach (source_t *source, client_t *client)
 {
     refbuf_t *ref = client->refbuf;
 
-    if (ref && client->check_buffer != http_source_listener)
+    if (ref && (ref->flags & REFBUF_SHARED)) // && client->check_buffer != http_source_listener)
     {
-        if (client->flags & CLIENT_HAS_INTRO_CONTENT)
+        int lag = source->client->queue_pos - client->queue_pos;
+        client->check_buffer = source->format->write_buf_to_client;
+        if (lag >= source->queue_size)
         {
-            client_set_queue (client, NULL);
-            client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
+            client->connection.error = 1;
+            client->pos = ref->len;
+        }
+
+        if (client->connection.error == 0 && client->pos < ref->len && source->fallback.mount)
+        {
+            /* make a private copy so that a write can complete */
+            refbuf_t *copy = refbuf_copy (client->refbuf);
+
+            client->refbuf = copy;
+            client->flags |= CLIENT_HAS_INTRO_CONTENT;
         }
         else
-        {
-            int lag = source->client->queue_pos - client->queue_pos;
-            client->check_buffer = source->format->write_buf_to_client;
-            if (client->connection.error == 0 && client->pos < ref->len &&
-                    source->fallback.mount && lag < source->queue_size)
-            {
-                /* make a private copy so that a write can complete */
-                refbuf_t *copy = refbuf_copy (client->refbuf);
-
-                client->refbuf = copy;
-                client->flags |= CLIENT_HAS_INTRO_CONTENT;
-            }
-            else
-                client->refbuf = NULL;
-        }
+            client->refbuf = NULL;
     }
     avl_delete (source->clients, client, NULL);
 }
@@ -1930,6 +1927,7 @@ static int source_listener_release (source_t *source, client_t *client)
     source_listener_detach (source, client);
     source->listeners--;
     client->shared_data = NULL;
+    client_set_queue (client, NULL);
     if (source->listeners == 0)
         rate_reduce (source->out_bitrate, 500);
 
