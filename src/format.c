@@ -226,6 +226,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
         const char *range = httpp_getvar (client->parser, "range");
+        const char *fs = httpp_getvar (client->parser, "__FILESIZE");
 
         if (useragent)
         {
@@ -265,15 +266,14 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
                 contenttype = "audio/aac";
         }
-        if (range)
+        if (fs)
         {
-            uint64_t pos1 = 0, pos2 = 50000000, max = pos2;
-            const char *fs = httpp_getvar (client->parser, "__FILESIZE");
+            uint64_t pos1 = 0, pos2 = length ? length : 50000000, max = pos2;
             char buf[30];
 
-            if (fs)
+            sscanf (fs, "%" SCNuMAX, &max);
+            if (range)
             {
-                sscanf (fs, "%" SCNuMAX, &max);
                 if (strncmp (range, "bytes=-", 7) == 0)
                 {
                     sscanf (range, "bytes=-%" SCNuMAX, &pos2);
@@ -290,8 +290,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", pos1, pos2);
                     return -1;
                 }
-                if (length == 0)
-                    length = pos2 - pos1 + 1;
+                length = pos2 - pos1 + 1;
                 snprintf (buf, 30, "%" PRIu64, length);
                 httpp_setvar (client->parser, "__LENGTH", buf);
                 client->respcode = 206;
@@ -305,17 +304,18 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                         length,
                         pos1, pos2, max);
             }
-        }
-        if (client->respcode == 0)
-        {
-            client->respcode = 200;
-            if (length)
+            else
+            {
+                client->respcode = 200;
                 bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
                         "Content-Length: %" PRIu64 "\r\n"
-                        "%s: %s\r\n", protocol, length, contenttypehdr, contenttype);
-            else
-                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
-                        "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+                        "%s: %s\r\n", protocol, max, contenttypehdr, contenttype);
+            }
+        }
+        else
+        {
+            bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
+                    "%s: %s\r\n", protocol, contenttypehdr, contenttype);
         }
         remaining -= bytes;
         ptr += bytes;
