@@ -524,12 +524,12 @@ static void *start_relay_stream (void *arg)
 
         if (open_relay (relay) < 0)
             break;
-        source_init (src);
         if (connection_complete_source (src) < 0)
         {
             WARN1 ("Failed to complete initialisation on %s", relay->localmount);
             break;
         }
+        source_init (src);
         stats_event_inc (NULL, "source_relay_connections");
         failed = 0;
     } while (0);

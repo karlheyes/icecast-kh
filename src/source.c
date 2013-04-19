@@ -1256,7 +1256,7 @@ static int source_set_override (const char *mount, source_t *dest_source, format
                     }
                 }
                 else
-                    ERROR4("%s (%d) and %s(%d) are different formats", mount, type, dest, source->format->type);
+                    ERROR4("%s (%d) and %s(%d) are different formats", dest, type, mount, source->format->type);
                 thread_rwlock_unlock (&source->lock);
                 break;
             }
@@ -2225,6 +2225,8 @@ static void source_swap_client (source_t *source, client_t *client)
 
 int source_startup (client_t *client, const char *uri)
 {
+    ice_config_t *config;
+    mount_proxy *mountinfo;
     source_t *source;
     source = source_reserve (uri, (client->flags & CLIENT_HIJACKER));
 
@@ -2271,6 +2273,12 @@ int source_startup (client_t *client, const char *uri)
         }
         client->respcode = 200;
         client->shared_data = source;
+
+        config = config_get_config();
+        mountinfo = config_find_mount (config, source->mount);
+        source_update_settings (config, source, mountinfo);
+        INFO1 ("source %s is ready to start", source->mount);
+        config_release_config();
 
         if (client->server_conn && client->server_conn->shoutcast_compat)
         {

@@ -1180,9 +1180,7 @@ int connection_complete_source (source_t *source)
 {
     client_t *client = source->client;
     const char *contenttype = httpp_getvar (client->parser, "content-type");
-    mount_proxy *mountinfo;
     format_type_t format_type;
-    ice_config_t *config;
 
     /* setup format handler */
     if (contenttype != NULL)
@@ -1210,12 +1208,6 @@ int connection_complete_source (source_t *source)
         WARN1 ("plugin format failed for \"%s\"", source->mount);
         return -1;
     }
-
-    config = config_get_config();
-    mountinfo = config_find_mount (config, source->mount);
-    source_update_settings (config, source, mountinfo);
-    INFO1 ("source %s is ready to start", source->mount);
-    config_release_config();
 
     return 0;
 }
