@@ -883,28 +883,33 @@ static int http_source_listener (client_t *client)
 
 void source_listener_detach (source_t *source, client_t *client)
 {
-    refbuf_t *ref = client->refbuf;
-
-    if (ref && (ref->flags & REFBUF_SHARED)) // && client->check_buffer != http_source_listener)
+    if (client->check_buffer != http_source_listener) // not in http headers
     {
+        refbuf_t *ref = client->refbuf;
         int lag = source->client->queue_pos - client->queue_pos;
-        client->check_buffer = source->format->write_buf_to_client;
-        if (lag >= source->queue_size)
+
+        if (lag >= source->queue_size) // off the queue
         {
             client->connection.error = 1;
-            client->pos = ref->len;
+            client->pos = 0;
+            if ((client->flags & CLIENT_HAS_INTRO_CONTENT) == 0)
+                client->refbuf = NULL; // must of dropped off the end
         }
-
-        if (client->connection.error == 0 && client->pos < ref->len && source->fallback.mount)
+        else if (ref && (ref->flags & REFBUF_SHARED))
         {
-            /* make a private copy so that a write can complete */
-            refbuf_t *copy = refbuf_copy (client->refbuf);
+            client->check_buffer = source->format->write_buf_to_client;
 
-            client->refbuf = copy;
-            client->flags |= CLIENT_HAS_INTRO_CONTENT;
+            if (client->connection.error == 0 && client->pos < ref->len && source->fallback.mount)
+            {
+                /* make a private copy so that a write can complete */
+                refbuf_t *copy = refbuf_copy (client->refbuf);
+
+                client->refbuf = copy;
+                client->flags |= CLIENT_HAS_INTRO_CONTENT;
+            }
+            else
+                client->refbuf = NULL;
         }
-        else
-            client->refbuf = NULL;
     }
     avl_delete (source->clients, client, NULL);
 }
