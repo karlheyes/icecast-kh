@@ -507,6 +507,7 @@ static void *start_relay_stream (void *arg)
     do
     {
         ice_config_t *config = config_get_config();
+        mount_proxy *mountinfo;
 
         relay = client->shared_data;
         src = relay->source;
@@ -529,8 +530,13 @@ static void *start_relay_stream (void *arg)
             WARN1 ("Failed to complete initialisation on %s", relay->localmount);
             break;
         }
-        source_init (src);
         stats_event_inc (NULL, "source_relay_connections");
+        source_init (src);
+        config = config_get_config();
+        mountinfo = config_find_mount (config, src->mount);
+        source_update_settings (config, src, mountinfo);
+        INFO1 ("source %s is ready to start", src->mount);
+        config_release_config();
         failed = 0;
     } while (0);
 
