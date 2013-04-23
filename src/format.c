@@ -314,6 +314,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         }
         else
         {
+            client->respcode = 200;
             bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
                     "%s: %s\r\n", protocol, contenttypehdr, contenttype);
         }
