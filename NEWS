@@ -16,6 +16,24 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh7
+. processing certain mpeg intro file could lead to a listener disconnection.
+. prevent the '(n' appearing in metadata for mp3/aac streams.
+. Avoid listener remove event if source client passes auth but is rejected due to the
+  source being in use
+. initialise mpeg resync count on first frame found, prevents looping fallback files
+  with ID3 or other content from dropping listener after so many times.
+. fix relays not overriding listeners from a fallback when starting up.
+. introduce lazy slave stats update for updating virtual mountpoints, this reduces 
+  the stats generated if you have many mountpoints with frequent starts and stops.
+. drop PE substitution in metadata, only do the likes of &amp;
+. allow for source queue shrinkage. With the rwlock merging, the queues were left to expand to
+  queue-size whether listeners were lagging or not, this helps reduce unwanted parts of the queue.
+. allow for listener processing to be skipped if it would stall waiting on lock.
+. stats link update, like issuiing NEW commands first at connection before EVENT, not
+  important for most people
+. Various log message updates and small scale lock range updates.
+
 2.3.3-kh6
 . update response header code for returning 200/206. On streams, do not send 206, but
   allow it for file requests.
