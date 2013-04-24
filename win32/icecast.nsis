@@ -1,0 +1,115 @@
+#!Nsis Installer Command Script
+#
+# This is an NSIS Installer Command Script generated automatically
+# by the Fedora nsiswrapper program.  For more information see:
+#
+#   http://fedoraproject.org/wiki/MinGW
+#
+# To build an installer from the script you would normally do:
+#
+#   makensis this_script
+#
+# which will generate the output file 'installer.exe' which is a Windows
+# installer containing your program.
+
+Name "Icecast KH"
+OutFile "icecast-2.3.3-kh7_setup.exe"
+InstallDir "$ProgramFiles\Icecast KH"
+InstallDirRegKey HKLM SOFTWARE\Icecast "Install_Dir"
+
+ShowInstDetails hide
+ShowUninstDetails hide
+
+# Uncomment this to enable BZip2 compression, which results in
+# slightly smaller files but uses more memory at install time.
+#SetCompressor bzip2
+
+XPStyle on
+
+Page components
+Page directory
+Page instfiles
+
+ComponentText "Select which optional components you want to install."
+
+DirText "Please select the installation folder."
+
+Function un.onInit
+    MessageBox MB_YESNO "Uninstall icecast KH from $INSTDIR ?" IDYES NoAbort
+      Abort ; causes uninstaller to quit.
+    NoAbort:
+FunctionEnd
+
+Section "Icecast Installation"
+  SectionIn RO
+
+  SetOutPath "$INSTDIR"
+  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/libogg-0.dll"
+  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/libvorbis-0.dll"
+  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/mingwm10.dll"
+  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/pthreadgc2.dll"
+
+  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/icecast.exe"
+  File "/usr/i686-pc-mingw32/sys-root/mingw/etc/icecast.xml"
+
+  SetOutPath "$INSTDIR\logs"
+  File /r "/usr/i686-pc-mingw32/sys-root/mingw/log/"
+
+  SetOutPath "$INSTDIR\admin"
+  File /r "/usr/i686-pc-mingw32/sys-root/mingw/share/icecast/admin/"
+
+  SetOutPath "$INSTDIR\doc"
+  File /r "/usr/i686-pc-mingw32/sys-root/mingw/share/icecast/doc/"
+
+  SetOutPath "$INSTDIR\web"
+  File /r "/usr/i686-pc-mingw32/sys-root/mingw/share/icecast/web/"
+
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Icecast KH" \
+                 "DisplayName" "Icecast KH"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Icecast KH" \
+                 "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+SectionEnd
+
+Section "Install Service"
+  SetOutPath "$INSTDIR"
+  ExecWait '"$INSTDIR\icecast.exe" "install" "$INSTDIR"'
+SectionEnd
+
+Section "Start Menu Shortcuts"
+  CreateDirectory "$SMPROGRAMS\Icecast KH"
+  CreateShortCut "$SMPROGRAMS\Icecast KH\Edit Configuration.lnk" "notepad.exe" "$INSTDIR\icecast.xml"
+  CreateShortCut "$SMPROGRAMS\Icecast KH\Uninstall Icecast.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
+  CreateShortCut "$SMPROGRAMS\Icecast KH\Run Icecast.lnk" "$INSTDIR\icecast.exe" '-c "$INSTDIR\icecast.xml"'
+SectionEnd
+
+Section "Desktop Icons"
+  CreateShortCut "$DESKTOP\Icecast.lnk" "$INSTDIR\icecast.exe" '-c "$INSTDIR\icecast.xml"'
+SectionEnd
+
+Section "Uninstall"
+  ExecWait '"$INSTDIR\icecast.exe" "remove"'
+  Delete /rebootok "$DESKTOP\Icecast.lnk"
+  Delete /rebootok "$SMPROGRAMS\Icecast KH\Run Icecast.lnk"
+  Delete /rebootok "$SMPROGRAMS\Icecast KH\Uninstall Icecast.lnk"
+  Delete /rebootok "$SMPROGRAMS\Icecast KH\Edit Configuration.lnk"
+  RMDir "$SMPROGRAMS\Icecast KH"
+
+  RMDir /r "$INSTDIR\web"
+  RMDir /r "$INSTDIR\doc"
+  RMDir /r "$INSTDIR\admin"
+  RMDir /r "$INSTDIR\logs"
+
+  Delete /rebootok "$INSTDIR\icecast.xml"
+  Delete /rebootok "$INSTDIR\icecast.exe"
+
+  Delete /rebootok "$INSTDIR\pthreadgc2.dll"
+  Delete /rebootok "$INSTDIR\mingwm10.dll"
+  Delete /rebootok "$INSTDIR\libvorbis-0.dll"
+  Delete /rebootok "$INSTDIR\libogg-0.dll"
+  RMDir "$INSTDIR"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Icecast KH"
+SectionEnd
+
+Section -post
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+SectionEnd
