@@ -110,7 +110,7 @@ static client_t ypclient;
 
 
 /* curl callback used to parse headers coming back from the YP server */
-static int handle_returned_header (void *ptr, size_t size, size_t nmemb, void *stream)
+static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void *stream)
 {
     ypdata_t *yp = stream;
     unsigned bytes = size * nmemb;
@@ -153,7 +153,7 @@ static int handle_returned_header (void *ptr, size_t size, size_t nmemb, void *s
 
 
 /* capture returned data, but don't do anything with it, shouldn't be any */
-static int handle_returned_data (void *ptr, size_t size, size_t nmemb, void *stream)
+static size_t handle_returned_data (void *ptr, size_t size, size_t nmemb, void *stream)
 {
     return (int)(size*nmemb);
 }

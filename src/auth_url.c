@@ -159,7 +159,7 @@ static int my_getpass(void *client, char *prompt, char *buffer, int buflen)
 #endif
 
 
-static int handle_returned_header (void *ptr, size_t size, size_t nmemb, void *stream)
+static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void *stream)
 {
     auth_client *auth_user = stream;
     unsigned bytes = size * nmemb;
@@ -271,7 +271,7 @@ static int handle_returned_header (void *ptr, size_t size, size_t nmemb, void *s
 
 
 
-static int handle_returned_data (void *ptr, size_t size, size_t nmemb, void *stream)
+static size_t handle_returned_data (void *ptr, size_t size, size_t nmemb, void *stream)
 {
     auth_client *auth_user = stream;
     unsigned bytes = size * nmemb;
