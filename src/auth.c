@@ -278,13 +278,11 @@ static void auth_remove_listener (auth_client *auth_user)
     if (auth_user->client)
     {
         client_t *client = auth_user->client;
+        client->flags &= ~CLIENT_AUTHENTICATED;
         if (client->worker)
             client_send_404 (client, NULL);
         else
-        {
-            client->flags &= ~CLIENT_AUTHENTICATED;
             client_destroy (auth_user->client);
-        }
         auth_user->client = NULL;
     }
 }
