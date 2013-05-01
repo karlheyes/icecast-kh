@@ -78,7 +78,6 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     const char *metadata;
     mp3_state *state = calloc(1, sizeof(mp3_state));
     refbuf_t *meta;
-    const char *s;
 
     plugin->get_buffer = mp3_get_no_meta;
     plugin->write_buf_to_client = write_mpeg_buf_to_client;
@@ -90,12 +89,15 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     plugin->set_tag = mp3_set_tag;
     plugin->apply_settings = format_mp3_apply_settings;
 
-    s = httpp_getvar (plugin->parser, "content-type");
-    if (s)
-        plugin->contenttype = strdup (s);
-    else
-        /* We default to MP3 audio for old clients without content types */
-        plugin->contenttype = strdup ("audio/mpeg");
+    if (plugin->contenttype == NULL)
+    {
+        const char *s = httpp_getvar (plugin->parser, "content-type");
+        if (s)
+            plugin->contenttype = strdup (s);
+        else
+            /* We default to MP3 audio for old clients without content types */
+            plugin->contenttype = strdup ("audio/mpeg");
+    }
 
     plugin->_state = state;
 
