@@ -658,7 +658,7 @@ static int command_show_listeners (client_t *client, source_t *source, int respo
 {
     xmlDocPtr doc;
     xmlNodePtr node, srcnode;
-    long id = -1;
+    uint64_t id = -1;
     const char *ID_str = NULL;
     char buf[22];
 
@@ -674,7 +674,7 @@ static int command_show_listeners (client_t *client, source_t *source, int respo
 
     COMMAND_OPTIONAL(client, "id", ID_str);
     if (ID_str)
-        id = atoi (ID_str);
+        sscanf (ID_str, "%" SCNu64, &id);
 
     if (id == -1)
         admin_source_listeners (source, srcnode);
@@ -866,7 +866,7 @@ static int command_kill_source (client_t *client, source_t *source, int response
 static int command_kill_client (client_t *client, source_t *source, int response)
 {
     const char *idtext;
-    int id;
+    uint64_t id;
     client_t *listener;
     xmlDocPtr doc;
     xmlNodePtr node;
@@ -878,7 +878,7 @@ static int command_kill_client (client_t *client, source_t *source, int response
         return client_send_400 (client, "missing arg, id");
     }
 
-    id = atoi(idtext);
+    sscanf (idtext, "%" SCNu64, &id);
 
     listener = source_find_client(source, id);
 
@@ -893,12 +893,12 @@ static int command_kill_client (client_t *client, source_t *source, int response
          * loop
          */
         listener->connection.error = 1;
-        snprintf(buf, sizeof(buf), "Client %d removed", id);
+        snprintf(buf, sizeof(buf), "Client %" PRIu64 " removed", id);
         xmlNewChild(node, NULL, XMLSTR("message"), XMLSTR(buf));
         xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("1"));
     }
     else {
-        snprintf(buf, sizeof(buf), "Client %d not found", id);
+        snprintf(buf, sizeof(buf), "Client %" PRIu64 " not found", id);
         xmlNewChild(node, NULL, XMLSTR("message"), XMLSTR(buf));
         xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("0"));
     }
