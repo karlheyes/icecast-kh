@@ -1600,6 +1600,11 @@ int connection_setup_sockets (ice_config_t *config)
     {
         int successful = 0;
 
+        if (count >= config->listen_sock_count)
+        {
+            ERROR2("sockets seem odd (%d,%d), skipping", count, config->listen_sock_count);
+            break;
+        }
         do
         {
             sock_t sock = sock_get_server_socket (listener->port, listener->bind_address);
@@ -1615,8 +1620,6 @@ int connection_setup_sockets (ice_config_t *config)
                 sock_set_send_buffer (sock, listener->so_sndbuf);
             sock_set_blocking (sock, 0);
             successful = 1;
-            if (count >= config->listen_sock_count)
-                abort();
             global.serversock [count] = sock;
             global.server_conn [count] = listener;
             listener->refcount++;

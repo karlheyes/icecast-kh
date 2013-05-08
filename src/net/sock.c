@@ -1005,12 +1005,17 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
     sock_set_cloexec (sock);
     /* reuse it if we can */
     opt = 1;
+#ifndef WIN32
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt, sizeof(int));
+#endif
 
     /* bind socket to port */
     error = bind(sock, (struct sockaddr *)&sa, sizeof (struct sockaddr_in));
     if (error == -1)
-        return SOCK_ERROR;
+    {
+        sock_close (sock);
+        sock =  SOCK_ERROR;
+    }
 
     return sock;
 }
