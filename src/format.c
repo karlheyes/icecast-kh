@@ -242,7 +242,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             {
                 if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
                     fmtcode = FMT_RETURN_ICY;
-                if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
+                if (fs == NULL && strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
                     fmtcode = FMT_RETURN_ICY;
                 if (strstr (useragent, "RealMedia")) /* hack for rp (mainly mobile) */
                     fmtcode = FMT_RETURN_ICY;
