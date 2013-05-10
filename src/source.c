@@ -701,7 +701,7 @@ static int source_queue_advance (client_t *client)
         client->schedule_ms += source->skip_duration + ret;
         return -1;
     }
-    if (lag >= source->queue_size)
+    if (lag > source->queue_size || (lag == source->queue_size && client->pos))
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
                 client->connection.id, client->connection.ip, client->queue_pos, source->mount);
