@@ -147,7 +147,6 @@
         </authentication>
         <on-connect>/home/icecast/bin/stream-start</on-connect>
         <on-disconnect>/home/icecast/bin/stream-stop</on-disconnect>
-        <file-seekable>0</file-seekable>
     </mount>
     -->
     <!-- other auth possibilities include running a command
@@ -175,7 +174,6 @@
              <option name="listener_remove" value="http://myauthserver.com/scripts/del_listener.php"/>
         </authentication>
     </mount -->
-
 
     <fileserve>1</fileserve>
 
