@@ -224,7 +224,7 @@ int log_open(const char *filename)
 /* set the trigger level to trigger, represented in bytes */
 void log_set_trigger(int id, unsigned long trigger)
 {
-    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
+    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use && trigger)
     {
          loglist [id] . trigger_level = trigger;
     }

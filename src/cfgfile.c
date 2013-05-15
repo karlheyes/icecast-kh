@@ -649,7 +649,6 @@ static int _parse_accesslog (xmlNodePtr node, void *arg)
     log->logid = -1;
     log->type = LOG_ACCESS_CLF;
     log->qstr = 1;
-    log->size = 50*1024*1024;
     if (parse_xml_tags (node, icecast_tags))
         return 2;
     if (type && strcmp (type, "CLF-ESC") == 0)
@@ -675,7 +674,6 @@ static int _parse_errorlog (xmlNodePtr node, void *arg)
 
     log->logid = -1;
     log->level = 3;
-    log->size = 50*1024*1024;
     return parse_xml_tags (node, icecast_tags);
 }
 
@@ -737,6 +735,7 @@ static int _parse_logging (xmlNodePtr node, void *arg)
         return -1;
     if (old_trigger_size > 0)
     {
+        old_trigger_size <<= 10; // convert to bytes
         if (config->error_log.size == 0)
             config->error_log.size = old_trigger_size;
         if (config->access_log.size == 0)
