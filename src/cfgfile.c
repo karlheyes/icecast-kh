@@ -691,7 +691,6 @@ static int _parse_playlistlog (xmlNodePtr node, void *arg)
     };
 
     log->logid = -1;
-    log->size = 10*1024*1024;
     return parse_xml_tags (node, icecast_tags);
 }
 
