@@ -236,13 +236,17 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 #define FMT_LOWERCASE_TYPE      2
 #define FMT_FORCE_AAC           4
 
-            if (resp)
-                fmtcode = atoi (resp);
-            else
+            do
             {
+                if (resp)
+                {
+                    fmtcode = atoi (resp);
+                    break;
+                }
+                if (fs) break;  // ignore following settings for files.
                 if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
                     fmtcode = FMT_RETURN_ICY;
-                if (fs == NULL && strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
+                if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
                     fmtcode = FMT_RETURN_ICY;
                 if (strstr (useragent, "RealMedia")) /* hack for rp (mainly mobile) */
                     fmtcode = FMT_RETURN_ICY;
@@ -258,7 +262,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     if (plugin->type == FORMAT_TYPE_AAC)
                         fmtcode |= FMT_FORCE_AAC;
                 }
-            }
+            } while (0);
             if (fmtcode & FMT_RETURN_ICY)
                 protocol = "ICY";
             if (fmtcode & FMT_LOWERCASE_TYPE)
