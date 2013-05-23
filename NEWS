@@ -16,6 +16,17 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh8
+. Auth remove could be triggered twice if no stream content comes in before time out
+. Incorrect content type sent for aac files
+. The lag check on the queue could trigger a crash, One case was handled now both are.
+. Drop SO_REUSEADDR for win32, can break things over reload.
+. Make file requests use normal HTTP response, while streams go through the agent checks.
+  It seems that for asx playlists, wmp didn't handle ICY, but requires it for streams
+. Fix up the log size setting when using the 2.3 way or doing it. it was being ignored
+. Add ID back into per-listener details as some use 2.3.2 pages, typically centova users
+. 64bit type clean up.
+
 2.3.3-kh7
 . processing certain mpeg intro file could lead to a listener disconnection.
 . prevent the '(n' appearing in metadata for mp3/aac streams.
