@@ -322,7 +322,7 @@ int write_flv_buf_to_client (client_t *client)
 
         if (unprocessed < 0)
             return -1;
-        if (unprocessed > 0)
+        if (unprocessed > 0 && (ref->flags&REFBUF_SHARED) == 0)
             ref->len += unprocessed;   /* output was truncated, so revert changes */
 
         if (flv->seen_metadata != scmeta)
