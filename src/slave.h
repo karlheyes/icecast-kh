@@ -27,5 +27,6 @@ void redirector_setup (ice_config_t *config);
 void redirector_update (struct _client_tag *client);
 relay_server *relay_free (relay_server *relay);
 int  relay_toggle (relay_server *relay);
+int  fallback_count (ice_config_t *config, const char *mount);
 
 #endif  /* __SLAVE_H__ */

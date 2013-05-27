@@ -66,6 +66,7 @@ void event_config_read (void)
 
         connection_thread_shutdown();
         redirector_clearall();
+        fserve_scan ((time_t)0);
         config = config_get_config();
         yp_recheck_config (config);
         fserve_recheck_mime_types (config);

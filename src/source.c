@@ -1801,11 +1801,12 @@ void source_recheck_mounts (int update_all)
             continue;
         }
         source = source_find_mount_raw (mount->mountname);
-        if (source == NULL || source_available (source) == 0)
+        if ((source == NULL || source_available (source) == 0) && mount->fallback_mount)
         {
-            source = source_find_mount (mount->mountname);
-            DEBUG2 ("fallback checking %s %p", mount->mountname, source);
-            if (source)
+            int count = fallback_count (config, mount->fallback_mount);
+
+            DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, count);
+            if (count >= 0)
             {
                 long stats = stats_handle (mount->mountname);
                 stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);

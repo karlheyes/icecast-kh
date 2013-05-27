@@ -1568,34 +1568,12 @@ static int relay_startup (client_t *client)
         source->flags |= SOURCE_ON_DEMAND;
         thread_rwlock_unlock (&source->lock);
         mountinfo = config_find_mount (config_get_config(), source->mount);
+
         if (mountinfo && mountinfo->fallback_mount)
         {
-            source_t *fallback;
-
-            avl_tree_rlock (global.source_tree);
-            fallback = source_find_mount (mountinfo->fallback_mount);
+            if (fallback_count (config_get_config_unlocked(), mountinfo->fallback_mount) > 0)
+                start_relay = 1;
             fallback_def = 1;
-            if (fallback)
-            {
-                thread_rwlock_rlock (&fallback->lock);
-                avl_tree_unlock (global.source_tree);
-                if (strcmp (fallback->mount, source->mount) != 0 && fallback->listeners)
-                    start_relay = 1;
-                thread_rwlock_unlock (&fallback->lock);
-            }
-            else
-            {
-                fbinfo finfo;
-
-                avl_tree_unlock (global.source_tree);
-                finfo.flags = FS_FALLBACK;
-                finfo.mount = (char *)mountinfo->fallback_mount;
-                finfo.fallback = NULL;
-
-                // need to check for listeners on the fallback
-                if (fserve_query_count (&finfo) > 0)
-                    start_relay = 1; // force a start if there is fallback defined
-            }
         }
         config_release_config();
         if (start_relay == 0)
@@ -1630,3 +1608,45 @@ static int relay_startup (client_t *client)
     return 0;
 }
 
+
+int fallback_count (ice_config_t *config, const char *mount)
+{
+    int count = -1;
+    const char *m = mount;
+
+    if (mount == NULL) return -1;
+    avl_tree_rlock (global.source_tree);
+    while (m)
+    {
+        source_t *fallback = source_find_mount_raw (m);
+        if (fallback == NULL || source_running (fallback) == 0)
+        {
+            mount_proxy *mountinfo = config_find_mount (config, m);
+            if (fallback == NULL)
+            {
+                fbinfo finfo;
+
+                memset (&finfo, 0, sizeof (finfo));
+                finfo.flags = FS_FALLBACK;
+                finfo.mount = (char *)m;
+                finfo.fallback = NULL;
+                finfo.limit = mountinfo ? mountinfo->limit_rate/8 : 0;
+                if (finfo.limit == 0)
+                {
+                    unsigned int rate;
+                    if (sscanf (m, "%*[^[][%u]", &rate) == 1)
+                       finfo.limit = rate * 1000 / 8;
+                }
+                count = fserve_query_count (&finfo);
+            }
+            if (mountinfo == NULL)
+                break;
+            m = mountinfo->fallback_mount;
+            continue;
+        }
+        count = fallback->listeners;
+        break;
+    }
+    avl_tree_unlock (global.source_tree);
+    return count;
+}
