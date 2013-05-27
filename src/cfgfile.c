@@ -734,6 +734,8 @@ static int _parse_logging (xmlNodePtr node, void *arg)
         return -1;
     if (old_trigger_size > 0)
     {
+        if (old_trigger_size > 10000000) // have a very large upper value
+            old_trigger_size = 10000000;
         old_trigger_size <<= 10; // convert to bytes
         if (config->error_log.size == 0)
             config->error_log.size = old_trigger_size;
