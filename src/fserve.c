@@ -275,18 +275,23 @@ static void remove_from_fh (fh_node *fh, client_t *client)
     thread_mutex_lock (&fh->lock);
     avl_delete (fh->clients, client, NULL);
     fh->refcount--;
-    if (fh->clients->length == 0 && (fh->finfo.flags & FS_FALLBACK) == 0 && fh->finfo.mount)
+    if (fh->refcount == 0 && fh->finfo.mount)
     {
-        if (fh->finfo.flags & FS_DELETE)
+        rate_free (fh->out_bitrate);
+        fh->out_bitrate = rate_setup (10000, 1000);
+        if ((fh->finfo.flags & FS_FALLBACK) == 0)
         {
-            thread_mutex_unlock (&fh->lock);
-            _delete_fh (fh);
-            return;
-        }
-        else
-        {
-            DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
-            fh->expire = time(NULL) + 6;
+            if (fh->finfo.flags & FS_DELETE)
+            {
+                thread_mutex_unlock (&fh->lock);
+                _delete_fh (fh);
+                return;
+            }
+            else
+            {
+                DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
+                fh->expire = time(NULL) + 6;
+            }
         }
     }
     thread_mutex_unlock (&fh->lock);
