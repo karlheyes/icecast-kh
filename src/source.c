@@ -85,7 +85,7 @@ static int  locate_start_on_queue (source_t *source, client_t *client);
 static int  listener_change_worker (client_t *client, source_t *source);
 static int  source_change_worker (source_t *source, client_t *client);
 static int  source_client_callback (client_t *client);
-static int  source_set_override (const char *mount, source_t *dest_source, format_type_t type);
+static int  source_set_override (mount_proxy *mountinfo, source_t *dest_source, format_type_t type);
 
 #ifdef _WIN32
 #define source_run_script(x,y)  WARN0("on [dis]connect scripts disabled");
@@ -1206,8 +1206,7 @@ void source_init (source_t *source)
          ** loop or jingle track or whatever the fallback is used for
          */
 
-        if (mountinfo->fallback_override && mountinfo->fallback_mount)
-            source_set_override (mountinfo->fallback_mount, source, type);
+        source_set_override (mountinfo, source, type);
     }
     config_release_config();
 
@@ -1220,19 +1219,30 @@ void source_init (source_t *source)
 }
 
 
-static int source_set_override (const char *mount, source_t *dest_source, format_type_t type)
+static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, format_type_t type)
 {
     source_t *source;
     const char *dest = dest_source->mount;
     int ret = 0, loop = 15;
-    mount_proxy *mountinfo;
     ice_config_t *config = config_get_config_unlocked();
+    unsigned int len;
+    char *mount = dest_source->mount, buffer [4096];
 
-    INFO1 ("for %s", dest_source->mount);
+    if (mountinfo == NULL || mountinfo->fallback_mount == NULL || mountinfo->fallback_override == 0)
+    {
+        INFO1 ("no override for %s set", dest_source->mount);
+        return 0;
+    }
+    INFO2 ("for %s set to %s", dest_source->mount, mountinfo->fallback_mount);
     avl_tree_rlock (global.source_tree);
     while (loop--)
     {
-        DEBUG2 ("checking for %s on %s", mount, dest_source->mount);
+        len = sizeof buffer;
+        if (util_expand_pattern (mount, mountinfo->fallback_mount, buffer, &len) < 0)
+            break;
+        mount = buffer;
+
+        DEBUG2 ("checking for %s on %s", mount, dest);
         source = source_find_mount_raw (mount);
         if (source)
         {
@@ -1268,14 +1278,13 @@ static int source_set_override (const char *mount, source_t *dest_source, format
             thread_rwlock_unlock (&source->lock);
         }
         mountinfo = config_find_mount (config, mount);
-        if (mountinfo && mountinfo->fallback_mount && mountinfo->fallback_override)
+        if (mountinfo == NULL || mountinfo->fallback_mount == NULL || mountinfo->fallback_override == 0)
         {
-            mount = mountinfo->fallback_mount;
-            continue;
+            avl_tree_unlock (global.source_tree);
+            if (mount)
+                ret = fserve_set_override (mount, dest, type);
+            break;
         }
-        avl_tree_unlock (global.source_tree);
-        ret = fserve_set_override (mount, dest, type);
-        break;
     }
     return ret;
 }
@@ -1305,6 +1314,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
         bitrate = source->limit_rate;
 
     source->fallback.mount = strdup (dest_mount);
+    source->fallback.fallback = source->mount;
     source->fallback.flags = FS_FALLBACK;
     source->fallback.limit = bitrate;
     source->fallback.type = source->format->type;
@@ -1559,18 +1569,19 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
     if (mountinfo && mountinfo->intro_filename)
     {
         ice_config_t *config = config_get_config_unlocked ();
-        unsigned int len  = strlen (config->webroot_dir) +
-            strlen (mountinfo->intro_filename) + 2;
-        char *path = malloc (len);
-        if (path)
-        {
-            snprintf (path, len, "%s" PATH_SEPARATOR "%s", config->webroot_dir,
-                    mountinfo->intro_filename);
+        char buffer[4096];
+        unsigned int len = 4096;
+        int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->webroot_dir);
 
-            DEBUG1 ("intro file is %s", mountinfo->intro_filename);
-            if (file_open (&source->intro_file, path) < 0)
-                WARN2 ("Cannot open intro file \"%s\": %s", path, strerror(errno));
-            free (path);
+        if (ret > 0 && ret < len)
+        {
+            len -= ret;
+            if (util_expand_pattern (source->mount, mountinfo->intro_filename, buffer + ret, &len) == 0)
+            {
+                DEBUG2 ("intro file is %s (%s)", mountinfo->intro_filename, buffer);
+                if (file_open (&source->intro_file, buffer) < 0)
+                    WARN2 ("Cannot open intro file \"%s\": %s", buffer, strerror(errno));
+            }
         }
     }
     if (mountinfo && mountinfo->queue_size_limit)
@@ -1726,7 +1737,13 @@ static void source_run_script (char *command, char *mountpoint)
 
                         p = strdup (command);
                         while (i < MAX_SCRIPT_ARGS && (args[i] = strsep (&p, " \t")))
+                        {
+                            unsigned len = 4096;
+                            char *str = malloc (len);
+                            if (util_expand_pattern (mountpoint, args[i], str, &len) == 0)
+                                args[i] = str;
                             i++;
+                        }
                         if (i == 1) // default is to supply mountpoint
                         {
                             args[1] = mountpoint;
@@ -1758,9 +1775,8 @@ static void source_run_script (char *command, char *mountpoint)
 
 static int is_mount_template (const char *mount)
 {
-    if (strchr (mount, '*') || strchr (mount, '?') || strchr (mount, '['))
-        return 1;
-    return 0;
+    int len = strcspn (mount, "*?[$");
+    return (mount[len]) ? 1 : 0;
 }
 
 
@@ -1803,7 +1819,13 @@ void source_recheck_mounts (int update_all)
         source = source_find_mount_raw (mount->mountname);
         if ((source == NULL || source_available (source) == 0) && mount->fallback_mount)
         {
-            int count = fallback_count (config, mount->fallback_mount);
+            int count = -1;
+            unsigned int len;
+            char buffer [4096];
+
+            len = sizeof buffer;
+            if (util_expand_pattern (mount->mountname, mount->fallback_mount, buffer, &len) == 0)
+                count = fallback_count (config, buffer);
 
             DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, count);
             if (count >= 0)
@@ -1961,6 +1983,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     mount_proxy *minfo = mountinfo;
     const char *passed_mount = mount;
     ice_config_t *config = config_get_config_unlocked();
+    unsigned int len;
+    char buffer[4096];
 
     do
     {
@@ -2009,9 +2033,14 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     }
                     ret = -1;
                 }
+                DEBUG2 ("request for throttled file %s (%d) failed", mount, rate*8);
                 return ret;
             }
-            mount = minfo->fallback_mount;
+            len = sizeof buffer;
+            if (util_expand_pattern (mount, minfo->fallback_mount, buffer, &len) < 0)
+                mount = minfo->fallback_mount;
+            else
+                mount = buffer;
             minfo = config_find_mount (config_get_config_unlocked(), mount);
             flags = FS_FALLBACK;
             loop--;
@@ -2108,7 +2137,10 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         if (minfo && minfo->fallback_when_full && minfo->fallback_mount)
         {
             thread_rwlock_unlock (&source->lock);
-            mount = minfo->fallback_mount;
+            if (util_expand_pattern (mount, minfo->fallback_mount, buffer, &len) < 0)
+                mount = minfo->fallback_mount;
+            else
+                mount = buffer;
             INFO1 ("stream full trying %s", mount);
             loop--;
             continue;

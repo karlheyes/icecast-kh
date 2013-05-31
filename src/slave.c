@@ -1613,14 +1613,17 @@ int fallback_count (ice_config_t *config, const char *mount)
 {
     int count = -1;
     const char *m = mount;
+    char buffer[4096];
 
     if (mount == NULL) return -1;
+    if (strstr (mount, "${")) return -1;
     avl_tree_rlock (global.source_tree);
     while (m)
     {
         source_t *fallback = source_find_mount_raw (m);
         if (fallback == NULL || source_running (fallback) == 0)
         {
+            unsigned int len;
             mount_proxy *mountinfo = config_find_mount (config, m);
             if (fallback == NULL)
             {
@@ -1641,7 +1644,10 @@ int fallback_count (ice_config_t *config, const char *mount)
             }
             if (mountinfo == NULL)
                 break;
-            m = mountinfo->fallback_mount;
+            len = sizeof buffer;
+            if (util_expand_pattern (m, mountinfo->fallback_mount, buffer, &len) < 0)
+                break;
+            m = buffer;
             continue;
         }
         count = fallback->listeners;

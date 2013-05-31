@@ -960,3 +960,52 @@ int util_get_clf_time (char *buffer, unsigned len, time_t now)
 
 #endif
 
+
+/* this routine tales the pattern and expands it with mount and fills the result in buffer.
+ * the len_p initially indicates the max buffer size and is returned as the amount written,
+ * the mount is initially copied allowing to a loop where the buffer is later provided to
+ * mount on a subsequent invocation.
+ */
+int util_expand_pattern (const char *mount, const char *pattern, char *buf, unsigned int *len_p)
+{
+   unsigned int max = (*len_p)-1, i = 0, j = 0;
+   int len = mount ? strlen (mount) : 0;
+   char *mnt;
+
+   if (pattern == NULL || mount == NULL)
+   {
+       int r = snprintf (buf, *len_p, "%s", mount ? mount : pattern);
+       if (r < 1) return -1;
+       *len_p = (unsigned int)r;
+       return 0;
+   }
+   if (len && mount[0] == '/')
+   {
+      mount++;  // lets skip over the first slash if there is one
+      len--;
+   }
+   if (len < 1 || len > max) return -1;
+
+   mnt = strdup (mount);
+   while (i < max)
+   {
+      if (pattern[j] == 0) break;
+      if (pattern[j] == '$')
+      {
+          if (strncmp (pattern+j, "${mount}", 8) == 0)
+          {
+              strncpy (buf+i, mnt, len);
+              j += 8;
+              i += len;
+              continue;
+          }
+          // other tags to expand?
+      }
+      buf [i++] = pattern [j++];
+   }
+   buf [i] = '\0';
+   *len_p = i;
+   free (mnt);
+   return 0;
+}
+

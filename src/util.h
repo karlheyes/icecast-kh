@@ -66,5 +66,6 @@ void rate_free (struct rate_calc *calc);
 void rate_reduce (struct rate_calc *calc, unsigned int range);
 
 int get_line(FILE *file, char *buf, size_t siz);
+int util_expand_pattern (const char *mount, const char *pattern, char *buf, unsigned int *len_p);
 
 #endif  /* __UTIL_H__ */

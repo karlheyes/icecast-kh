@@ -290,7 +290,7 @@ static void remove_from_fh (fh_node *fh, client_t *client)
             else
             {
                 DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
-                fh->expire = time(NULL) + 6;
+                fh->expire = time(NULL) + 10;
             }
         }
     }
@@ -422,8 +422,7 @@ static fh_node *open_fh (fbinfo *finfo)
     fh->refcount = 0;
     fh->peak = 0;
     fh->finfo.mount = strdup (finfo->mount);
-    if (finfo->fallback)
-        fh->finfo.fallback = strdup (finfo->fallback);
+    fh->finfo.fallback = NULL;
 
     return fh;
 }

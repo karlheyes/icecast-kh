@@ -382,12 +382,19 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
     int rate = finfo->limit, loop = 20, ret = -1;
     ice_config_t *config = config_get_config();
     struct _fbinfo where;
+    unsigned int len = 4096;
+    char buffer [len];
 
     memcpy (&where, finfo, sizeof (where));
-    where.mount = strdup (finfo->mount);
+    if (finfo->fallback)
+        where.fallback = strdup (finfo->fallback);
     avl_tree_rlock (global.source_tree);
     do
     {
+        len = sizeof buffer;
+        util_expand_pattern (where.fallback, where.mount, buffer, &len);
+        where.mount = buffer;
+
         minfo = config_find_mount (config, where.mount);
 
         if (rate == 0 && minfo && minfo->limit_rate)
@@ -410,7 +417,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                     source->listeners++;
                     client->flags |= CLIENT_HAS_MOVED;
                     thread_rwlock_unlock (&source->lock);
-                    free (where.mount);
+                    free (where.fallback);
                     return 0;
                 }
             }
@@ -418,13 +425,12 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         }
         if (minfo && minfo->fallback_mount)
         {
-            free (where.mount);
-            where.mount = strdup (minfo->fallback_mount);
+            free (where.fallback);
+            where.fallback = strdup (where.mount);
+            where.mount = minfo->fallback_mount;
         }
         else
-        {
             break;
-        }
     } while (loop--);
 
     avl_tree_unlock (global.source_tree);
@@ -441,7 +447,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         client->intro_offset = 0;
         ret = fserve_setup_client_fb (client, &where);
     }
-    free (where.mount);
+    free (where.fallback);
     return ret;
 }
 
