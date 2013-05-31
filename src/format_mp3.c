@@ -608,7 +608,9 @@ static int write_mpeg_buf_to_client (client_t *client)
         return send_iceblock_to_client (client);
     if (client->flags & CLIENT_WANTS_FLV)
         return write_flv_buf_to_client (client);
-    return format_mp3_write_buf_to_client (client);
+    if (client->format_data)
+        return format_mp3_write_buf_to_client (client);
+    return format_generic_write_to_client (client);
 }
 
 
