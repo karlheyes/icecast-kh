@@ -188,6 +188,7 @@ int format_generic_write_to_client (client_t *client)
     {
         client->pos += ret;
         client->counter += ret;
+        client->queue_pos += ret;
     }
 
     return ret;
