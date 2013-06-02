@@ -1138,12 +1138,19 @@ void source_init (source_t *source)
 
     if (source->dumpfilename != NULL)
     {
-        INFO2 ("dumpfile \"%s\" for %s", source->dumpfilename, source->mount);
-        source->dumpfile = fopen (source->dumpfilename, "ab");
-        if (source->dumpfile == NULL)
+        unsigned int len;
+        char buffer [4096];
+
+        len = sizeof buffer;
+        if (util_expand_pattern (source->mount, source->dumpfilename, buffer, &len) == 0)
         {
-            WARN2("Cannot open dump file \"%s\" for appending: %s, disabling.",
-                    source->dumpfilename, strerror(errno));
+            INFO2 ("dumpfile \"%s\" for %s", buffer, source->mount);
+            source->dumpfile = fopen (buffer, "ab");
+            if (source->dumpfile == NULL)
+            {
+                WARN2("Cannot open dump file \"%s\" for appending: %s, disabling.",
+                        buffer, strerror(errno));
+            }
         }
     }
 
