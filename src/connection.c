@@ -1600,7 +1600,7 @@ int connection_setup_sockets (ice_config_t *config)
     {
         int successful = 0;
 
-        if (count >= config->listen_sock_count)
+        if (count > config->listen_sock_count)
         {
             ERROR2("sockets seem odd (%d,%d), skipping", count, config->listen_sock_count);
             break;
