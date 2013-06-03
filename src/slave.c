@@ -141,6 +141,16 @@ relay_server *relay_copy (relay_server *r)
             copy->username = (char *)xmlStrdup (XMLSTR(r->username));
         if (r->password)
             copy->password = (char *)xmlStrdup (XMLSTR(r->password));
+        if (r->user_agent)
+            copy->user_agent = (char *)xmlStrdup (XMLSTR(r->user_agent));
+        if (r->stream_name)
+            copy->stream_name = (char *)xmlStrdup (XMLSTR(r->stream_name));
+        if (r->stream_description)
+            copy->stream_description = (char *)xmlStrdup (XMLSTR(r->stream_description));
+        if (r->stream_url)
+            copy->stream_url = (char *)xmlStrdup (XMLSTR(r->stream_url));
+        if (r->stream_genre)
+            copy->stream_genre = (char *)xmlStrdup (XMLSTR(r->stream_genre));
         copy->mp3metadata = r->mp3metadata;
         copy->on_demand = r->on_demand;
         copy->interval = r->interval;
@@ -290,10 +300,10 @@ int redirect_client (const char *mountpoint, client_t *client)
 
 
 static http_parser_t *get_relay_response (connection_t *con, const char *mount,
-        const char *server, int ask_for_metadata, const char *auth_header)
+        const char *server, int ask_for_metadata, const char *auth_header, relay_server *relay)
 {
     ice_config_t *config = config_get_config ();
-    char *server_id = strdup (config->server_id);
+    char *server_id = strdup (relay->user_agent ? relay->user_agent : config->server_id);
     http_parser_t *parser = NULL;
     char response [4096];
 
@@ -389,7 +399,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             break;
         }
 
-        parser = get_relay_response (con, mount, server, ask_for_metadata, auth_header);
+        parser = get_relay_response (con, mount, server, ask_for_metadata, auth_header, relay);
 
         if (parser == NULL)
         {
@@ -435,6 +445,14 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
                 client->parser = NULL;
                 break;
             }
+            if (relay->stream_description) // override even if exists
+                httpp_setvar (parser, "icy-description", relay->stream_description);
+            if (relay->stream_name)
+                httpp_setvar (parser, "icy-name", relay->stream_name);
+            if (relay->stream_url)
+                httpp_setvar (parser, "icy-url", relay->stream_url);
+            if (relay->stream_genre)
+                httpp_setvar (parser, "icy-genre", relay->stream_genre);
             sock_set_blocking (streamsock, 0);
             thread_rwlock_wlock (&relay->source->lock);
             client->parser = parser; // old parser will be free in the format clear
