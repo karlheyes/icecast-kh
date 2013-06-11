@@ -1611,14 +1611,14 @@ static int relay_startup (client_t *client)
 
 int fallback_count (ice_config_t *config, const char *mount)
 {
-    int count = -1;
+    int count = -1, loop = 10;
     const char *m = mount;
     char buffer[4096];
 
     if (mount == NULL) return -1;
     if (strstr (mount, "${")) return -1;
     avl_tree_rlock (global.source_tree);
-    while (m)
+    while (m && loop--)
     {
         source_t *fallback = source_find_mount_raw (m);
         if (fallback == NULL || source_running (fallback) == 0)
