@@ -673,6 +673,10 @@ static int complete_read (source_t *source)
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
         return 0;
+    if (source->incoming_rate && source->incoming_rate < 65536)
+        client->schedule_ms += (65536/source->incoming_rate);
+    else
+        client->schedule_ms += 2; 
     return 1;
 }
 

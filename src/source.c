@@ -325,15 +325,28 @@ static int _free_source (void *p)
 }
 
 
+// drop source from tree, so it cannot be found by name. No lock on source on entry but
+// lock still active on return (stats cleared)
+static void drop_source_from_tree (source_t *source)
+{
+    avl_tree_wlock (global.source_tree);
+    avl_delete (global.source_tree, source, NULL);
+    avl_tree_unlock (global.source_tree);
+
+    DEBUG1 ("removed source %s from tree", source->mount);
+    thread_rwlock_wlock (&source->lock);
+    stats_lock (source->stats, source->mount);
+    stats_set (source->stats, NULL, NULL);
+    source->stats = 0;
+}
+
+
 /* Remove the provided source from the global tree and free it */
 void source_free_source (source_t *source)
 {
     INFO1 ("source %s to be freed", source->mount);
-    avl_tree_wlock (global.source_tree);
-    thread_rwlock_wlock (&source->lock);
-    DEBUG1 ("removing source %s from tree", source->mount);
-    avl_delete (global.source_tree, source, _free_source);
-    avl_tree_unlock (global.source_tree);
+    drop_source_from_tree (source);
+    _free_source (source);
 }
 
 
@@ -381,6 +394,7 @@ static void update_source_stats (source_t *source)
     source->bytes_sent_since_update %= 1024;
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
+    source->incoming_rate = incoming_rate;
 }
 
 
@@ -478,7 +492,7 @@ int source_read (source_t *source)
             {
                 source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
                 source->shrink_time = client->worker->time_ms + 800;
-            } 
+            }
             break;
         }
 
@@ -608,7 +622,6 @@ static int source_client_read (client_t *client)
     {
         if (source->limit_rate)
         {
-            source->incoming_rate = (long)rate_avg (source->in_bitrate);
             if (source->limit_rate < (8 * source->incoming_rate))
             {
                 rate_add (source->in_bitrate, 0, client->worker->current_time.tv_sec);
@@ -629,16 +642,11 @@ static int source_client_read (client_t *client)
     {
         source_shutdown (source, 1);
 
-        thread_rwlock_unlock (&source->lock);
-        // actually prevent this source being found unless already referenced
-        avl_tree_wlock (global.source_tree);
-        DEBUG1 ("removing source %s from tree", source->mount);
-        avl_delete (global.source_tree, source, NULL);
-        stats_lock (source->stats, source->mount);
-        stats_set (source->stats, NULL, NULL);
-        source->stats = 0;
-        avl_tree_unlock (global.source_tree);
-        thread_rwlock_wlock (&source->lock);
+        if (source->wait_time == 0)
+        {
+            thread_rwlock_unlock (&source->lock);
+            drop_source_from_tree (source);
+        }
     }
 
     if (source->termination_count && source->termination_count <= source->listeners)
@@ -665,13 +673,25 @@ static int source_client_read (client_t *client)
             thread_rwlock_unlock (&source->lock);
             return 0;
         }
-        INFO1 ("no more listeners on %s", source->mount);
-        //stats_event_args (source->mount, "listeners", "%lu", source->listeners);
-        client->connection.discon_time = 0;
-        client->ops = &source_client_halt_ops;
         free (source->fallback.mount);
         source->fallback.mount = NULL;
         source->flags &= ~SOURCE_LISTENERS_SYNC;
+        client->connection.discon_time = 0;
+        client->ops = &source_client_halt_ops;
+        global_lock();
+        global.sources--;
+        stats_event_args (NULL, "sources", "%d", global.sources);
+        global_unlock();
+        if (source->wait_time == 0 || global.running != ICE_RUNNING)
+        {
+            thread_rwlock_unlock (&source->lock);
+            INFO1 ("no more listeners on %s", source->mount);
+            return -1;
+        }
+        /* set a wait time for leaving the source reserved */
+        client->connection.discon_time = client->worker->current_time.tv_sec + source->wait_time;
+        client->schedule_ms = client->worker->time_ms + (1000 * source->wait_time);
+        INFO2 ("listeners gone, keeping %s reserved for %d seconds", source->mount, source->wait_time);
     }
     thread_rwlock_unlock (&source->lock);
     return 0;
@@ -971,7 +991,10 @@ static int send_to_listener (client_t *client)
     if (source == NULL)
         return -1;
     if (thread_rwlock_tryrlock (&source->lock) != 0)
-        return 0; // probably busy, check next client, come back to this 
+    {
+        client->schedule_ms = client->worker->time_ms + 4;
+        return 0; // probably busy, check next client, come back to this
+    }
     ret = send_listener (source, client);
     if (ret == 1)
         return 1; // client moved, and source unlocked
@@ -1123,7 +1146,7 @@ static int send_listener (source_t *source, client_t *client)
         thread_spin_lock (&source->shrink_lock);
         source->shrink_pos = client->queue_pos;
         thread_spin_unlock (&source->shrink_lock);
-    } 
+    }
     return ret;
 }
 
@@ -1577,7 +1600,7 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
     {
         ice_config_t *config = config_get_config_unlocked ();
         char buffer[4096];
-        unsigned int len = 4096;
+        unsigned int len = sizeof buffer;
         int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->webroot_dir);
 
         if (ret > 0 && ret < len)
@@ -1686,18 +1709,6 @@ static int source_client_callback (client_t *client)
 {
     const char *agent;
     source_t *source = client->shared_data;
-
-    if (client->connection.error) /* did http response fail? */
-    {
-        thread_rwlock_unlock (&source->lock);
-        avl_tree_wlock (global.source_tree);
-        avl_delete (global.source_tree, source, NULL);
-        avl_tree_unlock (global.source_tree);
-        global_lock();
-        global.sources--;
-        global_unlock();
-        return -1;
-    }
 
     stats_event_inc(NULL, "source_client_connections");
     client_set_queue (client, NULL);
@@ -1893,39 +1904,21 @@ int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client,
 }
 
 
-/* listeners have now detected the source shutting down, now wait for them to 
- * exit the handlers
+/* source required to stay around for a short while
  */
 static int source_client_shutdown (client_t *client)
 {
-    source_t *source = client->shared_data;
-    int ret = -1;
-
-    client->schedule_ms = client->worker->time_ms + 100;
-    if (client->connection.discon_time)
+    if (global.running == ICE_RUNNING && client->connection.discon_time)
     {
         if (client->connection.discon_time >= client->worker->current_time.tv_sec)
+        {
+            client->schedule_ms = client->worker->time_ms + 50;
             return 0;
-        else
-            return -1;
+        }
     }
-    thread_rwlock_wlock (&source->lock);
-    if (source->listeners)
-        INFO1 ("remaining listeners to process is %d", source->listeners);
-    /* listeners handled now */
-    if (source->wait_time)
-    {
-        /* set a wait time for leaving the source reserved */
-        client->connection.discon_time = client->worker->current_time.tv_sec + source->wait_time;
-        INFO2 ("keeping %s reserved for %d seconds", source->mount, source->wait_time);
-        ret = 0;
-    }
-    thread_rwlock_unlock (&source->lock);
-    global_lock();
-    global.sources--;
-    stats_event_args (NULL, "sources", "%d", global.sources);
-    global_unlock();
-    return ret;
+    drop_source_from_tree ((source_t*)client->shared_data);
+    // source locked but exit function will want it locked
+    return -1;
 }
 
 
@@ -1934,9 +1927,6 @@ void source_client_release (client_t *client)
 {
     source_t *source = client->shared_data;
 
-    global_reduce_bitrate_sampling (global.out_bitrate);
-
-    thread_rwlock_wlock (&source->lock);
     source->flags &= ~(SOURCE_RUNNING|SOURCE_ON_DEMAND);
     client->flags &= ~CLIENT_AUTHENTICATED;
     /* log bytes read in access log */
@@ -1946,6 +1936,7 @@ void source_client_release (client_t *client)
     _free_source (source);
     slave_update_mounts();
     client_destroy (client);
+    global_reduce_bitrate_sampling (global.out_bitrate);
 }
 
 
@@ -2144,6 +2135,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         if (minfo && minfo->fallback_when_full && minfo->fallback_mount)
         {
             thread_rwlock_unlock (&source->lock);
+            len = sizeof buffer;
             if (util_expand_pattern (mount, minfo->fallback_mount, buffer, &len) < 0)
                 mount = minfo->fallback_mount;
             else
@@ -2224,14 +2216,21 @@ static int source_client_http_send (client_t *client)
     refbuf_t *stream;
     source_t *source = client->shared_data;
 
-    if (client->pos < client->refbuf->len)
+    while (client->pos < client->refbuf->len)
     {
-        int ret = format_generic_write_to_client (client);
-        if ((ret < 0 && sock_recoverable (sock_error())) ||
-                (ret < client->refbuf->len))
+        if (client->connection.error || format_generic_write_to_client (client) < 0)
         {
+            client->connection.error = 1;
             client->schedule_ms = client->worker->time_ms + 40;
-            return 0; /* trap for short writes */
+            if (client->connection.error == 0)
+                return 0; /* trap for short writes */
+            global_lock();
+            global.sources--;
+            stats_event_args (NULL, "sources", "%d", global.sources);
+            global_unlock();
+            thread_rwlock_wlock (&source->lock);
+            WARN1 ("failed to send OK response to source client for %s", source->mount);
+            return -1;
         }
     }
     stream = client->refbuf->associated;
@@ -2295,9 +2294,8 @@ int source_startup (client_t *client, const char *uri)
             {
                 WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
                 global_unlock();
-                client_send_403 (client, "too many streams connected");
                 source_free_source (source);
-                return 0;
+                return client_send_403 (client, "too many streams connected");
             }
             global.sources++;
             INFO1 ("sources count is now %d", global.sources);
@@ -2310,10 +2308,9 @@ int source_startup (client_t *client, const char *uri)
             if (connection_complete_source (source) < 0)
             {
                 source->client = NULL;
-                client_send_403 (client, "content type not supported");
                 thread_rwlock_unlock (&source->lock);
                 source_free_source (source);
-                return 0;
+                return client_send_403 (client, "content type not supported");
             }
         }
         client->respcode = 200;
@@ -2344,15 +2341,15 @@ int source_startup (client_t *client, const char *uri)
             client->ops = &source_client_http_ops;
             thread_rwlock_unlock (&source->lock);
         }
-        client->flags |= CLIENT_ACTIVE;
-        worker_wakeup (client->worker);
+        if ((client->flags & CLIENT_ACTIVE) == 0)
+        {
+            client->flags |= CLIENT_ACTIVE;
+            worker_wakeup (client->worker);
+        }
+        return 0;
     }
-    else
-    {
-        client_send_403 (client, "Mountpoint in use");
-        WARN1 ("Mountpoint %s in use", uri);
-    }
-    return 0;
+    WARN1 ("Mountpoint %s in use", uri);
+    return client_send_403 (client, "Mountpoint in use");
 }
 
 
@@ -2371,7 +2368,7 @@ static int source_change_worker (source_t *source, client_t *client)
     if (worker && worker != client->worker)
     {
         long diff = this_worker->count - worker->count;
-        if (diff > 20 || (diff > (source->listeners>>1) + 3))
+        if (diff > 50 || (diff > (source->listeners>>1) + 3))
         {
             this_worker->move_allocations--;
             thread_rwlock_unlock (&source->lock);
@@ -2405,7 +2402,7 @@ int listener_change_worker (client_t *client, source_t *source)
     {
         diff = dest_worker->count - this_worker->count;
         // do not move listener if source client worker has sufficiently more clients
-        if (diff > 10)
+        if (diff > 100)
             dest_worker = NULL;
     }
     else
@@ -2413,7 +2410,7 @@ int listener_change_worker (client_t *client, source_t *source)
         dest_worker = worker_selected ();
         // do not move if least busy worker is significantly less than ours
         diff = this_worker->count - dest_worker->count;
-        if (diff < 25)
+        if (diff < 150)
             dest_worker = NULL;
     }
     if (dest_worker)

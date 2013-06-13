@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2000-2013, Jack Moffitt <jack@xiph.org>, 
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -319,7 +319,7 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
             intro = r;
         }
         if (intro) // leave shared data, someone else should be freeing it
-           ERROR1 ("intro content has a shared flag status for %s", client->connection.ip);
+            ERROR1 ("intro content has a shared flag status for %s", client->connection.ip);
         to_release->next = NULL;
     }
     client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
@@ -460,7 +460,7 @@ static client_t **worker_add_pending_clients (worker_t *worker)
 
 static client_t **worker_wait (worker_t *worker)
 {
-    int ret, duration = 0;
+    int ret, duration = 2;
 
     if (global.running == ICE_RUNNING)
     {
@@ -619,7 +619,7 @@ void worker_balance_trigger (time_t now)
     worker_least_used = find_least_busy_handler (log_counts);
     if (worker_balance_to_check)
     {
-        worker_balance_to_check->move_allocations = 20;
+        worker_balance_to_check->move_allocations = 30;
         worker_balance_to_check = worker_balance_to_check->next;
     }
     if (worker_balance_to_check == NULL)
