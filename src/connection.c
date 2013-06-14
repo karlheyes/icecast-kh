@@ -1443,10 +1443,34 @@ int connection_check_pass (http_parser_t *parser, const char *user, const char *
     return ret;
 }
 
+static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
+{
+    do {
+        const char *hdr = httpp_getvar (client->parser, "x-forwarded-for");
+        struct xforward_entry *xforward = config->xforward;
+        if (hdr == NULL) break;
+        while (xforward)
+        {
+            if (strcmp (xforward->ip, client->connection.ip) == 0)
+            {
+                int len = strcspn (hdr, ",") + 1;
+                char *ip = malloc (len);
+
+                snprintf (ip, len, "%s",  hdr);
+                free (client->connection.ip);
+                client->connection.ip = ip;
+                DEBUG2 ("x-forward match for %s, using %s instead", xforward->ip, ip);
+                break;
+            }
+            xforward = xforward->next;
+        }
+    } while(0);
+}
 
 static int _handle_source_request (client_t *client)
 {
     const char *uri = httpp_getvar (client->parser, HTTPP_VAR_URI);
+    ice_config_t *config;
 
     INFO1("Source logging in at mountpoint \"%s\"", uri);
     if (uri[0] != '/')
@@ -1464,6 +1488,11 @@ static int _handle_source_request (client_t *client)
             INFO1("Source (%s) attempted to login with invalid or missing password", uri);
             return client_send_401 (client, NULL);
     }
+
+    config = config_get_config();
+    _check_for_x_forwarded_for(config, client);
+    config_release_config();
+
     return 0;
 }
 
@@ -1538,27 +1567,7 @@ static int _handle_get_request (client_t *client)
         serverhost = client->server_conn->bind_address;
         serverport = client->server_conn->port;
     }
-    do
-    {
-        const char *hdr = httpp_getvar (client->parser, "x-forwarded-for");
-        struct xforward_entry *xforward = config->xforward;
-        if (hdr == NULL) break;
-        while (xforward)
-        {
-            if (strcmp (xforward->ip, client->connection.ip) == 0)
-            {
-                int len = strcspn (hdr, ",") + 1;
-                char *ip = malloc (len);
-
-                snprintf (ip, len, "%s",  hdr);
-                free (client->connection.ip);
-                client->connection.ip = ip;
-                DEBUG2 ("x-forward match for %s, using %s instead", xforward->ip, ip);
-                break;
-            }
-            xforward = xforward->next;
-        }
-    } while (0);
+    _check_for_x_forwarded_for(config, client);
 
     alias = config->aliases;
 
