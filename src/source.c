@@ -2031,7 +2031,6 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     }
                     ret = -1;
                 }
-                DEBUG2 ("request for throttled file %s (%d) failed", mount, rate*8);
                 return ret;
             }
             len = sizeof buffer;

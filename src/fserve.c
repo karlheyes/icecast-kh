@@ -907,6 +907,8 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             fh = open_fh (finfo);
             if (fh == NULL)
                 return client_send_404 (client, NULL);
+            if (fh->finfo.limit)
+                DEBUG2 ("request for throttled file %s (bitrate %d)", fh->finfo.mount, fh->finfo.limit*8);
         }
         if (fh->finfo.limit)
         {
@@ -964,7 +966,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         client->flags |= CLIENT_ACTIVE;
         worker_wakeup (worker); /* worker may of already processed client but make sure */
     }
-    return 0;
+    return (fh->finfo.limit) ? 0 : -1;
 }
 
 
