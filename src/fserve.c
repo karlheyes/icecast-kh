@@ -584,7 +584,7 @@ static void file_release (client_t *client)
     fh_node *fh = client->shared_data;
     int ret = -1;
 
-    if (fh->finfo.flags & FS_FALLBACK)
+    if (fh->finfo.limit)
         stats_event_dec (NULL, "listeners");
     remove_from_fh (fh, client);
 
