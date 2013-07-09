@@ -625,6 +625,7 @@ static int source_client_read (client_t *client)
             if (source->limit_rate < (8 * source->incoming_rate))
             {
                 rate_add (source->in_bitrate, 0, client->worker->current_time.tv_sec);
+                source->incoming_rate = (long)rate_avg (source->in_bitrate);
                 thread_rwlock_unlock (&source->lock);
                 client->schedule_ms += 110;
                 return 0;
