@@ -1143,6 +1143,7 @@ static void _slave_thread(void)
     }
     connection_thread_shutdown();
     fserve_running = 0;
+    stats_clients_wakeup ();
     INFO0 ("shutting down current relays");
     update_relays (&global.relays, NULL);
     update_relays (&global.master_relays, NULL);

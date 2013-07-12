@@ -193,6 +193,23 @@ void stats_shutdown(void)
 }
 
 
+void stats_clients_wakeup (void)
+{
+    event_listener_t *listener;
+
+    thread_mutex_lock (&_stats.listeners_lock);
+    listener = _stats.event_listeners;
+    while (listener)
+    {
+        client_t *client = listener->client;
+        if (client)
+            client->schedule_ms = 0;
+        listener = listener->next;
+    }
+    thread_mutex_unlock (&_stats.listeners_lock);
+}
+
+
 /* simple name=tag stat create/update */
 void stats_event(const char *source, const char *name, const char *value)
 {
@@ -651,7 +668,7 @@ void stats_event_time (const char *mount, const char *name, int flags)
 
 static int stats_listeners_send (client_t *client)
 {
-    int loop = 8, total = 0;
+    int loop = 12, total = 0;
     int ret = 0;
     event_listener_t *listener = client->shared_data;
 
@@ -675,11 +692,14 @@ static int stats_listeners_send (client_t *client)
 
         if (refbuf == NULL)
         {
-            client->schedule_ms = client->worker->time_ms + 50;
+            client->schedule_ms = client->worker->time_ms + 80;
             break;
         }
-        if (loop == 0 || total > 100000)
+        if (loop == 0 || total > 50000)
+        {
+            client->schedule_ms = client->worker->time_ms + (total>>11) + 5;
             break;
+        }
         ret = format_generic_write_to_client (client);
         if (ret > 0)
         {
@@ -698,7 +718,7 @@ static int stats_listeners_send (client_t *client)
                 if (listener->content_len)
                     WARN1 ("content length is %u", listener->content_len);
                 listener->recent_block = NULL;
-                client->schedule_ms = client->worker->time_ms + 50;
+                client->schedule_ms = client->worker->time_ms + 60;
                 break;
             }
             loop--;
@@ -854,9 +874,9 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
         if (r && (r->flags & STATS_BLOCK_CONNECTION) == 0)
         {
             /* lets see if we can append to an existing block */
-            if (r->len < 1390)
+            if (r->len < 4000)
             {
-                int written = _append_to_bufferv (r, 1400, fmt, ap);
+                int written = _append_to_bufferv (r, 4096, fmt, ap);
                 if (written > 0)
                 {
                     listener->content_len += written;
@@ -864,9 +884,9 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
                 }
             }
         }
-        r = refbuf_new (1400);
+        r = refbuf_new (4096);
         r->len = 0;
-        if (_append_to_bufferv (r, 1400, fmt, ap) < 0)
+        if (_append_to_bufferv (r, 4096, fmt, ap) < 0)
         {
             WARN1 ("stat details are too large \"%s\"", fmt);
             refbuf_release (r);
@@ -874,10 +894,6 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
         }
         _add_node_to_stats_client (client, r);
     } while (0);
-    client->schedule_ms = 0;
-    // force a wakeup if there is plenty to process
-    if (listener->content_len > 400 && listener->content_len < 750)
-        worker_wakeup (worker);
 }
 
 
@@ -931,26 +947,35 @@ static xmlNodePtr _dump_stats_to_doc (xmlNodePtr root, const char *show_mount, i
 
 
 /* factoring out code for stats loops
- ** this function copies all stats to queue, and registers 
+ * this function copies all stats to queue, and registers 
  */
 static void _register_listener (client_t *client)
 {
     event_listener_t *listener = client->shared_data;
     avl_node *node;
+    worker_t *worker = client->worker;
     stats_event_t stats_count;
-    refbuf_t *refbuf;
-    size_t size = 8192;
+    refbuf_t *refbuf, *biglist = NULL, **full_p = &biglist;
+    size_t size = 8192, len = 0;
     char buffer[20];
 
     build_event (&stats_count, NULL, "stats_connections", buffer);
     stats_count.action = STATS_EVENT_INC;
     process_event (&stats_count);
 
-    /* first we fill our queue with the current stats */
+    /* we register to receive future events, sources could come in after these initial stats */
+    thread_mutex_lock (&_stats.listeners_lock);
+    listener->next = _stats.event_listeners;
+    _stats.event_listeners = listener;
+    thread_mutex_unlock (&_stats.listeners_lock);
+
+    /* first we fill our initial queue with the headers */
     refbuf = refbuf_new (size);
     refbuf->len = 0;
 
-    /* the global stats */
+    _append_to_buffer (refbuf, size, "HTTP/1.0 200 OK\r\nCapability: streamlist stats\r\n\r\n");
+
+    /* now the global stats */
     avl_tree_rlock (_stats.global_tree);
     node = avl_get_first(_stats.global_tree);
     while (node)
@@ -961,7 +986,9 @@ static void _register_listener (client_t *client)
         {
             while (_append_to_buffer (refbuf, size, "EVENT global %s %s\n", stat->name, stat->value) < 0)
             {
-                _add_node_to_stats_client (client, refbuf);
+                *full_p = refbuf;
+                full_p = &refbuf->next;
+                len += refbuf->len;
                 refbuf = refbuf_new (size);
                 refbuf->len = 0;
             }
@@ -984,18 +1011,23 @@ static void _register_listener (client_t *client)
                 type = ct->value;
             while (_append_to_buffer (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
             {
-                _add_node_to_stats_client (client, refbuf);
+                *full_p = refbuf;
+                full_p = &refbuf->next;
+                len += refbuf->len;
                 refbuf = refbuf_new (size);
                 refbuf->len = 0;
             }
         }
         node = avl_get_next(node);
     }
-    _add_node_to_stats_client (client, refbuf);
-
-    refbuf = refbuf_new (size);
-    refbuf->len = 0;
-
+    while (_append_to_buffer (refbuf, size, "INFO full list end\n") < 0)
+    {
+        *full_p = refbuf;
+        full_p = &refbuf->next;
+        len += refbuf->len;
+        refbuf = refbuf_new (size);
+        refbuf->len = 0;
+    }
     node = avl_get_first(_stats.source_tree);
     while (node)
     {
@@ -1018,7 +1050,9 @@ static void _register_listener (client_t *client)
                     else
                         while (_append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, stat->name, stat->value) < 0)
                         {
-                            _add_node_to_stats_client (client, refbuf);
+                            *full_p = refbuf;
+                            full_p = &refbuf->next;
+                            len += refbuf->len;
                             refbuf = refbuf_new (size);
                             refbuf->len = 0;
                         }
@@ -1028,7 +1062,9 @@ static void _register_listener (client_t *client)
             while (metadata_stat &&
                     _append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, metadata_stat->name, metadata_stat->value) < 0)
             {
-                _add_node_to_stats_client (client, refbuf);
+                *full_p = refbuf;
+                full_p = &refbuf->next;
+                len += refbuf->len;
                 refbuf = refbuf_new (size);
                 refbuf->len = 0;
             }
@@ -1037,13 +1073,25 @@ static void _register_listener (client_t *client)
         node = avl_get_next(node);
     }
     avl_tree_unlock (_stats.source_tree);
-    _add_node_to_stats_client (client, refbuf);
+    if (refbuf->len)
+    {
+        *full_p = refbuf;
+        full_p = &refbuf->next;
+        len += refbuf->len;
+    }
+    else
+        refbuf_release (refbuf); // get rid if empty
 
-    /* now we register to receive future event notices */
+    /* before we make the client active (for sending queued data), we need to prepend the stats
+     * we have just built onto any stats that may of come in */
     thread_mutex_lock (&_stats.listeners_lock);
-    listener->next = _stats.event_listeners;
-    _stats.event_listeners = listener;
+    *full_p = client->refbuf;
+    client->refbuf = biglist;
+    listener->content_len += len;
     thread_mutex_unlock (&_stats.listeners_lock);
+    client->schedule_ms = 0;
+    client->flags |= CLIENT_ACTIVE;
+    worker_wakeup (worker);
 }
 
 
@@ -1095,16 +1143,9 @@ void stats_add_listener (client_t *client, int mask)
     client->ops = &stats_client_send_ops;
     client->shared_data = listener;
     client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (100);
-    snprintf (client->refbuf->data, 100,
-            "HTTP/1.0 200 OK\r\nCapability: streamlist stats\r\n\r\n");
-    client->refbuf->len = strlen (client->refbuf->data);
-    listener->content_len = client->refbuf->len;
-    listener->recent_block = client->refbuf;
     listener->client = client;
 
     _register_listener (client);
-    client->flags |= CLIENT_ACTIVE;
 }
 
 
