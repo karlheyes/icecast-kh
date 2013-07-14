@@ -518,7 +518,7 @@ static int command_admin_function (client_t *client, int response)
 static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay, int from_master)
 {
     xmlNodePtr relaynode = xmlNewChild (node, NULL, XMLSTR("relay"), NULL);
-    relay_server_master *master = relay->masters;
+    relay_server_host *host = relay->hosts;
     char str [50];
 
     xmlNewChild (relaynode, NULL, XMLSTR("localmount"), XMLSTR(relay->localmount));
@@ -528,14 +528,14 @@ static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay, int from_ma
     xmlNewChild (relaynode, NULL, XMLSTR("on_demand"), XMLSTR(str));
     snprintf (str, sizeof (str), "%d", from_master);
     xmlNewChild (relaynode, NULL, XMLSTR("from_master"), XMLSTR(str));
-    while (master)
+    while (host)
     {
         xmlNodePtr masternode = xmlNewChild (relaynode, NULL, XMLSTR("master"), NULL);
-        xmlNewChild (masternode, NULL, XMLSTR("server"), XMLSTR(master->ip));
-        xmlNewChild (masternode, NULL, XMLSTR("mount"), XMLSTR(master->mount));
-        snprintf (str, sizeof (str), "%d", master->port);
+        xmlNewChild (masternode, NULL, XMLSTR("server"), XMLSTR(host->ip));
+        xmlNewChild (masternode, NULL, XMLSTR("mount"), XMLSTR(host->mount));
+        snprintf (str, sizeof (str), "%d", host->port);
         xmlNewChild (masternode, NULL, XMLSTR("port"), XMLSTR(str));
-        master = master->next;
+        host = host->next;
     }
 }
 

@@ -114,7 +114,7 @@ int config_get_bool (xmlNodePtr node, void *x)
             if (strcasecmp (str, "yes") == 0)
                 *(int*)x = 1;
             else
-                *(int*)x = strtol (str, NULL, 0)==0 ? 0 : 1;
+                *(int*)x = (strtol (str, NULL, 0)==0) ? 0 : 1;
         xmlFree (str);
     }
     return 0;
@@ -147,6 +147,24 @@ int config_get_int (xmlNodePtr node, void *x)
     }
     return 0;
 }
+
+
+int config_get_port (xmlNodePtr node, void *x)
+{
+    int val = 0, ret = config_get_int (node, &val);
+
+    if (ret == 0)
+    {
+        if (val < 0 || val > 65535)
+        {
+            WARN2 ("port out of range \"%s\" at line %ld, assuming 8000", node->name, xmlGetLineNo(node));
+            val = 8000;
+        }
+        *(int*)x = val;
+    }
+    return ret;
+}
+
 
 int config_get_bitrate (xmlNodePtr node, void *x)
 {
@@ -247,14 +265,14 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 relay_server *config_clear_relay (relay_server *relay)
 {
     relay_server *next = relay->next;
-    while (relay->masters)
+    while (relay->hosts)
     {
-        relay_server_master *master = relay->masters;
-        relay->masters = master->next;
-        if (master->ip) xmlFree (master->ip);
-        if (master->bind) xmlFree (master->bind);
-        if (master->mount) xmlFree (master->mount);
-        free (master);
+        relay_server_host *host = relay->hosts;
+        relay->hosts = host->next;
+        if (host->ip) xmlFree (host->ip);
+        if (host->bind) xmlFree (host->bind);
+        if (host->mount) xmlFree (host->mount);
+        free (host);
     }
     if (relay->localmount)  xmlFree (relay->localmount);
     if (relay->username)    xmlFree (relay->username);
@@ -990,43 +1008,41 @@ static int _parse_mount (xmlNodePtr node, void *arg)
 }
 
 
-static int _relay_master (xmlNodePtr node, void *arg)
+static int _relay_host (xmlNodePtr node, void *arg)
 {
     relay_server *relay = arg;
-    relay_server_master *last, *master = calloc (1, sizeof (relay_server_master));
+    relay_server_host *last, *host = calloc (1, sizeof (relay_server_host));
 
     struct cfg_tag icecast_tags[] =
     {
-        { "ip",             config_get_str,     &master->ip },
-        { "server",         config_get_str,     &master->ip },
-        { "port",           config_get_int,     &master->port },
-        { "mount",          config_get_str,     &master->mount },
-        { "bind",           config_get_str,     &master->bind },
-        { "timeout",        config_get_int,     &master->timeout },
+        { "ip",             config_get_str,     &host->ip },
+        { "server",         config_get_str,     &host->ip },
+        { "port",           config_get_port,    &host->port },
+        { "mount",          config_get_str,     &host->mount },
+        { "bind",           config_get_str,     &host->bind },
+        { "timeout",        config_get_int,     &host->timeout },
         { NULL, NULL, NULL },
     };
 
     /* default master details taken from the default relay settings */
-    master->ip = (char *)xmlCharStrdup (relay->masters->ip);
-    master->mount = (char *)xmlCharStrdup (relay->masters->mount);
-    if (relay->masters->bind)
-        master->bind = (char *)xmlCharStrdup (relay->masters->bind);
-    master->port = relay->masters->port;
-    master->timeout = relay->masters->timeout;
+    host->ip = (char *)xmlCharStrdup (relay->hosts->ip);
+    host->mount = (char *)xmlCharStrdup (relay->hosts->mount);
+    if (relay->hosts->bind)
+        host->bind = (char *)xmlCharStrdup (relay->hosts->bind);
+    host->port = relay->hosts->port;
+    host->timeout = relay->hosts->timeout;
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
 
-    if (master->port < 1 || master->port > 65535)
-        master->port = 8000;
-    if (master->timeout < 1 || master->timeout > 60)
-        master->timeout = 4;
+    if (host->timeout < 1 || host->timeout > 60)
+        host->timeout = 4;
 
     /* place new details at the end of the list */
-    last = relay->masters;
+    last = relay->hosts;
     while (last->next)
         last = last->next;
-    last->next = master;
+    last->next = host;
 
     return 0;
 }
@@ -1036,25 +1052,25 @@ static int _parse_relay (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
     relay_server *relay = calloc(1, sizeof(relay_server));
-    relay_server_master *master = calloc (1, sizeof (relay_server_master));
+    relay_server_host *host = calloc (1, sizeof (relay_server_host));
 
     struct cfg_tag icecast_tags[] =
     {
-        { "master",         _relay_master,      relay },
-        { "server",         config_get_str,     &master->ip },
-        { "ip",             config_get_str,     &master->ip },
-        { "bind",           config_get_str,     &master->bind },
-        { "port",           config_get_int,     &master->port },
-        { "mount",          config_get_str,     &master->mount },
-        { "timeout",        config_get_int,     &master->timeout },
-        { "local-mount",    config_get_str,     &relay->localmount },
-        { "on-demand",      config_get_bool,    &relay->on_demand },
-        { "retry-delay",    config_get_int,     &relay->interval },
-        { "relay-shoutcast-metadata",
-                            config_get_bool,    &relay->mp3metadata },
-        { "username",       config_get_str,     &relay->username },
-        { "password",       config_get_str,     &relay->password },
-        { "enable",         config_get_bool,    &relay->running },
+        { "master",                     _relay_host,        relay },
+        { "host",                       _relay_host,        relay },
+        { "server",                     config_get_str,     &host->ip },
+        { "ip",                         config_get_str,     &host->ip },
+        { "bind",                       config_get_str,     &host->bind },
+        { "port",                       config_get_port,    &host->port },
+        { "mount",                      config_get_str,     &host->mount },
+        { "timeout",                    config_get_int,     &host->timeout },
+        { "local-mount",                config_get_str,     &relay->localmount },
+        { "on-demand",                  config_get_bool,    &relay->on_demand },
+        { "retry-delay",                config_get_int,     &relay->interval },
+        { "relay-shoutcast-metadata",   config_get_bool,    &relay->mp3metadata },
+        { "username",                   config_get_str,     &relay->username },
+        { "password",                   config_get_str,     &relay->password },
+        { "enable",                     config_get_bool,    &relay->running },
         { NULL, NULL, NULL },
     };
 
@@ -1062,28 +1078,28 @@ static int _parse_relay (xmlNodePtr node, void *arg)
     relay->running = 1;
     relay->interval = config->master_update_interval;
     relay->on_demand = config->on_demand;
-    relay->masters = master;
+    relay->hosts = host;
     /* default settings */
-    master->port = config->port;
-    master->ip = (char *)xmlCharStrdup ("127.0.0.1");
-    master->mount = (char*)xmlCharStrdup ("/");
-    master->timeout = 4;
+    host->port = config->port;
+    host->ip = (char *)xmlCharStrdup ("127.0.0.1");
+    host->mount = (char*)xmlCharStrdup ("/");
+    host->timeout = 4;
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
 
     /* check for unspecified entries */
     if (relay->localmount == NULL)
-        relay->localmount = (char*)xmlCharStrdup (master->mount);
+        relay->localmount = (char*)xmlCharStrdup (host->mount);
 
     /* if master is set then remove the default entry at the head of the list */ 
-    if (relay->masters->next)
+    if (relay->hosts->next)
     {
-        relay->masters = relay->masters->next;
-        if (master->mount)  xmlFree (master->mount);
-        if (master->ip)     xmlFree (master->ip);
-        if (master->bind)   xmlFree (master->bind);
-        free (master);
+        relay->hosts = relay->hosts->next;
+        if (host->mount)  xmlFree (host->mount);
+        if (host->ip)     xmlFree (host->ip);
+        if (host->bind)   xmlFree (host->bind);
+        free (host);
     }
 
     relay->next = config->relay;
@@ -1100,8 +1116,8 @@ static int _parse_redirect (xmlNodePtr node, void *arg)
 
     struct cfg_tag icecast_tags[] =
     {
-        { "host", config_get_str, &redir->server },
-        { "port", config_get_int, &redir->port },
+        { "host",       config_get_str,         &redir->server },
+        { "port",       config_get_port,        &redir->port },
         { NULL, NULL, NULL },
     };
 
@@ -1155,7 +1171,7 @@ static int _parse_master (xmlNodePtr node, void *arg)
     struct cfg_tag icecast_tags[] =
     {
         { "server",             config_get_str,     &config->master_server },
-        { "port",               config_get_int,     &config->master_server_port },
+        { "port",               config_get_port,    &config->master_server_port },
         { "ssl-port",           config_get_int,     &config->master_ssl_port },
         { "username",           config_get_str,     &config->master_username },
         { "password",           config_get_str,     &config->master_password },
@@ -1182,7 +1198,7 @@ static int _parse_listen_sock (xmlNodePtr node, void *arg)
 
     struct cfg_tag icecast_tags[] =
     {
-        { "port",               config_get_int,     &listener->port },
+        { "port",               config_get_port,    &listener->port },
         { "shoutcast-compat",   config_get_bool,    &listener->shoutcast_compat },
         { "bind-address",       config_get_str,     &listener->bind_address },
         { "queue-len",          config_get_int,     &listener->qlen },
@@ -1242,7 +1258,7 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
         { "server-id",          config_get_str,     &config->server_id },
         { "source-password",    config_get_str,     &config->source_password },
         { "hostname",           config_get_str,     &config->hostname },
-        { "port",               config_get_int,     &config->port },
+        { "port",               config_get_port,    &config->port },
         { "bind-address",       config_get_str,     &bindaddress },
         { "fileserve",          config_get_bool,    &config->fileserve },
         { "relays-on-demand",   config_get_bool,    &config->on_demand },

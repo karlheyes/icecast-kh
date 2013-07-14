@@ -120,11 +120,11 @@ relay_server *relay_copy (relay_server *r)
 
     if (copy)
     {
-        relay_server_master *from = r->masters, **insert = &copy->masters;
+        relay_server_host *from = r->hosts, **insert = &copy->hosts;
 
         while (from)
         {
-            relay_server_master *to = calloc (1, sizeof (relay_server_master));
+            relay_server_host *to = calloc (1, sizeof (relay_server_host));
             to->ip = (char *)xmlCharStrdup (from->ip);
             to->mount = (char *)xmlCharStrdup (from->mount);
             if (from->bind)
@@ -338,14 +338,14 @@ static http_parser_t *get_relay_response (connection_t *con, const char *mount,
 /* Actually open the connection and do some http parsing, handle any 302
  * responses within here.
  */
-static int open_relay_connection (client_t *client, relay_server *relay, relay_server_master *master)
+static int open_relay_connection (client_t *client, relay_server *relay, relay_server_host *host)
 {
     int redirects = 0;
     http_parser_t *parser = NULL;
     connection_t *con = &client->connection;
-    char *server = strdup (master->ip);
-    char *mount = strdup (master->mount);
-    int port = master->port, timeout = master->timeout, ask_for_metadata = relay->mp3metadata;
+    char *server = strdup (host->ip);
+    char *mount = strdup (host->mount);
+    int port = host->port, timeout = host->timeout, ask_for_metadata = relay->mp3metadata;
     char *auth_header = NULL;
 
     if (relay->username && relay->password)
@@ -371,8 +371,8 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         char *bind = NULL;
 
         /* policy decision, we assume a source bind even after redirect, possible option */
-        if (master->bind)
-            bind = strdup (master->bind);
+        if (host->bind)
+            bind = strdup (host->bind);
 
         if (bind)
             INFO4 ("connecting to %s:%d for %s, bound to %s", server, port, relay->localmount, bind);
@@ -380,7 +380,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             INFO3 ("connecting to %s:%d for %s", server, port, relay->localmount);
 
         con->con_time = time (NULL);
-        relay->in_use = master;
+        relay->in_use = host;
         streamsock = sock_connect_wto_bind (server, port, bind, timeout);
         free (bind);
         if (connection_init (con, streamsock, server) < 0)
@@ -431,7 +431,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             if (httpp_getvar (parser, HTTPP_VAR_ERROR_MESSAGE))
             {
                 ERROR3 ("Error from relay request on %s (%s %s)", relay->localmount,
-                        master->mount, httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
+                        host->mount, httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
                 client->parser = NULL;
                 break;
             }
@@ -469,25 +469,25 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
 int open_relay (relay_server *relay)
 {
     source_t *src = relay->source;
-    relay_server_master *master = relay->masters;
+    relay_server_host *host = relay->hosts;
     client_t *client = src->client;
     do
     {
         int ret;
 
-        if (master->skip)
+        if (host->skip)
         {
-            INFO3 ("skipping %s:%d for %s", master->ip, master->port, relay->localmount);
+            INFO3 ("skipping %s:%d for %s", host->ip, host->port, relay->localmount);
             continue;
         }
         thread_rwlock_unlock (&src->lock);
-        ret = open_relay_connection (client, relay, master);
+        ret = open_relay_connection (client, relay, host);
         thread_rwlock_wlock (&src->lock);
 
         if (ret < 0)
             continue;
         return 1;
-    } while ((master = master->next) && global.running == ICE_RUNNING);
+    } while ((host = host->next) && global.running == ICE_RUNNING);
     return -1;
 }
 
@@ -615,7 +615,7 @@ static int relay_has_changed (relay_server *new, relay_server *old)
 {
     do
     {
-        relay_server_master *oldmaster = old->masters, *newmaster = new->masters;
+        relay_server_host *oldmaster = old->hosts, *newmaster = new->hosts;
 
         while (oldmaster && newmaster)
         {
@@ -852,7 +852,7 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
         if (*buf == '/')
         {
             relay_server *r = calloc (1, sizeof (relay_server));
-            relay_server_master *m = calloc (1, sizeof (relay_server_master));
+            relay_server_host *m = calloc (1, sizeof (relay_server_host));
 
             DEBUG1 ("read from master \"%s\"", buf);
             m->ip = (char *)xmlStrdup (XMLSTR(master->server));
@@ -861,7 +861,7 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
                 m->bind = (char *)xmlStrdup (XMLSTR(master->bind));
             m->mount = (char *)xmlStrdup (XMLSTR(buf));
             m->timeout = 4;
-            r->masters = m;
+            r->hosts = m;
             if (strncmp (buf, "/admin/streams?mount=/", 22) == 0)
                 r->localmount = (char *)xmlStrdup (XMLSTR(buf+21));
             else
@@ -1302,7 +1302,7 @@ static relay_server *get_relay_details (client_t *client)
 
 static void relay_reset (relay_server *relay)
 {
-    relay_server_master *server = relay->masters;
+    relay_server_host *server = relay->hosts;
 
     for (; server; server = server->next)
        server->skip = 0;

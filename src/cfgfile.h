@@ -193,22 +193,24 @@ struct _listener_t
     int so_sndbuf;
 };
 
-typedef struct _relay_server_master
+
+typedef struct _relay_server_host
 {
-    struct _relay_server_master *next;
+    struct _relay_server_host *next;
     char *ip;
     char *bind;
     char *mount;
     int port;
     int timeout;
     int skip;
-} relay_server_master;
+} relay_server_host;
+
 
 typedef struct _relay_server
 {
     struct _relay_server *next, *new_details;
     struct source_tag *source;
-    relay_server_master *masters, *in_use;
+    relay_server_host *hosts, *in_use;
     char *username;
     char *password;
     char *localmount;
