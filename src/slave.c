@@ -1405,6 +1405,7 @@ static int relay_read (client_t *client)
         stats_lock (source->stats, NULL);
         stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         stats_set (source->stats, NULL, NULL);
+        source->stats = 0;
         thread_rwlock_unlock (&source->lock);
         slave_update_mounts();
         return -1;
