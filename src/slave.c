@@ -1573,9 +1573,11 @@ static int relay_startup (client_t *client)
 
         if (mountinfo && mountinfo->fallback_mount)
         {
+            avl_tree_rlock (global.source_tree);
             if (fallback_count (config_get_config_unlocked(), mountinfo->fallback_mount) > 0)
                 start_relay = 1;
             fallback_def = 1;
+            avl_tree_unlock (global.source_tree);
         }
         config_release_config();
         if (start_relay == 0)
@@ -1619,7 +1621,6 @@ int fallback_count (ice_config_t *config, const char *mount)
 
     if (mount == NULL) return -1;
     if (strstr (mount, "${")) return -1;
-    avl_tree_rlock (global.source_tree);
     while (m && loop--)
     {
         source_t *fallback = source_find_mount_raw (m);
@@ -1655,6 +1656,5 @@ int fallback_count (ice_config_t *config, const char *mount)
         count = fallback->listeners;
         break;
     }
-    avl_tree_unlock (global.source_tree);
     return count;
 }
