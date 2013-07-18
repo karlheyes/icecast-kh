@@ -268,9 +268,10 @@ static void parse_query(http_parser_t *parser, char *query)
         switch(query[i]) {
         case '&':
             query[i] = 0;
-            if(val && key)
-                httpp_set_query_param(parser, key, val);
+            if(key)
+                httpp_set_query_param(parser, key, val ? val : "");
             key = query+i+1;
+            val = NULL;
             break;
         case '=':
             query[i] = 0;
@@ -280,8 +281,8 @@ static void parse_query(http_parser_t *parser, char *query)
         i++;
     }
 
-    if(val && key) {
-        httpp_set_query_param(parser, key, val);
+    if(key) {
+        httpp_set_query_param(parser, key, val ? val : "");
     }
 }
 
