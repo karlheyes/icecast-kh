@@ -510,6 +510,11 @@ int source_read (source_t *source)
                 /* append buffer to the in-flight data queue,  */
                 if (source->stream_data == NULL)
                 {
+                    mount_proxy *mountinfo = config_find_mount (config_get_config(), source->mount);
+                    if (mountinfo)
+                        source_set_override (mountinfo, source, source->format->type);
+                    config_release_config();
+
                     source->stream_data = refbuf;
                     source->min_queue_point = refbuf;
                     source->min_queue_offset = 0;
@@ -1229,15 +1234,6 @@ void source_init (source_t *source)
         if (mountinfo->on_connect)
             source_run_script (mountinfo->on_connect, source->mount);
         auth_stream_start (mountinfo, source->mount);
-
-        /*
-         ** Now, if we have a fallback source and override is on, we want
-         ** to steal its clients, because it means we've come back online
-         ** after a failure and they should be gotten back from the waiting
-         ** loop or jingle track or whatever the fallback is used for
-         */
-
-        source_set_override (mountinfo, source, type);
     }
     config_release_config();
 
