@@ -1163,7 +1163,6 @@ static int send_listener (source_t *source, client_t *client)
 void source_init (source_t *source)
 {
     mount_proxy *mountinfo;
-    format_type_t type = source->format->type;
 
     if (source->dumpfilename != NULL)
     {
