@@ -16,6 +16,20 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh9
+. Allow for ${mount} to be specified in dump-file, on-[dis]connect, fallback-mount and
+  intro. Useful in cases where a wildcard mount block is used but requires these options
+. avoid possible corruption case with FLV listeners and a change in samplerate
+. move trigger for override later. when first block added not on initialised
+. delay purging of file handles as they could be referenced by inactive mounts for slaves
+. fix for outgoing bitrate and global listeners stats not updating in some cases.
+. tunings and code re-arrangement to prevent busy loops.
+. fix for passed through content.
+. prevent possible live lock on sources with limit rate set.
+. fix for http parameter parsing
+. stats send link improved. Not many use this but could be used by slaves later on
+. build fixes
+
 2.3.3-kh8
 . Auth remove could be triggered twice if no stream content comes in before time out
 . Incorrect content type sent for aac files
