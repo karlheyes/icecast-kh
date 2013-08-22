@@ -1346,11 +1346,14 @@ static int relay_read (client_t *client)
                 if (relay->in_use) relay->in_use->skip = 1;
             }
             else
-                relay_reset (relay); // spent some time on this so give other servers a chance
-            if (source->flags & SOURCE_TIMEOUT)
             {
-                WARN1 ("stream for %s timed out, skipping server for now", relay->localmount);
-                if (relay->in_use) relay->in_use->skip = 1;
+                if (client->connection.sent_bytes < 500000 && source->flags & SOURCE_TIMEOUT)
+                {
+                    WARN1 ("stream for %s timed out, skipping server for now", relay->localmount);
+                    if (relay->in_use) relay->in_use->skip = 1;
+                }
+                else
+                    relay_reset (relay); // spent some time on this so give other servers a chance
             }
         }
         /* don't pause listeners if relay shutting down */
