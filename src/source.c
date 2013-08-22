@@ -335,9 +335,13 @@ static void drop_source_from_tree (source_t *source)
 
     DEBUG1 ("removed source %s from tree", source->mount);
     thread_rwlock_wlock (&source->lock);
-    stats_lock (source->stats, source->mount);
-    stats_set (source->stats, NULL, NULL);
-    source->stats = 0;
+    if (source->stats)
+    {
+        DEBUG1 ("stats still referenced on %s", source->mount);
+        stats_lock (source->stats, source->mount);
+        stats_set (source->stats, NULL, NULL);
+        source->stats = 0;
+    }
 }
 
 
