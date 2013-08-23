@@ -1061,7 +1061,6 @@ static void slave_startup (void)
     update_all_sources = 0;
 
     redirector_setup (config);
-    update_master_as_slave (config);
     stats_global (config);
     workers_adjust (config->workers_count);
     yp_initialize (config);
