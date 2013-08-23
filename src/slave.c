@@ -290,7 +290,7 @@ int redirect_client (const char *mountpoint, client_t *client)
 
 
 static http_parser_t *get_relay_response (connection_t *con, const char *mount,
-        const char *server, int ask_for_metadata, const char *auth_header)
+        const char *server, const char *headers)
 {
     ice_config_t *config = config_get_config ();
     char *server_id = strdup (config->server_id);
@@ -308,13 +308,11 @@ static http_parser_t *get_relay_response (connection_t *con, const char *mount,
             "User-Agent: %s\r\n"
             "Host: %s\r\n"
             "%s"
-            "%s"
             "\r\n",
             mount,
             server_id,
             server,
-            ask_for_metadata ? "Icy-MetaData: 1\r\n" : "",
-            auth_header ? auth_header : "");
+            headers ? headers : "");
 
     free (server_id);
     memset (response, 0, sizeof(response));
@@ -335,6 +333,20 @@ static http_parser_t *get_relay_response (connection_t *con, const char *mount,
 }
 
 
+
+static void encode_auth_header (char *userpass, unsigned int remain)
+{
+    if (userpass && userpass[0])
+    {
+        char *esc_authorisation = util_base64_encode (userpass);
+
+        if (snprintf (userpass, remain, "Authorization: Basic %s\r\n", esc_authorisation) < 0)
+            userpass[0] = '\0';
+        free (esc_authorisation);
+    }
+}
+
+
 /* Actually open the connection and do some http parsing, handle any 302
  * responses within here.
  */
@@ -345,26 +357,19 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     connection_t *con = &client->connection;
     char *server = strdup (host->ip);
     char *mount = strdup (host->mount);
-    int port = host->port, timeout = host->timeout, ask_for_metadata = relay->mp3metadata;
-    char *auth_header = NULL;
+    int port = host->port, timeout = host->timeout, remain;
+    char *p, headers[4096];
 
+    remain = sizeof (headers);
+    if (relay->mp3metadata)
+        remain -= snprintf (headers, remain, "Icy-MetaData: 1\r\n");
+    p = headers + strlen (headers);
     if (relay->username && relay->password)
     {
-        char *esc_authorisation;
-        unsigned len = strlen(relay->username) + strlen(relay->password) + 2;
-
-        DEBUG2 ("using username %s for %s", relay->username, relay->localmount);
-        auth_header = malloc (len);
-        snprintf (auth_header, len, "%s:%s", relay->username, relay->password);
-        esc_authorisation = util_base64_encode(auth_header);
-        free(auth_header);
-        len = strlen (esc_authorisation) + 24;
-        auth_header = malloc (len);
-        snprintf (auth_header, len,
-                "Authorization: Basic %s\r\n", esc_authorisation);
-        free(esc_authorisation);
+        INFO2 ("using username %s for %s", relay->username, relay->localmount);
+        snprintf (p, remain, "%s:%s", relay->username, relay->password);
+        encode_auth_header (p, remain);
     }
-
     while (redirects < 10)
     {
         sock_t streamsock;
@@ -389,7 +394,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             break;
         }
 
-        parser = get_relay_response (con, mount, server, ask_for_metadata, auth_header);
+        parser = get_relay_response (con, mount, server, headers);
 
         if (parser == NULL)
         {
@@ -404,7 +409,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             int len;
 
             uri = httpp_getvar (parser, "location");
-            INFO1 ("redirect received %s", uri);
+            INFO2 ("redirect received on %s : %s", relay->localmount, uri);
             if (strncmp (uri, "http://", 7) != 0)
                 break;
             uri += 7;
@@ -415,6 +420,13 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             else
                 mount = strdup ("/");
 
+            len = strcspn (uri, "@/");
+            if (uri [len] == '@')
+            {
+                snprintf (p, remain, "%.*s", len, uri);
+                encode_auth_header (p, remain);
+                uri += len + 1;
+            }
             len = strcspn (uri, ":/");
             port = 80;
             if (uri [len] == ':')
@@ -444,16 +456,15 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             client_set_queue (client, NULL);
             free (server);
             free (mount);
-            free (auth_header);
 
             return 0;
         }
         redirects++;
     }
+    WARN1 ("detected too many redirects on %s", relay->localmount);
     /* failed, better clean up */
     free (server);
     free (mount);
-    free (auth_header);
     if (parser)
         httpp_destroy (parser);
     connection_close (con);
