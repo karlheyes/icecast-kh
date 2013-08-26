@@ -44,6 +44,7 @@ refbuf_t *refbuf_copy(refbuf_t *orig);
 
 #define WRITE_BLOCK_GENERIC     01000
 #define REFBUF_SHARED           02000
+#define BUFFER_LOCAL_USE        04000
 
 #endif  /* __REFBUF_H__ */
 

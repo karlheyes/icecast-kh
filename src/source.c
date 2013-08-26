@@ -864,7 +864,6 @@ static int http_source_listener (client_t *client)
 
     if (refbuf == NULL || client->pos == refbuf->len)
     {
-        client_set_queue (client, NULL);
         client->check_buffer = http_source_intro;
         return http_source_intro (client);
     }
@@ -900,7 +899,6 @@ static int http_source_listener (client_t *client)
     ret = format_generic_write_to_client (client);
     if (client->pos == refbuf->len)
     {
-        client_set_queue (client, NULL);
         client->check_buffer = http_source_intro;
         client->intro_offset = 0;
         client->connection.sent_bytes = 0;

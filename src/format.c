@@ -134,6 +134,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
             client->queue_pos = 0;
+            refbuf->flags |= BUFFER_LOCAL_USE;
         }
         if (client->pos < refbuf->len)
             break;
@@ -146,6 +147,12 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             refbuf_release (refbuf);
             client->pos = 0;
             return 0;
+        }
+        if ((refbuf->flags & BUFFER_LOCAL_USE) == 0)
+        {
+            client_set_queue (client, NULL);
+            refbuf = NULL;
+            continue;
         }
 
         if (file_in_use (f) == 0) return -2;
