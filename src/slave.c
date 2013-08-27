@@ -370,11 +370,16 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         snprintf (p, remain, "%s:%s", relay->username, relay->password);
         encode_auth_header (p, remain);
     }
-    while (redirects < 10)
+    while (1)
     {
         sock_t streamsock;
         char *bind = NULL;
 
+        if (redirects > 10)
+        {
+            WARN1 ("detected too many redirects on %s", relay->localmount);
+            break;
+        }
         /* policy decision, we assume a source bind even after redirect, possible option */
         if (host->bind)
             bind = strdup (host->bind);
@@ -461,7 +466,6 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         }
         redirects++;
     }
-    WARN1 ("detected too many redirects on %s", relay->localmount);
     /* failed, better clean up */
     free (server);
     free (mount);
