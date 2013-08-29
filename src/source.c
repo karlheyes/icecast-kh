@@ -2217,7 +2217,6 @@ static int source_client_http_send (client_t *client)
     {
         if (client->connection.error || format_generic_write_to_client (client) < 0)
         {
-            client->connection.error = 1;
             client->schedule_ms = client->worker->time_ms + 40;
             if (client->connection.error == 0)
                 return 0; /* trap for short writes */
@@ -2225,7 +2224,7 @@ static int source_client_http_send (client_t *client)
             global.sources--;
             stats_event_args (NULL, "sources", "%d", global.sources);
             global_unlock();
-            thread_rwlock_wlock (&source->lock);
+            drop_source_from_tree (source);
             WARN1 ("failed to send OK response to source client for %s", source->mount);
             return -1;
         }
