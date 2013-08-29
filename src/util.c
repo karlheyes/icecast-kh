@@ -777,8 +777,11 @@ void rate_add (struct rate_calc *calc, long value, uint64_t sid)
         {
             if (sid == calc->current->index)
             {
-                calc->current->value += value;
-                calc->total += value;
+                if (value)
+                {
+                    calc->current->value += value;
+                    calc->total += value;
+                }
                 thread_spin_unlock (&calc->lock);
                 return;
             }
