@@ -677,7 +677,9 @@ void connection_uses_ssl (connection_t *con)
 #ifdef HAVE_SIGNALFD
 void connection_close_sigfd (void)
 {
-    close (sigfd);
+    if (sigfd >= 0)
+        close (sigfd);
+    sigfd = -1;
 }
 #else
 #define connection_close_sigfd()    do {}while(0);
@@ -695,10 +697,15 @@ static sock_t wait_for_serversock (void)
         ufds[i].revents = 0;
     }
 #ifdef HAVE_SIGNALFD
-    ufds[i].fd = sigfd;
-    ufds[i].events = POLLIN;
     ufds[i].revents = 0;
-    ret = poll(ufds, i+1, 4000);
+    if (sigfd >= 0)
+    {
+        ufds[i].fd = sigfd;
+        ufds[i].events = POLLIN;
+        ret = poll(ufds, i+1, 4000);
+    }
+    else
+        ret = poll(ufds, i, 4000);
 #else
     ret = poll(ufds, global.server_sockets, 333);
 #endif

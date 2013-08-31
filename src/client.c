@@ -585,7 +585,6 @@ void *worker (void *arg)
             prevp = &client->next_on_worker;
             client = *prevp;
         }
-        worker->move_allocations = 0;
         if (prev_count != worker->count)
         {
             DEBUG2 ("%p now has %d clients", worker, worker->count);
@@ -619,7 +618,7 @@ void worker_balance_trigger (time_t now)
     worker_least_used = find_least_busy_handler (log_counts);
     if (worker_balance_to_check)
     {
-        worker_balance_to_check->move_allocations = 30;
+        worker_balance_to_check->move_allocations = 50;
         worker_balance_to_check = worker_balance_to_check->next;
     }
     if (worker_balance_to_check == NULL)

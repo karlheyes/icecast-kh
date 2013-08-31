@@ -1566,7 +1566,7 @@ static int relay_startup (client_t *client)
         if (dest_worker != worker)
         {
             long diff = worker->count - dest_worker->count;
-            if (diff > 5)
+            if (diff > 0)
             {
                 worker->move_allocations--;
                 ret = client_change_worker (client, dest_worker);
@@ -1580,7 +1580,7 @@ static int relay_startup (client_t *client)
     if (relay->on_demand)
     {
         source_t *source = relay->source;
-        int fallback_def = 0, start_relay;
+        int start_relay;
         mount_proxy *mountinfo;
 
         thread_rwlock_wlock (&source->lock);
@@ -1594,7 +1594,6 @@ static int relay_startup (client_t *client)
             avl_tree_rlock (global.source_tree);
             if (fallback_count (config_get_config_unlocked(), mountinfo->fallback_mount) > 0)
                 start_relay = 1;
-            fallback_def = 1;
             avl_tree_unlock (global.source_tree);
         }
         config_release_config();
@@ -1606,7 +1605,7 @@ static int relay_startup (client_t *client)
                 stats_release (source->stats);
                 slave_update_mounts();
             }
-            client->schedule_ms = worker->time_ms + (fallback_def ? (relay->interval*1000) : 60000);
+            client->schedule_ms = (worker->time_ms + 1000) | 0xff;
             return 0;
         }
         INFO1 ("starting on-demand relay %s", relay->localmount);

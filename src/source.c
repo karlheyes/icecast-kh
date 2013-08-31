@@ -399,6 +399,7 @@ static void update_source_stats (source_t *source)
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
     source->incoming_rate = incoming_rate;
+    source->stats_interval = 5 + (global.sources >> 10);
 }
 
 
@@ -460,10 +461,9 @@ int source_read (source_t *source)
         {
             update_source_stats (source);
             source->client_stats_update = current + source->stats_interval;
+            if (source_change_worker (source, client))
+                return 1;
         }
-
-        if (source_change_worker (source, client))
-            return 1;
 
         fds = util_timed_wait_for_fd (client->connection.sock, 0);
         if (fds < 0)
@@ -1222,7 +1222,9 @@ void source_init (source_t *source)
         }
     }
     stats_release (source->stats);
+    rate_free (source->in_bitrate);
     source->in_bitrate = rate_setup (60, 1);
+    rate_free (source->out_bitrate);
     source->out_bitrate = rate_setup (9000, 1000);
 
     source->flags |= SOURCE_RUNNING;
@@ -1267,7 +1269,10 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
     {
         len = sizeof buffer;
         if (util_expand_pattern (mount, mountinfo->fallback_mount, buffer, &len) < 0)
+        {
+            avl_tree_unlock (global.source_tree);
             break;
+        }
         mount = buffer;
 
         DEBUG2 ("checking for %s on %s", mount, dest);
@@ -2421,8 +2426,6 @@ int listener_change_worker (client_t *client, source_t *source)
         else
             thread_rwlock_rlock (&source->lock);
     }
-    else
-        this_worker->move_allocations = 0;
     thread_rwlock_unlock (&workers_lock);
     return ret;
 }
