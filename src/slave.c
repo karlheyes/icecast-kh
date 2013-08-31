@@ -1505,6 +1505,7 @@ static int relay_initialise (client_t *client)
                 source_t *source = relay->source;
 
                 thread_rwlock_wlock (&source->lock);
+                source_clear_source (source);
                 config = config_get_config();
                 mountinfo = config_find_mount (config, source->mount);
                 source->flags |= SOURCE_ON_DEMAND;
