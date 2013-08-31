@@ -443,6 +443,9 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
                 "Expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n"
                 "Cache-Control: no-store, no-cache, must-revalidate\r\n"
                 "Pragma: no-cache\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Access-Control-Allow-Headers: Origin, Accept Content-Type, X-Requested-With, Content-Type\r\n"
+                "Access-Control-Allow-Methods: GET, OPTIONS, HEAD\r\n"
                 "\r\n",
                 mediatype, len);
 
