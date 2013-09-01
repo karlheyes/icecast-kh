@@ -134,7 +134,7 @@ struct _client_functions source_client_http_ops =
  * exists with that mountpoint in the global source tree then return
  * NULL.
  */
-source_t *source_reserve (const char *mount, int ret_exist)
+source_t *source_reserve (const char *mount, int flags)
 {
     source_t *src = NULL;
 
@@ -144,7 +144,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src = source_find_mount_raw (mount);
         if (src)
         {
-            if (ret_exist == 0)
+            if ((flags & 1) == 0)
                 src = NULL;
             else if (src->flags & SOURCE_LISTENERS_SYNC)
                 src = NULL;
@@ -166,6 +166,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         thread_spin_create (&src->shrink_lock);
 
         avl_insert (global.source_tree, src);
+        thread_rwlock_wlock (&src->lock);
 
     } while (0);
 
@@ -2270,31 +2271,28 @@ static void source_swap_client (source_t *source, client_t *client)
 
 int source_startup (client_t *client, const char *uri)
 {
-    ice_config_t *config;
-    mount_proxy *mountinfo;
     source_t *source;
-    source = source_reserve (uri, (client->flags & CLIENT_HIJACKER));
+    ice_config_t *config = config_get_config();
+    mount_proxy *mountinfo;
+    int source_limit = config->source_limit;
 
+    config_release_config();
+
+    source = source_reserve (uri, (client->flags & CLIENT_HIJACKER) ? 1 : 0);
     if (source)
     {
-        thread_rwlock_wlock (&source->lock);
-
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
             source_swap_client (source, client);
         }
         else
         {
-            ice_config_t *config = config_get_config();
-            int source_limit = config->source_limit;
-
-            config_release_config();
-            thread_rwlock_unlock (&source->lock);
             global_lock();
             if (global.sources >= source_limit)
             {
                 WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
                 global_unlock();
+                thread_rwlock_unlock (&source->lock);
                 source_free_source (source);
                 return client_send_403 (client, "too many streams connected");
             }
@@ -2302,7 +2300,6 @@ int source_startup (client_t *client, const char *uri)
             INFO1 ("sources count is now %d", global.sources);
             stats_event_args (NULL, "sources", "%d", global.sources);
             global_unlock();
-            thread_rwlock_wlock (&source->lock);
             source->client = client;
             source->stats = stats_lock (source->stats, source->mount);
             stats_release (source->stats);

@@ -1480,10 +1480,12 @@ static void relay_release (client_t *client)
 static int relay_initialise (client_t *client)
 {
     relay_server *relay = get_relay_details (client);
+    source_t *source = relay->source;
 
-    if (relay->source == NULL)  /* new relay, so set up a source if we can */
+    if (relay->cleanup)   return -1;
+    if (source == NULL)  /* new relay, so set up a source if we can */
     {
-        source_t *source = source_reserve (relay->localmount, 0);
+        source = source_reserve (relay->localmount, 0);
         if (source == NULL)
         {
             INFO1 ("new relay but source \"%s\" exists, waiting", relay->localmount);
@@ -1493,18 +1495,17 @@ static int relay_initialise (client_t *client)
         relay->source = source;
         source->client = client;
     }
+    else
+        thread_rwlock_wlock (&source->lock);
     do
     {
-        if (global.running != ICE_RUNNING)  break;
         if (relay->running)
         {
             if (relay->on_demand)
             {
                 ice_config_t *config;
                 mount_proxy *mountinfo;
-                source_t *source = relay->source;
 
-                thread_rwlock_wlock (&source->lock);
                 source_clear_source (source);
                 config = config_get_config();
                 mountinfo = config_find_mount (config, source->mount);
@@ -1515,18 +1516,17 @@ static int relay_initialise (client_t *client)
                     stats_release (source->stats);
                 }
                 source_update_settings (config, source, mountinfo);
-                thread_rwlock_unlock (&source->lock);
                 config_release_config();
                 slave_update_mounts();
                 stats_set_flags (source->stats, "listener_connections", "0", STATS_COUNTERS);
             }
             break;
         }
-        if (relay->cleanup)
-            break;
         client->schedule_ms = client->worker->time_ms + 1000000;
+        thread_rwlock_unlock (&source->lock);
         return 0;
     } while(0);
+    thread_rwlock_unlock (&source->lock);
     client->ops = &relay_startup_ops;
     return client->ops->process (client);
 }
