@@ -732,7 +732,6 @@ static sock_t wait_for_serversock (void)
                     case SIGHUP:
                         INFO0 ("HUP received, reread scheduled");
                         global.schedule_config_reread = 1;
-                        connection_running = 0;
                         break;
                     default:
                         WARN1 ("unexpected signal (%d)", fdsi.ssi_signo);
