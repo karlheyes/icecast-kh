@@ -24,8 +24,8 @@ typedef struct mpeg_sync
 
     unsigned short samplerate;
     unsigned char marker;
-    unsigned char settings;
-    unsigned short check_numframes;
+    unsigned char check_numframes;
+    unsigned short settings;
     unsigned short resync_count;
 
     refbuf_t *surplus;

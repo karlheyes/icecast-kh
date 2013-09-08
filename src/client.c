@@ -286,6 +286,20 @@ int client_send_501(client_t *client)
     return fserve_setup_client (client);
 }
 
+int client_send_options(client_t *client)
+{
+    client_set_queue (client, NULL);
+    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
+            "HTTP/1.1 200 OK\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Headers: Origin, Accept Content-Type, X-Requested-With, Content-Type\r\n"
+            "Access-Control-Allow-Methods: GET, OPTIONS, STATS\r\n\r\n");
+    client->respcode = 200;
+    client->refbuf->len = strlen (client->refbuf->data);
+    return fserve_setup_client (client);
+}
+
 
 /* helper function for sending the data to a client */
 int client_send_bytes (client_t *client, const void *buf, unsigned len)
@@ -585,7 +599,6 @@ void *worker (void *arg)
             prevp = &client->next_on_worker;
             client = *prevp;
         }
-        worker->move_allocations = 0;
         if (prev_count != worker->count)
         {
             DEBUG2 ("%p now has %d clients", worker, worker->count);
@@ -619,7 +632,7 @@ void worker_balance_trigger (time_t now)
     worker_least_used = find_least_busy_handler (log_counts);
     if (worker_balance_to_check)
     {
-        worker_balance_to_check->move_allocations = 30;
+        worker_balance_to_check->move_allocations = 50;
         worker_balance_to_check = worker_balance_to_check->next;
     }
     if (worker_balance_to_check == NULL)

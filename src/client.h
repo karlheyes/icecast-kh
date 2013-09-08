@@ -125,6 +125,7 @@ struct _client_tag
 void client_register (client_t *client);
 void client_destroy(client_t *client);
 int  client_send_501(client_t *client);
+int  client_send_options(client_t *client);
 int  client_send_416(client_t *client);
 int  client_send_404(client_t *client, const char *message);
 int  client_send_401(client_t *client, const char *realm);

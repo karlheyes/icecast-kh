@@ -28,11 +28,11 @@
 #include "logging.h"
 
 int aacp_sample_freq[] = {
-    96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, -1, -1, -1, -1
+    96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 0, 0, 0, 0
 };
 
 int aacp_num_channels[] = {
-    -1, 1, 2, 3, 4, 5, 6, 8, -1, -1, -1, -1, -1, -1, -1, -1
+    0, 1, 2, 3, 4, 5, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 int mpeg_samplerates [4][4] = {
@@ -42,6 +42,7 @@ int mpeg_samplerates [4][4] = {
     { 0,0,0 } };
 
 //  settings is a bitmask
+//  bit 15         skip processing
 //  bit 7          settings changed
 //  bit 6, 5, 4    channels
 //  bit 3, 2       version
@@ -257,7 +258,7 @@ static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         // profile = p[1] & 0xC0;
         mp->samplerate = aacp_sample_freq [samplerate_idx];
         channels = aacp_num_channels [channels_idx];
-        if (mp->samplerate == -1 || channels == -1)
+        if (mp->samplerate == 0 || channels == 0)
         {
             DEBUG0 ("ADTS samplerate/channel setting invalid");
             return -1;
@@ -387,6 +388,8 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
 {
     int ret = -1;
 
+    if (mp->settings & 0x8000)
+        return 2; // we should skip processing
     mp->settings = 0;
     if (p[0] == 0x47)
         ret = check_for_ts (mp, p, remaining);
@@ -446,6 +449,11 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
         if (p == NULL)
             p = start + remaining;
     }
+    else if (remaining >= 8 && memcmp (p+4, "ftyp", 4) == 0)
+    {
+        mp->settings |= 0x8000; // mp4 looks to be here, lets skip parsing
+        return 0;
+    }
     else
     {
         int offset = remaining;
@@ -475,7 +483,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
     unsigned char *start, *end;
     int remaining, frame_len = 0, ret, loop = 50;
 
-    if (mp == NULL)
+    if (mp == NULL || (mp->settings & 0x8000))
         return 0;  /* leave as-is */
     
     mp->sample_count = 0;
@@ -569,6 +577,8 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                     new_block->len = offset;
                 return remaining;
             }
+            if (ret > 1) // detected case but avoid parsing
+                return 0;
         }
         loop--;
     }

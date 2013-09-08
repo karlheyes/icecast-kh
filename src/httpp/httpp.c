@@ -347,6 +347,8 @@ int httpp_parse(http_parser_t *parser, const char *http_data, unsigned long len)
         parser->req_type = httpp_req_head;
     } else if (strcasecmp("SOURCE", req_type) == 0) {
         parser->req_type = httpp_req_source;
+    } else if (strcasecmp("OPTIONS", req_type) == 0) {
+        parser->req_type = httpp_req_options;
     } else if (strcasecmp("PLAY", req_type) == 0) {
         parser->req_type = httpp_req_play;
     } else if (strcasecmp("STATS", req_type) == 0) {

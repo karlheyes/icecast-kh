@@ -134,7 +134,7 @@ struct _client_functions source_client_http_ops =
  * exists with that mountpoint in the global source tree then return
  * NULL.
  */
-source_t *source_reserve (const char *mount, int ret_exist)
+source_t *source_reserve (const char *mount, int flags)
 {
     source_t *src = NULL;
 
@@ -144,7 +144,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         src = source_find_mount_raw (mount);
         if (src)
         {
-            if (ret_exist == 0)
+            if ((flags & 1) == 0)
                 src = NULL;
             else if (src->flags & SOURCE_LISTENERS_SYNC)
                 src = NULL;
@@ -166,6 +166,7 @@ source_t *source_reserve (const char *mount, int ret_exist)
         thread_spin_create (&src->shrink_lock);
 
         avl_insert (global.source_tree, src);
+        thread_rwlock_wlock (&src->lock);
 
     } while (0);
 
@@ -399,6 +400,7 @@ static void update_source_stats (source_t *source)
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
     source->incoming_rate = incoming_rate;
+    source->stats_interval = 5 + (global.sources >> 10);
 }
 
 
@@ -460,10 +462,9 @@ int source_read (source_t *source)
         {
             update_source_stats (source);
             source->client_stats_update = current + source->stats_interval;
+            if (source_change_worker (source, client))
+                return 1;
         }
-
-        if (source_change_worker (source, client))
-            return 1;
 
         fds = util_timed_wait_for_fd (client->connection.sock, 0);
         if (fds < 0)
@@ -1222,7 +1223,9 @@ void source_init (source_t *source)
         }
     }
     stats_release (source->stats);
+    rate_free (source->in_bitrate);
     source->in_bitrate = rate_setup (60, 1);
+    rate_free (source->out_bitrate);
     source->out_bitrate = rate_setup (9000, 1000);
 
     source->flags |= SOURCE_RUNNING;
@@ -1267,7 +1270,10 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
     {
         len = sizeof buffer;
         if (util_expand_pattern (mount, mountinfo->fallback_mount, buffer, &len) < 0)
+        {
+            avl_tree_unlock (global.source_tree);
             break;
+        }
         mount = buffer;
 
         DEBUG2 ("checking for %s on %s", mount, dest);
@@ -2265,31 +2271,28 @@ static void source_swap_client (source_t *source, client_t *client)
 
 int source_startup (client_t *client, const char *uri)
 {
-    ice_config_t *config;
-    mount_proxy *mountinfo;
     source_t *source;
-    source = source_reserve (uri, (client->flags & CLIENT_HIJACKER));
+    ice_config_t *config = config_get_config();
+    mount_proxy *mountinfo;
+    int source_limit = config->source_limit;
 
+    config_release_config();
+
+    source = source_reserve (uri, (client->flags & CLIENT_HIJACKER) ? 1 : 0);
     if (source)
     {
-        thread_rwlock_wlock (&source->lock);
-
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
             source_swap_client (source, client);
         }
         else
         {
-            ice_config_t *config = config_get_config();
-            int source_limit = config->source_limit;
-
-            config_release_config();
-            thread_rwlock_unlock (&source->lock);
             global_lock();
             if (global.sources >= source_limit)
             {
                 WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
                 global_unlock();
+                thread_rwlock_unlock (&source->lock);
                 source_free_source (source);
                 return client_send_403 (client, "too many streams connected");
             }
@@ -2297,7 +2300,6 @@ int source_startup (client_t *client, const char *uri)
             INFO1 ("sources count is now %d", global.sources);
             stats_event_args (NULL, "sources", "%d", global.sources);
             global_unlock();
-            thread_rwlock_wlock (&source->lock);
             source->client = client;
             source->stats = stats_lock (source->stats, source->mount);
             stats_release (source->stats);
@@ -2421,8 +2423,6 @@ int listener_change_worker (client_t *client, source_t *source)
         else
             thread_rwlock_rlock (&source->lock);
     }
-    else
-        this_worker->move_allocations = 0;
     thread_rwlock_unlock (&workers_lock);
     return ret;
 }
