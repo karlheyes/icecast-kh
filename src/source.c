@@ -940,6 +940,8 @@ void source_listener_detach (source_t *source, client_t *client)
                 client->refbuf = NULL;
         }
     }
+    else
+        client->check_buffer = NULL;
     avl_delete (source->clients, client, NULL);
 }
 
