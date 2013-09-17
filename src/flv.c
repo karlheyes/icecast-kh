@@ -306,6 +306,11 @@ int write_flv_buf_to_client (client_t *client)
     struct flv *flv = client->format_data;
     int ret;
 
+    if (flv == NULL) // handle odd case like override of non FLV wrapped file
+    {
+        client->connection.error = 1;
+        return -1;
+    }
     if (client->pos > ref->len)
     {
         WARN2 ("buffer position invalid (%d, %d)", client->pos, ref->len);
