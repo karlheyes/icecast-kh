@@ -6,6 +6,7 @@ Global,Clients:<xsl:value-of select="connections" />,Sources:<xsl:value-of selec
 MountPoint,Connections,Stream Name,Current Listeners,Description,Currently Playing,Stream URL
 <xsl:for-each select="source">
 <xsl:value-of select="@mount" />,<xsl:value-of select="listener_connections" />,<xsl:value-of select="server_name" />,<xsl:value-of select="listeners" />,<xsl:value-of select="server_description" />,<xsl:value-of select="artist" /> <xsl:value-of select="title" />,<xsl:value-of select="listenurl" />
+<xsl:text>&#xa;</xsl:text>
 </xsl:for-each>
 </pre>
 </xsl:template>
