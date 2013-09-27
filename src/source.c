@@ -1881,7 +1881,7 @@ int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client,
 {
     avl_node *node;
 
-    if (auth == NULL || auth->allow_duplicate_users)
+    if (auth == NULL || (auth->flags & AUTH_ALLOW_LISTENER_DUP))
         return 1;
 
     /* allow multiple authenticated relays */
@@ -1895,7 +1895,7 @@ int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client,
         if (existing_client->username && 
                 strcmp (existing_client->username, client->username) == 0)
         {
-            if (auth->drop_existing_listener)
+            if (auth->flags & AUTH_DEL_EXISTING_LISTENER)
             {
                 INFO2 ("Found %s on %s, dropping previous account", existing_client->username, mount);
                 existing_client->connection.error = 1;

@@ -181,7 +181,7 @@ void auth_release (auth_t *authenticator)
     }
 
     /* cleanup auth threads attached to this auth */
-    authenticator->running = 0;
+    authenticator->flags &= ~AUTH_RUNNING;
     while (authenticator->handlers)
     {
         if (authenticator->release_thread_data)
@@ -580,6 +580,8 @@ int auth_add_listener (const char *mount, client_t *client)
     {
         if (mountinfo)
         {
+            auth_t *auth = mountinfo->auth;
+
             if (mountinfo->skip_accesslog)
                 client->flags |= CLIENT_SKIP_ACCESSLOG;
             if (mountinfo->ban_client)
@@ -601,26 +603,30 @@ int auth_add_listener (const char *mount, client_t *client)
                 config_release_config ();
                 return client_send_302 (client, addr);
             }
-            if (mountinfo->auth && mountinfo->auth->authenticate)
+            do
             {
-                auth_client *auth_user;
-
-                if (mountinfo->auth->running == 0 || mountinfo->auth->pending_count > 300)
+                if (auth == NULL) break;
+                if ((auth->flags & AUTH_RUNNING) == 0) break;
+                if (auth->pending_count > 400)
                 {
+                    if (auth->flags & AUTH_SKIP_IF_SLOW) break;
                     config_release_config ();
                     WARN0 ("too many clients awaiting authentication");
                     if (global.new_connections_slowdown < 10)
                         global.new_connections_slowdown++;
                     return client_send_403 (client, "busy, please try again later");
                 }
-                auth_user = auth_client_setup (mount, client);
-                auth_user->process = auth_new_listener;
-                client->flags &= ~CLIENT_ACTIVE;
-                DEBUG0 ("adding client for authentication");
-                queue_auth_client (auth_user, mountinfo);
-                config_release_config ();
-                return 0;
-            }
+                if (auth->authenticate)
+                {
+                    auth_client *auth_user = auth_client_setup (mount, client);
+                    auth_user->process = auth_new_listener;
+                    client->flags &= ~CLIENT_ACTIVE;
+                    DEBUG0 ("adding client for authentication");
+                    queue_auth_client (auth_user, mountinfo);
+                    config_release_config ();
+                    return 0;
+                }
+            } while (0);
         }
         else
         {
@@ -709,11 +715,11 @@ static int get_authenticator (auth_t *auth, config_options_t *options)
     while (options)
     {
         if (strcmp (options->name, "allow_duplicate_users") == 0)
-            auth->allow_duplicate_users = atoi (options->value);
+            auth->flags |= atoi (options->value) ? AUTH_ALLOW_LISTENER_DUP : 0;
         else if (strcmp(options->name, "realm") == 0)
             auth->realm = (char*)xmlStrdup (XMLSTR(options->value));
         else if (strcmp(options->name, "drop_existing_listener") == 0)
-            auth->drop_existing_listener = atoi (options->value);
+            auth->flags |= atoi (options->value) ? AUTH_DEL_EXISTING_LISTENER : 0;
         else if (strcmp (options->name, "rejected_mount") == 0)
             auth->rejected_mount = (char*)xmlStrdup (XMLSTR(options->value));
         else if (strcmp(options->name, "handlers") == 0)
@@ -779,7 +785,7 @@ int auth_get_authenticator (xmlNodePtr node, void *x)
         /* allocate N threads */
         auth->handles = calloc (auth->handlers, sizeof (auth_thread_t));
         auth->refcount = 1;
-        auth->running = 1;
+        auth->flags |= AUTH_RUNNING;
         for (i=0; i<auth->handlers; i++)
         {
             if (auth->alloc_thread_data)

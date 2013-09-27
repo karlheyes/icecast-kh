@@ -103,7 +103,6 @@ typedef struct
 typedef struct {
     time_t stop_req_until;
     int  stop_req_duration;
-    int  presume_innocent;
     int  timeout;
     char *addurl;
     char *removeurl;
@@ -425,10 +424,13 @@ static auth_result url_add_listener (auth_client *auth_user)
     {
         time_t now = time(NULL);
         if (url->stop_req_until <= now)
+        {
+            INFO1 ("restarting url after timeout on %s", auth_user->mount);
             url->stop_req_until = 0;
+        }
         else
         {
-            if (url->presume_innocent)
+            if (auth->flags & AUTH_SKIP_IF_SLOW)
             {
                 client->flags |= CLIENT_AUTHENTICATED;
                 return AUTH_OK;
@@ -535,7 +537,7 @@ static auth_result url_add_listener (auth_client *auth_user)
         url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
         WARN2 ("auth to server %s failed with %s", url->addurl, atd->errormsg);
         INFO1 ("will not auth new listeners for %d seconds", url->stop_req_duration);
-        if (url->presume_innocent)
+        if (auth->flags & AUTH_SKIP_IF_SLOW)
         {
             client->flags |= CLIENT_AUTHENTICATED;
             ret = AUTH_OK;
@@ -833,7 +835,10 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
             url_info->stop_req_duration = seconds > 0 ? seconds : 1;
         }
         if (strcmp(options->name, "presume_innocent") == 0)
-            url_info->presume_innocent = strcasecmp (options->value, "yes") ? 0 : 1;
+        {
+            if (strcasecmp (options->value, "yes") == 0)
+                authenticator->flags |= AUTH_SKIP_IF_SLOW;
+        }
         options = options->next;
     }
 

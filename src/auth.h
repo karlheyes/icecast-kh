@@ -80,11 +80,10 @@ typedef struct auth_tag
     auth_result (*listuser)(struct auth_tag *auth, xmlNodePtr srcnode);
 
     mutex_t lock;
-    int running;
+
     int refcount;
-    int allow_duplicate_users;
-    int drop_existing_listener;
-    int handlers;
+    short handlers;
+    short flags;
 
     /* mountpoint to send unauthenticated listeners */
     char *rejected_mount;
@@ -100,6 +99,12 @@ typedef struct auth_tag
     char *type;
     char *realm;
 } auth_t;
+
+#define AUTH_RUNNING                    1
+#define AUTH_DEL_EXISTING_LISTENER      (1<<1)
+#define AUTH_ALLOW_LISTENER_DUP         (1<<2)
+#define AUTH_SKIP_IF_SLOW               (1<<3)
+
 
 int  auth_add_listener (const char *mount, client_t *client);
 int  auth_release_listener (client_t *client, const char *mount, struct _mount_proxy *mountinfo);

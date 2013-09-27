@@ -257,7 +257,7 @@ static auth_result auth_cmd_client (auth_client *auth_user)
     const char *qargs;
     char str[512];
 
-    if (auth->running == 0)
+    if ((auth->flags & AUTH_RUNNING) == 0)
         return AUTH_FAILED;
     if (pipe (infd) < 0 || pipe (outfd) < 0)
     {
