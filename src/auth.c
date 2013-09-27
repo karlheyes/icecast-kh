@@ -168,10 +168,6 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
  */
 void auth_release (auth_t *authenticator)
 {
-    if (authenticator == NULL)
-        return;
-
-    thread_mutex_lock (&authenticator->lock);
     authenticator->refcount--;
     DEBUG2 ("...refcount on auth_t %s is now %d", authenticator->mount, authenticator->refcount);
     if (authenticator->refcount)
@@ -365,7 +361,6 @@ static void *auth_run_thread (void *arg)
             continue;
         }
         handler->thread = NULL;
-        thread_mutex_unlock (&auth->lock);
         break;
     }
     DEBUG1 ("Authenication thread %d shutting down", handler->id);
