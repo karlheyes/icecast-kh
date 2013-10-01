@@ -752,6 +752,12 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
 
     if (mpeg_has_changed (mpeg_sync))
     {
+        format_plugin_t *plugin = source->format;
+        if (mpeg_sync->samplerate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
+        {
+            free (plugin->contenttype);
+            plugin->contenttype = strdup ("video/MP2T");
+        }
         stats_lock (source->stats, NULL);
         stats_set_args (source->stats, "audio_codecid", "%d", (mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2));
         stats_set_args (source->stats, "mpeg_samplerate", "%d", mpeg_sync->samplerate);

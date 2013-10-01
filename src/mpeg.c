@@ -365,6 +365,7 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
     mp->mask = 0xF0000000;
     mp->marker = 0x47;
     mp->raw_offset = pkt_len;
+    mp->settings |= 0x80;
     return 1;
 }
 
