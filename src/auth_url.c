@@ -323,7 +323,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     const char *qargs;
     char *userpwd = NULL, post [4096];
 
-    if (url->removeurl == NULL)
+    if (url->removeurl == NULL || client == NULL)
         return AUTH_OK;
     if (url->stop_req_until)
     {
@@ -417,7 +417,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     struct build_intro_contents *x;
     char *userpwd = NULL, post [4096];
 
-    if (url->addurl == NULL)
+    if (url->addurl == NULL || client == NULL)
         return AUTH_OK;
 
     if (url->stop_req_until)

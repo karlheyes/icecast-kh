@@ -58,6 +58,7 @@ static void *auth_run_thread (void *arg);
 static int  auth_postprocess_listener (auth_client *auth_user);
 static void auth_postprocess_source (auth_client *auth_user);
 static int  wait_for_auth (client_t *client);
+static void auth_client_free (auth_client *auth_user);
 
 
 struct _client_functions auth_release_ops =
@@ -131,6 +132,8 @@ static auth_client *auth_client_setup (const char *mount, client_t *client)
 static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
 {
     auth_t *auth;
+    client_t *failed = NULL;
+    auth_client **old_tail;
 
     if (auth_user == NULL || mountinfo == NULL)
         return;
@@ -138,6 +141,7 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
     thread_mutex_lock (&auth->lock);
     auth_user->next = NULL;
     auth_user->auth = auth;
+    old_tail = auth->tailp;
     *auth->tailp = auth_user;
     auth->tailp = &auth_user->next;
     auth->pending_count++;
@@ -152,14 +156,28 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
             {
                 DEBUG1 ("starting auth thread %d", i);
                 auth->refcount++;
-                auth->handles [i].thread = thread_create ("auth thread", auth_run_thread,
-                        &auth->handles [i], THREAD_DETACHED);
+                auth->handles [i].thread = thread_create ("auth thread", auth_run_thread, &auth->handles [i], THREAD_DETACHED);
+                if (auth->handles [i].thread == NULL)
+                {
+                    auth->tailp = old_tail;
+                    *old_tail = NULL;
+                    auth->pending_count--;
+                    auth->refcount--;
+                    failed = auth_user->client;
+                    auth_user->client = NULL;
+                    ERROR0 ("failed to start auth thread, system limit probably reached");
+                }
                 break;
             }
         }
     }
     DEBUG2 ("auth on %s has %d pending", auth->mount, auth->pending_count);
     thread_mutex_unlock (&auth->lock);
+    if (failed)
+    {
+        client_send_403redirect (failed, auth_user->mount, "system limit reached");
+        auth_client_free (auth_user);
+    }
 }
 
 
@@ -515,7 +533,7 @@ static int auth_postprocess_listener (auth_client *auth_user)
     const char *mount = auth_user->mount;
 
     if (client == NULL)
-        return -1;
+        return 0;
 
     if ((client->flags & CLIENT_AUTHENTICATED) == 0)
     {
