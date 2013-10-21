@@ -428,8 +428,7 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
 {
     int skip = remaining, singlebyte = mp->mask & 0xFFFFFF ? 0 : 1;
     unsigned char *p = start;
-    if (remaining > 15000)
-        return 0;
+
     if (mp->mask)
     {
         unsigned char *s = start;
@@ -471,8 +470,9 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
     if (p)
     {
         skip = p - start;
-        if (prevent_move == 0)
-            memmove (start, p, remaining - skip);
+        remaining -= skip;
+        if (remaining < 20000 && prevent_move == 0)
+            memmove (start, p, remaining);
         mp->resync_count += skip;
     }
     return skip;
