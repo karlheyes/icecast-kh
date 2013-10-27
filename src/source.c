@@ -1338,6 +1338,11 @@ void source_set_fallback (source_t *source, const char *dest_mount)
         INFO1 ("No fallback on %s", source->mount);
         return;
     }
+    if (dest_mount[0] != '/')
+    {
+        WARN2 ("invalid fallback on \"%s\", ignoring \"%s\"", source->mount, dest_mount);
+        return;
+    }
     if (source->listeners == 0)
     {
         INFO2 ("fallback on %s to %s, but no listeners", source->mount, dest_mount);

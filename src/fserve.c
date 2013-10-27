@@ -303,7 +303,10 @@ static fh_node *find_fh (fbinfo *finfo)
     char *s = finfo->mount;
     fh_node fh, *result = NULL;
     if (finfo->mount == NULL)
-        finfo->mount = "";
+    {
+        ERROR0 ("missing name");
+        return NULL;
+    }
     memcpy (&fh.finfo, finfo, sizeof (fbinfo));
     if (strncmp (s, "fallback-", 9) == 0)
     {

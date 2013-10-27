@@ -1004,6 +1004,12 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         mount->queue_block_size = 1400;
     if (mount->ban_client < 0)
         mount->no_mount = 0;
+    if (mount->fallback_mount && mount->fallback_mount[0] != '/')
+    {
+        WARN1 ("fallback does not start with / on %s", mount->mountname);
+        xmlFree (mount->fallback_mount);
+        mount->fallback_mount = NULL;
+    }
 
     mount->next = config->mounts;
     config->mounts = mount;
