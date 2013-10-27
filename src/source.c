@@ -166,10 +166,11 @@ source_t *source_reserve (const char *mount, int flags)
         thread_spin_create (&src->shrink_lock);
 
         avl_insert (global.source_tree, src);
-        thread_rwlock_wlock (&src->lock);
 
     } while (0);
 
+    if (src)
+        thread_rwlock_wlock (&src->lock);
     avl_tree_unlock (global.source_tree);
     return src;
 }
