@@ -31,7 +31,7 @@ typedef struct mpeg_sync
     refbuf_t *surplus;
     long sample_count;
     void *callback_key;
-    int (*frame_callback)(struct mpeg_sync *mp, unsigned char *p, unsigned int len);
+    int (*frame_callback)(struct mpeg_sync *mp, unsigned char *p, unsigned int len, unsigned int offset);
     refbuf_t *raw;
     int raw_offset;
     const char *mount;
