@@ -1149,9 +1149,12 @@ static int send_listener (source_t *source, client_t *client)
         total_written += bytes;
         loop--;
     }
-    rate_add (source->out_bitrate, total_written, worker->time_ms);
-    global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
-    source->bytes_sent_since_update += total_written;
+    if (total_written)
+    {
+        rate_add (source->out_bitrate, total_written, worker->time_ms);
+        global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
+        source->bytes_sent_since_update += total_written;
+    }
 
     if (source->shrink_pos && client->queue_pos < source->shrink_pos)
     {

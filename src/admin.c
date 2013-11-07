@@ -887,7 +887,7 @@ static int command_kill_client (client_t *client, source_t *source, int response
     xmlDocSetRootElement(doc, node);
 
     if(listener != NULL) {
-        INFO1("Admin request: client %d removed", id);
+        INFO1("Admin request: client %" PRIu64 " removed", id);
 
         /* This tags it for removal on the next iteration of the main source
          * loop

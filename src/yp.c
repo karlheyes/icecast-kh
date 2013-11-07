@@ -74,7 +74,7 @@ typedef struct ypdata_tag
     time_t      next_update;
     unsigned    touch_interval;
     char        *error_msg;
-    int    (*process)(struct ypdata_tag *yp, char *s, unsigned len);
+    int         (*process)(struct ypdata_tag *yp, char *s, unsigned len);
 
     struct ypdata_tag *next;
 } ypdata_t;

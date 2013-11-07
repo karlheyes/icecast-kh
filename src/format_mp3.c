@@ -569,8 +569,10 @@ static int send_iceblock_to_client (client_t *client)
         refbuf_t *meta = refbuf->associated;
         if (meta && meta->associated && meta->associated->associated)
         {
+            // may need to skip the single byte identifier for this client
+            int off = (client->flags & CLIENT_WANTS_META1) ? 1 : 0;
             meta = meta->associated->associated;
-            connection_bufs_append (&v, meta->data, meta->len);
+            connection_bufs_append (&v, meta->data+off, meta->len-off);
         }
     }
     skip = connection_bufs_append (&v, lengthbytes, 2);

@@ -95,6 +95,7 @@ redirect_host *redirectors;
 worker_t *workers;
 rwlock_t workers_lock;
 
+
 struct _client_functions relay_client_ops =
 {
     relay_read,
@@ -287,6 +288,7 @@ int redirect_client (const char *mountpoint, client_t *client)
     thread_rwlock_unlock (&slaves_lock);
     return ret;
 }
+
 
 
 static http_parser_t *get_relay_response (connection_t *con, const char *mount,

@@ -69,7 +69,7 @@ typedef struct source_tag
 
     spin_t shrink_lock;
     uint64_t shrink_pos;
-    uint64_t shrink_time; 
+    uint64_t shrink_time;
 
     unsigned timeout;  /* source timeout in seconds */
     unsigned long bytes_sent_since_update;

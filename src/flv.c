@@ -79,7 +79,7 @@ static void flv_hdr (struct flv *flv, unsigned int len)
  * header so with the flv header as well it becomes fairly wasteful but that is what
  * works.
  */
-static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int len)
+static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int len, unsigned int headerlen)
 {
     struct flv *flv = mp->callback_key;
 
@@ -113,12 +113,16 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
 /* Here we append to the scratch buffer each aac headerless frame. The flv tag data size
  * will be 2 bytes more than the frame for codes 0xAF and 0x1
  */
-static int flv_aac_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int len)
+static int flv_aac_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int len, unsigned int header_len)
 {
     struct flv *flv = mp->callback_key;
 
     if (mp->raw_offset + 17 > mp->raw->len)
         return -1;
+
+    // we do not put adts aac headers in FLV frames
+    len -= header_len;
+    frame += header_len;
 
     flv_hdr (flv, len + 2);
     // a single frame (headerless) follows this
@@ -155,7 +159,7 @@ static int  audio_specific_config (mpeg_sync *mp, unsigned char *p)
     return 2;
 }
 
-static int flv_aac_firsthdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int len)
+static int flv_aac_firsthdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int len, unsigned int headerlen)
 {
     struct flv *flv = mp->callback_key;
     int c = audio_specific_config (&flv->mpeg_sync, &flv->tag[17]);
@@ -171,7 +175,7 @@ static int flv_aac_firsthdr (struct mpeg_sync *mp, unsigned char *frame, unsigne
     flv->mpeg_sync.frame_callback = flv_aac_hdr;
     // DEBUG2 ("codes for audiospecificconfig are %x, %x", flv->tag[17], flv->tag[18]);
 
-    return flv_aac_hdr (mp, frame, len);
+    return flv_aac_hdr (mp, frame, len, headerlen);
 }
 
 
@@ -306,11 +310,6 @@ int write_flv_buf_to_client (client_t *client)
     struct flv *flv = client->format_data;
     int ret;
 
-    if (flv == NULL) // handle odd case like override of non FLV wrapped file
-    {
-        client->connection.error = 1;
-        return -1;
-    }
     if (client->pos > ref->len)
     {
         WARN2 ("buffer position invalid (%d, %d)", client->pos, ref->len);

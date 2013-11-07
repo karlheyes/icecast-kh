@@ -100,14 +100,11 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
         header_len -= 2;
     s += header_len;
     mp->sample_count = (blocks * 1024);
-    if (mp->raw)
-    {
-        unsigned raw_frame_len = frame_len - header_len;
 
-        if (mp->frame_callback)
-            if (mp->frame_callback (mp, s, raw_frame_len) < 0)
-                return -1;
-    }
+    if (mp->frame_callback)
+        if (mp->frame_callback (mp, s, frame_len, header_len) < 0)
+            return -1;
+
     return frame_len;
 }
 
@@ -208,12 +205,9 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remain
     }
     if (remaining - frame_len < 0)
         return 0;
-    if (mp->raw)
-    {
-        if (mp->frame_callback)
-            if (mp->frame_callback (mp, p, frame_len) < 0)
-                return -1;
-    }
+    if (mp->frame_callback)
+        if (mp->frame_callback (mp, p, frame_len, (p[1] & 0x1) ? 4 : 6) < 0)
+            return -1;
     return frame_len;
 }
 
@@ -556,9 +550,11 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                 INFO1 ("no frame sync after 20k on %s", mp->mount);
                 return -1;
             }
-            INFO3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
             if ((new_block->flags & REFBUF_SHARED) == 0)
+            {
+                DEBUG3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
                 new_block->len -= ret;
+            }
             continue;
         }
         if (mp->mask == 0)
