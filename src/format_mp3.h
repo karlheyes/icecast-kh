@@ -23,7 +23,7 @@
 
 #define CLIENT_WANTS_FLV            (CLIENT_FORMAT_BIT<<1)
 #define CLIENT_WANTS_META           (CLIENT_FORMAT_BIT<<2)
-
+#define CLIENT_WANTS_META1          (CLIENT_FORMAT_BIT<<3)
 
 typedef struct {
     refbuf_t *associated;
