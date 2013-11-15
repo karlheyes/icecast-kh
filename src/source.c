@@ -2257,6 +2257,38 @@ static int source_client_http_send (client_t *client)
 }
 
 
+int source_format_init (source_t *source)
+{
+    client_t *client = source->client;
+    format_plugin_t *format = source->format;
+
+    if (format->type == FORMAT_TYPE_UNDEFINED)
+    {
+        format_type_t format_type = FORMAT_TYPE_MPEG;
+        if (client->parser)
+        {
+            const char *contenttype = httpp_getvar (client->parser, "content-type");
+            format_type = format_get_type (contenttype);
+            if (format_type == FORMAT_TYPE_UNDEFINED)
+            {
+                WARN1("Content-type \"%s\" not supported, dropping source", contenttype);
+                return -1;
+            }
+        }
+        WARN1("No content-type for %s, Assuming content is mpeg.", source->mount);
+        format->type = format_type;
+    }
+    format->mount = source->mount;
+    if (format_get_plugin (format) < 0)
+    {
+        WARN1 ("plugin format failed for \"%s\"", source->mount);
+        return -1;
+    }
+    format_apply_client (format, client);
+    return 0;
+}
+
+
 static void source_swap_client (source_t *source, client_t *client)
 {
     client_t *old_client = source->client;
@@ -2299,6 +2331,7 @@ int source_startup (client_t *client, const char *uri)
         else
         {
             global_lock();
+            source->client = client;
             if (global.sources >= source_limit)
             {
                 WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
@@ -2307,20 +2340,20 @@ int source_startup (client_t *client, const char *uri)
                 source_free_source (source);
                 return client_send_403 (client, "too many streams connected");
             }
-            global.sources++;
-            INFO1 ("sources count is now %d", global.sources);
-            stats_event_args (NULL, "sources", "%d", global.sources);
-            global_unlock();
-            source->client = client;
-            source->stats = stats_lock (source->stats, source->mount);
-            stats_release (source->stats);
-            if (connection_complete_source (source) < 0)
+            if (source_format_init (source) < 0)
             {
+                global_unlock();
                 source->client = NULL;
                 thread_rwlock_unlock (&source->lock);
                 source_free_source (source);
                 return client_send_403 (client, "content type not supported");
             }
+            ++global.sources;
+            source->stats = stats_lock (source->stats, source->mount);
+            stats_release (source->stats);
+            INFO1 ("sources count is now %d", global.sources);
+            stats_event_args (NULL, "sources", "%d", global.sources);
+            global_unlock();
         }
         client->respcode = 200;
         client->shared_data = source;

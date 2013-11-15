@@ -405,7 +405,7 @@ static fh_node *open_fh (fbinfo *finfo)
         if (fh->finfo.type != FORMAT_TYPE_UNDEFINED)
         {
             fh->format->mount = strdup (fh->finfo.mount);
-            if (format_get_plugin (fh->format, NULL) < 0)
+            if (format_get_plugin (fh->format) < 0)
             {
                 avl_tree_unlock (fh_cache);
                 free (fh->format);

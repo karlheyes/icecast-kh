@@ -50,6 +50,7 @@ format_type_t format_get_type(const char *content_type)
 {
     char contenttype [256];
 
+    if (content_type == NULL) return FORMAT_TYPE_UNDEFINED;
     sscanf (content_type, "%250[^ ;]", contenttype);
     if(strcmp(contenttype, "application/x-ogg") == 0)
         return FORMAT_TYPE_OGG; /* Backwards compatibility */
@@ -76,7 +77,24 @@ format_type_t format_get_type(const char *content_type)
     else if(strcmp(contenttype, "audio/mpeg") == 0)
         return FORMAT_TYPE_MPEG;
     else
-        return FORMAT_TYPE_UNDEFINED;
+        return FORMAT_TYPE_GENERIC;
+}
+
+
+void format_apply_client (format_plugin_t *format, client_t *client)
+{
+    if (format->type == FORMAT_TYPE_UNDEFINED)
+        return;
+
+    if (client && format->parser != client->parser) // a relay client may have a new parser
+    {
+        if (format->parser) httpp_destroy (format->parser);
+        format->parser = client->parser;
+    }
+    if (format->apply_client)
+        format->apply_client (format, client);
+    format->read_bytes = 0;
+    format->sent_bytes = 0;
 }
 
 
@@ -88,26 +106,31 @@ void format_plugin_clear (format_plugin_t *format, client_t *client)
         format->free_plugin (format, client);
     free (format->charset);
     free (format->contenttype);
-    if (format->parser && format->parser != client->parser) // a relay client may have a new parser
-        httpp_destroy (format->parser);
+    if (format->parser)
+        if (client == NULL || format->parser != client->parser) // a relay client may have a new parser
+            httpp_destroy (format->parser);
     memset (format, 0, sizeof (format_plugin_t));
 }
 
 
-int format_get_plugin (format_plugin_t *plugin, client_t *client)
+int format_get_plugin (format_plugin_t *plugin)
 {
     int ret = -1;
 
-    if (client)
-        plugin->parser = client->parser;
+    if (plugin->_state)
+    {
+        INFO1 ("internal format details already created for %s", plugin->mount);
+        return 0;
+    }
     switch (plugin->type)
     {
         case FORMAT_TYPE_OGG:
-            ret = format_ogg_get_plugin (plugin, client);
+            ret = format_ogg_get_plugin (plugin);
             break;
         case FORMAT_TYPE_AAC:
         case FORMAT_TYPE_MPEG:
-            ret = format_mp3_get_plugin (plugin, client);
+        case FORMAT_TYPE_GENERIC:
+            ret = format_mp3_get_plugin (plugin);
             break;
         default:
             INFO1 ("unknown format detected for %s", plugin->mount);

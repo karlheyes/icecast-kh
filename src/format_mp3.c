@@ -63,6 +63,7 @@ static void mp3_set_tag (format_plugin_t *plugin, const char *tag, const char *i
 static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mount);
 static int  mpeg_process_buffer (client_t *client, format_plugin_t *plugin);
 static void swap_client (client_t *new_client, client_t *old_client);
+static void mpeg_apply_client (format_plugin_t *plugin, client_t *client);
 
 
 /* client format flags */
@@ -73,11 +74,9 @@ static void swap_client (client_t *new_client, client_t *old_client);
 static refbuf_t blank_meta = { 0, 1, NULL, NULL, "\001StreamTitle='';", 17 };
 
 
-int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
+int format_mp3_get_plugin (format_plugin_t *plugin)
 {
-    const char *metadata;
     mp3_state *state = calloc(1, sizeof(mp3_state));
-    refbuf_t *meta;
 
     plugin->get_buffer = mp3_get_no_meta;
     plugin->write_buf_to_client = write_mpeg_buf_to_client;
@@ -88,10 +87,38 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
     plugin->swap_client = swap_client;
     plugin->set_tag = mp3_set_tag;
     plugin->apply_settings = format_mp3_apply_settings;
+    plugin->apply_client = mpeg_apply_client;
+    plugin->_state = state;
+    INFO1 ("Created format details for %s", plugin->mount);
+    return 0;
+}
+
+
+static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
+{
+    mp3_state *source_mp3 = plugin->_state;
+    const char *s;
+    const char *metadata;
+    refbuf_t *meta;
+
+    source_mp3->interval = -1;
+    source_mp3->offset = 0;
+    source_mp3->build_metadata_len = 0;
+
+    refbuf_release (source_mp3->metadata);
+    source_mp3->metadata = NULL;
+    refbuf_release (source_mp3->read_data);
+    source_mp3->read_data = NULL;
+    source_mp3->read_count = 0;
+    free (plugin->contenttype);
+    plugin->contenttype = NULL;
+
+    if (client == NULL)
+        return;
 
     if (plugin->contenttype == NULL)
     {
-        const char *s = httpp_getvar (plugin->parser, "content-type");
+        s = httpp_getvar (plugin->parser, "content-type");
         if (s)
             plugin->contenttype = strdup (s);
         else
@@ -99,36 +126,34 @@ int format_mp3_get_plugin (format_plugin_t *plugin, client_t *client)
             plugin->contenttype = strdup ("audio/mpeg");
     }
 
-    plugin->_state = state;
-
-    /* initial metadata needs to be blank for sending to clients and for
-       comparing with new metadata */
     meta = refbuf_new (17);
     memcpy (meta->data, "\001StreamTitle='';", 17);
-    state->metadata = meta;
-    state->interval = -1;
+    source_mp3->metadata = meta;
+    source_mp3->interval = -1;
+
+    mpeg_cleanup (client->format_data);
 
     metadata = httpp_getvar (plugin->parser, "icy-metaint");
     if (metadata)
     {
         client->flags |= CLIENT_META_INSTREAM;
-        state->inline_metadata_interval = atoi (metadata);
-        if (state->inline_metadata_interval > 0)
+        source_mp3->inline_metadata_interval = atoi (metadata);
+        if (source_mp3->inline_metadata_interval > 0)
         {
-            state->offset = 0;
+            source_mp3->offset = 0;
             plugin->get_buffer = mp3_get_filter_meta;
-            state->interval = state->inline_metadata_interval;
-            INFO2 ("icy metadata format expected on %s, interval %d", plugin->mount, state->interval);
+            source_mp3->interval = source_mp3->inline_metadata_interval;
+            INFO2 ("icy metadata format expected on %s, interval %d", plugin->mount, source_mp3->interval);
         }
     }
-    if (client && (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG))
+    if (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG)
     {
-        client->format_data = malloc (sizeof (mpeg_sync));
-        mpeg_setup (client->format_data, plugin->mount);
+        if (client->format_data == NULL)
+            client->format_data = malloc (sizeof (mpeg_sync));
+        mpeg_setup (client->format_data, client->connection.ip);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
-
-    return 0;
+    client_set_queue (client, NULL);
 }
 
 

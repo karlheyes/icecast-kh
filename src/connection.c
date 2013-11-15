@@ -1179,46 +1179,6 @@ void connection_thread_shutdown ()
 }
 
 
-/* Called when activating a source. Verifies that the source count is not
- * exceeded and applies any initial parameters.
- */
-int connection_complete_source (source_t *source)
-{
-    client_t *client = source->client;
-    const char *contenttype = httpp_getvar (client->parser, "content-type");
-    format_type_t format_type;
-
-    /* setup format handler */
-    if (contenttype != NULL)
-    {
-        format_type = format_get_type (contenttype);
-
-        if (format_type == FORMAT_TYPE_UNDEFINED)
-        {
-            WARN1("Content-type \"%s\" not supported, dropping source", contenttype);
-            return -1;
-        }
-    }
-    else
-    {
-        WARN0("No content-type header, falling back to backwards compatibility mode "
-                "for icecast 1.x relays. Assuming content is mp3.");
-        format_type = FORMAT_TYPE_MPEG;
-    }
-
-    format_plugin_clear (source->format, client);
-    source->format->type = format_type;
-    source->format->mount = source->mount;
-    if (format_get_plugin (source->format, client) < 0)
-    {
-        WARN1 ("plugin format failed for \"%s\"", source->mount);
-        return -1;
-    }
-
-    return 0;
-}
-
-
 static int _check_pass_http(http_parser_t *parser, 
         const char *correctuser, const char *correctpass)
 {

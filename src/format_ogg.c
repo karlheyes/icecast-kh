@@ -61,6 +61,7 @@ static void write_ogg_to_file (struct source_tag *source, refbuf_t *refbuf);
 static refbuf_t *ogg_get_buffer (source_t *source);
 static int write_buf_to_client (client_t *client);
 static void apply_ogg_settings (format_plugin_t *format, mount_proxy *mount);
+static void ogg_apply_client (format_plugin_t *plugin, client_t *client);
 
 
 struct ogg_client
@@ -157,10 +158,11 @@ static void free_ogg_codecs (ogg_state_t *ogg_info)
 }
 
 
-int format_ogg_get_plugin (format_plugin_t *plugin, client_t *client)
+int format_ogg_get_plugin (format_plugin_t *plugin)
 {
     ogg_state_t *state = calloc (1, sizeof (ogg_state_t));
 
+    state->use_url_metadata = 1;
     plugin->get_buffer = ogg_get_buffer;
     plugin->write_buf_to_client = write_buf_to_client;
     plugin->write_buf_to_file = write_ogg_to_file;
@@ -169,24 +171,36 @@ int format_ogg_get_plugin (format_plugin_t *plugin, client_t *client)
     plugin->get_image = get_image;
     plugin->set_tag = NULL;
     plugin->apply_settings = apply_ogg_settings;
+    plugin->apply_client = ogg_apply_client;
+    plugin->_state = state;
+    return 0;
+}
+
+
+static void ogg_apply_client (format_plugin_t *plugin, client_t *client)
+{
+    ogg_state_t *state = plugin->_state;
+
+    state->mount = NULL;
+    ogg_sync_clear (&state->oy);
+
+    if (client == NULL)
+        return;
+    plugin->parser = client->parser;
     if (plugin->parser)
     {
-        const char *s = httpp_getvar (plugin->parser, "content-type");;
+        const char *s = httpp_getvar (plugin->parser, "content-type");
         if (s==NULL || strcmp (s, "application/x-ogg") == 0)
             httpp_setvar (plugin->parser, "content-type", "application/ogg");
-        plugin->contenttype = strdup (httpp_getvar (plugin->parser, "content-type"));
+        s = httpp_getvar (plugin->parser, "content-type");
+        if (s)
+            plugin->contenttype = strdup (s);
     }
-    else
-        plugin->contenttype = strdup ("application/ogg");
 
     ogg_sync_init (&state->oy);
 
-    plugin->_state = state;
-    state->use_url_metadata = 1;
     state->mount = plugin->mount;
     state->bos_end = &state->header_pages;
-
-    return 0;
 }
 
 

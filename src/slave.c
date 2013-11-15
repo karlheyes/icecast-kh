@@ -503,6 +503,11 @@ int open_relay (relay_server *relay)
 
         if (ret < 0)
             continue;
+        if (source_format_init (src) < 0)
+        {
+            WARN1 ("Failed to complete initialisation on %s", relay->localmount);
+            continue;
+        }
         return 1;
     } while ((host = host->next) && global.running == ICE_RUNNING);
     return -1;
@@ -542,11 +547,6 @@ static void *start_relay_stream (void *arg)
 
         if (open_relay (relay) < 0)
             break;
-        if (connection_complete_source (src) < 0)
-        {
-            WARN1 ("Failed to complete initialisation on %s", relay->localmount);
-            break;
-        }
         stats_event_inc (NULL, "source_relay_connections");
         source_init (src);
         config = config_get_config();
