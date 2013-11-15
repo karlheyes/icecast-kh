@@ -83,7 +83,6 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
 {
     int frame_len = get_aac_frame_len (p);
     int blocks, header_len = 9;
-    unsigned char *s = p;
     int samplerate_idx = (p[2] & 0x3C) >> 2, samplerate;
     if (len - frame_len < 0)
         return 0;
@@ -98,11 +97,10 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
     blocks = (p[6] & 0x3) + 1;
     if (p[1] & 0x1) // no crc
         header_len -= 2;
-    s += header_len;
     mp->sample_count = (blocks * 1024);
 
     if (mp->frame_callback)
-        if (mp->frame_callback (mp, s, frame_len, header_len) < 0)
+        if (mp->frame_callback (mp, p, frame_len, header_len) < 0)
             return -1;
 
     return frame_len;
