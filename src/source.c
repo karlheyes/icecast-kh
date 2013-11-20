@@ -2262,12 +2262,19 @@ int source_format_init (source_t *source)
     client_t *client = source->client;
     format_plugin_t *format = source->format;
 
+    if (format->mount)
+        return 0; // already one defined
     if (format->type == FORMAT_TYPE_UNDEFINED)
     {
         format_type_t format_type = FORMAT_TYPE_MPEG;
-        if (client->parser)
+        const char *contenttype;
+
+        DEBUG2 ("%sparser found for %s", client->parser ? "":"no ", source->mount);
+        if (client->parser == NULL)
+            return 0;
+        contenttype = httpp_getvar (client->parser, "content-type");
+        if (contenttype)
         {
-            const char *contenttype = httpp_getvar (client->parser, "content-type");
             format_type = format_get_type (contenttype);
             if (format_type == FORMAT_TYPE_UNDEFINED)
             {
@@ -2275,7 +2282,8 @@ int source_format_init (source_t *source)
                 return -1;
             }
         }
-        WARN1("No content-type for %s, Assuming content is mpeg.", source->mount);
+        else
+            WARN1("No content-type for %s, Assuming content is mpeg.", source->mount);
         format->type = format_type;
     }
     format->mount = source->mount;
