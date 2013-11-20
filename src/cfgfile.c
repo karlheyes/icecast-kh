@@ -79,12 +79,10 @@ static void _set_defaults(ice_config_t *c);
 static int  _parse_root (xmlNodePtr node, ice_config_t *config);
 
 static void create_locks(void) {
-    thread_mutex_create(&_locks.relay_lock);
     thread_rwlock_create(&_locks.config_lock);
 }
 
 static void release_locks(void) {
-    thread_mutex_destroy(&_locks.relay_lock);
     thread_rwlock_destroy(&_locks.config_lock);
 }
 
@@ -264,7 +262,7 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 
 relay_server *config_clear_relay (relay_server *relay)
 {
-    relay_server *next = relay->next;
+    relay_server *next = relay->new_details;
     while (relay->hosts)
     {
         relay_server_host *host = relay->hosts;
@@ -395,8 +393,8 @@ void config_clear(ice_config_t *c)
     if (c->group) xmlFree(c->group);
     if (c->mimetypes_fn) xmlFree (c->mimetypes_fn);
 
-    while (c->relay)
-        c->relay = config_clear_relay (c->relay);
+    while (c->relays)
+        c->relays = config_clear_relay (c->relays);
 
     while (c->redirect_hosts)
         c->redirect_hosts = config_clear_redirect (c->redirect_hosts);
@@ -1063,6 +1061,7 @@ static int _parse_relay (xmlNodePtr node, void *arg)
     ice_config_t *config = arg;
     relay_server *relay = calloc(1, sizeof(relay_server));
     relay_server_host *host = calloc (1, sizeof (relay_server_host));
+    int on_demand = config->on_demand, icy_metadata = 1, running = 1;
 
     struct cfg_tag icecast_tags[] =
     {
@@ -1075,19 +1074,17 @@ static int _parse_relay (xmlNodePtr node, void *arg)
         { "mount",                      config_get_str,     &host->mount },
         { "timeout",                    config_get_int,     &host->timeout },
         { "local-mount",                config_get_str,     &relay->localmount },
-        { "on-demand",                  config_get_bool,    &relay->on_demand },
+        { "on-demand",                  config_get_bool,    &on_demand },
         { "retry-delay",                config_get_int,     &relay->interval },
-        { "relay-shoutcast-metadata",   config_get_bool,    &relay->mp3metadata },
+        { "relay-icy-metadata",         config_get_bool,    &icy_metadata },
+        { "relay-shoutcast-metadata",   config_get_bool,    &icy_metadata },
         { "username",                   config_get_str,     &relay->username },
         { "password",                   config_get_str,     &relay->password },
-        { "enable",                     config_get_bool,    &relay->running },
+        { "enable",                     config_get_bool,    &running },
         { NULL, NULL, NULL },
     };
 
-    relay->mp3metadata = 1;
-    relay->running = 1;
     relay->interval = config->master_update_interval;
-    relay->on_demand = config->on_demand;
     relay->hosts = host;
     /* default settings */
     host->port = config->port;
@@ -1097,6 +1094,10 @@ static int _parse_relay (xmlNodePtr node, void *arg)
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
+
+    if (on_demand)      relay->flags |= RELAY_ON_DEMAND;
+    if (icy_metadata)   relay->flags |= RELAY_ICY_META;
+    if (running)        relay->flags |= RELAY_RUNNING;
 
     /* check for unspecified entries */
     if (relay->localmount == NULL)
@@ -1112,8 +1113,8 @@ static int _parse_relay (xmlNodePtr node, void *arg)
         free (host);
     }
 
-    relay->next = config->relay;
-    config->relay = relay;
+    relay->new_details = config->relays;
+    config->relays = relay;
 
     return 0;
 }

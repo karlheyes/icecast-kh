@@ -45,10 +45,7 @@ typedef struct ice_global_tag
     avl_tree *alloc_tree;
 #endif
 
-    /* for locally defined relays */
-    struct _relay_server *relays;
-    /* relays retrieved from master */
-    struct _relay_server *master_relays;
+    avl_tree *relays;
 
     /* redirection to slaves */
     unsigned int redirect_count;

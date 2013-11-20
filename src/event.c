@@ -74,6 +74,7 @@ void event_config_read (void)
         workers_adjust (config->workers_count);
         connection_listen_sockets_close (config, 0);
         redirector_setup (config);
+        update_relays (config);
         config_release_config();
 
         slave_restart();

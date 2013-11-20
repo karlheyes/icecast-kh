@@ -515,18 +515,18 @@ static int command_admin_function (client_t *client, int response)
 }
 
 
-static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay, int from_master)
+static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay)
 {
     xmlNodePtr relaynode = xmlNewChild (node, NULL, XMLSTR("relay"), NULL);
     relay_server_host *host = relay->hosts;
     char str [50];
 
     xmlNewChild (relaynode, NULL, XMLSTR("localmount"), XMLSTR(relay->localmount));
-    snprintf (str, sizeof (str), "%d", relay->running);
+    snprintf (str, sizeof (str), "%d", (relay->flags & RELAY_RUNNING) ? 1 : 0);
     xmlNewChild (relaynode, NULL, XMLSTR("enable"), XMLSTR(str));
-    snprintf (str, sizeof (str), "%d", relay->on_demand);
+    snprintf (str, sizeof (str), "%d", (relay->flags & RELAY_ON_DEMAND) ? 1 : 0);
     xmlNewChild (relaynode, NULL, XMLSTR("on_demand"), XMLSTR(str));
-    snprintf (str, sizeof (str), "%d", from_master);
+    snprintf (str, sizeof (str), "%d", (relay->flags & RELAY_FROM_MASTER ? 1 : 0));
     xmlNewChild (relaynode, NULL, XMLSTR("from_master"), XMLSTR(str));
     while (host)
     {
@@ -553,38 +553,47 @@ static int command_manage_relay (client_t *client, int response)
 
     if (relay_mount == NULL || enable == NULL)
     {
+        avl_node *relaynode;
         doc = xmlNewDoc (XMLSTR("1.0"));
         node = xmlNewDocNode (doc, NULL, XMLSTR("icerelaystats"), NULL);
         xmlDocSetRootElement(doc, node);
-        thread_mutex_lock (&(config_locks()->relay_lock));
+        avl_tree_rlock (global.relays);
+        relaynode = avl_get_first (global.relays);
+        while (relaynode)
+        {
+            relay_server *relay = (relay_server*)relaynode->key;
+            add_relay_xmlnode (node, relay);
+            relaynode = avl_get_next (relaynode);
+        }
 
-        for (relay = global.relays; relay; relay=relay->next)
-            add_relay_xmlnode (node, relay, 0);
-        for (relay = global.master_relays; relay; relay=relay->next)
-            add_relay_xmlnode (node, relay, 1);
-
-        thread_mutex_unlock (&(config_locks()->relay_lock));
+        avl_tree_unlock (global.relays);
         return admin_send_response (doc, client, response, "managerelays.xsl");
     }
 
-    thread_mutex_lock (&(config_locks()->relay_lock));
+    avl_tree_rlock (global.relays);
 
-    relay = slave_find_relay (global.relays, relay_mount);
-    if (relay == NULL)
-        relay = slave_find_relay (global.master_relays, relay_mount);
-
+    relay = slave_find_relay (relay_mount);
     msg = "no such relay";
     if (relay)
     {
-        int running = atoi (enable) ? 1 : 0;
-        if (relay->running == running)
-            msg = "relay is left unchanged";
-        else if (relay_toggle (relay))
-            msg = "relay has been enabled";
+        source_t *source = relay->source;
+        client_t *client;
+
+        thread_rwlock_wlock (&source->lock);
+        client = source->client;
+        if (atoi (enable))
+            relay->flags |= RELAY_RUNNING;
         else
-            msg = "relay has been disabled";
+            relay->flags &= ~RELAY_RUNNING;
+        if (client)
+        {
+            client->schedule_ms = 0;
+            worker_wakeup (client->worker);
+        }
+        thread_rwlock_unlock (&source->lock);
+        msg = "relay has been changed";
     }
-    thread_mutex_unlock (&(config_locks()->relay_lock));
+    avl_tree_unlock (global.relays);
 
     doc = xmlNewDoc(XMLSTR("1.0"));
     node = xmlNewDocNode(doc, NULL, XMLSTR("iceresponse"), NULL);

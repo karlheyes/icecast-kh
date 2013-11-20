@@ -194,6 +194,14 @@ struct _listener_t
 };
 
 
+#define RELAY_RUNNING                   1
+#define RELAY_CLEANUP                   (1<<1)
+#define RELAY_ON_DEMAND                 (1<<2)
+#define RELAY_ICY_META                  (1<<3)
+#define RELAY_FROM_MASTER               (1<<4)
+#define RELAY_SLAVE                     (1<<5)
+#define RELAY_IN_LIST                   (1<<6)
+
 typedef struct _relay_server_host
 {
     struct _relay_server_host *next;
@@ -208,17 +216,16 @@ typedef struct _relay_server_host
 
 typedef struct _relay_server
 {
-    struct _relay_server *next, *new_details;
+    struct _relay_server *new_details;
     struct source_tag *source;
+    time_t updated;
+    int interval;
+    unsigned char type;
+    unsigned char flags;
+    char *localmount;
     relay_server_host *hosts, *in_use;
     char *username;
     char *password;
-    char *localmount;
-    int interval;
-    int mp3metadata;
-    int on_demand;
-    int running;
-    int cleanup;
 } relay_server;
 
 
@@ -283,7 +290,7 @@ typedef struct ice_config_tag
     struct _redirect_host *redirect_hosts;
     struct xforward_entry *xforward;
 
-    relay_server *relay;
+    relay_server *relays;
 
     mount_proxy *mounts;
 
@@ -316,7 +323,6 @@ typedef struct ice_config_tag
 
 typedef struct {
     rwlock_t config_lock;
-    mutex_t relay_lock;
 } ice_config_locks;
 
 void config_initialize(void);
