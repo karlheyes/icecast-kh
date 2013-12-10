@@ -2262,35 +2262,36 @@ int source_format_init (source_t *source)
     client_t *client = source->client;
     format_plugin_t *format = source->format;
 
-    if (format->mount)
-        return 0; // already one defined
-    if (format->type == FORMAT_TYPE_UNDEFINED)
+    if (format->mount == NULL)
     {
-        format_type_t format_type = FORMAT_TYPE_MPEG;
-        const char *contenttype;
-
-        DEBUG2 ("%sparser found for %s", client->parser ? "":"no ", source->mount);
-        if (client->parser == NULL)
-            return 0;
-        contenttype = httpp_getvar (client->parser, "content-type");
-        if (contenttype)
+        if (format->type == FORMAT_TYPE_UNDEFINED)
         {
-            format_type = format_get_type (contenttype);
-            if (format_type == FORMAT_TYPE_UNDEFINED)
+            format_type_t format_type = FORMAT_TYPE_MPEG;
+            const char *contenttype;
+
+            DEBUG2 ("%sparser found for %s", client->parser ? "":"no ", source->mount);
+            if (client->parser == NULL)
+                return 0;
+            contenttype = httpp_getvar (client->parser, "content-type");
+            if (contenttype)
             {
-                WARN1("Content-type \"%s\" not supported, dropping source", contenttype);
-                return -1;
+                format_type = format_get_type (contenttype);
+                if (format_type == FORMAT_TYPE_UNDEFINED)
+                {
+                    WARN1("Content-type \"%s\" not supported, dropping source", contenttype);
+                    return -1;
+                }
             }
+            else
+                WARN1("No content-type for %s, Assuming content is mpeg.", source->mount);
+            format->type = format_type;
         }
-        else
-            WARN1("No content-type for %s, Assuming content is mpeg.", source->mount);
-        format->type = format_type;
-    }
-    format->mount = source->mount;
-    if (format_get_plugin (format) < 0)
-    {
-        WARN1 ("plugin format failed for \"%s\"", source->mount);
-        return -1;
+        format->mount = source->mount;
+        if (format_get_plugin (format) < 0)
+        {
+            WARN1 ("plugin format failed for \"%s\"", source->mount);
+            return -1;
+        }
     }
     format_apply_client (format, client);
     return 0;
