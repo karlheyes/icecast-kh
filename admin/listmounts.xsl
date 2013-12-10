@@ -48,7 +48,32 @@
 	</table>
 <br />
 <p><xsl:value-of select="listeners" /> Listener(s)</p>
-<br></br>
+<br />
+<xsl:choose>
+<xsl:when test="listeners > 0">
+<table cellpadding="5" border="1" bordercolor="#C0C0C0" >
+		<thead>
+				<td ><center><b>IP</b></center></td>
+				<td ><center><b>Connected (seconds)</b></center></td>
+				<td ><center><b>Lag (bytes)</b></center></td>
+				<td ><center><b>User Agent</b></center></td>
+				<td ><center><b>Action</b></center></td>
+		</thead>
+    <tbody>
+<xsl:variable name = "themount" ><xsl:value-of select="@mount" /></xsl:variable>
+<xsl:for-each select="listener">
+		<tr>
+                <td align="center"><xsl:value-of select="IP" /><xsl:if test="username"> (<xsl:value-of select="username" />)</xsl:if></td>
+				<td align="center"><xsl:value-of select="Connected" /></td>
+				<td align="center"><xsl:value-of select="lag" /></td>
+				<td align="center"><xsl:value-of select="UserAgent" /></td>
+				<td align="center"><a href="killclient.xsl?mount={$themount}&amp;id={@id}">Kick</a></td>
+		</tr>
+</xsl:for-each>
+    </tbody>
+</table>
+</xsl:when>
+</xsl:choose>
 </xsl:for-each>
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
