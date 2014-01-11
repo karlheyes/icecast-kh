@@ -40,6 +40,7 @@
 #endif
 
 #include "auth.h"
+#include "util.h"
 #include "source.h"
 #include "client.h"
 #include "cfgfile.h"
@@ -255,7 +256,7 @@ static auth_result auth_cmd_client (auth_client *auth_user)
     auth_thread_data *atd = auth_user->thread_data;
     int status, len;
     const char *qargs;
-    char str[512];
+    char *referer, *agent, str[512];
 
     if ((auth->flags & AUTH_RUNNING) == 0)
         return AUTH_FAILED;
@@ -281,17 +282,27 @@ static auth_result auth_cmd_client (auth_client *auth_user)
             close (outfd[0]);
             close (infd[1]);
             qargs = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
+            agent = (char*)httpp_getvar (client->parser, "user-agent");
+            if (agent)
+                agent = util_url_escape (agent);
+            referer = (char*)httpp_getvar (client->parser, "referer");
+            if (referer)
+                referer = util_url_escape (referer);
             len = snprintf (str, sizeof(str),
                     "Mountpoint: %s%s\n"
                     "User: %s\n"
                     "Pass: %s\n"
                     "IP: %s\n"
-                    "Agent: %s\n\n"
-                    , auth_user->mount, qargs ? qargs : "",
+                    "Agent: %s\n"
+                    "Referer: %s\n\n",
+                    auth_user->mount, qargs ? qargs : "",
                     client->username ? client->username : "",
                     client->password ? client->password : "",
                     client->connection.ip,
-                    httpp_getvar (client->parser, "user-agent"));
+                    agent ? agent : "",
+                    referer ? referer : "");
+            free (agent);
+            free (referer);
             write (outfd[1], str, len);
             close (outfd[1]);
             get_response (infd[0], auth_user, pid);
