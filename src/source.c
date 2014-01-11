@@ -1820,10 +1820,9 @@ void source_recheck_mounts (int update_all)
 {
     ice_config_t *config = config_get_config();
     mount_proxy *mount = config->mounts;
+    time_t mark = time (NULL);
 
     avl_tree_rlock (global.source_tree);
-
-    stats_clear_virtual_mounts ();
 
     if (update_all)
     {
@@ -1877,6 +1876,7 @@ void source_recheck_mounts (int update_all)
         }
         mount = mount->next;
     }
+    stats_purge (mark);
     avl_tree_unlock (global.source_tree);
     config_release_config();
 }

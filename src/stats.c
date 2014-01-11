@@ -81,6 +81,7 @@ typedef struct _stats_source_tag
 {
     char *source;
     int  flags;
+    time_t updated;
     avl_tree *stats_tree;
 } stats_source_t;
 
@@ -1299,11 +1300,10 @@ refbuf_t *stats_get_streams (int prepend)
 
 
 
-/* This removes any source stats from virtual mountpoints, ie mountpoints
- * where no source_t exists. This function requires the global sources lock
- * to be held before calling.
+/* because we can have stats entries for inactive mountpoints (when there is a fallback)
+ * then these need to be left on, while others need to be removed
  */
-void stats_clear_virtual_mounts (void)
+void stats_purge (time_t mark)
 {
     avl_node *snode;
 
@@ -1316,9 +1316,7 @@ void stats_clear_virtual_mounts (void)
         snode = avl_get_next (snode);
         if (src->source[0] == '/')
         {
-            source_t *source = source_find_mount_raw (src->source);
-
-            if (source == NULL)
+            if (src->updated < mark)
             {
                 avl_tree_wlock (src->stats_tree);
                 avl_delete (_stats.source_tree, src, _free_source_stats);
@@ -1384,6 +1382,7 @@ long stats_handle (const char *mount)
 
         avl_insert (_stats.source_tree, (void *)src_stats);
     }
+    src_stats->updated = time (NULL);
     avl_tree_wlock (src_stats->stats_tree);
     avl_tree_unlock (_stats.source_tree);
 
