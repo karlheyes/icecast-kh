@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <limits.h>
 
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
@@ -1382,7 +1383,7 @@ long stats_handle (const char *mount)
 
         avl_insert (_stats.source_tree, (void *)src_stats);
     }
-    src_stats->updated = time (NULL);
+    src_stats->updated = (time_t)(LONG_MAX);
     avl_tree_wlock (src_stats->stats_tree);
     avl_tree_unlock (_stats.source_tree);
 
@@ -1480,6 +1481,15 @@ void stats_set_args (long handle, const char *name, const char *format, ...)
         return;
     }
     stats_set (handle, name, buf);
+}
+
+
+void stats_set_expire (long handle, time_t mark)
+{
+    stats_source_t *src_stats = (stats_source_t *)handle;
+    
+    if (src_stats)
+        src_stats->updated = mark;
 }
 
 
