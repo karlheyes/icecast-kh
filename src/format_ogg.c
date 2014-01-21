@@ -371,7 +371,7 @@ static void update_comments (source_t *source)
         codec = codec->next;
     }
     stats_event (source->mount, "subtype", codec_names);
-    yp_touch (source->mount);
+    yp_touch (source->mount, source->stats);
 }
 
 

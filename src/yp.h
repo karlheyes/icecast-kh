@@ -30,7 +30,7 @@
 #ifdef USE_YP
 void yp_add (const char *mount);
 void yp_remove (const char *mount);
-void yp_touch (const char *mount);
+void yp_touch (const char *mount, long stats);
 void yp_recheck_config (ice_config_t *config);
 void yp_initialize (ice_config_t *config);
 void yp_shutdown(void);

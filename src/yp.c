@@ -510,32 +510,8 @@ static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
 static int do_yp_touch (ypdata_t *yp, char *s, unsigned len)
 {
     unsigned listeners = 0, max_listeners = 1;
-    char *val, *artist, *title;
+    char *val;
     int ret;
-
-    artist = (char *)stats_get_value (yp->mount, "artist");
-    title = (char *)stats_get_value (yp->mount, "title");
-    if (artist || title)
-    {
-         char *song;
-         char *separator = " - ";
-         if (artist == NULL)
-         {
-             artist = strdup("");
-             separator = "";
-         }
-         if (title == NULL) title = strdup("");
-         song = malloc (strlen (artist) + strlen (title) + strlen (separator) +1);
-         if (song)
-         {
-             sprintf (song, "%s%s%s", artist, separator, title);
-             add_yp_info(yp, song, YP_CURRENT_SONG);
-             stats_event_flags (yp->mount, "yp_currently_playing", song, STATS_COUNTERS);
-             free (song);
-         }
-    }
-    free (artist);
-    free (title);
 
     val = (char *)stats_get_value (yp->mount, "listeners");
     if (val)
@@ -1036,10 +1012,32 @@ void yp_remove (const char *mount)
 
 /* This is similar to yp_remove, but we force a touch
  * attempt */
-void yp_touch (const char *mount)
+void yp_touch (const char *mount, long stats)
 {
     struct yp_server *server = (struct yp_server *)active_yps;
     ypdata_t *search_list = NULL;
+    char *artist, *title, *song = NULL;
+
+    artist = stats_retrieve (stats, "artist");
+    title = stats_retrieve (stats, "title");
+    if (artist || title)
+    {
+        char *separator = " - ";
+        if (artist == NULL)
+        {
+            artist = strdup("");
+            separator = "";
+        }
+        if (title == NULL) title = strdup("");
+        song = malloc (strlen (artist) + strlen (title) + strlen (separator) +1);
+        if (song)
+        {
+            sprintf (song, "%s%s%s", artist, separator, title);
+            stats_set_flags (stats, "yp_currently_playing", song, STATS_COUNTERS);
+        }
+    }
+    free (artist);
+    free (title);
 
     thread_rwlock_rlock (&yp_lock);
 
@@ -1057,6 +1055,7 @@ void yp_touch (const char *mount)
                 search_list = yp->next;
                 continue;
             }
+            add_yp_info (yp, song, YP_CURRENT_SONG);
             /* don't update the directory if there is a touch scheduled soon */
             if (yp->process == do_yp_touch && now + yp->touch_interval - yp->next_update > 60)
                 yp_schedule (yp, 0);
@@ -1066,6 +1065,7 @@ void yp_touch (const char *mount)
             search_list = server->mounts;
     }
     thread_rwlock_unlock (&yp_lock);
+    free (song);
 }
 
 

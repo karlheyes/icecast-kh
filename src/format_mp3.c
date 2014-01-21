@@ -441,7 +441,7 @@ static void mp3_set_title (source_t *source)
             }
         }
         DEBUG1 ("icy metadata as %.80s...", p->data+1);
-        yp_touch (source->mount);
+        yp_touch (source->mount, source->stats);
 
         flv_meta_append_string (flvmeta, NULL, NULL);
 
