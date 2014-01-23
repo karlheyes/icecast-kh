@@ -287,6 +287,21 @@ int client_send_501(client_t *client)
 }
 
 
+int client_send_options(client_t *client)
+{
+    client_set_queue (client, NULL);
+    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
+            "HTTP/1.1 200 OK\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
+            "Access-Control-Allow-Methods: GET, OPTIONS, STATS\r\n\r\n");
+    client->respcode = 200;
+    client->refbuf->len = strlen (client->refbuf->data);
+    return fserve_setup_client (client);
+}
+
+
 /* helper function for sending the data to a client */
 int client_send_bytes (client_t *client, const void *buf, unsigned len)
 {
