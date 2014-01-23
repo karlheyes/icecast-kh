@@ -293,7 +293,7 @@ int redirect_client (const char *mountpoint, client_t *client)
         {
             char *location;
             /* add enough for "http://" the port ':' and nul */
-            int len = strlen (mountpoint) + strlen (checking->server) + 15;
+            int len = strlen (mountpoint) + strlen (checking->server) + 20;
             const char *user = client->username;
             const char *pass = client->password;
             const char *args = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
@@ -309,7 +309,7 @@ int redirect_client (const char *mountpoint, client_t *client)
                 colon = at_sign = user = pass = "";
             INFO2 ("redirecting listener to slave server at %s:%d", checking->server, checking->port);
             location = alloca (len);
-            snprintf (location, len, "http://%s%s%s%s%s:%d%s%s",
+            snprintf (location, len, "%s://%s%s%s%s%s:%d%s%s", httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL),
                     user, colon, pass, at_sign,
                     checking->server, checking->port, mountpoint, args);
             client_send_302 (client, location);
