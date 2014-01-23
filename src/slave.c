@@ -618,45 +618,6 @@ static void *start_relay_stream (void *arg)
 }
 
 
-static relay_server *create_master_relay (const char *local, const char *remote, format_type_t t, struct master_conn_details *master)
-{
-    relay_server *relay;
-    relay_server_host *m;
-
-    if (local[0] != '/')
-    {
-        WARN1 ("relay mountpoint \"%s\" does not start with /, skipping", local);
-        return NULL;
-    }
-    relay = calloc (1, sizeof (relay_server));
-
-    m = calloc (1, sizeof (relay_server_host));
-    m->ip = (char *)xmlStrdup (XMLSTR(master->server));
-    m->port = master->port;
-    if (master->bind)
-        m->bind = (char *)xmlStrdup (XMLSTR(master->bind));
-    // may need to add the admin link later instead of assuming mount is as-is
-    m->mount = (char *)xmlStrdup (XMLSTR(remote));
-    m->timeout = 4;
-    relay->hosts = m;
-
-    relay->localmount = (char *)xmlStrdup (XMLSTR(local));
-    relay->flags |= (RELAY_RUNNING | RELAY_ICY_META);
-    if (master->on_demand)
-        relay->flags |= RELAY_ON_DEMAND;
-    if (master->on_demand) relay->flags |= RELAY_ON_DEMAND;
-    relay->interval = master->max_interval;
-    if (master->send_auth)
-    {
-        relay->username = (char *)xmlStrdup (XMLSTR(master->username));
-        relay->password = (char *)xmlStrdup (XMLSTR(master->password));
-    }
-    relay->updated = master->synctime;
-    relay->flags |= RELAY_FROM_MASTER;
-    return relay;
-}
-
-
 
 static int _drop_relay (void *a)
 {
@@ -746,6 +707,45 @@ static int relay_installed (relay_server *relay)
 }
 
 
+#ifdef HAVE_CURL
+static relay_server *create_master_relay (const char *local, const char *remote, format_type_t t, struct master_conn_details *master)
+{
+    relay_server *relay;
+    relay_server_host *m;
+
+    if (local[0] != '/')
+    {
+        WARN1 ("relay mountpoint \"%s\" does not start with /, skipping", local);
+        return NULL;
+    }
+    relay = calloc (1, sizeof (relay_server));
+
+    m = calloc (1, sizeof (relay_server_host));
+    m->ip = (char *)xmlStrdup (XMLSTR(master->server));
+    m->port = master->port;
+    if (master->bind)
+        m->bind = (char *)xmlStrdup (XMLSTR(master->bind));
+    // may need to add the admin link later instead of assuming mount is as-is
+    m->mount = (char *)xmlStrdup (XMLSTR(remote));
+    m->timeout = 4;
+    relay->hosts = m;
+
+    relay->localmount = (char *)xmlStrdup (XMLSTR(local));
+    relay->flags |= (RELAY_RUNNING | RELAY_ICY_META);
+    if (master->on_demand)
+        relay->flags |= RELAY_ON_DEMAND;
+    if (master->on_demand) relay->flags |= RELAY_ON_DEMAND;
+    relay->interval = master->max_interval;
+    if (master->send_auth)
+    {
+        relay->username = (char *)xmlStrdup (XMLSTR(master->username));
+        relay->password = (char *)xmlStrdup (XMLSTR(master->password));
+    }
+    relay->updated = master->synctime;
+    relay->flags |= RELAY_FROM_MASTER;
+    return relay;
+}
+
 
 static int add_master_relay (const char *mount, const char *type, struct master_conn_details *master)
 {
@@ -784,59 +784,6 @@ static int add_master_relay (const char *mount, const char *type, struct master_
 }
 
 
-
-void update_relays (ice_config_t *config)
-{
-    int notfound, trap = 10;
-    relay_server *relay, *result, *copy, find;
-    time_t sync_time = time (NULL);
-
-    avl_tree_wlock (global.relays);
-    relay = config->relays;
-    while (relay)
-    {
-        find.localmount = relay->localmount;
-        notfound = avl_get_by_key (global.relays, &find, (void*)&result);
-        if (notfound)
-        {
-            relay_server *new_relay = relay_copy (relay);
-            if (new_relay)
-            {
-                new_relay->updated = sync_time;
-                if (! relay_installed (new_relay))
-                    config_clear_relay (new_relay);
-            }
-        }
-        else
-        {
-            detach_master_relay (find.localmount, 0); // drop current one from tree
-            if (result->flags & RELAY_CLEANUP)
-            {
-                // should be rare but a relay could be leaving
-                DEBUG1 ("old relay with cleanup flagged detected %s", result->localmount);
-                if (--trap)
-                    continue;
-                WARN1 ("Detected loop with lookup of %s", find.localmount);
-                break;
-            }
-            copy = relay_copy (relay);
-            DEBUG2 ("adding new relay %s (%p) into tree", relay->localmount, copy);
-            // let client trigger the switchover for new details
-            result->new_details = copy;
-            copy->updated = sync_time;
-            copy->flags |= RELAY_IN_LIST;
-            avl_insert (global.relays, copy);
-        }
-        trap = 10;
-        relay = relay->new_details;
-    }
-    relay_barrier_xml = sync_time;
-    avl_tree_unlock (global.relays);
-}
-
-
-
-#ifdef HAVE_CURL
 /* process a single HTTP header from streamlist response */
 static size_t streamlist_header (void *ptr, size_t size, size_t nmemb, void *stream)
 {
@@ -1020,6 +967,56 @@ static void *streamlist_thread (void *arg)
     return NULL;
 }
 #endif
+
+
+void update_relays (ice_config_t *config)
+{
+    int notfound, trap = 10;
+    relay_server *relay, *result, *copy, find;
+    time_t sync_time = time (NULL);
+
+    avl_tree_wlock (global.relays);
+    relay = config->relays;
+    while (relay)
+    {
+        find.localmount = relay->localmount;
+        notfound = avl_get_by_key (global.relays, &find, (void*)&result);
+        if (notfound)
+        {
+            relay_server *new_relay = relay_copy (relay);
+            if (new_relay)
+            {
+                new_relay->updated = sync_time;
+                if (! relay_installed (new_relay))
+                    config_clear_relay (new_relay);
+            }
+        }
+        else
+        {
+            detach_master_relay (find.localmount, 0); // drop current one from tree
+            if (result->flags & RELAY_CLEANUP)
+            {
+                // should be rare but a relay could be leaving
+                DEBUG1 ("old relay with cleanup flagged detected %s", result->localmount);
+                if (--trap)
+                    continue;
+                WARN1 ("Detected loop with lookup of %s", find.localmount);
+                break;
+            }
+            copy = relay_copy (relay);
+            DEBUG2 ("adding new relay %s (%p) into tree", relay->localmount, copy);
+            // let client trigger the switchover for new details
+            result->new_details = copy;
+            copy->updated = sync_time;
+            copy->flags |= RELAY_IN_LIST;
+            avl_insert (global.relays, copy);
+        }
+        trap = 10;
+        relay = relay->new_details;
+    }
+    relay_barrier_xml = sync_time;
+    avl_tree_unlock (global.relays);
+}
 
 
 static void update_from_master (ice_config_t *config)
