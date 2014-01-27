@@ -258,6 +258,7 @@ static auth_result auth_cmd_client (auth_client *auth_user)
     const char *qargs;
     char *referer, *agent, str[512];
 
+    atd->errormsg[0] = 0;
     if ((auth->flags & AUTH_RUNNING) == 0)
         return AUTH_FAILED;
     if (pipe (infd) < 0 || pipe (outfd) < 0)
@@ -323,6 +324,7 @@ static auth_result auth_cmd_client (auth_client *auth_user)
         {
             auth_user->client = NULL;
             client_send_403 (client, atd->errormsg+4);
+            return AUTH_FAILED;
         }
     }
     if (atd->location)
