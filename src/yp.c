@@ -80,6 +80,17 @@ typedef struct ypdata_tag
 } ypdata_t;
 
 
+typedef struct _yp_change_t
+{
+   char *mount;
+   void (*callback) (struct _yp_change_t *);
+   void *extra;
+   struct _yp_change_t *next;
+} yp_change_t;
+
+
+yp_change_t **yp_changes, *yp_changes_head;
+int yp_pending_thread;
 static rwlock_t yp_lock;
 static mutex_t yp_pending_lock;
 int yp_initialised;
@@ -334,6 +345,9 @@ void yp_initialize (ice_config_t *config)
     thread_rwlock_create (&yp_lock);
     thread_mutex_create (&yp_pending_lock);
     yp_recheck_config (config);
+    yp_changes_head = NULL;
+    yp_changes = &yp_changes_head;
+    yp_pending_thread = 0;
     yp_initialised = 1;
 }
 
@@ -348,7 +362,7 @@ static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
     int curlcode;
     struct yp_server *server = yp->server;
 
-    /* DEBUG2 ("send YP (%s):%s", cmd, post); */
+    // DEBUG2 ("send YP (%s):%s", cmd, post);
     yp->cmd_ok = 0;
     curl_easy_setopt (server->curl, CURLOPT_POSTFIELDS, post);
     curl_easy_setopt (server->curl, CURLOPT_WRITEHEADER, yp);
@@ -938,15 +952,11 @@ static void add_yp_info (ypdata_t *yp, void *info, int type)
 
 
 /* Add YP entries to active servers */
-void yp_add (const char *mount)
+static void yp_add_callback (yp_change_t *yp_change)
 {
     struct yp_server *server;
+    const char *mount = yp_change->mount;
 
-    /* make sure YP thread is not modifying the lists */
-    thread_rwlock_rlock (&yp_lock);
-
-    /* make sure we don't race against another yp_add */
-    thread_mutex_lock (&yp_pending_lock);
     server = (struct yp_server *)active_yps;
     while (server)
     {
@@ -973,18 +983,16 @@ void yp_add (const char *mount)
             DEBUG1 ("YP entry %s already exists", mount);
         server = server->next;
     }
-    thread_mutex_unlock (&yp_pending_lock);
-    thread_rwlock_unlock (&yp_lock);
 }
 
 
 
 /* Mark an existing entry in the YP list as to be marked for deletion */
-void yp_remove (const char *mount)
+static void yp_remove_callback (yp_change_t *yp_change)
 {
     struct yp_server *server = (struct yp_server *)active_yps;
+    const char *mount = yp_change->mount;
 
-    thread_rwlock_rlock (&yp_lock);
     while (server)
     {
         ypdata_t *list = server->mounts;
@@ -1006,16 +1014,103 @@ void yp_remove (const char *mount)
         }
         server = server->next;
     }
-    thread_rwlock_unlock (&yp_lock);
 }
 
 
 /* This is similar to yp_remove, but we force a touch
  * attempt */
-void yp_touch (const char *mount, long stats)
+static void yp_touch_callback (yp_change_t *yp_change)
 {
     struct yp_server *server = (struct yp_server *)active_yps;
     ypdata_t *search_list = NULL;
+
+    if (server)
+        search_list = server->mounts;
+
+    now = time(NULL);
+    while (server)
+    {
+        ypdata_t *yp = find_yp_mount (search_list, yp_change->mount);
+        if (yp)
+        {
+            /* we may of found old entries not purged yet, so skip them */
+            if (yp->release != 0 || yp->remove != 0)
+            {
+                search_list = yp->next;
+                continue;
+            }
+            add_yp_info (yp, yp_change->extra, YP_CURRENT_SONG);
+            if (yp->process == do_yp_touch)
+            {
+                // update rules, prevent updates being too frequent, at least 30 seconds
+                if (yp->next_update - now > 30)
+                {
+                    if (now - 30 < yp->next_update - yp->touch_interval)
+                        yp_schedule (yp, 30);
+                    else
+                        yp_schedule (yp, 0);
+                }
+            }
+        }
+        server = server->next;
+        if (server)
+            search_list = server->mounts;
+    }
+    free (yp_change->extra);
+    yp_change->extra = NULL;
+}
+
+
+static void *yp_pending_update (void *arg)
+{
+    yp_change_t *list;
+    thread_sleep (50000); // wait a little for a few more updaes to queue up
+    DEBUG0 ("running through YP changes");
+    thread_mutex_lock (&yp_pending_lock);
+    while (yp_changes_head)
+    {
+        // detaching the list allows lock drop, but we recheck it later
+        list = yp_changes_head;
+        yp_changes_head = NULL;
+        yp_changes = &yp_changes_head;
+        thread_mutex_unlock (&yp_pending_lock);
+
+        thread_rwlock_wlock (&yp_lock);
+        while (list)
+        {
+            yp_change_t *yp_change = list;
+            list = yp_change->next;
+            (*yp_change->callback) (yp_change);
+
+            free (yp_change->mount);
+            free (yp_change);
+        }
+        thread_rwlock_unlock (&yp_lock);
+        thread_mutex_lock (&yp_pending_lock);
+    }
+    yp_pending_thread = 0;
+    thread_mutex_unlock (&yp_pending_lock);
+    return NULL;
+}
+
+
+static void yp_queue_change (yp_change_t *change)
+{
+    thread_mutex_lock (&yp_pending_lock);
+    *yp_changes = change;
+    yp_changes = &change->next;
+    if (yp_pending_thread == 0)
+    {
+        yp_pending_thread = 1;
+        thread_create ("YP change", yp_pending_update, NULL, THREAD_DETACHED);
+    }
+    thread_mutex_unlock (&yp_pending_lock);
+}
+
+
+void yp_touch (const char *mount, long stats)
+{
+    yp_change_t *yp_change = calloc (1, sizeof (*yp_change));
     char *artist, *title, *song = NULL;
 
     artist = stats_retrieve (stats, "artist");
@@ -1038,34 +1133,30 @@ void yp_touch (const char *mount, long stats)
     }
     free (artist);
     free (title);
+    yp_change->mount = strdup (mount);
+    yp_change->callback = yp_touch_callback;
+    yp_change->extra = song;
+    yp_queue_change (yp_change);
+}
 
-    thread_rwlock_rlock (&yp_lock);
 
-    if (server)
-        search_list = server->mounts;
+/* Add YP entries to active servers */
+void yp_add (const char *mount)
+{
+    yp_change_t *yp_change = calloc (1, sizeof (*yp_change));
+    yp_change->mount = strdup (mount);
+    yp_change->callback = yp_add_callback;
+    yp_queue_change (yp_change);
+}
 
-    while (server)
-    {
-        ypdata_t *yp = find_yp_mount (search_list, mount);
-        if (yp)
-        {
-            /* we may of found old entries not purged yet, so skip them */
-            if (yp->release != 0 || yp->remove != 0)
-            {
-                search_list = yp->next;
-                continue;
-            }
-            add_yp_info (yp, song, YP_CURRENT_SONG);
-            /* don't update the directory if there is a touch scheduled soon */
-            if (yp->process == do_yp_touch && now + yp->touch_interval - yp->next_update > 60)
-                yp_schedule (yp, 0);
-        }
-        server = server->next;
-        if (server)
-            search_list = server->mounts;
-    }
-    thread_rwlock_unlock (&yp_lock);
-    free (song);
+
+/* Mark any existing entry in the YP list to be marked for deletion */
+void yp_remove (const char *mount)
+{
+    yp_change_t *yp_change = calloc (1, sizeof (*yp_change));
+    yp_change->mount = strdup (mount);
+    yp_change->callback = yp_remove_callback;
+    yp_queue_change (yp_change);
 }
 
 
