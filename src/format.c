@@ -76,6 +76,8 @@ format_type_t format_get_type(const char *content_type)
         return FORMAT_TYPE_AAC;
     else if(strcmp(contenttype, "audio/mpeg") == 0)
         return FORMAT_TYPE_MPEG;
+    else if(strcmp(contenttype, "application/octet-stream") == 0)
+        return FORMAT_TYPE_MPEG; // hack really, but some clients send this
     else
         return FORMAT_TYPE_UNDEFINED;
 }
@@ -131,8 +133,11 @@ int format_get_plugin (format_plugin_t *plugin)
         case FORMAT_TYPE_MPEG:
             ret = format_mp3_get_plugin (plugin);
             break;
+        case FORMAT_TYPE_EBML:
+            ret = format_ebml_get_plugin (plugin);
+            break;
         default:
-            INFO1 ("unknown format detected for %s", plugin->mount);
+            INFO1 ("unparsed format detected for %s", plugin->mount);
             break;
     }
 

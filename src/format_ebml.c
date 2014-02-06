@@ -72,6 +72,7 @@ static int  ebml_write_buf_to_client (client_t *client);
 static void  ebml_write_buf_to_file (source_t *source, refbuf_t *refbuf);
 static int  ebml_create_client_data (format_plugin_t *format, client_t *client);
 static void ebml_free_client_data (client_t *client);
+static void ebml_apply_client (format_plugin_t *plugin, client_t *client);
 
 static ebml_t *ebml_create();
 static void ebml_destroy(ebml_t *ebml);
@@ -81,7 +82,7 @@ static int ebml_last_was_sync(ebml_t *ebml);
 static char *ebml_write_buffer(ebml_t *ebml, int len);
 static int ebml_wrote(ebml_t *ebml, int len);
 
-int format_ebml_get_plugin (format_plugin_t *plugin, client_t *client)
+int format_ebml_get_plugin (format_plugin_t *plugin)
 {
 
     ebml_source_state_t *ebml_source_state = calloc(1, sizeof(ebml_source_state_t));
@@ -93,12 +94,9 @@ int format_ebml_get_plugin (format_plugin_t *plugin, client_t *client)
     plugin->write_buf_to_file = ebml_write_buf_to_file;
     plugin->set_tag = NULL;
     plugin->apply_settings = NULL;
-
-    plugin->contenttype = strdup (httpp_getvar (plugin->parser, "content-type"));
-
+    plugin->apply_client = ebml_apply_client;
     plugin->_state = ebml_source_state;
 
-    ebml_source_state->ebml = ebml_create();
     return 0;
 }
 
@@ -108,11 +106,31 @@ static void ebml_free_plugin (format_plugin_t *plugin, client_t *client)
     ebml_source_state_t *ebml_source_state = plugin->_state;
 
     refbuf_release (ebml_source_state->header);
-    ebml_destroy(ebml_source_state->ebml);
+    ebml_destroy (ebml_source_state->ebml);
     free (ebml_source_state);
-    free (plugin);
 
 }
+
+
+static void ebml_apply_client (format_plugin_t *plugin, client_t *client)
+{
+    ebml_source_state_t *ebml_source_state = plugin->_state;
+    const char *s;
+
+    refbuf_release (ebml_source_state->header);
+    ebml_source_state->header = NULL;
+    ebml_destroy (ebml_source_state->ebml);
+    ebml_source_state->ebml = NULL;
+    free (plugin->contenttype);
+
+    if (client == NULL)
+        return;
+
+    s = plugin->parser ? httpp_getvar (plugin->parser, "content-type") : NULL;
+    plugin->contenttype = strdup (s ? s : "video/x-matroska");
+    ebml_source_state->ebml = ebml_create();
+}
+
 
 static int send_ebml_header (client_t *client)
 {
@@ -181,6 +199,10 @@ static refbuf_t *ebml_get_buffer (source_t *source)
             if (ebml_last_was_sync(ebml_source_state->ebml))
             {
                 refbuf->flags |= SOURCE_BLOCK_SYNC;
+            }
+            if (refbuf->len > 0)
+            {
+                source->client->queue_pos += refbuf->len;
             }
             return refbuf;
 
@@ -275,6 +297,7 @@ static void ebml_write_buf_to_file (source_t *source, refbuf_t *refbuf)
 static void ebml_destroy(ebml_t *ebml)
 {
 
+    if (ebml == NULL) return;
     free(ebml->header);
     free(ebml->input_buffer);
     free(ebml->buffer);
