@@ -244,6 +244,11 @@ static int ebml_create_client_data (format_plugin_t *format, client_t *client)
         client->free_client_data = ebml_free_client_data;
         ret = 0;
     }
+    if (client->refbuf == NULL)
+        client->refbuf = refbuf_new (4096);
+    client->refbuf->len = 0;
+    if (format_general_headers (format, client) < 0)
+        return -1;
 
     return ret;
 
