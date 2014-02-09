@@ -557,8 +557,8 @@ static int format_mp3_write_buf_to_client (client_t *client)
     len = refbuf->len - client->pos;
     if (client_mp3->interval && len > client_mp3->interval - client_mp3->since_meta_block)
         len = client_mp3->interval - client_mp3->since_meta_block;
-    if (len > 2900)
-        len = 2900; // do not send a huge amount out in one go
+    if (len > 8192)
+        len = 8192; // do not send a huge amount out in one go
 
     if (len)
     {
@@ -695,7 +695,7 @@ static int complete_read (source_t *source)
             format->read_bytes += bytes;
             // increase retry delay on small read, to reduce rescheduling
             if (read_in - bytes > 700)
-                client->schedule_ms += 80;
+                client->schedule_ms += 20;
         }
     }
     if (source_mp3->read_count < source_mp3->read_data->len)

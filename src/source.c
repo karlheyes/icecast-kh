@@ -413,7 +413,7 @@ int source_read (source_t *source)
 {
     client_t *client = source->client;
     refbuf_t *refbuf = NULL;
-    int skip = 1, loop = 1;
+    int skip = 1, loop = 1 + (source->incoming_rate/320000);
     time_t current = client->worker->current_time.tv_sec;
     long queue_size_target;
     int fds = 0;
