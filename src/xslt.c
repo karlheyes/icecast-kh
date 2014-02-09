@@ -233,7 +233,7 @@ void *xslt_update (void *arg)
     {
         int i = x->index;
 
-        if (client) fn = strdup (fn); // need to copy the filename if another lookup is to do
+        if (client) fn = strdup (fn); // need to copy the filename if another lookup is to done
         INFO1 ("loaded stylesheet %s", x->cache.filename);
         thread_rwlock_wlock (&xslt_lock);
         free (cache[i].filename);
@@ -252,6 +252,7 @@ void *xslt_update (void *arg)
     {
         WARN1 ("problem reading stylesheet \"%s\"", x->cache.filename);
         free (fn);
+        xmlFreeDoc (x->doc);
         if (client)
         {
             client->shared_data = NULL;
@@ -274,6 +275,7 @@ static int xslt_cached (const char *fn, client_t *client)
     worker_t *worker = client->worker;
     time_t now = worker->current_time.tv_sec, oldest = now;
     int evict = 0, i;
+    xsl_req *x;
     struct stat file;
 
     for(i=0; i < CACHESIZE; i++)
@@ -303,32 +305,33 @@ static int xslt_cached (const char *fn, client_t *client)
                         thread_spin_unlock (&update_lock);
                         break;
                     }
+                    thread_spin_unlock (&update_lock);
                 }
-                thread_spin_unlock (&update_lock);
                 cache[i].cache_age = now;
                 return i;
             }
-            if (oldest < cache[i].cache_age)
-                continue;
+            if (oldest > cache[i].cache_age)
+            {
+                oldest = cache[i].cache_age;
+                evict = i;
+            }
+            continue;
         }
         evict = i;
+        break;
     }
-    xsl_req *x = calloc (1, sizeof (xsl_req));
-    if (i < CACHESIZE)
-    {
-        x->index = i;
-    }
-    else
+    if (i == CACHESIZE)
     {
         if (stat (fn, &file))
         {
             WARN2("Error checking for stylesheet file \"%s\": %s", fn, strerror(errno));
-            free (x);
             return -2;
         }
-        x->client = client;
-        x->index = evict;
+        i = evict;
     }
+    x = calloc (1, sizeof (xsl_req));
+    x->index = i;
+    x->client = client;
     x->doc = client->shared_data;
     x->cache.filename = strdup (fn);
     x->cache.last_modified = file.st_mtime;
@@ -343,20 +346,16 @@ static int xslt_cached (const char *fn, client_t *client)
     {
         xsl_updating++;
         thread_spin_unlock (&update_lock);
-        if (x->client)   client->flags &= ~CLIENT_ACTIVE;
+        client->flags &= ~CLIENT_ACTIVE;
         thread_create ("update xslt", xslt_update, x, THREAD_DETACHED);
-        if (x->client == NULL)   return i;
+        return -1;
     }
-    else
+    thread_spin_unlock (&update_lock);
+    client->schedule_ms += 10;
+    if ((client->flags & CLIENT_ACTIVE) == 0)
     {
-        thread_spin_unlock (&update_lock);
-        x->client = client;
-        client->schedule_ms += 10;
-        if ((client->flags & CLIENT_ACTIVE) == 0)
-        {
-            client->flags |= CLIENT_ACTIVE;
-            worker_wakeup (worker);
-        }
+        client->flags |= CLIENT_ACTIVE;
+        worker_wakeup (worker);
     }
     return -1;
 }
