@@ -677,7 +677,7 @@ static int stats_listeners_send (client_t *client)
     if (client->connection.error || global.running != ICE_RUNNING)
         return -1;
     if (client->refbuf && client->refbuf->flags & STATS_BLOCK_CONNECTION)
-        loop = 4;
+        loop = 14;
     else
         // impose a queue limit of 2Meg if it has been connected for so many seconds, gives
         // chance for some catchup on large data sets.
@@ -957,7 +957,7 @@ static void _register_listener (client_t *client)
     avl_node *node;
     worker_t *worker = client->worker;
     stats_event_t stats_count;
-    refbuf_t *refbuf, *biglist = NULL, **full_p = &biglist;
+    refbuf_t *refbuf, *biglist = NULL, **full_p = &biglist, *last = NULL;
     size_t size = 8192, len = 0;
     char buffer[20];
 
@@ -988,7 +988,7 @@ static void _register_listener (client_t *client)
         {
             while (_append_to_buffer (refbuf, size, "EVENT global %s %s\n", stat->name, stat->value) < 0)
             {
-                *full_p = refbuf;
+                *full_p = last = refbuf;
                 full_p = &refbuf->next;
                 len += refbuf->len;
                 refbuf = refbuf_new (size);
@@ -1013,7 +1013,7 @@ static void _register_listener (client_t *client)
                 type = ct->value;
             while (_append_to_buffer (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
             {
-                *full_p = refbuf;
+                *full_p = last = refbuf;
                 full_p = &refbuf->next;
                 len += refbuf->len;
                 refbuf = refbuf_new (size);
@@ -1024,7 +1024,7 @@ static void _register_listener (client_t *client)
     }
     while (_append_to_buffer (refbuf, size, "INFO full list end\n") < 0)
     {
-        *full_p = refbuf;
+        *full_p = last = refbuf;
         full_p = &refbuf->next;
         len += refbuf->len;
         refbuf = refbuf_new (size);
@@ -1052,7 +1052,7 @@ static void _register_listener (client_t *client)
                     else
                         while (_append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, stat->name, stat->value) < 0)
                         {
-                            *full_p = refbuf;
+                            *full_p = last = refbuf;
                             full_p = &refbuf->next;
                             len += refbuf->len;
                             refbuf = refbuf_new (size);
@@ -1064,7 +1064,7 @@ static void _register_listener (client_t *client)
             while (metadata_stat &&
                     _append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, metadata_stat->name, metadata_stat->value) < 0)
             {
-                *full_p = refbuf;
+                *full_p = last = refbuf;
                 full_p = &refbuf->next;
                 len += refbuf->len;
                 refbuf = refbuf_new (size);
@@ -1077,7 +1077,7 @@ static void _register_listener (client_t *client)
     avl_tree_unlock (_stats.source_tree);
     if (refbuf->len)
     {
-        *full_p = refbuf;
+        *full_p = last = refbuf;
         full_p = &refbuf->next;
         len += refbuf->len;
     }
@@ -1090,7 +1090,11 @@ static void _register_listener (client_t *client)
     *full_p = client->refbuf;
     client->refbuf = biglist;
     listener->content_len += len;
+    while (last->next)
+        last = last->next; // this should not loop typically, but may do
+    listener->recent_block = last;
     thread_mutex_unlock (&_stats.listeners_lock);
+
     client->schedule_ms = 0;
     client->flags |= CLIENT_ACTIVE;
     worker_wakeup (worker);
@@ -1099,34 +1103,35 @@ static void _register_listener (client_t *client)
 
 static void stats_client_release (client_t *client)
 {
-    event_listener_t *listener, **trail;
+    event_listener_t *listener = client->shared_data, *match, **trail;
+    stats_event_t stats_count;
+    char buffer [20];
 
+    if (listener == NULL)
+        return;
     thread_mutex_lock (&_stats.listeners_lock);
-    listener = _stats.event_listeners;
+    match = _stats.event_listeners;
     trail = &_stats.event_listeners;
 
-    while (listener)
+    while (match && listener != match)
     {
-        if (listener == client->shared_data)
-        {
-            stats_event_t stats_count;
-            char buffer [20];
-
-            *trail = listener->next;
-            thread_mutex_unlock (&_stats.listeners_lock);
-            clear_stats_queue (client);
-            free (listener->source);
-            free (listener);
-            client_destroy (client);
-            build_event (&stats_count, NULL, "stats_connections", buffer);
-            stats_count.action = STATS_EVENT_DEC;
-            process_event (&stats_count);
-            return;
-        }
-        trail = &listener->next;
-        listener = listener->next;
+        trail = &match->next;
+        match = *trail;
     }
+    if (match)
+        *trail = match->next;
+    else
+        WARN0 ("odd, no stats client details in collection"); 
     thread_mutex_unlock (&_stats.listeners_lock);
+
+    clear_stats_queue (client);
+    free (listener->source);
+    free (listener);
+    client_destroy (client);
+
+    build_event (&stats_count, NULL, "stats_connections", buffer);
+    stats_count.action = STATS_EVENT_DEC;
+    process_event (&stats_count);
 }
 
 
