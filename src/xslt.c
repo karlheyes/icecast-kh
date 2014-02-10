@@ -310,7 +310,7 @@ static int xslt_cached (const char *fn, client_t *client)
                 cache[i].cache_age = now;
                 return i;
             }
-            if (oldest > cache[i].cache_age)
+            if (oldest < cache[i].cache_age)
             {
                 oldest = cache[i].cache_age;
                 evict = i;
