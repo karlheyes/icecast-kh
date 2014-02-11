@@ -2280,7 +2280,8 @@ int source_format_init (source_t *source)
             contenttype = httpp_getvar (client->parser, "content-type");
             if (contenttype)
             {
-                format_type = format_get_type (contenttype);
+                if (strcmp (contenttype, "application/octet-stream") != 0)
+                    format_type = format_get_type (contenttype);
                 if (format_type == FORMAT_TYPE_UNDEFINED)
                 {
                     WARN1("Content-type \"%s\" not supported, assumiung mpeg", contenttype);

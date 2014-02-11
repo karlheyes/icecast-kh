@@ -78,10 +78,6 @@ format_type_t format_get_type(const char *content_type)
         return FORMAT_TYPE_MPEG;
     else if(strcmp(contenttype, "video/MP2T") == 0)
         return FORMAT_TYPE_MPEG;
-    else if(strcmp(contenttype, "video/mpegts") == 0)
-        return FORMAT_TYPE_MPEG;
-    else if(strcmp(contenttype, "application/octet-stream") == 0)
-        return FORMAT_TYPE_MPEG; // hack really, but some clients send this
     else
         return FORMAT_TYPE_UNDEFINED;
 }
