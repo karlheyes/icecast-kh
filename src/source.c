@@ -494,11 +494,6 @@ int source_read (source_t *source)
             source->skip_duration = (int)((source->skip_duration + 25) * 1.1);
             if (source->skip_duration > 400)
                 source->skip_duration = 400;
-            if (source->shrink_pos == 0 && source->listeners)
-            {
-                source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
-                source->shrink_time = client->worker->time_ms + 800;
-            }
             break;
         }
 
@@ -563,8 +558,17 @@ int source_read (source_t *source)
             loop--;
         } while (loop);
 
+        if (skip == 0 && source->shrink_pos == 0 && source->listeners)
+        {
+            // kick off timed response to find oldeest buffer.
+            source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
+            source->shrink_time = client->worker->time_ms + 800;
+            client->schedule_ms += 15;
+            return 0;
+        }
+
         /* lets see if we have too much data in the queue */
-        loop = 8;
+        loop = 12;
         if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
         {
             queue_size_target = 4000 + (source->client->queue_pos - source->shrink_pos);
