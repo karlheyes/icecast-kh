@@ -491,12 +491,13 @@ int source_read (source_t *source)
                 source->flags |= SOURCE_TIMEOUT;
                 return 0;
             }
-            source->skip_duration = (int)((source->skip_duration + 25) * 1.1);
+            source->skip_duration = (int)((source->skip_duration + 12) * 1.1);
             if (source->skip_duration > 400)
                 source->skip_duration = 400;
             break;
         }
 
+        skip = 0;
         source->last_read = current;
         do
         {
@@ -543,7 +544,6 @@ int source_read (source_t *source)
                 /* save stream to file */
                 if (source->dumpfile && source->format->write_buf_to_file)
                     source->format->write_buf_to_file (source, refbuf);
-                skip = 0;
             }
             else
             {
@@ -558,9 +558,9 @@ int source_read (source_t *source)
             loop--;
         } while (loop);
 
-        if (skip == 0 && source->shrink_pos == 0 && source->listeners)
+        if (skip == 0 && source->shrink_pos == 0)
         {
-            // kick off timed response to find oldeest buffer.
+            // kick off timed response to find oldest buffer.
             source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
             source->shrink_time = client->worker->time_ms + 800;
             client->schedule_ms += 15;
@@ -568,13 +568,12 @@ int source_read (source_t *source)
         }
 
         /* lets see if we have too much data in the queue */
-        loop = 12;
+        loop = 40;
         if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
         {
             queue_size_target = 4000 + (source->client->queue_pos - source->shrink_pos);
             source->shrink_pos = 0;
             source->shrink_time = 0;
-            loop = 24;
         }
         else if (source->listeners)
             queue_size_target = source->queue_size_limit;
