@@ -1080,7 +1080,8 @@ static void *yp_pending_update (void *arg)
         {
             yp_change_t *yp_change = list;
             list = yp_change->next;
-            (*yp_change->callback) (yp_change);
+            if (ypclient.connection.error == 0)
+                (*yp_change->callback) (yp_change);
 
             free (yp_change->mount);
             free (yp_change);
@@ -1099,7 +1100,7 @@ static void yp_queue_change (yp_change_t *change)
     thread_mutex_lock (&yp_pending_lock);
     *yp_changes = change;
     yp_changes = &change->next;
-    if (yp_pending_thread == 0)
+    if (yp_pending_thread == 0 && global.running == ICE_RUNNING)
     {
         yp_pending_thread = 1;
         thread_create ("YP change", yp_pending_update, NULL, THREAD_DETACHED);
@@ -1192,6 +1193,14 @@ void yp_stop (void)
         ypclient.schedule_ms = 0;
         worker_wakeup(w);
         DEBUG0 ("YP client is now stopped");
+        thread_mutex_lock (&yp_pending_lock);
+        if (yp_pending_thread)
+        {
+            thread_mutex_unlock (&yp_pending_lock);
+            thread_sleep (60000);
+        }
+        else
+            thread_mutex_unlock (&yp_pending_lock);
     }
 }
 
