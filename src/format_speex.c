@@ -67,7 +67,7 @@ ogg_codec_t *initial_speex_page (format_plugin_t *plugin, ogg_page *page)
     ogg_state_t *ogg_info = plugin->_state;
     ogg_codec_t *codec = calloc (1, sizeof (ogg_codec_t));
     ogg_packet packet;
-    SpeexHeader *header;
+    SpeexHeader *header = NULL;
 
     ogg_stream_init (&codec->os, ogg_page_serialno (page));
     ogg_stream_pagein (&codec->os, page);
@@ -75,7 +75,8 @@ ogg_codec_t *initial_speex_page (format_plugin_t *plugin, ogg_page *page)
     ogg_stream_packetout (&codec->os, &packet);
 
     DEBUG0("checking for speex codec");
-    header = memcmp (packet.packet, "Speex   ", 8) ? speex_packet_to_header ((char*)packet.packet, packet.bytes) : NULL;
+    if (packet.bytes >= 8 && memcmp (packet.packet, "Speex   ", 8) == 0)
+        header = speex_packet_to_header ((char*)packet.packet, packet.bytes);
     if (header == NULL)
     {
         ogg_stream_clear (&codec->os);
