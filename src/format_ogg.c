@@ -268,10 +268,19 @@ static int process_initial_page (format_plugin_t *plugin, ogg_page *page)
         if (codec)
             break;
 #endif
+        codec = initial_skeleton_page (plugin, page);
+        if (codec)
+            break;
+        codec = initial_opus_page (plugin, page);
+        if (codec)
+            break;
         codec = initial_midi_page (plugin, page);
         if (codec)
             break;
         codec = initial_flac_page (plugin, page);
+        if (codec)
+            break;
+        codec = initial_kate_page (plugin, page);
         if (codec)
             break;
 #ifdef HAVE_SPEEX
@@ -279,15 +288,6 @@ static int process_initial_page (format_plugin_t *plugin, ogg_page *page)
         if (codec)
             break;
 #endif
-        codec = initial_kate_page (plugin, page);
-        if (codec)
-            break;
-        codec = initial_skeleton_page (plugin, page);
-        if (codec)
-            break;
-        codec = initial_opus_page (plugin, page);
-        if (codec)
-            break;
 
         /* any others */
         ERROR0 ("Seen BOS page with unknown type");
