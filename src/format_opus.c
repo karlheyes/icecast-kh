@@ -83,6 +83,7 @@ ogg_codec_t *initial_opus_page (format_plugin_t *plugin, ogg_page *page)
     codec->codec_free = opus_codec_free;
     codec->headers = 1;
     codec->parent = ogg_info;
+    codec->name = "Opus";
     format_ogg_attach_header (codec, page);
     return codec;
 }
