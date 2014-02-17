@@ -1075,7 +1075,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 static int send_listener (source_t *source, client_t *client)
 {
     int bytes;
-    int loop = 12;   /* max number of iterations in one go */
+    int loop = 6;   /* max number of iterations in one go */
     long total_written = 0, limiter = source->listener_send_trigger;
     int ret = 0, lag;
     worker_t *worker = client->worker;
