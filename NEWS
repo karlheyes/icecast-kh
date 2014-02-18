@@ -16,6 +16,28 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.3.3-kh10
+. xslt update race fix
+. Format
+  mpeg parsing can be bypassed if mpeg4 is detected.
+  mpeg assumed by default even application/octet for streams only.
+  EBML streaming working again.
+  Ogg handler was getting stuck with large pages, typically intro via libcurl.
+. Auth
+  Fix up intro content from auth.
+  Presume innocent setting was being ignore if the queue was full.
+  Added referer to auth command
+. Relay updates.
+  uses single structure for all relays, with timestamps. makes better
+  handling of startup, shutdown and changes to relays.
+  A redirect response handled better, if user/pass returned.
+  Queue cleanup on inactive relay, reduce memory use in such cases.
+. issue CORS headers, just wildcard for now.
+. yp race fixed, make sure yp_currently_playing is not dependent on YP add completing
+. stats client bug on initial stats dump fixed
+. various internal setting tweaks to trigger events or limit actions.
+. various lockup and crash cases fixed.
+
 2.3.3-kh9
 . Allow for ${mount} to be specified in dump-file, on-[dis]connect, fallback-mount and
   intro. Useful in cases where a wildcard mount block is used but requires these options
