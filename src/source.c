@@ -1159,10 +1159,11 @@ static int send_listener (source_t *source, client_t *client)
         source->bytes_sent_since_update += total_written;
     }
 
-    if (source->shrink_pos && client->queue_pos < source->shrink_pos)
+    if (source->shrink_pos)
     {
         thread_spin_lock (&source->shrink_lock);
-        source->shrink_pos = client->queue_pos;
+        if (client->queue_pos < source->shrink_pos)
+            source->shrink_pos = client->queue_pos;
         thread_spin_unlock (&source->shrink_lock);
     }
     return ret;
