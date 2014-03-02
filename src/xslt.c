@@ -55,7 +55,8 @@
 static int xslt_client (client_t *client);
 
 typedef struct {
-    char              *filename;
+    char               *filename;
+    char               *disposition;
     time_t             last_modified;
     time_t             cache_age;
     time_t             last_checked;
@@ -203,8 +204,8 @@ void xslt_shutdown(void) {
     int i;
 
     for(i=0; i < CACHESIZE; i++) {
-        if(cache[i].filename)
-            free(cache[i].filename);
+        free(cache[i].filename);
+        free(cache[i].disposition);
         if(cache[i].stylesheet)
             xsltFreeStylesheet(cache[i].stylesheet);
     }
@@ -224,23 +225,39 @@ void *xslt_update (void *arg)
     client_t *client = x->client;
     worker_t *worker = client ? client->worker : NULL;
     char *fn = x->cache.filename;
+    xsltStylesheetPtr sheet;
 
     xmlSetGenericErrorFunc ("", log_parse_failure);
     xsltSetGenericErrorFunc ("", log_parse_failure);
 
-    x->cache.stylesheet = xsltParseStylesheetFile (XMLSTR(fn));
-    if (x->cache.stylesheet)
+    sheet = x->cache.stylesheet = xsltParseStylesheetFile (XMLSTR(fn));
+    if (sheet)
     {
         int i = x->index;
+        stylesheet_cache_t old;
 
         if (client) fn = strdup (fn); // need to copy the filename if another lookup is to done
         INFO1 ("loaded stylesheet %s", x->cache.filename);
+        if (sheet->mediaType && strcmp ((char*)sheet->mediaType, "text/html") != 0)
+        {
+            // avoid this lookup for html pages
+            const char _hdr[] = "Content-Disposition = attachment; filename=file.";
+            const size_t _hdrlen = sizeof (_hdr);
+            size_t len = _hdrlen + 12;
+            char *filename = malloc (len); // enough for name and extension
+            strcpy (filename, _hdr);
+            fserve_write_mime_ext ((char*)sheet->mediaType, filename + _hdrlen - 1, len - _hdrlen - 3);
+            strcat (filename, "\r\n");
+            x->cache.disposition = filename;
+        }
         thread_rwlock_wlock (&xslt_lock);
-        free (cache[i].filename);
-        xsltFreeStylesheet (cache[i].stylesheet);
+        memcpy (&old, &cache[i], sizeof (old));
         memcpy (&cache[i], &x->cache, sizeof (stylesheet_cache_t));
         thread_rwlock_unlock (&xslt_lock);
         memset (&x->cache, 0, sizeof (stylesheet_cache_t));
+        free (old.filename);
+        free (old.disposition);
+        xsltFreeStylesheet (old.stylesheet);
 
         if (client)
         {
@@ -389,21 +406,21 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
     if (client->parser->queryvars)
     {
         // annoying but we need to surround the args with ' when passing them in
-        int i, arg_count = client->parser->queryvars->length * 2;
+        int j, arg_count = client->parser->queryvars->length * 2;
         avl_node *node = avl_get_first (client->parser->queryvars);
 
         params = calloc (arg_count+1, sizeof (char *));
-        for (i = 0; node && i < arg_count; node = avl_get_next (node))
+        for (j = 0; node && j < arg_count; node = avl_get_next (node))
         {
             http_var_t *param = (http_var_t *)node->key;
             char *tmp = util_url_escape (param->value);
-            params[i++] = param->name;
+            params[j++] = param->name;
             // use alloca for now, should really url esc into a supplied buffer
-            params[i] = (char*)alloca (strlen (tmp) + 3);
-            sprintf (params[i++], "\'%s\'", tmp);
+            params[j] = (char*)alloca (strlen (tmp) + 3);
+            sprintf (params[j++], "\'%s\'", tmp);
             free (tmp);
         }
-        params[i] = NULL;
+        params[j] = NULL;
     }
 
     res = xsltApplyStylesheet (cur, doc, (const char **)params);
@@ -438,7 +455,7 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
                     mediatype = "text/xml";
         }
         snprintf (refbuf->data, 500,
-                "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n"
+                "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n%s"
                 "Expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n"
                 "Cache-Control: no-store, no-cache, must-revalidate\r\n"
                 "Pragma: no-cache\r\n"
@@ -446,7 +463,8 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
                 "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
                 "Access-Control-Allow-Methods: GET, OPTIONS, HEAD\r\n"
                 "\r\n",
-                mediatype, len);
+                mediatype, len,
+                cache[i].disposition ? cache[i].disposition : "");
 
         thread_rwlock_unlock (&xslt_lock);
         client->respcode = 200;
