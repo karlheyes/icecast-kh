@@ -186,34 +186,12 @@ char *fserve_content_type (const char *path)
     if (mimetypes && !avl_get_by_key (mimetypes, &exttype, &result))
     {
         mime_type *mime = result;
-        free (exttype.ext);
         type = strdup (mime->type);
     }
-    else {
-        free (exttype.ext);
-        /* Fallbacks for a few basic ones */
-        if(!strcmp(ext, "ogg"))
-            type = strdup ("application/ogg");
-        else if(!strcmp(ext, "mp3"))
-            type = strdup ("audio/mpeg");
-        else if(!strcmp(ext, "html"))
-            type = strdup ("text/html");
-        else if(!strcmp(ext, "css"))
-            type = strdup ("text/css");
-        else if(!strcmp(ext, "txt"))
-            type = strdup ("text/plain");
-        else if(!strcmp(ext, "jpg"))
-            type = strdup ("image/jpeg");
-        else if(!strcmp(ext, "png"))
-            type = strdup ("image/png");
-        else if(!strcmp(ext, "m3u"))
-            type = strdup ("audio/x-mpegurl");
-        else if(!strcmp(ext, "aac"))
-            type = strdup ("audio/aac");
-        else
-            type = strdup ("application/octet-stream");
-    }
+    else
+        type = strdup ("application/octet-stream");
     thread_spin_unlock (&pending_lock);
+    free (exttype.ext);
     return type;
 }
 
@@ -1044,68 +1022,125 @@ static int _compare_mappings(void *arg, void *a, void *b)
             ((mime_type *)b)->ext);
 }
 
+
+// write filename extension for matching mime type.
+// lookup matching mime type and write extension into buffer space provided
+void fserve_write_mime_ext (const char *mimetype, char *buf, unsigned int len)
+{
+    avl_node *node;
+    int semi;
+
+    if (mimetype == NULL || buf == NULL || len > 2000) return;
+    semi = strcspn (mimetype, "; ");
+    if (semi == 0) return;
+    if (mimetype [semi])
+    {
+        char *mt = alloca (++semi);
+        snprintf (mt, semi, "%s", mimetype);
+        mimetype = (const char *)mt;
+    }
+    thread_spin_lock (&pending_lock);
+    node = avl_get_first (mimetypes);
+    while (node)
+    {
+       mime_type *mime = (mime_type *)node->key;
+       if (mime && strcmp (mime->type, mimetype) == 0)
+       {
+           snprintf (buf, len, "%s", mime->ext);
+           break;
+       }
+       node = avl_get_next (node);
+    }
+    thread_spin_unlock (&pending_lock);
+}
+
+
 void fserve_recheck_mime_types (ice_config_t *config)
 {
     FILE *mimefile;
-    char line[4096];
-    char *type, *ext, *cur;
     mime_type *mapping;
     avl_tree *new_mimetypes;
 
-    if (config->mimetypes_fn == NULL)
-        return;
-    mimefile = fopen (config->mimetypes_fn, "r");
-    if (mimefile == NULL)
-    {
-        WARN1 ("Cannot open mime types file %s", config->mimetypes_fn);
-        return;
-    }
-
     new_mimetypes = avl_tree_new(_compare_mappings, NULL);
 
-    while(fgets(line, 4096, mimefile))
+    if (config->mimetypes_fn == NULL || (mimefile = fopen (config->mimetypes_fn, "r")) == NULL)
     {
-        line[4095] = 0;
-
-        if(*line == 0 || *line == '#')
-            continue;
-
-        type = line;
-
-        cur = line;
-
-        while(*cur != ' ' && *cur != '\t' && *cur)
-            cur++;
-        if(*cur == 0)
-            continue;
-
-        *cur++ = 0;
-
-        while(1) {
-            while(*cur == ' ' || *cur == '\t')
-                cur++;
-            if(*cur == 0)
-                break;
-
-            ext = cur;
-            while(*cur != ' ' && *cur != '\t' && *cur != '\n' && *cur)
-                cur++;
-            *cur++ = 0;
-            if(*ext)
-            {
-                void *tmp;
-                /* Add a new extension->type mapping */
-                mapping = malloc(sizeof(mime_type));
-                mapping->ext = strdup(ext);
-                mapping->type = strdup(type);
-                if (!avl_get_by_key (new_mimetypes, mapping, &tmp))
-                    avl_delete (new_mimetypes, mapping, _delete_mapping);
-                if (avl_insert (new_mimetypes, mapping) != 0)
-                    _delete_mapping (mapping);
-            }
+        int i;
+        mime_type defaults[] = {
+            { "m3u",            "audio/x-mpegurl" },
+            { "pls",            "audio/x-scpls" },
+            { "xspf",           "application/xspf+xml" },
+            { "ogg",            "application/ogg" },
+            { "mp3",            "audio/mpeg" },
+            { "aac",            "audio/aac" },
+            { "css",            "text/css" },
+            { "txt",            "text/plain" },
+            { "html",           "text/html" },
+            { "jpg",            "image/jpg" },
+            { "png",            "image/png" },
+            { NULL, NULL }
+        };
+        if (config->mimetypes_fn)
+            WARN1 ("Cannot open mime types file %s, using defaults", config->mimetypes_fn);
+        else
+            WARN0 ("no mime types file defined, using defaults");
+        for (i=0; defaults[i].ext; i++)
+        {
+            mapping = malloc (sizeof(mime_type));
+            mapping->ext = strdup (defaults [i].ext);
+            mapping->type = strdup (defaults [i].type);
+            if (avl_insert (new_mimetypes, mapping) != 0)
+                _delete_mapping (mapping);
         }
     }
-    fclose(mimefile);
+    else
+    {
+        char *type, *ext, *cur;
+        char line[4096];
+
+        while (fgets(line, 4096, mimefile))
+        {
+            line[4095] = 0;
+
+            if(*line == 0 || *line == '#')
+                continue;
+
+            type = line;
+            cur = line;
+
+            while(*cur != ' ' && *cur != '\t' && *cur)
+                cur++;
+            if(*cur == 0)
+                continue;
+
+            *cur++ = 0;
+
+            while(1) {
+                while(*cur == ' ' || *cur == '\t')
+                    cur++;
+                if(*cur == 0)
+                    break;
+
+                ext = cur;
+                while(*cur != ' ' && *cur != '\t' && *cur != '\n' && *cur)
+                    cur++;
+                *cur++ = 0;
+                if(*ext)
+                {
+                    void *tmp;
+                    /* Add a new extension->type mapping */
+                    mapping = malloc(sizeof(mime_type));
+                    mapping->ext = strdup(ext);
+                    mapping->type = strdup(type);
+                    if (!avl_get_by_key (new_mimetypes, mapping, &tmp))
+                        avl_delete (new_mimetypes, mapping, _delete_mapping);
+                    if (avl_insert (new_mimetypes, mapping) != 0)
+                        _delete_mapping (mapping);
+                }
+            }
+        }
+        fclose(mimefile);
+    }
 
     thread_spin_lock (&pending_lock);
     if (mimetypes)
