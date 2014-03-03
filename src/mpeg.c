@@ -216,6 +216,8 @@ static int handle_ts_frame (struct mpeg_sync *mp, unsigned char *p, int remainin
 
     if (remaining - frame_len < 0)
         return 0;
+    if (frame_len < remaining && p[frame_len] != 0x47)
+        INFO1 ("missing frame marker from %s", mp->mount);
     return frame_len;
 }
 
@@ -354,7 +356,7 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
     } while (checking);
     INFO2 ("detected TS (%d) on %s", pkt_len, mp->mount);
     mp->process_frame = handle_ts_frame;
-    mp->mask = 0xF0000000;
+    mp->mask = 0xFF000000;
     mp->marker = 0x47;
     mp->raw_offset = pkt_len;
     mp->settings |= 0x80;
