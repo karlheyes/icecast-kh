@@ -393,7 +393,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     char *server = strdup (host->ip);
     char *mount = strdup (host->mount);
     int port = host->port, timeout = host->timeout, remain;
-    char *p, headers[4096];
+    char *p, headers[4096] = "";
 
     remain = sizeof (headers);
     if (relay->flags & RELAY_ICY_META)
