@@ -1003,6 +1003,11 @@ void update_relays (ice_config_t *config)
                 WARN1 ("Detected loop with lookup of %s", find.localmount);
                 break;
             }
+            if (result->source == NULL)
+            {
+                INFO1 ("current relay %s not initialised, removed", result->localmount);
+                continue;
+            }
             copy = relay_copy (relay);
             DEBUG2 ("adding new relay %s (%p) into tree", relay->localmount, copy);
             // let client trigger the switchover for new details
