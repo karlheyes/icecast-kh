@@ -157,7 +157,7 @@ source_t *source_reserve (const char *mount, int flags)
 
         /* make duplicates for strings or similar */
         src->mount = strdup (mount);
-        src->listener_send_trigger = 4000;
+        src->listener_send_trigger = 8000;
         src->format = calloc (1, sizeof(format_plugin_t));
         src->clients = avl_tree_new (client_compare, NULL);
         src->intro_file = -1;
@@ -413,7 +413,7 @@ int source_read (source_t *source)
 {
     client_t *client = source->client;
     refbuf_t *refbuf = NULL;
-    int skip = 1, loop = 1 + (source->incoming_rate/320000);
+    int skip = 1, loop = 3;
     time_t current = client->worker->current_time.tv_sec;
     long queue_size_target;
     int fds = 0;
@@ -497,14 +497,14 @@ int source_read (source_t *source)
             break;
         }
 
-        skip = 0;
         source->last_read = current;
         do
         {
             refbuf = source->format->get_buffer (source);
             if (refbuf)
             {
-                source->skip_duration = (long)(source->skip_duration * 0.9);
+                if (skip)
+                    source->skip_duration = (long)(source->skip_duration * 0.9);
                 source->bytes_read_since_update += refbuf->len;
 
                 refbuf->flags |= SOURCE_QUEUE_BLOCK;
@@ -544,6 +544,15 @@ int source_read (source_t *source)
                 /* save stream to file */
                 if (source->dumpfile && source->format->write_buf_to_file)
                     source->format->write_buf_to_file (source, refbuf);
+                skip = 0;
+                if (source->shrink_time == 0)
+                {
+                    // kick off timed response to find oldest buffer.
+                    source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
+                    source->shrink_time = client->worker->time_ms + 500;
+                    client->schedule_ms += 15;
+                    return 0;
+                }
             }
             else
             {
@@ -558,17 +567,8 @@ int source_read (source_t *source)
             loop--;
         } while (loop);
 
-        if (skip == 0 && source->shrink_pos == 0)
-        {
-            // kick off timed response to find oldest buffer.
-            source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
-            source->shrink_time = client->worker->time_ms + 800;
-            client->schedule_ms += 15;
-            return 0;
-        }
-
         /* lets see if we have too much data in the queue */
-        loop = 40;
+        loop = 50 + (source->incoming_rate >> 14); // scale max on high bitrates
         if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
         {
             queue_size_target = 4000 + (source->client->queue_pos - source->shrink_pos);
@@ -731,7 +731,7 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
-        ret = offset % 5;
+        ret = offset % 20;
         offset++;
         client->schedule_ms += source->skip_duration + ret;
         return -1;
