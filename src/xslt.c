@@ -112,11 +112,11 @@ int xsltSaveResultToString(xmlChar **doc_txt_ptr, int * doc_txt_len, xmlDocPtr r
 		return(-1);
     xsltSaveResultTo(buf, result, style);
     if (buf->conv != NULL) {
-		*doc_txt_len = buf->conv->use;
-		*doc_txt_ptr = xmlStrndup(buf->conv->content, *doc_txt_len);
+		*doc_txt_len = xmlBufUse (buf->conv);
+		*doc_txt_ptr = xmlStrndup (xmlBufContent (buf->conv), *doc_txt_len);
     } else {
-		*doc_txt_len = buf->buffer->use;
-		*doc_txt_ptr = xmlStrndup(buf->buffer->content, *doc_txt_len);
+		*doc_txt_len = xmlBufUse (buf->buffer);
+		*doc_txt_ptr = xmlStrndup (xmlBufContent (buf->buffer), *doc_txt_len);
     }
     (void)xmlOutputBufferClose(buf);
     return 0;
