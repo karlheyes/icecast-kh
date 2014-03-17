@@ -18,6 +18,7 @@
 #endif
 
 #include <stdlib.h>
+#include <string.h>
 #include <ogg/ogg.h>
 #include <speex/speex_header.h>
 
