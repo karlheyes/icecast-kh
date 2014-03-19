@@ -156,8 +156,11 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
         sscanf (ptr, "TouchFreq: %u", &secs);
         if (secs < 30)
             secs = 30;
-        DEBUG1 ("server touch interval is %u", secs);
-        yp->touch_interval = secs;
+        if (yp->touch_interval != secs)
+        {
+            DEBUG1 ("server touch interval is %u", secs);
+            yp->touch_interval = secs;
+        }
     }
     return (int)bytes;
 }
@@ -652,6 +655,7 @@ static ypdata_t *create_yp_entry (const char *mount)
         char *url;
         mount_proxy *mountproxy = NULL;
         ice_config_t *config;
+        static int adjust = 0;
 
         if (yp == NULL)
             break;
@@ -690,7 +694,8 @@ static ypdata_t *create_yp_entry (const char *mount)
         if (yp->listen_url == NULL)
             break;
 
-        yp_schedule (yp, 0);
+        adjust++;
+        yp_schedule (yp, (adjust%30));
         return yp;
     } while (0);
 
