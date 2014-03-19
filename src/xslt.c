@@ -139,21 +139,15 @@ static int xslt_write_callback (void *ctxt, const char *data, int len)
     }
     while (loop)
     {
-        int size = len > 4096 ? len : 4096;
-        if (*x->tail == NULL)
-        {
-            *x->tail = refbuf_new (size);
-            (*x->tail)->len = 0;
-        }
         r = *x->tail;
-        if (r->len + len > size)
+        if (r)
         {
             x->tail = &r->next;
             loop--;
             continue;
         }
-        memcpy (r->data + r->len, data, len);
-        r->len += len;
+        *x->tail = r = refbuf_new (len);
+        memcpy (r->data, data, len);
         x->len += len;
         break;
     }
