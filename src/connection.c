@@ -827,7 +827,7 @@ static client_t *accept_client (void)
         int i, num;
         refbuf_t *r;
 
-        if (sock_set_blocking (sock, 0)) // || sock_set_nodelay (sock))
+        if (sock_set_blocking (sock, 0) || sock_set_nodelay (sock))
         {
             WARN0 ("failed to set tcp options on client connection, dropping");
             break;
