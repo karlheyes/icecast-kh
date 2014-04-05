@@ -1499,7 +1499,7 @@ static int relay_read (client_t *client)
             {
                 INFO1 ("standing by to restart relay on %s", relay->localmount);
                 stats_flush (source->stats);
-                if (relay->flags & RELAY_ON_DEMAND && source->listeners == 0)
+                if (relay->flags & RELAY_ON_DEMAND && source->listeners == 0 && relay->in_use->next)
                 {
                     source_clear_source (relay->source);
                     relay_reset (relay);
