@@ -1867,7 +1867,8 @@ void source_recheck_mounts (int update_all)
             if (count >= 0)
             {
                 long stats = stats_handle (mount->mountname);
-                stats_set_expire (stats, mark);
+                if (source == NULL) // mark for purge if there is no source at all
+                    stats_set_expire (stats, mark);
                 stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);
                 stats_set_args (stats, "listenurl", "http://%s:%d%s",
                         config->hostname, config->port, mount->mountname);
