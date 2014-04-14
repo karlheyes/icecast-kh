@@ -578,7 +578,7 @@ static auth_result url_add_listener (auth_client *auth_user)
  */
 static void url_stream_start (auth_client *auth_user)
 {
-    char *mount, *server, *ipaddr;
+    char *mount, *server, *ipaddr, *agent;
     client_t *client = auth_user->client;
     auth_url *url = auth_user->auth->state;
     auth_thread_data *atd = auth_user->thread_data;
@@ -586,14 +586,21 @@ static void url_stream_start (auth_client *auth_user)
 
     server = util_url_escape (auth_user->hostname);
     mount = util_url_escape (auth_user->mount);
-    if (client && client->connection.ip)
-        ipaddr = util_url_escape (client->connection.ip);
-    else
-        ipaddr = strdup("");
+    if (client)
+    {
+        if (client->connection.ip)
+            ipaddr = util_url_escape (client->connection.ip);
+        if (client->shared_data)
+            agent = util_url_escape (client->shared_data);
+    }
+    if (ipaddr == NULL) ipaddr = strdup("");
+    if (agent == NULL) agent = strdup("");
 
     snprintf (post, sizeof (post),
-            "action=mount_add&mount=%s&server=%s&port=%d&ip=%s", mount, server, auth_user->port, ipaddr);
+            "action=mount_add&mount=%.200s&server=%s&port=%d&ip=%s&agent=%.200s", mount, server,
+            auth_user->port, ipaddr, agent);
     free (ipaddr);
+    free (agent);
     free (server);
     free (mount);
 

@@ -328,6 +328,14 @@ static void stream_start_callback (auth_client *auth_user)
 
     if (auth->stream_start)
         auth->stream_start (auth_user);
+    if (auth_user->client)
+    {
+        client_t *client = auth_user->client;
+        free (client->connection.ip);
+        free (client->shared_data); // useragent
+        free (client);
+        auth_user->client = NULL;
+    }
 }
 
 
@@ -844,13 +852,25 @@ int auth_stream_authenticate (client_t *client, const char *mount, mount_proxy *
 /* called when the stream starts, so that authentication engine can do any
  * cleanup/initialisation.
  */
-void auth_stream_start (mount_proxy *mountinfo, const char *mount)
+void auth_stream_start (mount_proxy *mountinfo, source_t *source)
 {
     if (mountinfo && mountinfo->auth && mountinfo->auth->stream_start)
     {
+        client_t *client = source->client;
+        const char *agent = httpp_getvar (client->parser, "user-agent"),
+                   *mount = source->mount;
         auth_client *auth_user = auth_client_setup (mount, NULL);
+
         auth_user->process = stream_start_callback;
-        INFO1 ("request source start for \"%s\"", mount);
+
+        // use a blank client copy to avoid a race as slower callbacks could occur
+        // after a short lived source.
+        auth_user->client = calloc (1, sizeof (client_t));
+        auth_user->client->connection.ip = strdup (client->connection.ip);
+        if (agent)
+            auth_user->client->shared_data = strdup (agent);
+
+        INFO1 ("request stream startup for \"%s\"", mount);
 
         queue_auth_client (auth_user, mountinfo);
     }

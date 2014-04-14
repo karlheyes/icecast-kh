@@ -1247,7 +1247,7 @@ void source_init (source_t *source)
             source->client->connection.discon_time = source->client->worker->current_time.tv_sec + mountinfo->max_stream_duration;
         if (mountinfo->on_connect)
             source_run_script (mountinfo->on_connect, source->mount);
-        auth_stream_start (mountinfo, source->mount);
+        auth_stream_start (mountinfo, source);
     }
     config_release_config();
 
