@@ -578,7 +578,7 @@ static auth_result url_add_listener (auth_client *auth_user)
  */
 static void url_stream_start (auth_client *auth_user)
 {
-    char *mount, *server, *ipaddr, *agent;
+    char *mount, *server, *ipaddr = NULL, *agent = NULL;
     client_t *client = auth_user->client;
     auth_url *url = auth_user->auth->state;
     auth_thread_data *atd = auth_user->thread_data;
