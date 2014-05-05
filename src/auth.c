@@ -348,6 +348,14 @@ static void stream_end_callback (auth_client *auth_user)
 
     if (auth->stream_end)
         auth->stream_end (auth_user);
+    if (auth_user->client)
+    {
+        client_t *client = auth_user->client;
+        free (client->connection.ip);
+        free (client->shared_data); // useragent
+        free (client);
+        auth_user->client = NULL;
+    }
 }
 
 
@@ -880,11 +888,20 @@ void auth_stream_start (mount_proxy *mountinfo, source_t *source)
 /* Called when the stream ends so that the authentication engine can do
  * any authentication cleanup
  */
-void auth_stream_end (mount_proxy *mountinfo, const char *mount)
+void auth_stream_end (mount_proxy *mountinfo, source_t *source)
 {
     if (mountinfo && mountinfo->auth && mountinfo->auth->stream_end)
     {
+        client_t *client = source->client;
+        const char *agent = httpp_getvar (client->parser, "user-agent"),
+                           *mount = source->mount;
         auth_client *auth_user = auth_client_setup (mount, NULL);
+
+        // use a blank client copy to avoid a race
+        auth_user->client = calloc (1, sizeof (client_t));
+        auth_user->client->connection.ip = strdup (client->connection.ip);
+        if (agent)
+            auth_user->client->shared_data = strdup (agent);
         auth_user->process = stream_end_callback;
         INFO1 ("request source end for \"%s\"", mount);
 

@@ -1393,7 +1393,7 @@ void source_shutdown (source_t *source, int with_fallback)
         {
             if (mountinfo->on_disconnect)
                 source_run_script (mountinfo->on_disconnect, source->mount);
-            auth_stream_end (mountinfo, source->mount);
+            auth_stream_end (mountinfo, source);
         }
     }
     if (mountinfo && with_fallback && global.running == ICE_RUNNING)

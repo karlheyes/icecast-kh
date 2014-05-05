@@ -118,11 +118,10 @@ int auth_get_authenticator (xmlNodePtr node, void *x);
 void    auth_release (auth_t *authenticator);
 
 /* call to trigger an event when a stream starts */
-//void auth_stream_start (struct _mount_proxy *mountinfo, const char *mount);
 void auth_stream_start (struct _mount_proxy *mountinfo, struct source_tag *source);
 
 /* call to trigger an event when a stream ends */
-void auth_stream_end (struct _mount_proxy *mountinfo, const char *mount);
+void auth_stream_end (struct _mount_proxy *mountinfo, struct source_tag *source);
 
 /* call to trigger an event to authenticate a source client */
 int auth_stream_authenticate (client_t *client, const char *mount, struct _mount_proxy *mountinfo);
