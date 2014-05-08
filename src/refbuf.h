@@ -34,7 +34,12 @@ typedef struct _refbuf_tag
 void refbuf_initialize(void);
 void refbuf_shutdown(void);
 
+#ifdef MY_ALLOC
+refbuf_t *refbuf_new_s(unsigned int size, const char *file, int line);
+#define refbuf_new(X)   refbuf_new_s(X,__func__, __LINE__);
+#else
 refbuf_t *refbuf_new(unsigned int size);
+#endif
 void refbuf_addref(refbuf_t *self);
 void refbuf_release(refbuf_t *self);
 refbuf_t *refbuf_copy(refbuf_t *orig);

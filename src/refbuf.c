@@ -39,6 +39,29 @@ void refbuf_shutdown(void)
 {
 }
 
+#ifdef MY_ALLOC
+refbuf_t *refbuf_new_s (unsigned int size, const char *file, const int line)
+{
+    refbuf_t *refbuf;
+
+    refbuf = (refbuf_t *)my_calloc (file, line, 1, sizeof(refbuf_t));
+    if (refbuf == NULL)
+        abort();
+    refbuf->data = NULL;
+    if (size)
+    {
+        refbuf->data = my_calloc (file, line, 1, size);
+        if (refbuf->data == NULL)
+            abort();
+    }
+    refbuf->len = size;
+    refbuf->_count = 1;
+    refbuf->next = NULL;
+    refbuf->associated = NULL;
+
+    return refbuf;
+}
+#else
 refbuf_t *refbuf_new (unsigned int size)
 {
     refbuf_t *refbuf;
@@ -60,6 +83,8 @@ refbuf_t *refbuf_new (unsigned int size)
 
     return refbuf;
 }
+#endif
+
 
 void refbuf_addref(refbuf_t *self)
 {
