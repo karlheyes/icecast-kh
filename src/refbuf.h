@@ -36,7 +36,7 @@ void refbuf_shutdown(void);
 
 #ifdef MY_ALLOC
 refbuf_t *refbuf_new_s(unsigned int size, const char *file, int line);
-#define refbuf_new(X)   refbuf_new_s(X,__func__, __LINE__);
+#define refbuf_new(X)   refbuf_new_s(X,__func__, __LINE__)
 #else
 refbuf_t *refbuf_new(unsigned int size);
 #endif
