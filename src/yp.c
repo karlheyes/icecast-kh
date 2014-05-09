@@ -383,7 +383,7 @@ static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
             yp->error_msg = strdup ("no response from server");
         if (yp->process == do_yp_add)
         {
-            ERROR3 ("YP %s on %s failed: %s", cmd, server->url, yp->error_msg);
+            ERROR4 ("YP %s on %s failed for %s: %s", cmd, server->url, yp->mount, yp->error_msg);
             yp_schedule (yp, 7200);
         }
         if (yp->process == do_yp_touch)
@@ -398,14 +398,14 @@ static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
                 yp_schedule (yp, 1200);
             else
                 yp_schedule (yp, yp->touch_interval);
-            INFO3 ("YP %s on %s failed: %s", cmd, server->url, yp->error_msg);
+            INFO4 ("YP %s on %s failed for %s: %s", cmd, server->url, yp->mount, yp->error_msg);
         }
         yp->process = do_yp_add;
         free (yp->sid);
         yp->sid = NULL;
         return -1;
     }
-    DEBUG2 ("YP %s at %s succeeded", cmd, server->url);
+    DEBUG3 ("YP %s at %s for %s succeeded", cmd, server->url, yp->mount);
     return 0;
 }
 
