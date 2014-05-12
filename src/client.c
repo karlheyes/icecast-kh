@@ -321,30 +321,26 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
 
 void client_set_queue (client_t *client, refbuf_t *refbuf)
 {
-    refbuf_t *to_release = client->refbuf;
+    refbuf_t *next, *to_release = client->refbuf;
 
-    if (to_release && client->flags & CLIENT_HAS_INTRO_CONTENT)
+    while (to_release)
     {
-        refbuf_t *intro = to_release->next;
-        while (intro && (intro->flags & REFBUF_SHARED) == 0)
+        if (to_release->flags & REFBUF_SHARED)
         {
-            refbuf_t *r = intro->next;
-            intro->next = NULL;
-            refbuf_release (intro);
-            intro = r;
+            ERROR1 ("content has a shared flag status for %s", client->connection.ip);
+            break;
         }
-        if (intro) // leave shared data, someone else should be freeing it
-            ERROR1 ("intro content has a shared flag status for %s", client->connection.ip);
+        next = to_release->next;
         to_release->next = NULL;
+        refbuf_release (to_release);
+        to_release = next;
     }
-    client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
+
     client->refbuf = refbuf;
     if (refbuf)
         refbuf_addref (client->refbuf);
 
     client->pos = 0;
-    if (to_release && (to_release->flags & REFBUF_SHARED) == 0)
-        refbuf_release (to_release);
 }
 
 
