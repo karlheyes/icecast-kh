@@ -403,6 +403,8 @@ static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
         yp->process = do_yp_add;
         free (yp->sid);
         yp->sid = NULL;
+        free (yp->error_msg);
+        yp->error_msg = NULL;
         return -1;
     }
     DEBUG3 ("YP %s at %s for %s succeeded", cmd, server->url, yp->mount);
