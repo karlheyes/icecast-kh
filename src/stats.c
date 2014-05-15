@@ -1571,6 +1571,11 @@ void stats_set_conv (long handle, const char *name, const char *value, const cha
         WARN1 ("No charset found for \"%s\"", charset);
         return;
     }
+    if (value && xmlCheckUTF8 ((unsigned char *)value) == 0)
+    {
+        WARN2 ("seen non-UTF8 data (%s), probably incorrect charcter set (%s, %s)", name, value);
+        return;
+    }
     stats_set_entity_decode (handle, name, value);
 }
 
