@@ -300,7 +300,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 if (fs) break;  // ignore following settings for files.
                 if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
                     fmtcode = FMT_RETURN_ICY;
-                if (strstr (useragent, "Windows-Media-Player") || strstr (useragent, "WMFSDK")) /* hack for wmp*/
+                if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
                     fmtcode = FMT_RETURN_ICY;
                 if (strstr (useragent, "RealMedia")) /* hack for rp (mainly mobile) */
                     fmtcode = FMT_RETURN_ICY;
