@@ -201,7 +201,8 @@ static void mp3_set_tag (format_plugin_t *plugin, const char *tag, const char *i
 
 static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
 {
-    int meta_len = source_mp3->build_metadata_len;
+    int meta_len = source_mp3->build_metadata_len, extra_len = 0;
+    char *extra = NULL;
     char *metadata = source_mp3->build_metadata;
 
     if (meta_len <= 1 || memcmp (metadata, source_mp3->metadata->data, meta_len) == 0)
@@ -244,14 +245,32 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
             source_mp3->inline_url = s;
             INFO2 ("incoming URL for %s %s", name, s);
         }
-        else if ((end = strchr (metadata, ';')) == NULL)
+        else if ((end = strstr (metadata, "';")) == NULL)
             break;
         else
-            term_len=1;
+        {
+            len = end - metadata + 2;
+            s = realloc (extra, extra_len + len + 1);
+            if (s)
+            {
+                sprintf (s + extra_len, "%.*s", len, metadata);
+                extra_len += len;
+                extra = s;
+            }
+            else
+            {
+                WARN1 ("realloc failed for %ld", extra_len + len + 1);
+                break;
+            }
+        }
         meta_len -= (end - metadata + term_len);
         metadata = end + term_len;
         source_mp3->update_metadata = 1;
     } while (meta_len > 0);
+    if (extra)
+        INFO2 ("extra meta for %s (%s)", name, extra);
+    free (source_mp3->extra_icy_meta);
+    source_mp3->extra_icy_meta = extra;
     return 0;
 }
 
@@ -320,6 +339,8 @@ static void mp3_set_title (source_t *source)
         len += strlen (source_mp3->inline_url) + strlen (streamurl) + 2;
     else if (source_mp3->url)
         len += strlen (source_mp3->url) + strlen (streamurl) + 2;
+    if (source_mp3->extra_icy_meta)
+        len += strlen (source_mp3->extra_icy_meta);
 #define MAX_META_LEN 255*16
     if (len > MAX_META_LEN)
     {
@@ -424,7 +445,7 @@ static void mp3_set_title (source_t *source)
             r += 2;
             if (source_mp3->inline_url && size-r > strlen (source_mp3->inline_url)+13)
             {
-                snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->inline_url);
+                r += snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->inline_url);
                 flv_meta_append_string (flvmeta, "URL", source_mp3->inline_url);
                 stats_set (source->stats, "metadata_url", source_mp3->inline_url);
 
@@ -433,11 +454,15 @@ static void mp3_set_title (source_t *source)
             }
             else if (source_mp3->url)
             {
-                snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->url);
+                r += snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->url);
                 flv_meta_append_string (flvmeta, "URL", source_mp3->url);
                 stats_set (source->stats, "metadata_url", source_mp3->url);
                 n = snprintf (ibp, ib_len, "URL=%s\n", source_mp3->url);
                 if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
+            }
+            if (source_mp3->extra_icy_meta)
+            {
+                r += snprintf (p->data+r, size-r, "%s", source_mp3->extra_icy_meta);
             }
         }
         DEBUG1 ("icy metadata as %.80s...", p->data+1);
@@ -656,6 +681,7 @@ static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *client)
     free (format_mp3->url_title);
     free (format_mp3->inline_url);
     free (format_mp3->url);
+    free (format_mp3->extra_icy_meta);
     refbuf_release (format_mp3->metadata);
     refbuf_release (format_mp3->read_data);
     free (format_mp3);
