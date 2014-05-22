@@ -703,7 +703,7 @@ static int complete_read (source_t *source)
     if (source->incoming_rate && source->incoming_rate < 65536)
         client->schedule_ms += (65536/source->incoming_rate);
     else
-        client->schedule_ms += 2; 
+        client->schedule_ms += 2;
     return 1;
 }
 
