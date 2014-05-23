@@ -1582,7 +1582,7 @@ void stats_set_conv (long handle, const char *name, const char *value, const cha
 
 void stats_listener_to_xml (client_t *listener, xmlNodePtr parent)
 {
-    const char *useragent;
+    const char *header;
     char buf[30];
 
     xmlNodePtr node = xmlNewChild (parent, NULL, XMLSTR("listener"), NULL);
@@ -1593,11 +1593,19 @@ void stats_listener_to_xml (client_t *listener, xmlNodePtr parent)
 
     xmlNewChild (node, NULL, XMLSTR("IP"), XMLSTR(listener->connection.ip));
 
-    useragent = httpp_getvar (listener->parser, "user-agent");
-    if (useragent && xmlCheckUTF8((unsigned char *)useragent))
+    header = httpp_getvar (listener->parser, "user-agent");
+    if (header && xmlCheckUTF8((unsigned char *)header))
     {
-        xmlChar *str = xmlEncodeEntitiesReentrant (parent->doc, XMLSTR(useragent));
+        xmlChar *str = xmlEncodeEntitiesReentrant (parent->doc, XMLSTR(header));
         xmlNewChild (node, NULL, XMLSTR("UserAgent"), str);
+        xmlFree (str);
+    }
+
+    header = httpp_getvar (listener->parser, "referer");
+    if (header && xmlCheckUTF8((unsigned char *)header))
+    {
+        xmlChar *str = xmlEncodeEntitiesReentrant (parent->doc, XMLSTR(header));
+        xmlNewChild (node, NULL, XMLSTR("Referer"), str);
         xmlFree (str);
     }
 
