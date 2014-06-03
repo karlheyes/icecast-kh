@@ -102,16 +102,28 @@ static int  _handle_stats_request (client_t *client);
 struct banned_entry
 {
     char ip[16]; // may want to expand later for ipv6
-    time_t timeout;
+    union
+    {
+        time_t timeout;
+        struct banned_entry *next;
+    } a;
 };
 
-typedef struct
+struct list_node
+{
+    char *content;
+    struct list_node *next;
+};
+
+
+typedef struct _cache_contents
 {
     time_t file_recheck;
     time_t file_mtime;
+    void   *wildcards;
     avl_tree *contents;
     int  (*compare)(void *arg, void *a, void *b);
-    void (*add_new_entry)(avl_tree *t, const char *ip, time_t now);
+    void (*add_new_entry)(struct _cache_contents *c, const char *ip, time_t now);
     char *filename;
 } cache_file_contents;
 
@@ -166,24 +178,29 @@ cache_file_contents useragents;
 int connection_running = 0;
 
 
-static int compare_pattern (void *arg, void *a, void *b)
+static int compare_text (void *arg, void *a, void *b)
 {
     const char *value = (const char *)a;
     const char *pattern = (const char *)b;
-#ifdef HAVE_FNMATCH_H
-    int x;
 
-    switch ((x = fnmatch (pattern, value, FNM_NOESCAPE)))
+    return strcmp (pattern, value);
+}
+
+
+static int compare_pattern (const char *value, const char *pattern)
+{
+#ifdef HAVE_FNMATCH_H
+    int x = fnmatch (pattern, value, FNM_NOESCAPE);
+    switch (x)
     {
         case FNM_NOMATCH:
-            x = strcmp (pattern, value);
-        case 0:
             break;
+        case 0:
+            return 0;
         default:
             INFO0 ("fnmatch failed");
-            return -1;
     }
-    return x;
+    return -1;
 #else
     return strcmp (pattern, value);
 #endif
@@ -193,17 +210,19 @@ static int compare_banned_ip (void *arg, void *a, void *b)
 {
     struct banned_entry *this = (struct banned_entry *)a;
     struct banned_entry *that = (struct banned_entry *)b;
+    int ret = strcmp (&this->ip[0], &that->ip[0]);
 
-    if (ban_entry_removal == NULL)
+    if (ban_entry_removal == NULL && ret)
     {
         time_t now = *((time_t*)arg);
-        if (that->timeout < now - 60)
+        if (that->a.timeout < now - 60)
             ban_entry_removal = that; // identify possible removal
+        DEBUG3 ("now %ld, timer %ld, that %p", now, that->a.timeout, that);
     }
-    return compare_pattern (NULL, &this->ip[0] , &that->ip[0]);
+    return ret;
 }
 
-static int free_filtered_line (void*x)
+static int cache_treenode_free (void*x)
 {
     free (x);
     return 1;
@@ -473,22 +492,49 @@ int connection_bufs_send (connection_t *con, struct connection_bufs *vectors, in
 }
 
 
-static void add_generic_text (avl_tree *t, const char *ip, time_t now)
+
+static void add_generic_text (cache_file_contents *c, const char *in_str, time_t now)
 {
-    char *str = strdup (ip);
+    char *str = strdup (in_str);
     if (str)
-        avl_insert (t, str);
+    {
+#ifdef HAVE_FNMATCH_H
+        if (in_str [strcspn (in_str, "*?[")]) // if wildcard present
+        {
+            struct list_node *node = calloc (1, sizeof (*node));
+            node->content = str;
+            node->next = c->wildcards;
+            c->wildcards = node;
+            DEBUG1 ("Adding wildcard entry \"%.30s\"", str);
+            return;
+        }
+#endif
+        DEBUG1 ("Adding literal entry \"%.30s\"", str);
+        avl_insert (c->contents, str);
+    }
 }
 
-static void add_banned_ip (avl_tree *t, const char *ip, time_t now)
+static void add_banned_ip (cache_file_contents *c, const char *ip, time_t now)
 {
-    if (t)
+    if (c)
     {
-        struct banned_entry *entry = calloc (1, sizeof (struct banned_entry));
-        snprintf (&entry->ip[0], sizeof (entry->ip), "%s", ip);
-        if (now)
-            entry->timeout = now;
-        avl_insert (t, entry);
+        struct banned_entry *banned;
+#ifdef HAVE_FNMATCH_H
+        if (ip [strcspn (ip, "*?[")]) // if wildcard present
+        {
+            struct list_node *entry = calloc (1, sizeof (*entry));
+            entry->content = strdup (ip);
+            entry->next = c->wildcards;
+            c->wildcards = entry;
+            DEBUG1 ("Adding wildcard entry \"%.30s\"", ip);
+            return;
+        }
+#endif
+        banned = calloc (1, sizeof (struct banned_entry));
+        snprintf (&banned->ip[0], sizeof (banned->ip), "%s", ip);
+        banned->a.timeout = now;
+        DEBUG1 ("Adding literal entry \"%.30s\"", ip);
+        avl_insert (c->contents, banned);
     }
 }
 
@@ -501,7 +547,7 @@ void connection_add_banned_ip (const char *ip, int duration)
     if (banned_ip.contents)
     {
         global_lock();
-        add_banned_ip (banned_ip.contents, ip, timeout);
+        add_banned_ip (&banned_ip, ip, timeout);
         global_unlock();
     }
 }
@@ -511,7 +557,7 @@ void connection_release_banned_ip (const char *ip)
     if (banned_ip.contents)
     {
         global_lock();
-        avl_delete (banned_ip.contents, (void*)ip, free_filtered_line);
+        avl_delete (banned_ip.contents, (void*)ip, cache_treenode_free);
         global_unlock();
     }
 }
@@ -524,6 +570,23 @@ void connection_stats (void)
     stats_event_args (NULL, "banned_IPs", "%ld", banned_IPs);
 }
 
+
+static void cache_prune (cache_file_contents *cache)
+{
+    if (cache->contents)
+    {
+        avl_tree_free (cache->contents, cache_treenode_free);
+        cache->contents = NULL;
+    }
+    while (cache->wildcards)
+    {
+        struct list_node *entry = cache->wildcards;
+        cache->wildcards = entry->next;
+        free (entry->content);
+        free (entry);
+    }
+}
+
 /* function to handle the re-populating of the avl tree containing IP addresses
  * for deciding whether a connection of an incoming request is to be dropped.
  */
@@ -534,17 +597,12 @@ static void recheck_cached_file (cache_file_contents *cache, time_t now)
         struct stat file_stat;
         FILE *file = NULL;
         int count = 0;
-        avl_tree *new_ips;
         char line [MAX_LINE_LEN];
 
         cache->file_recheck = now + 10;
         if (cache->filename == NULL)
         {
-            if (cache->contents)
-            {
-                avl_tree_free (cache->contents, free_filtered_line);
-                cache->contents = NULL;
-            }
+            cache_prune (cache);
             return;
         }
         if (stat (cache->filename, &file_stat) < 0)
@@ -564,71 +622,119 @@ static void recheck_cached_file (cache_file_contents *cache, time_t now)
             return;
         }
 
-        new_ips = avl_tree_new (cache->compare, &cache->file_recheck);
+        cache_prune (cache);
 
+        cache->contents = avl_tree_new (cache->compare, &cache->file_recheck);
         while (get_line (file, line, MAX_LINE_LEN))
         {
             if(!line[0] || line[0] == '#')
                 continue;
             count++;
-            cache->add_new_entry (new_ips, line, 0);
+            cache->add_new_entry (cache, line, 0);
         }
         fclose (file);
         INFO2 ("%d entries read from file \"%s\"", count, cache->filename);
-
-        if (cache->contents) avl_tree_free (cache->contents, free_filtered_line);
-        cache->contents = new_ips;
     }
+}
+
+
+static time_t file_timecheck = (time_t)0;
+
+/* check specified ip against internal set of banned IPs
+ * return -1 for no data, 0 for no match and 1 for match
+ */
+static int search_banned_ip (char *ip)
+{
+    recheck_cached_file (&banned_ip, file_timecheck);
+    if (banned_ip.wildcards)
+    {
+        struct list_node *entry = banned_ip.wildcards;
+        while (entry)
+        {
+            if (compare_pattern (ip, entry->content) == 0)
+                return 1;
+            entry = entry->next;
+        }
+    }
+    if (banned_ip.contents)
+    {
+        void *result;
+
+        ban_entry_removal = NULL;
+        if (avl_get_by_key (banned_ip.contents, ip, &result) == 0)
+        {
+            struct banned_entry *match = result;
+            if (match->a.timeout == 0 || match->a.timeout > file_timecheck)
+            {
+                if (match->a.timeout && file_timecheck + 300 > match->a.timeout)
+                    match->a.timeout = file_timecheck + 300;
+                return 1;
+            }
+            avl_delete (banned_ip.contents, ip, cache_treenode_free);
+        }
+        /* we may of seen another one to remove */
+        if (ban_entry_removal)
+        {
+            INFO1 ("removing %s from ban list for now", &ban_entry_removal->ip[0]);
+            avl_delete (banned_ip.contents, &ban_entry_removal->ip[0], cache_treenode_free);
+            ban_entry_removal = NULL;
+        }
+    }
+    return 0;
+}
+
+
+static int search_cached_pattern (cache_file_contents *cache, const char *line)
+{
+    int ret = -1;
+
+    do
+    {
+        recheck_cached_file (cache, file_timecheck);
+        if (cache->wildcards)
+        {
+            struct list_node *entry = cache->wildcards;
+            while (entry)
+            {
+                if (compare_pattern (line, entry->content) == 0)
+                {
+                    DEBUG1 ("%s matched pattern", line);
+                    return 1;
+                }
+                entry = entry->next;
+            }
+            ret = 0;
+        }
+        if (allowed_ip.contents)
+        {
+            void *result;
+
+            if (avl_get_by_key (allowed_ip.contents, (char*)line, &result) == 0)
+                return 1;
+            return 0;
+        }
+    } while (0);
+    return ret;
 }
 
 
 /* return 0 if the passed ip address is not to be handled by icecast, non-zero otherwise */
 static int accept_ip_address (char *ip)
 {
-    void *result;
-    time_t now = time(NULL);
-
+    file_timecheck = time (NULL);
     global_lock();
-    recheck_cached_file (&banned_ip, now);
 
-    if (banned_ip.contents)
+    if (search_banned_ip (ip) > 0)
     {
-        ban_entry_removal = NULL;
-        if (avl_get_by_key (banned_ip.contents, ip, &result) == 0)
-        {
-            struct banned_entry *match = result;
-            if (match->timeout == 0 || match->timeout > now)
-            {
-                if (match->timeout && now + 900 > match->timeout)
-                    match->timeout = now + 900;
-                global_unlock();
-                DEBUG1 ("%s banned", ip);
-                return 0;
-            }
-            avl_delete (banned_ip.contents, ip, free_filtered_line);
-        }
-        /* we may of seen another one to remove */
-        if (ban_entry_removal)
-        {
-            INFO1 ("removing %s from ban list for now", &ban_entry_removal->ip[0]);
-            avl_delete (banned_ip.contents, &ban_entry_removal->ip[0], free_filtered_line);
-            ban_entry_removal = NULL;
-        }
+        global_unlock();
+        DEBUG1 ("%s banned", ip);
+        return 0;
     }
     global_unlock();
-    recheck_cached_file (&allowed_ip, now);
-    if (allowed_ip.contents)
+    if (search_cached_pattern (&allowed_ip, ip) == 0)
     {
-        if (avl_get_by_key (allowed_ip.contents, ip, &result) == 0)
-        {
-            DEBUG1 ("%s is allowed", ip);
-            return 1;
-        }
-        else
-        {
-            DEBUG1 ("%s is not allowed", ip);
-            return 0;
-        }
+        DEBUG1 ("%s is not allowed", ip);
+        return 0;
     }
     return 1;
 }
@@ -1009,12 +1115,11 @@ static int http_client_request (client_t *client)
             if (httpp_parse (client->parser, refbuf->data, refbuf->len))
             {
                 recheck_cached_file (&useragents, client->worker->current_time.tv_sec);
-                if (useragents.contents)
+                if (useragents.filename)
                 {
                     const char *agent = httpp_getvar (client->parser, "user-agent");
-                    void *result;
 
-                    if (agent && avl_get_by_key (useragents.contents, (char *)agent, &result) == 0)
+                    if (agent && search_cached_pattern (&useragents, agent) > 0)
                     {
                         INFO2 ("dropping client at %s because useragent is %s",
                                 client->connection.ip, agent);
@@ -1092,11 +1197,11 @@ static void *connection_thread (void *arg)
     allowed_ip.filename = NULL;
     allowed_ip.file_mtime = 0;
     allowed_ip.add_new_entry = add_generic_text;
-    allowed_ip.compare = compare_pattern;
+    allowed_ip.compare = compare_text;
     useragents.filename = NULL;
     useragents.file_mtime = 0;
     useragents.add_new_entry = add_generic_text;
-    useragents.compare = compare_pattern;
+    useragents.compare = compare_text;
 
     connection_running = 1;
     INFO0 ("connection thread started");
@@ -1136,9 +1241,9 @@ static void *connection_thread (void *arg)
     SSL_CTX_free (ssl_ctx);
 #endif
     global_lock();
-    if (banned_ip.contents)  avl_tree_free (banned_ip.contents, free_filtered_line);
-    if (allowed_ip.contents) avl_tree_free (allowed_ip.contents, free_filtered_line);
-    if (useragents.contents) avl_tree_free (useragents.contents, free_filtered_line);
+    cache_prune (&banned_ip);
+    cache_prune (&allowed_ip);
+    cache_prune (&useragents);
     free (banned_ip.filename);
     free (allowed_ip.filename);
     free (useragents.filename);
