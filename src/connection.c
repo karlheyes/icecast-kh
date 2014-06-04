@@ -233,9 +233,9 @@ void connection_initialize(void)
 {
     thread_spin_create (&_connection_lock);
 
-    banned_ip.contents = NULL;
-    allowed_ip.contents = NULL;
-    useragents.contents = NULL;
+    memset (&banned_ip, 0, sizeof (banned_ip));
+    memset (&allowed_ip, 0, sizeof (allowed_ip));
+    memset (&useragents, 0, sizeof (useragents));
 
     conn_tid = NULL;
     connection_running = 0;
@@ -638,14 +638,14 @@ static void recheck_cached_file (cache_file_contents *cache, time_t now)
 }
 
 
-static time_t file_timecheck = (time_t)0;
+time_t cachefile_timecheck = (time_t)0;
 
 /* check specified ip against internal set of banned IPs
  * return -1 for no data, 0 for no match and 1 for match
  */
 static int search_banned_ip (char *ip)
 {
-    recheck_cached_file (&banned_ip, file_timecheck);
+    recheck_cached_file (&banned_ip, cachefile_timecheck);
     if (banned_ip.wildcards)
     {
         struct list_node *entry = banned_ip.wildcards;
@@ -664,10 +664,10 @@ static int search_banned_ip (char *ip)
         if (avl_get_by_key (banned_ip.contents, ip, &result) == 0)
         {
             struct banned_entry *match = result;
-            if (match->a.timeout == 0 || match->a.timeout > file_timecheck)
+            if (match->a.timeout == 0 || match->a.timeout > cachefile_timecheck)
             {
-                if (match->a.timeout && file_timecheck + 300 > match->a.timeout)
-                    match->a.timeout = file_timecheck + 300;
+                if (match->a.timeout && cachefile_timecheck + 300 > match->a.timeout)
+                    match->a.timeout = cachefile_timecheck + 300;
                 return 1;
             }
             avl_delete (banned_ip.contents, ip, cache_treenode_free);
@@ -690,7 +690,7 @@ static int search_cached_pattern (cache_file_contents *cache, const char *line)
 
     do
     {
-        recheck_cached_file (cache, file_timecheck);
+        recheck_cached_file (cache, cachefile_timecheck);
         if (cache->wildcards)
         {
             struct list_node *entry = cache->wildcards;
@@ -721,7 +721,7 @@ static int search_cached_pattern (cache_file_contents *cache, const char *line)
 /* return 0 if the passed ip address is not to be handled by icecast, non-zero otherwise */
 static int accept_ip_address (char *ip)
 {
-    file_timecheck = time (NULL);
+    cachefile_timecheck = time (NULL);
     global_lock();
 
     if (search_banned_ip (ip) > 0)
@@ -1114,7 +1114,6 @@ static int http_client_request (client_t *client)
             httpp_initialize (client->parser, NULL);
             if (httpp_parse (client->parser, refbuf->data, refbuf->len))
             {
-                recheck_cached_file (&useragents, client->worker->current_time.tv_sec);
                 if (useragents.filename)
                 {
                     const char *agent = httpp_getvar (client->parser, "user-agent");
