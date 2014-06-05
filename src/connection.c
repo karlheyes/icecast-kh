@@ -215,9 +215,11 @@ static int compare_banned_ip (void *arg, void *a, void *b)
     if (ban_entry_removal == NULL && ret)
     {
         time_t now = *((time_t*)arg);
-        if (that->a.timeout < now - 60)
+        if (that->a.timeout && that->a.timeout < now - 60)
+        {
             ban_entry_removal = that; // identify possible removal
-        DEBUG3 ("now %ld, timer %ld, that %p", now, that->a.timeout, that);
+            DEBUG3 ("now %ld, timer, ip %s", now, that->a.timeout, &that->ip[0]);
+        }
     }
     return ret;
 }
