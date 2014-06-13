@@ -38,7 +38,7 @@ typedef struct {
     /* These are for inline metadata */
     int inline_metadata_interval;
     int interval;
-    short offset;
+    unsigned short offset;
     short update_metadata;
 
     char *url_artist;
@@ -50,7 +50,8 @@ typedef struct {
     refbuf_t *metadata;
     refbuf_t *read_data;
     int read_count;
-    int queue_block_size;
+    unsigned short queue_block_size;
+    unsigned short prev_block_size;
 
     unsigned build_metadata_len;
     unsigned build_metadata_offset;

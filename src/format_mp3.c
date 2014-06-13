@@ -787,17 +787,31 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
             // not reached the metadata block so save and rewind for completing the read
             source_mp3->offset -= unprocessed;
         }
-        /* make sure the new block has a minimum of queue_block_size */
-        if (unprocessed < source_mp3->queue_block_size)
-            len = source_mp3->queue_block_size;
+        if (unprocessed > source_mp3->queue_block_size)
+            len = unprocessed + 3100;
         else
-            len = unprocessed + 1000;
+        {
+            if (refbuf->len)
+            {
+                int total = refbuf->len < 1000 ? refbuf->len+800 : refbuf->len;
+                total += source_mp3->queue_block_size;
+                if (source_mp3->prev_block_size)
+                    len = (total + source_mp3->prev_block_size) / 3;
+                else
+                    len = total / 2;
+            }
+            else
+                len = unprocessed + 1000;
+        }
 
         leftover = refbuf_new (len);
         memcpy (leftover->data, refbuf->data + refbuf->len, unprocessed);
         source_mp3->read_data = leftover;
         source_mp3->read_count = unprocessed;
     }
+
+    if (refbuf->len)
+        source_mp3->prev_block_size = refbuf->len;
 
     if (mpeg_has_changed (mpeg_sync))
     {

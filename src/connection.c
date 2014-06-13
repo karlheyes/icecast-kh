@@ -589,6 +589,7 @@ static void cache_prune (cache_file_contents *cache)
     }
 }
 
+
 /* function to handle the re-populating of the avl tree containing IP addresses
  * for deciding whether a connection of an incoming request is to be dropped.
  */
