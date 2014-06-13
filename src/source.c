@@ -1730,7 +1730,6 @@ static int source_client_callback (client_t *client)
     source_t *source = client->shared_data;
 
     stats_event_inc(NULL, "source_client_connections");
-    client_set_queue (client, NULL);
 
     client->ops = &source_client_ops;
     if (source_running (source))

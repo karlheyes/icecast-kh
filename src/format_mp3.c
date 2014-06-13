@@ -153,7 +153,6 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
         mpeg_setup (client->format_data, client->connection.ip);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
-    client_set_queue (client, NULL);
 }
 
 
@@ -798,10 +797,7 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         memcpy (leftover->data, refbuf->data + refbuf->len, unprocessed);
         source_mp3->read_data = leftover;
         source_mp3->read_count = unprocessed;
-        client->pos = unprocessed;
     }
-    else
-        client->pos = 0;
 
     if (mpeg_has_changed (mpeg_sync))
     {
