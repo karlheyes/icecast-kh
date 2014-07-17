@@ -1075,6 +1075,7 @@ static int _parse_relay (xmlNodePtr node, void *arg)
         { "timeout",                    config_get_int,     &host->timeout },
         { "local-mount",                config_get_str,     &relay->localmount },
         { "on-demand",                  config_get_bool,    &on_demand },
+        { "run-on",                     config_get_int,     &relay->run_on },
         { "retry-delay",                config_get_int,     &relay->interval },
         { "relay-icy-metadata",         config_get_bool,    &icy_metadata },
         { "relay-shoutcast-metadata",   config_get_bool,    &icy_metadata },
@@ -1085,6 +1086,7 @@ static int _parse_relay (xmlNodePtr node, void *arg)
     };
 
     relay->interval = config->master_update_interval;
+    relay->run_on = 30;
     relay->hosts = host;
     /* default settings */
     host->port = config->port;

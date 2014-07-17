@@ -2221,6 +2221,9 @@ void source_setup_listener (source_t *source, client_t *client)
     client->check_buffer = http_source_listener;
     // add client to the source
     avl_insert (source->clients, client);
+    if (source->flags & SOURCE_ON_DEMAND)
+        source->client->connection.discon_time = 0; // a run-over with on-demand relays needs resetting
+
     if ((source->flags & (SOURCE_ON_DEMAND|SOURCE_RUNNING)) == SOURCE_ON_DEMAND)
     {
         source->client->schedule_ms = 0;

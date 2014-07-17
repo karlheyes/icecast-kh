@@ -168,6 +168,7 @@ relay_server *relay_copy (relay_server *r)
         copy->flags = r->flags;
         copy->flags |= RELAY_RUNNING;
         copy->interval = r->interval;
+        copy->run_on = r->run_on;
         r->source = NULL;
         DEBUG2 ("copy relay %s at %p", copy->localmount, copy);
     }
@@ -736,6 +737,7 @@ static relay_server *create_master_relay (const char *local, const char *remote,
         relay->flags |= RELAY_ON_DEMAND;
     if (master->on_demand) relay->flags |= RELAY_ON_DEMAND;
     relay->interval = master->max_interval;
+    relay->run_on = 30;
     if (master->send_auth)
     {
         relay->username = (char *)xmlStrdup (XMLSTR(master->username));
@@ -1393,8 +1395,14 @@ static int relay_read (client_t *client)
     {
         if ((relay->flags & RELAY_RUNNING) == 0)
             source->flags &= ~SOURCE_RUNNING;
-        if (source->listeners == 0 && (relay->flags & RELAY_ON_DEMAND) && client->worker->current_time.tv_sec - client->connection.con_time > 60)
-            source->flags &= ~SOURCE_RUNNING;
+        if (source->listeners == 0 && (relay->flags & RELAY_ON_DEMAND))
+        {
+            if (client->connection.discon_time == 0)
+                client->connection.discon_time = client->worker->current_time.tv_sec + relay->run_on;
+
+            if (client->worker->current_time.tv_sec > client->connection.discon_time)
+                source->flags &= ~SOURCE_RUNNING;
+        }
         if (source_read (source) > 0)
             return 1;
         if (source_running (source))

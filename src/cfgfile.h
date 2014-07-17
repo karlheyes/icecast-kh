@@ -220,6 +220,7 @@ typedef struct _relay_server
     struct source_tag *source;
     time_t updated;
     int interval;
+    int run_on;
     unsigned char type;
     unsigned char flags;
     char *localmount;
