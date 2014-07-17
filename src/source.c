@@ -1375,6 +1375,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 void source_shutdown (source_t *source, int with_fallback)
 {
     mount_proxy *mountinfo;
+    client_t *src_client = source->client;
 
     INFO1("Source \"%s\" exiting", source->mount);
 
@@ -1384,7 +1385,7 @@ void source_shutdown (source_t *source, int with_fallback)
     source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
     source_listeners_wakeup (source);
     mountinfo = config_find_mount (config_get_config(), source->mount);
-    if (source->client->connection.con_time)
+    if (src_client->connection.con_time && src_client->parser)
     {
         /* only do these if source has been running */
         if (source->stats)
