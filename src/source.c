@@ -333,10 +333,7 @@ static void drop_source_from_tree (source_t *source)
 {
     avl_tree_wlock (global.source_tree);
     avl_delete (global.source_tree, source, NULL);
-    avl_tree_unlock (global.source_tree);
-
-    DEBUG1 ("removed source %s from tree", source->mount);
-    thread_rwlock_wlock (&source->lock);
+    // this is only called from the sources client processing
     if (source->stats)
     {
         DEBUG1 ("stats still referenced on %s", source->mount);
@@ -344,6 +341,10 @@ static void drop_source_from_tree (source_t *source)
         stats_set (source->stats, NULL, NULL);
         source->stats = 0;
     }
+    avl_tree_unlock (global.source_tree);
+
+    DEBUG1 ("removed source %s from tree", source->mount);
+    thread_rwlock_wlock (&source->lock);
 }
 
 
