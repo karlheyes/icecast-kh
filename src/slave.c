@@ -1419,7 +1419,8 @@ static int relay_read (client_t *client)
         {
             if ((relay->flags & RELAY_RUNNING) && relay->in_use)
                 fallback = 0;
-            if (client->worker->current_time.tv_sec - client->connection.con_time < 60)
+            if ((relay->flags & RELAY_ON_DEMAND) == 0 &&
+                    client->worker->current_time.tv_sec - client->connection.con_time < 60)
             {
                 /* force a server skip if a stream cannot be maintained for 1 min */
                 WARN1 ("stream for %s died too quickly, skipping server for now", relay->localmount);
