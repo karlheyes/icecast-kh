@@ -3,7 +3,8 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2000-2014, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -164,6 +165,7 @@ source_t *source_reserve (const char *mount, int flags)
 
         thread_rwlock_create (&src->lock);
         thread_spin_create (&src->shrink_lock);
+        src->flags |= SOURCE_RESERVED;
 
         avl_insert (global.source_tree, src);
 
@@ -257,7 +259,7 @@ int source_compare_sources(void *arg, void *a, void *b)
 
 void source_clear_source (source_t *source)
 {
-    DEBUG1 ("clearing source \"%s\"", source->mount);
+    DEBUG2 ("clearing source \"%s\" %p", source->mount, source);
 
     if (source->dumpfile)
     {
@@ -331,19 +333,23 @@ static int _free_source (void *p)
 // lock still active on return (stats cleared)
 static void drop_source_from_tree (source_t *source)
 {
-    avl_tree_wlock (global.source_tree);
-    avl_delete (global.source_tree, source, NULL);
-    // this is only called from the sources client processing
-    if (source->stats)
+    if (source->flags & SOURCE_RESERVED)
     {
-        DEBUG1 ("stats still referenced on %s", source->mount);
-        stats_lock (source->stats, source->mount);
-        stats_set (source->stats, NULL, NULL);
-        source->stats = 0;
-    }
-    avl_tree_unlock (global.source_tree);
+        avl_tree_wlock (global.source_tree);
+        avl_delete (global.source_tree, source, NULL);
 
-    DEBUG1 ("removed source %s from tree", source->mount);
+        source->flags &= ~SOURCE_RESERVED;
+        // this is only called from the sources client processing
+        if (source->stats)
+        {
+            DEBUG1 ("stats still referenced on %s", source->mount);
+            stats_lock (source->stats, source->mount);
+            stats_set (source->stats, NULL, NULL);
+            source->stats = 0;
+        }
+        avl_tree_unlock (global.source_tree);
+        DEBUG2 ("removed source %s (%p) from tree", source->mount, source);
+    }
     thread_rwlock_wlock (&source->lock);
 }
 
@@ -351,7 +357,7 @@ static void drop_source_from_tree (source_t *source)
 /* Remove the provided source from the global tree and free it */
 void source_free_source (source_t *source)
 {
-    INFO1 ("source %s to be freed", source->mount);
+    //INFO1 ("source %s to be freed", source->mount);
     drop_source_from_tree (source);
     _free_source (source);
 }
@@ -673,7 +679,7 @@ static int source_client_read (client_t *client)
             source->flags &= ~SOURCE_TERMINATING;
         }
         else
-            DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
+            DEBUG4 ("%p %s waiting (%lu, %lu)", source, source->mount, source->termination_count, source->listeners);
         client->schedule_ms = client->worker->time_ms + 50;
     }
     else
@@ -1049,8 +1055,6 @@ int listener_waiting_on_source (source_t *source, client_t *client)
     }
     else
         source->termination_count--;
-    thread_rwlock_unlock (&source->lock);
-    thread_rwlock_rlock (&source->lock);
     if (source->flags & SOURCE_TERMINATING)
     {
         if ((source->flags & SOURCE_PAUSE_LISTENERS) && global.running == ICE_RUNNING)
