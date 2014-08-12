@@ -476,9 +476,11 @@ static client_t **worker_wait (worker_t *worker)
     if (global.running == ICE_RUNNING)
     {
         uint64_t tm = timing_get_time();
+        if (tm - worker->time_ms > 1000 && worker->time_ms)
+            WARN2 ("worker %p has been stuck for %lu ms", worker, (unsigned long)(tm - worker->time_ms));
         if (worker->wakeup_ms > tm)
             duration = (int)(worker->wakeup_ms - tm);
-        if (duration > 60000) /* make duration between 2ms and 60s */
+        if (duration > 60000) /* make duration at most 60s */
             duration = 60000;
     }
 
