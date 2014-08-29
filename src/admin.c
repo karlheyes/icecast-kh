@@ -168,6 +168,7 @@ xmlDocPtr admin_build_sourcelist (const char *mount, int show_listeners)
 
             snprintf (buf, sizeof(buf), "%lu", source->listeners);
             xmlNewChild (srcnode, NULL, XMLSTR("listeners"), XMLSTR(buf));
+            xmlNewChild (srcnode, NULL, XMLSTR("Listeners"), XMLSTR(buf)); // for backward compatability
 
             config = config_get_config();
             mountinfo = config_find_mount (config, source->mount);
