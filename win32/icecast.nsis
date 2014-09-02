@@ -13,7 +13,8 @@
 # installer containing your program.
 
 Name "Icecast KH"
-OutFile "icecast-2.3.3-kh10_setup.exe"
+OutFile "icecast-2.3.3-kh11_setup.exe"
+
 InstallDir "$ProgramFiles\Icecast KH"
 InstallDirRegKey HKLM SOFTWARE\Icecast "Install_Dir"
 
@@ -44,25 +45,35 @@ Section "Icecast Installation"
   SectionIn RO
 
   SetOutPath "$INSTDIR"
-  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/libogg-0.dll"
-  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/libvorbis-0.dll"
-  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/mingwm10.dll"
-  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/pthreadgc2.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libogg-0.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libspeex-1.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libvorbis-0.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libxslt-1.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libxml2-2.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libcurl-4.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libssl-10.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libwinpthread-1.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libintl-8.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libcrypto-10.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/zlib1.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/iconv.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libssh2-1.dll"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/libidn-11.dll"
 
-  File "/usr/i686-pc-mingw32/sys-root/mingw/bin/icecast.exe"
-  File "/usr/i686-pc-mingw32/sys-root/mingw/etc/icecast.xml"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/bin/icecast.exe"
+  File "/usr/i686-w64-mingw32/sys-root/mingw/etc/icecast.xml"
 
   SetOutPath "$INSTDIR\logs"
-  File /r "/usr/i686-pc-mingw32/sys-root/mingw/log/"
+  File /r "/usr/i686-w64-mingw32/sys-root/mingw/log"
 
   SetOutPath "$INSTDIR\admin"
-  File /r "/usr/i686-pc-mingw32/sys-root/mingw/share/icecast/admin/"
+  File /r "/usr/i686-w64-mingw32/sys-root/mingw/share/icecast/admin/"
 
   SetOutPath "$INSTDIR\doc"
-  File /r "/usr/i686-pc-mingw32/sys-root/mingw/share/icecast/doc/"
+  File /r "/usr/i686-w64-mingw32/sys-root/mingw/share/icecast/doc/"
 
   SetOutPath "$INSTDIR\web"
-  File /r "/usr/i686-pc-mingw32/sys-root/mingw/share/icecast/web/"
+  File /r "/usr/i686-w64-mingw32/sys-root/mingw/share/icecast/web/"
 
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Icecast KH" \
                  "DisplayName" "Icecast KH"

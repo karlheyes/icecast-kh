@@ -16,6 +16,30 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+
+2.3.3-kh11
+. added IP and user agent to POST for mount_add/_remove request
+. relay run-on setting added (default 30 seconds). For on-demand relays, this is
+  how long the relay will continue with no listeners.
+. prevent memory leak with short send xsl requests.
+. added message for excessively long duration spent going through a worker client list.
+. for cached lists like banned IPs, place wildcards separately to fully specified entries,
+  as the matching broke in such cases. The wildcards list now separate from the tree.
+. add the nodelay thing back in, normally if doesn't make a difference but in certain
+  cases it can affect packet scheduling and cause stalls. Seen on very high bitrates.
+. added cipher list tag for compatibility with recent icecast 2.4.x builds
+. Add ID3 skipping to file reader. This prevents resync occurring.
+. Added CORS headers for html based playback cases.
+. pass through unknown metadata on relayed ICY through to the requesting listeners.
+. some minor tunings to help large bitrate cases.
+. avoid rare case of crash with delayed worker, seen with AIS but substantial delay
+  could of caused a race on stats with restarting sources.
+. A few tweaks for restarting on-demand relays on failure cases.
+. A few bad pointer cases fixed, typically restarting relay stats, hard to trigger.
+. added UTF8 check on updated stats routines.
+. added content-disposition header for xsl sending non-html content.
+. minor changes to YP scheduling/logging.
+
 2.3.3-kh10
 . xslt update race fix
 . Format
