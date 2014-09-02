@@ -57,6 +57,7 @@
 #define CONFIG_DEFAULT_CHUID 0
 #define CONFIG_MASTER_UPDATE_INTERVAL 120
 #define CONFIG_YP_URL_TIMEOUT 10
+#define CONFIG_DEFAULT_CIPHER_LIST "ALL:!aNULL:!ADH:!eNULL:!LOW:!EXP:RC4+RSA:+HIGH:+MEDIUM"
 
 #ifndef _WIN32
 #define CONFIG_DEFAULT_BASE_DIR "/usr/local/icecast"
@@ -363,6 +364,7 @@ void config_clear(ice_config_t *c)
     if (c->webroot_dir) xmlFree(c->webroot_dir);
     if (c->adminroot_dir) xmlFree(c->adminroot_dir);
     if (c->cert_file) xmlFree(c->cert_file);
+    if (c->cipher_list) xmlFree(c->cipher_list);
     if (c->pidfile) xmlFree(c->pidfile);
     if (c->banfile) xmlFree(c->banfile);
     if (c->allowfile) xmlFree (c->allowfile);
@@ -523,6 +525,7 @@ static void _set_defaults(ice_config_t *configuration)
     configuration->location = (char *)xmlCharStrdup (CONFIG_DEFAULT_LOCATION);
     configuration->server_id = (char *)xmlCharStrdup (ICECAST_VERSION_STRING);
     configuration->admin = (char *)xmlCharStrdup (CONFIG_DEFAULT_ADMIN);
+    configuration->cipher_list = (char *)xmlCharStrdup (CONFIG_DEFAULT_CIPHER_LIST);
     configuration->client_limit = CONFIG_DEFAULT_CLIENT_LIMIT;
     configuration->source_limit = CONFIG_DEFAULT_SOURCE_LIMIT;
     configuration->queue_size_limit = CONFIG_DEFAULT_QUEUE_SIZE_LIMIT;
@@ -864,6 +867,7 @@ static int _parse_paths (xmlNodePtr node, void *arg)
         { "deny-agents",    config_get_str, &config->agentfile },
         { "ssl-certificate",config_get_str, &config->cert_file },
         { "ssl_certificate",config_get_str, &config->cert_file },
+        { "ssl-allowed-ciphers", config_get_str, &config->cipher_list },
         { "webroot",        config_get_str, &config->webroot_dir },
         { "adminroot",      config_get_str, &config->adminroot_dir },
         { "alias",          _parse_alias,   config },

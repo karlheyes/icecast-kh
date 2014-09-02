@@ -269,14 +269,19 @@ static uint64_t _next_connection_id(void)
 static void get_ssl_certificate (ice_config_t *config)
 {
     ssl_ok = 0;
-
-    ssl_ctx = SSL_CTX_new (SSLv23_server_method());
-
     do
     {
+        long ssl_opts;
+
+        ssl_ctx = NULL;
         if (config->cert_file == NULL)
             break;
-        if (SSL_CTX_use_certificate_file (ssl_ctx, config->cert_file, SSL_FILETYPE_PEM) <= 0)
+
+        ssl_ctx = SSL_CTX_new (SSLv23_server_method());
+        ssl_opts = SSL_CTX_get_options (ssl_ctx);
+        SSL_CTX_set_options (ssl_ctx, ssl_opts|SSL_OP_NO_SSLv2);
+
+        if (SSL_CTX_use_certificate_chain_file (ssl_ctx, config->cert_file) <= 0)
         {
             WARN1 ("Invalid cert file %s", config->cert_file);
             break;
@@ -291,10 +296,21 @@ static void get_ssl_certificate (ice_config_t *config)
             ERROR1 ("Invalid %s - Private key does not match cert public key", config->cert_file);
             break;
         }
+        if (SSL_CTX_set_cipher_list(ssl_ctx, config->cipher_list) <= 0)
+        {
+            WARN1 ("Invalid cipher list: %s", config->cipher_list);
+        }
         ssl_ok = 1;
         INFO1 ("SSL certificate found at %s", config->cert_file);
+        INFO1 ("SSL using ciphers %s", config->cipher_list);
         return;
     } while (0);
+    if (ssl_ctx)
+    {
+        WARN2 ("failed to load cert %s (%s)", config->cert_file, ERR_reason_error_string (ERR_peek_last_error()));
+        SSL_CTX_free (ssl_ctx);
+        ssl_ctx = NULL;
+    }
     INFO0 ("No SSL capability on any configured ports");
 }
 
