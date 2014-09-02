@@ -25,7 +25,7 @@
         <logdir>./logs</logdir>
         <webroot>./web</webroot>
         <adminroot>./admin</adminroot>
-        <alias source="/" dest="/status.xsl"/>
+        <alias source="/" dest="/index.html"/>
     </paths>
     <logging>
         <accesslog>access.log</accesslog>
