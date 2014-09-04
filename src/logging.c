@@ -81,7 +81,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
 
     // set username to '-' when client->username is empty
     if (client->username != NULL && strlen(client->username) > 0)
-        username = util_url_escape(client->username); // no spaces allowed in authuser field
+        username = strdup(client->username);
 
     referrer = httpp_getvar (client->parser, "referer");
     user_agent = httpp_getvar (client->parser, "user-agent");
@@ -91,7 +91,8 @@ void logging_access_id (access_log *accesslog, client_t *client)
 
     if (accesslog->type == LOG_ACCESS_CLF_ESC)
     {
-        char *rq = util_url_escape (reqbuf),
+        char *un = util_url_escape (username),
+             *rq = util_url_escape (reqbuf),
              *rf = referrer ? util_url_escape (referrer) : strdup ("-"),
              *ua = user_agent ? util_url_escape (user_agent) : strdup ("-");
 
@@ -102,6 +103,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
         free (ua);
         free (rf);
         free (rq);
+        free (un);
     }
     else
     {
