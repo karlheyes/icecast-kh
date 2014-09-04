@@ -98,7 +98,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
 
         log_write_direct (accesslog->logid,
                 "%s - %s %s %s %d %" PRIu64 " %.150s %.150s %lu",
-                ip, username, datebuf, rq, client->respcode, client->connection.sent_bytes,
+                ip, un, datebuf, rq, client->respcode, client->connection.sent_bytes,
                 rf, ua, (unsigned long)stayed);
         free (ua);
         free (rf);
