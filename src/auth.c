@@ -225,8 +225,6 @@ static void auth_client_free (auth_client *auth_user)
     {
         client_t *client = auth_user->client;
 
-        if (client->respcode)
-            client->connection.error = 1;
         client_send_401 (client, auth_user->auth->realm);
         auth_user->client = NULL;
     }
