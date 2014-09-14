@@ -178,8 +178,12 @@ int sock_recoverable(int error)
 #ifdef ENOBUFS
     case ENOBUFS:
 #endif
-#ifdef WSAENOBUFS
+#ifdef _WIN32
     case WSAENOBUFS:
+    case WSAEMSGSIZE:
+    case WSAEWOULDBLOCK:
+    case WSAEINTR:
+    case WSAEINPROGRESS:
 #endif
         return 1;
     default:
@@ -199,6 +203,12 @@ int sock_stalled (int error)
 #endif
 #ifdef ERESTART
     case ERESTART:
+#endif
+#ifdef WSAEWOULDBLOCK
+    case WSAEWOULDBLOCK:
+#endif
+#ifdef WSAEINTR
+    case WSAEINTR:
 #endif
         return 1;
     default:
@@ -237,9 +247,7 @@ int sock_active (sock_t sock)
     int l;
 
     l = recv (sock, &c, 1, MSG_PEEK);
-    if (l == 0)
-        return 0;
-    if (l == SOCK_ERROR && sock_recoverable (sock_error()))
+    if (l > 0 || (l == SOCK_ERROR && sock_recoverable (sock_error())))
         return 1;
     return 0;
 }
