@@ -3,11 +3,12 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
  *                      and others (see AUTHORS for details).
+ * Copyright 2000-2014, Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* -*- c-basic-offset: 4; indent-tabs-mode: nil; -*- */
@@ -510,7 +511,6 @@ int connection_bufs_send (connection_t *con, struct connection_bufs *vectors, in
 }
 
 
-
 static void add_generic_text (cache_file_contents *c, const char *in_str, time_t now)
 {
     char *str = strdup (in_str);
@@ -531,6 +531,7 @@ static void add_generic_text (cache_file_contents *c, const char *in_str, time_t
         avl_insert (c->contents, str);
     }
 }
+
 
 static void add_banned_ip (cache_file_contents *c, const char *ip, time_t now)
 {
@@ -763,25 +764,41 @@ int connection_init (connection_t *con, sock_t sock, const char *addr)
 {
     if (con)
     {
-        memset (con, 0, sizeof (connection_t));
+        struct sockaddr_storage sa;
+        socklen_t slen = sizeof (sa);
+
         con->sock = sock;
         if (sock == SOCK_ERROR)
             return -1;
+        con->id = _next_connection_id();
         if (addr)
         {
+            con->ip = strdup (addr + (strncmp (addr, "::ffff:", 7) == 0 ? 7: 0));
+            return 0;
+        }
+        if (getpeername (sock, (struct sockaddr *)&sa, &slen) == 0)
+        {
             char *ip;
-            if (strncmp (addr, "::ffff:", 7) == 0)
-                ip = strdup (addr+7);
+#ifdef HAVE_GETNAMEINFO
+            char buffer [200] = "unknown";
+            getnameinfo ((struct sockaddr *)&sa, slen, buffer, 200, NULL, 0, NI_NUMERICHOST);
+            if (strncmp (buffer, "::ffff:", 7) == 0)
+                ip = strdup (buffer+7);
             else
-                ip = strdup (addr);
+                ip = strdup (buffer);
+#else
+            int len = 30;
+            ip = malloc (len);
+            strncpy (ip, inet_ntoa (((struct sockaddr_in*)&sa)->sin_addr), len);
+#endif
             if (accept_ip_address (ip))
             {
                 con->ip = ip;
-                con->id = _next_connection_id();
                 return 0;
             }
             free (ip);
         }
+        memset (con, 0, sizeof (connection_t));
         con->sock = SOCK_ERROR;
     }
     return -1;
@@ -952,6 +969,8 @@ static client_t *accept_client (void)
         int i, num;
         refbuf_t *r;
 
+        if (accept_ip_address (addr) == 0)
+            break;
         if (sock_set_blocking (sock, 0) || sock_set_nodelay (sock))
         {
             WARN0 ("failed to set tcp options on client connection, dropping");
