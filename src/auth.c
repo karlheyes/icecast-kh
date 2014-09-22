@@ -875,7 +875,6 @@ void auth_stream_start (mount_proxy *mountinfo, source_t *source)
         auth_user->client->connection.ip = strdup (client->connection.ip);
         if (agent)
             auth_user->client->shared_data = strdup (agent);
-
         INFO1 ("request stream startup for \"%s\"", mount);
 
         queue_auth_client (auth_user, mountinfo);
@@ -901,7 +900,7 @@ void auth_stream_end (mount_proxy *mountinfo, source_t *source)
         if (agent)
             auth_user->client->shared_data = strdup (agent);
         auth_user->process = stream_end_callback;
-        INFO1 ("request source end for \"%s\"", mount);
+        INFO1 ("request stream end for \"%s\"", mount);
 
         queue_auth_client (auth_user, mountinfo);
     }
