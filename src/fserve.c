@@ -746,7 +746,7 @@ static int file_send (client_t *client)
         client->schedule_ms += 300;
         loop = 1; 
     }
-    while (loop && written < 30000)
+    while (loop && written < 48000)
     {
         loop--;
         if (fserve_running == 0 || client->connection.error)
@@ -758,12 +758,12 @@ static int file_send (client_t *client)
         bytes = client->check_buffer (client);
         if (bytes < 0)
         {
-            client->schedule_ms += (written ? 120 : 250);
-            break;
+            client->schedule_ms += (written ? 80 : 150);
+            return 0;
         }
         written += bytes;
-        client->schedule_ms += 3;
     }
+    client->schedule_ms += 4;
     return 0;
 }
 
