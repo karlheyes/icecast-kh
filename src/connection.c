@@ -1186,6 +1186,7 @@ static int http_client_request (client_t *client)
                         refbuf->len = PER_CLIENT_REFBUF_SIZE;
                         client->ops = &http_req_stats_ops;
                         break;
+                    case httpp_req_head:
                     case httpp_req_options:
                         return client_send_options (client);
                     default:
