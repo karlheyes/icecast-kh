@@ -738,7 +738,7 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
-        ret = offset % 20;
+        ret = offset % 10;
         offset++;
         client->schedule_ms += source->skip_duration + ret;
         return -1;
@@ -818,9 +818,10 @@ static int locate_start_on_queue (source_t *source, client_t *client)
             client->refbuf = refbuf;
             client->intro_offset = -1;
             client->pos = 0;
+            client->counter = 0;
             client->queue_pos = source->client->queue_pos - lag;
             client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
-            DEBUG3 ("Joining queue on %s (%"PRIu64 ", %"PRIu64 ")", source->mount, source->client->queue_pos, client->queue_pos);
+            DEBUG4 ("%s Joining queue on %s (%"PRIu64 ", %"PRIu64 ")", client->connection.ip, source->mount, source->client->queue_pos, client->queue_pos);
             return 0;
         }
         lag -= refbuf->len;
@@ -1080,7 +1081,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 static int send_listener (source_t *source, client_t *client)
 {
     int bytes;
-    int loop = 6;   /* max number of iterations in one go */
+    int loop = 12;   /* max number of iterations in one go */
     long total_written = 0, limiter = source->listener_send_trigger;
     int ret = 0, lag;
     worker_t *worker = client->worker;
@@ -1152,7 +1153,29 @@ static int send_listener (source_t *source, client_t *client)
         }
         bytes = client->check_buffer (client);
         if (bytes < 0)
+        {
+            if (client->connection.error == 0 && (client->refbuf && client->refbuf->flags & REFBUF_SHARED))
+            {
+                /* do we requeue this client at the beginning, to avoid heavy bursting */
+                long remain = source->queue_size - (source->client->queue_pos - client->queue_pos);
+
+                //DEBUG2 ("remain %ld, since %"PRIu64, remain, client->counter);
+                if (remain < source->incoming_rate && client->counter > source->queue_size)
+                {
+                    const char *p = httpp_get_query_param (client->parser, "norequeue");
+                    if (p == NULL)
+                    {
+                        refbuf_t *copy = refbuf_copy (client->refbuf);
+                        client->refbuf = copy;
+                        client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                        client->check_buffer = http_source_introfile;
+                        client->schedule_ms += 500;
+                        DEBUG2 ("client %s requeued on %s", client->connection.ip, source->mount);
+                    }
+                }
+            }
             break;  /* can't write any more */
+        }
 
         total_written += bytes;
         loop--;
