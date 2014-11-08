@@ -505,6 +505,9 @@ static int create_ogg_client_data (format_plugin_t *plugin, client_t *client)
         client_data->headers_sent = 1;
         client->format_data = client_data;
         client->free_client_data = free_ogg_client_data;
+        if (client->refbuf == NULL)
+            client->refbuf = refbuf_new (4096);
+        client->refbuf->len = 0;
         ret = format_general_headers (plugin, client);
     }
     return ret;
