@@ -706,7 +706,6 @@ static int source_client_read (client_t *client)
         global_unlock();
         if (source->wait_time == 0 || global.running != ICE_RUNNING)
         {
-            thread_rwlock_unlock (&source->lock);
             INFO1 ("no more listeners on %s", source->mount);
             return -1;
         }
