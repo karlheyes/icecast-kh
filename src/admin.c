@@ -421,7 +421,7 @@ static int command_require (client_t *client, const char *name, const char **var
 #define COMMAND_OPTIONAL(client,name,var) \
     (var) = httpp_get_query_param((client)->parser, (name))
 
-static int html_success (client_t *client, const char *message)
+int html_success (client_t *client, const char *message)
 {
     client->respcode = 200;
     snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,

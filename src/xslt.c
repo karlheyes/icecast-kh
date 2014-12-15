@@ -230,7 +230,7 @@ void *xslt_update (void *arg)
         int i = x->index;
         stylesheet_cache_t old;
 
-        if (client) fn = strdup (fn); // need to copy the filename if another lookup is to done
+        if (client) fn = strdup (fn); // need to copy the filename if another lookup is to be done
         INFO1 ("loaded stylesheet %s", x->cache.filename);
         if (sheet->mediaType && strcmp ((char*)sheet->mediaType, "text/html") != 0)
         {
