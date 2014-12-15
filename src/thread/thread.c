@@ -525,6 +525,7 @@ int thread_rwlock_tryrlock_c(rwlock_t *rwlock, int line, const char *file)
 
 void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
 {
+    int rc;
 #ifdef THREAD_DEBUG
     LOG_DEBUG4("rLock on %s (%p) requested at %s:%d", rwlock->name, rwlock, file, line);
 #endif
@@ -532,19 +533,18 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
     if (lock_problem_abort)
     {
         struct timespec now;
-        int rc;
         thread_get_timespec (&now);
         now.tv_sec += 7;
         rc = pthread_rwlock_timedrdlock (&rwlock->sys_rwlock, &now);
-        if (rc)
-        {
-            log_write (thread_log, 1, "thread/", "rwlock", "rlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
-            abort();
-        }
-        return;
     }
+    else
 #endif
-    pthread_rwlock_rdlock(&rwlock->sys_rwlock);
+        rc = pthread_rwlock_rdlock(&rwlock->sys_rwlock);
+    if (rc)
+    {
+        log_write (thread_log, 1, "thread/", "rwlock", "rlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
+        abort();
+    }
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("rLock on %s acquired at %s:%d", rwlock->name, file, line);
 #endif
@@ -552,6 +552,7 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
 
 void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
 {
+    int rc;
 #ifdef THREAD_DEBUG
     LOG_DEBUG4("wLock on %s (%p) requested at %s:%d", rwlock->name, rwlock,  file, line);
 #endif
@@ -559,19 +560,18 @@ void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
     if (lock_problem_abort)
     {
         struct timespec now;
-        int rc;
         thread_get_timespec (&now);
-        now.tv_sec += 7;
+        now.tv_sec += 6;
         rc = pthread_rwlock_timedwrlock (&rwlock->sys_rwlock, &now);
-        if (rc)
-        {
-            log_write (thread_log, 1, "thread/", "rwlock", "wlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
-            abort();
-        }
-        return;
     }
+    else
 #endif
-    pthread_rwlock_wrlock(&rwlock->sys_rwlock);
+        rc = pthread_rwlock_wrlock(&rwlock->sys_rwlock);
+    if (rc)
+    {
+        log_write (thread_log, 1, "thread/", "rwlock", "wlock error triggered at %p, %s:%d (%d)", rwlock, file, line, rc);
+        abort();
+    }
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("wLock on %s acquired at %s:%d", rwlock->name, file, line);
 #endif
