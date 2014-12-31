@@ -752,7 +752,7 @@ static relay_server *create_master_relay (const char *local, const char *remote,
 static int add_master_relay (const char *mount, const char *type, struct master_conn_details *master)
 {
     int ret = -1, notfound;
-    relay_server *result, find;
+    relay_server *result = NULL, find;
 
     if (strncmp (mount, "/admin/streams?mount=/", 22) == 0)
         find.localmount = (char *)(mount+21);
@@ -766,6 +766,11 @@ static int add_master_relay (const char *mount, const char *type, struct master_
 
         if (new_relay)
         {
+            if (result && result->flags & RELAY_CLEANUP)
+            {
+                // drop this now, to avoid a duplicate relay that may match later
+                detach_master_relay (find.localmount, 0);
+            }
             if (relay_installed (new_relay))
                 ret = new_relay->source ? 2 : 1;
             else
@@ -777,8 +782,7 @@ static int add_master_relay (const char *mount, const char *type, struct master_
     }
     else
     {
-        if (notfound == 0)
-            result->updated = master->synctime; // avoid relay expiry
+        result->updated = master->synctime; // avoid relay expiry
         if (streamlist_check == 0)
             INFO1 ("relay \"%s\" already in use, ignoring", mount);
     }
