@@ -782,7 +782,8 @@ static int add_master_relay (const char *mount, const char *type, struct master_
     }
     else
     {
-        result->updated = master->synctime; // avoid relay expiry
+        if (notfound == 0)
+            result->updated = master->synctime; // avoid relay expiry
         if (streamlist_check == 0)
             INFO1 ("relay \"%s\" already in use, ignoring", mount);
     }
