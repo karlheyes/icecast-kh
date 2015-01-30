@@ -235,7 +235,7 @@ void *xslt_update (void *arg)
         if (sheet->mediaType && strcmp ((char*)sheet->mediaType, "text/html") != 0)
         {
             // avoid this lookup for html pages
-            const char _hdr[] = "Content-Disposition = attachment; filename=file.";
+            const char _hdr[] = "Content-Disposition: attachment; filename=file.";
             const size_t _hdrlen = sizeof (_hdr);
             size_t len = _hdrlen + 12;
             char *filename = malloc (len); // enough for name and extension

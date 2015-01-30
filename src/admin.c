@@ -745,7 +745,7 @@ static int command_buildm3u (client_t *client, const char *mount)
         snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
                 "HTTP/1.0 200 OK\r\n"
                 "Content-Type: audio/x-mpegurl\r\n"
-                "Content-Disposition = attachment; filename=listen.m3u\r\n\r\n" 
+                "Content-Disposition: attachment; filename=listen.m3u\r\n\r\n"
                 "http://%s:%s@%s%s%s\r\n",
                 username, password,
                 host, port, mount);
@@ -755,7 +755,7 @@ static int command_buildm3u (client_t *client, const char *mount)
         snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
                 "HTTP/1.0 200 OK\r\n"
                 "Content-Type: audio/x-mpegurl\r\n"
-                "Content-Disposition = attachment; filename=listen.m3u\r\n\r\n" 
+                "Content-Disposition: attachment; filename=listen.m3u\r\n\r\n"
                 "http://%s:%s@%s:%d%s\r\n",
                 username, password,
                 config->hostname, config->port, mount);
