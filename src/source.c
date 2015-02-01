@@ -1813,15 +1813,30 @@ static void source_run_script (char *command, char *mountpoint)
                             args[1] = mountpoint;
                             args[2] = NULL;
                         }
+                        if (access (args[0], X_OK) != 0)
+                        {
+                            ERROR2 ("Unable to run command %s (%s)", args[0], strerror (errno));
+                            exit (0);
+                        }
+                        close (0);
+                        close (1);
+                        close (2);
                         execvp ((const char *)args[0], args);
                     }
 #else
-                    execl (command, command, mountpoint, (char *)NULL);
+                    if (access (command, X_OK) != 0)
+                    {
+                        ERROR2("Unable to run command %s (%s)", command, strerror (errno));
+                        exit (1);
+                    }
                     if (strchr (command, ' '))
                         WARN1 ("arguments to command on %s not supported", mountpoint);
+                    close (0);
+                    close (1);
+                    close (2);
+                    execl (command, command, mountpoint, (char *)NULL);
 #endif
-                    ERROR3 ("Unable to run command %s (%s) on %s", command, strerror (errno), mountpoint);
-                    exit(0);
+                    exit(1);
                 default: /* parent */
                     break;
             }
