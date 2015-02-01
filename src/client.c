@@ -425,7 +425,16 @@ void client_add_worker (client_t *client)
 #define pipe_write(A, B, C) send(A, B, C, 0)
 #define pipe_read(A,B,C)    recv(A, B, C, 0)
 #else
+#ifdef HAVE_PIPE2
+#define pipe_create(x)      pipe2(x,O_CLOEXEC)
+#elif defined(FD_CLOEXEC)
+int pipe_create(int x[]) {
+    int r = pipe(x); if (r==0) {fcntl(x[0], F_SETFD,FD_CLOEXEC); \
+    fcntl(x[1], F_SETFD,FD_CLOEXEC); } return r;
+}
+#else
 #define pipe_create pipe
+#endif
 #define pipe_write write
 #define pipe_read read
 #endif

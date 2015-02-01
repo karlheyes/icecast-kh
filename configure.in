@@ -56,7 +56,7 @@ AC_INCLUDES_DEFAULT
 #endif
 #include <time.h>
 #include <pthread.h>])
-AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp getrlimit gettimeofday ftime fsync glob pread])
+AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp getrlimit gettimeofday ftime fsync glob pread pipe2])
 AC_CHECK_TYPES([struct signalfd_siginfo],
                [AC_DEFINE(HAVE_SIGNALFD, 1 ,[Define if signalfd exists])], [],
                [#include <sys/signalfd.h>])
