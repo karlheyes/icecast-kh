@@ -1515,7 +1515,7 @@ static void check_for_filtering (ice_config_t *config, client_t *client, char *u
     const char *type = httpp_get_query_param (client->parser, "type");
 
     if ((extension && strcmp (extension+1, "flv") == 0) || 
-        (type && strcmp (type, ".flv") == 0))
+        (type && (strcmp (type, ".flv") == 0 || strcmp (type, ".fla") == 0)))
     {
         client->flags |= CLIENT_WANTS_FLV;
         DEBUG0 ("listener has requested FLV");
