@@ -1182,6 +1182,7 @@ static int http_client_request (client_t *client)
                         client->ops = &http_req_get_ops;
                         break;
                     case httpp_req_source:
+                    case httpp_req_put:
                         client->pos = ptr - refbuf->data;
                         client->ops = &http_req_source_ops;
                         break;
