@@ -55,8 +55,8 @@ void logging_access_id (access_log *accesslog, client_t *client)
     const char *req = NULL;
     time_t now;
     time_t stayed;
-    const char *referrer, *user_agent, *username, *ip = "-";
-    char datebuf[50];
+    const char *referrer, *user_agent, *ip = "-";
+    char *username, datebuf[50];
     char reqbuf[256];
 
     if (client->flags & CLIENT_SKIP_ACCESSLOG)
@@ -77,7 +77,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
             httpp_getvar (client->parser, HTTPP_VAR_VERSION));
 
     stayed = now - client->connection.con_time;
-    username = client->username;
+    username = (client->username && client->username[0]) ? util_url_escape (client->username) : strdup("-");
     referrer = httpp_getvar (client->parser, "referer");
     user_agent = httpp_getvar (client->parser, "user-agent");
 
@@ -86,23 +86,20 @@ void logging_access_id (access_log *accesslog, client_t *client)
 
     if (accesslog->type == LOG_ACCESS_CLF_ESC)
     {
-        char *un = client->username ? util_url_escape (username) : strdup ("-"),
-             *rq = util_url_escape (reqbuf),
+        char *rq = util_url_escape (reqbuf),
              *rf = referrer ? util_url_escape (referrer) : strdup ("-"),
              *ua = user_agent ? util_url_escape (user_agent) : strdup ("-");
 
         log_write_direct (accesslog->logid,
                 "%s - %s %s %s %d %" PRIu64 " %.150s %.150s %lu",
-                ip, un, datebuf, rq, client->respcode, client->connection.sent_bytes,
+                ip, username, datebuf, rq, client->respcode, client->connection.sent_bytes,
                 rf, ua, (unsigned long)stayed);
         free (ua);
         free (rf);
         free (rq);
-        free (un);
     }
     else
     {
-        if (client->username == NULL)   username = "-"; 
         if (referrer == NULL)           referrer = "-";
         if (user_agent == NULL)         user_agent = "-";
 
@@ -111,6 +108,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
                 ip, username, datebuf, reqbuf, client->respcode, client->connection.sent_bytes,
                 referrer, user_agent, (unsigned long)stayed);
     }
+    free (username);
     client->respcode = -1;
 }
 
