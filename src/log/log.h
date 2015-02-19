@@ -39,7 +39,7 @@ void log_close(int log_id);
 void log_shutdown(void);
 
 void log_write(int log_id, unsigned priority, const char *cat, const char *func, 
-        const char *fmt, ...);
+        const char *fmt, ...)  __attribute__ ((format (printf, 5, 6)));
 void log_write_direct(int log_id, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
 
 #endif  /* __LOG_H__ */

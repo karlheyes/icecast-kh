@@ -712,7 +712,7 @@ static int source_client_read (client_t *client)
         /* set a wait time for leaving the source reserved */
         client->connection.discon_time = client->worker->current_time.tv_sec + source->wait_time;
         client->schedule_ms = client->worker->time_ms + (1000 * source->wait_time);
-        INFO2 ("listeners gone, keeping %s reserved for %d seconds", source->mount, source->wait_time);
+        INFO2 ("listeners gone, keeping %s reserved for %ld seconds", source->mount, (long)source->wait_time);
     }
     thread_rwlock_unlock (&source->lock);
     return 0;
@@ -806,7 +806,7 @@ static int locate_start_on_queue (source_t *source, client_t *client)
             refbuf = refbuf->next;
         }
         if (lag < 0)
-            ERROR1 ("Odd, lag is negative", lag);
+            ERROR1 ("Odd, lag is negative %ld", lag);
     }
 
     while (refbuf)
@@ -1394,7 +1394,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
     source->fallback.flags = FS_FALLBACK;
     source->fallback.limit = bitrate;
     source->fallback.type = source->format->type;
-    INFO4 ("fallback set on %s to %s(%d) with %d listeners", source->mount, dest_mount,
+    INFO4 ("fallback set on %s to %s(%d) with %ld listeners", source->mount, dest_mount,
             source->fallback.limit, source->listeners);
 }
 

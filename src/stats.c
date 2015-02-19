@@ -683,7 +683,7 @@ static int stats_listeners_send (client_t *client)
         // chance for some catchup on large data sets.
         if (listener->content_len > 2000000 && (client->worker->current_time.tv_sec - client->connection.con_time) > 60)
         {
-            WARN1 ("dropping stats client, %ld in queue", listener->content_len);
+            WARN1 ("dropping stats client, %d in queue", listener->content_len);
             return -1;
         }
     client->schedule_ms = client->worker->time_ms;
@@ -1573,7 +1573,7 @@ void stats_set_conv (long handle, const char *name, const char *value, const cha
     }
     if (value && xmlCheckUTF8 ((unsigned char *)value) == 0)
     {
-        WARN2 ("seen non-UTF8 data (%s), probably incorrect charcter set (%s, %s)", name, value);
+        WARN2 ("seen non-UTF8 data, probably incorrect charcter set (%s, %s)", name, value);
         return;
     }
     stats_set_entity_decode (handle, name, value);

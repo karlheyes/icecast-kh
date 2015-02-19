@@ -604,7 +604,7 @@ static void *start_relay_stream (void *arg)
             src->yp_public = -1;
         }
         relay->in_use = NULL;
-        INFO2 ("listener count remaining on %s is %d", src->mount, src->listeners);
+        INFO2 ("listener count remaining on %s is %ld", src->mount, src->listeners);
         src->flags &= ~(SOURCE_PAUSE_LISTENERS|SOURCE_RUNNING);
     }
     thread_rwlock_unlock (&src->lock);
@@ -817,7 +817,7 @@ static size_t streamlist_header (void *ptr, size_t size, size_t nmemb, void *str
         else
             WARN1 ("Failed response from master \"%s\"", (char*)ptr);
     }
-    DEBUG1 ("header is %s", ptr);
+    //DEBUG1 ("header is %s", ptr);
     return passed_len;
 }
 
@@ -842,7 +842,7 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
         {
             if (passed_len > 150 || master->previous > 200)
             {
-                WARN1 ("long line received for append, ignoring %d", passed_len);
+                WARN1 ("long line received for append, ignoring %ld", passed_len);
                 return (master->ok = 0);
             }
             buffer = realloc (master->buffer, len + 1);

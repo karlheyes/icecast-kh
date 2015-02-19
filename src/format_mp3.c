@@ -258,7 +258,7 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
             }
             else
             {
-                WARN1 ("realloc failed for %ld", extra_len + len + 1);
+                WARN1 ("realloc failed for %d", extra_len + len + 1);
                 break;
             }
         }
