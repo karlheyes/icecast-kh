@@ -325,16 +325,22 @@ static void get_ssl_certificate (ice_config_t *config)
 int connection_read_ssl (connection_t *con, void *buf, size_t len)
 {
     int bytes = SSL_read (con->ssl, buf, len);
+    int code = SSL_get_error (con->ssl, bytes);
+    char err[128];
 
-    if (bytes < 0)
+    switch (code)
     {
-        switch (SSL_get_error (con->ssl, bytes))
-        {
-            case SSL_ERROR_WANT_READ:
-            case SSL_ERROR_WANT_WRITE:
-                return -1;
-        }
-        con->error = 1;
+        case SSL_ERROR_NONE:
+        case SSL_ERROR_ZERO_RETURN:
+            break;
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
+            return -1;
+        default:
+            con->error = 1;
+            ERR_error_string (ERR_get_error(), err);
+            DEBUG2("error %d, %s", code, err);
+            bytes = 0;
     }
     return bytes;
 }
@@ -342,19 +348,24 @@ int connection_read_ssl (connection_t *con, void *buf, size_t len)
 int connection_send_ssl (connection_t *con, const void *buf, size_t len)
 {
     int bytes = SSL_write (con->ssl, buf, len);
+    int code = SSL_get_error (con->ssl, bytes);
+    char err[128];
 
-    if (bytes < 0)
+    switch (code)
     {
-        switch (SSL_get_error (con->ssl, bytes))
-        {
-            case SSL_ERROR_WANT_READ:
-            case SSL_ERROR_WANT_WRITE:
-                return -1;
-        }
-        con->error = 1;
+        case SSL_ERROR_NONE:
+        case SSL_ERROR_ZERO_RETURN:
+            break;
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
+            return -1;
+        default:
+            con->error = 1;
+            ERR_error_string (ERR_get_error(), err);
+            DEBUG2("error %d, %s", code, err);
+            return -1;
     }
-    else
-        con->sent_bytes += bytes;
+    con->sent_bytes += bytes;
     return bytes;
 }
 #else
@@ -500,7 +511,7 @@ int connection_bufs_send (connection_t *con, struct connection_bufs *vectors, in
             {
                int v = connection_send_ssl (con, IO_VECTOR_BASE(io), IO_VECTOR_LEN(io));
                if (v > 0) bytes += v;
-               if (v < IO_VECTOR_LEN(io)) break;
+               if (v < 0 || v < IO_VECTOR_LEN(io)) break;
             }
             if (bytes > 0)  ret = bytes;
         }
@@ -816,6 +827,7 @@ void connection_uses_ssl (connection_t *con)
     con->ssl = SSL_new (ssl_ctx);
     SSL_set_accept_state (con->ssl);
     SSL_set_fd (con->ssl, con->sock);
+    SSL_set_mode (con->ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER|SSL_MODE_ENABLE_PARTIAL_WRITE);
 #endif
 }
 
