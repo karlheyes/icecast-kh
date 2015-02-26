@@ -594,7 +594,11 @@ int source_read (source_t *source)
             source->stream_data = to_go->next;
             source->queue_size -= to_go->len;
             if (source->min_queue_point == to_go)
-                abort();
+            {
+                // adjust min queue in line with expectations
+                source->min_queue_offset -= to_go->len;
+                source->min_queue_point = to_go->next;
+            }
             to_go->next = NULL;
             refbuf_release (to_go);
             loop--;
