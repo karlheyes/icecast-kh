@@ -82,6 +82,7 @@ static int  wait_for_other_listeners (client_t *client);
 
 static int  http_source_listener (client_t *client);
 static int  http_source_intro (client_t *client);
+static int  http_source_introfile (client_t *client);
 static int  locate_start_on_queue (source_t *source, client_t *client);
 static int  listener_change_worker (client_t *client, source_t *source);
 static int  source_change_worker (source_t *source, client_t *client);
@@ -757,6 +758,40 @@ static int source_queue_advance (client_t *client)
         client->connection.error = 1;
         return -1;
     }
+    else
+    {
+        long remain = source->queue_size - lag;
+        if (remain < source->incoming_rate && client->connection.error == 0)
+        {
+            //DEBUG2 ("remain %ld, since %"PRIu64, remain, client->counter);
+
+            // if the listener is really lagging but has been received a decent
+            // amount of data then allow a requeue, else allow the drop
+            if (client->counter > (source->queue_size_limit << 1))
+            {
+                const char *p = httpp_get_query_param (client->parser, "norequeue");
+                if (p == NULL)
+                {
+                    // we may need to copy the complete frame for private use
+                    if (client->pos < client->refbuf->len)
+                    {
+                        refbuf_t *copy = refbuf_copy (client->refbuf);
+                        client->refbuf = copy;
+                        client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                        DEBUG2 ("client %s requeued copy on %s", client->connection.ip, source->mount);
+                    }
+                    else
+                    {
+                        client->refbuf = NULL;
+                        client->pos = 0;
+                    }
+                    client->check_buffer = http_source_introfile;
+                    client->schedule_ms += 2000; // do not be too eager to refill socket buffer
+                    return -1;
+                }
+            }
+        }
+    }
     refbuf = client->refbuf;
     if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 66000)  abort();
 
@@ -1157,26 +1192,6 @@ static int send_listener (source_t *source, client_t *client)
         bytes = client->check_buffer (client);
         if (bytes < 0)
         {
-            if (client->connection.error == 0 && (client->refbuf && client->refbuf->flags & REFBUF_SHARED))
-            {
-                /* do we requeue this client at the beginning, to avoid heavy bursting */
-                long remain = source->queue_size - (source->client->queue_pos - client->queue_pos);
-
-                //DEBUG2 ("remain %ld, since %"PRIu64, remain, client->counter);
-                if (remain < source->incoming_rate && client->counter > source->queue_size)
-                {
-                    const char *p = httpp_get_query_param (client->parser, "norequeue");
-                    if (p == NULL)
-                    {
-                        refbuf_t *copy = refbuf_copy (client->refbuf);
-                        client->refbuf = copy;
-                        client->flags |= CLIENT_HAS_INTRO_CONTENT;
-                        client->check_buffer = http_source_introfile;
-                        client->schedule_ms += 500;
-                        DEBUG2 ("client %s requeued on %s", client->connection.ip, source->mount);
-                    }
-                }
-            }
             break;  /* can't write any more */
         }
 
