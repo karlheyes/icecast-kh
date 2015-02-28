@@ -490,48 +490,46 @@ static void mp3_set_title (source_t *source)
 static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
 {
     int ret = 0;
-    char *metadata;
+    char *metadata = NULL;
     int meta_len, block_len;
     refbuf_t *associated = refbuf->associated;
     mp3_client_data *client_mp3 = client->format_data;
     struct connection_bufs bufs;
 
-    /* If there is a change in metadata then send it else
-     * send a single zero value byte in its place
-     */
-    if (client->flags & CLIENT_IN_METADATA)
+    if (associated)
     {
-        /* rare but possible case of resuming a send part way through a metadata block */
-        metadata = client_mp3->associated->data + client_mp3->metadata_offset;
-        meta_len = client_mp3->associated->len - client_mp3->metadata_offset;
-        if (client_mp3->metadata_offset > client_mp3->associated->len) abort();
+        if (associated != client_mp3->associated)
+        {
+            if (client->flags & CLIENT_IN_METADATA && client_mp3->metadata_offset >= associated->len)
+            {
+                 ERROR3 ("mismatch in meta block (%s,%d, %d)", client->mount,
+                         client_mp3->metadata_offset, associated->len);
+                 client->connection.error = 1;
+                 return 0;
+            }
+            client_mp3->associated = associated; // change prev meta block
+        }
+        else if ((client->flags & CLIENT_IN_METADATA) == 0)
+        {
+            // metadata the same as before so sent nul btye
+            metadata = "\0";
+            meta_len = 1;
+        }
     }
     else
     {
-        if (associated && associated != client_mp3->associated)
+        if (client_mp3->associated == &blank_meta && client_mp3->metadata_offset == 0)
         {
-            /* change of metadata found, but we do not release the blank one as that
-             * could race against the source client use of it. */
-            metadata = associated->data;
-            meta_len = associated->len;
-            client_mp3->associated = associated;
+            // metadata the same and sent before
+            metadata = "\0";
+            meta_len = 1;
         }
-        else
-        {
-            /* previously sent metadata does not need to be sent again */
-            if (associated)
-            {
-                metadata = "\0";
-                meta_len = 1;
-            }
-            else
-            {
-                char *meta = blank_meta.data;
-                metadata = meta + client_mp3->metadata_offset;
-                meta_len = blank_meta.len - client_mp3->metadata_offset;
-                client_mp3->associated = &blank_meta;
-            }
-        }
+        associated = client_mp3->associated = &blank_meta;
+    }
+    if (metadata == NULL)
+    {
+        metadata = associated->data + client_mp3->metadata_offset;
+        meta_len = associated->len - client_mp3->metadata_offset;
     }
     block_len = refbuf->len - client->pos;
 
