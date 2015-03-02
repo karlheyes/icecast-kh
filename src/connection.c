@@ -1106,6 +1106,45 @@ static int shoutcast_source_client (client_t *client)
 }
 
 
+// NOTE: stream data may be in the block after headers
+//
+int setup_source_client_callback (client_t *client)
+{
+    if (client->format_data == NULL)
+    {
+        const char *expect = httpp_getvar (client->parser, "expect");
+        refbuf_t *buf = client->refbuf;
+        int len = buf->len - client->pos;
+
+        if (len)
+        {
+            refbuf_t *stream = refbuf_new (len);
+            memcpy (stream->data, buf->data+client->pos, len);
+            buf->associated = stream;
+            buf->len -= len;
+            DEBUG1 ("found %d bytes of stream data after headers", len);
+        }
+        if (expect)
+        {
+           if (strcasecmp (expect, "100-continue") == 0)
+           {
+               DEBUG0 ("client expects 100 continue");
+               snprintf (buf->data, PER_CLIENT_REFBUF_SIZE, "HTTP/1.1 100 Continue\r\n\r\n");
+               buf->len = strlen (buf->data);
+               client->format_data = buf;
+               client->pos = 0;
+               client_send_buffer_callback (client, setup_source_client_callback);
+               return 0;  // need to send this straight away
+           }
+           INFO1 ("Received Expect header: %s", expect);
+        }
+    }
+    client->format_data = NULL;
+    client->ops = &http_req_source_ops;
+    return 0;
+}
+
+
 static int http_client_request (client_t *client)
 {
     refbuf_t *refbuf = client->shared_data;
@@ -1196,7 +1235,7 @@ static int http_client_request (client_t *client)
                     case httpp_req_source:
                     case httpp_req_put:
                         client->pos = ptr - refbuf->data;
-                        client->ops = &http_req_source_ops;
+                        setup_source_client_callback (client);
                         break;
                     case httpp_req_stats:
                         refbuf->len = PER_CLIENT_REFBUF_SIZE;

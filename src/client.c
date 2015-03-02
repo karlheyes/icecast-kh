@@ -322,6 +322,39 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
     return ret;
 }
 
+
+static int client_send_buffer (client_t *client)
+{
+    const char *buf = client->refbuf->data + client->pos;
+    int len = client->refbuf->len - client->pos;
+    int ret = client_send_bytes (client, buf, len);
+
+    if (ret > 0)
+        client->pos += ret;
+    if (client->connection.error == 0 && client->pos >= client->refbuf->len)
+    {
+        int (*callback)(client_t *) = client->format_data;
+        return callback (client);
+    }
+    return ret;
+}
+
+
+struct _client_functions client_buffer_ops =
+{
+    client_send_buffer,
+    client_destroy
+};
+
+
+int client_send_buffer_callback (client_t *client, int(*callback)(client_t*))
+{
+    client->format_data = callback;
+    client->ops = &client_buffer_ops;
+    return 0;
+}
+
+
 void client_set_queue (client_t *client, refbuf_t *refbuf)
 {
     refbuf_t *next, *to_release = client->refbuf;
