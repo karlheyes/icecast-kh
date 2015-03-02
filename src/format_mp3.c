@@ -502,10 +502,10 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         {
             if (client->flags & CLIENT_IN_METADATA && client_mp3->metadata_offset >= associated->len)
             {
-                 ERROR3 ("mismatch in meta block (%s,%d, %d)", client->mount,
-                         client_mp3->metadata_offset, associated->len);
-                 client->connection.error = 1;
-                 return 0;
+                ERROR3 ("mismatch in meta block (%s,%d, %d)", client->mount,
+                        client_mp3->metadata_offset, associated->len);
+                client->connection.error = 1;
+                return 0;
             }
             client_mp3->associated = associated; // change prev meta block
         }
