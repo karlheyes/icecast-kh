@@ -66,9 +66,6 @@
 /* Define to 1 if you have the `fsync' function. */
 #undef HAVE_FSYNC
 
-/* Define to 1 if you have the `ftime' function. */
-#undef HAVE_FTIME
-
 /* Define to 1 if you have the `getaddrinfo' function. */
 #undef HAVE_GETADDRINFO
 
@@ -126,6 +123,9 @@
 /* Define if you have libopenssl. */
 #undef HAVE_OPENSSL
 
+/* Define to 1 if you have the `pipe2' function. */
+#undef HAVE_PIPE2
+
 /* Define to 1 if you have the `poll' function. */
 #undef HAVE_POLL
 
@@ -143,6 +143,12 @@
 
 /* Define if you have the sethostent function */
 #undef HAVE_SETHOSTENT
+
+/* Define to 1 if you have the `setresgid' function. */
+#undef HAVE_SETRESGID
+
+/* Define to 1 if you have the `setresuid' function. */
+#undef HAVE_SETRESUID
 
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
@@ -212,6 +218,9 @@
 
 /* Define if Theora support is available */
 #undef HAVE_THEORA
+
+/* Define to 1 if you have the `time' function. */
+#undef HAVE_TIME
 
 /* Define to 1 if the system has the type `uint32_t'. */
 #undef HAVE_UINT32_T
