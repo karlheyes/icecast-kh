@@ -1110,10 +1110,11 @@ static int shoutcast_source_client (client_t *client)
 //
 int setup_source_client_callback (client_t *client)
 {
+    refbuf_t *buf = client->refbuf;
+
     if (client->format_data == NULL)
     {
         const char *expect = httpp_getvar (client->parser, "expect");
-        refbuf_t *buf = client->refbuf;
         int len = buf->len - client->pos;
 
         if (len)
@@ -1139,6 +1140,11 @@ int setup_source_client_callback (client_t *client)
            INFO1 ("Received Expect header: %s", expect);
         }
     }
+    buf = buf->associated;
+    client->refbuf->associated = NULL;
+    refbuf_release (client->refbuf);
+    client->refbuf = buf;
+    client->pos = 0;
     client->format_data = NULL;
     client->ops = &http_req_source_ops;
     return 0;
