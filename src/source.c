@@ -16,7 +16,6 @@
 #include <config.h>
 #endif
 
-#define _POSIX 1
 #ifdef WIN32
 #include <winsock2.h>
 #include <windows.h>

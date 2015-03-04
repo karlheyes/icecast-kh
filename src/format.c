@@ -203,7 +203,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
                 size = (size << 7) + (p[9] & 0x7f);
 
                 client->intro_offset = size + 10;
-                DEBUG3 ("Detected ID3v2 (%d.%d) in file, tag size %" PRIu64, ver, rev, size);
+                DEBUG3 ("Detected ID3v2 (%d.%d) in file, tag size %" PRIu64, ver, rev, (uint64_t)size);
                 continue;
             }
         }

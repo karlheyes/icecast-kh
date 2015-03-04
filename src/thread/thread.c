@@ -30,10 +30,12 @@
 
 #ifndef _WIN32
 #include <unistd.h>
-#include <sys/time.h>
 #else
 #include <windows.h>
 #include <winbase.h>
+#endif
+#ifdef HAVE_SYS_TIME
+#include <sys/time.h>
 #endif
 
 #ifdef HAVE_FTIME

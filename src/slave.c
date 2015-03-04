@@ -842,7 +842,7 @@ static size_t streamlist_data (void *ptr, size_t size, size_t nmemb, void *strea
         {
             if (passed_len > 150 || master->previous > 200)
             {
-                WARN1 ("long line received for append, ignoring %ld", passed_len);
+                WARN1 ("long line received for append, ignoring %ld", (long)passed_len);
                 return (master->ok = 0);
             }
             buffer = realloc (master->buffer, len + 1);
