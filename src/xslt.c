@@ -405,6 +405,7 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
             xmlFreeDoc (doc);
             client->shared_data = NULL;
             ret = client_send_404 (client, "Could not parse XSLT file");
+            break;
         case CACHESIZE:   // delayed
             thread_rwlock_unlock (&xslt_lock);
             return 0;
