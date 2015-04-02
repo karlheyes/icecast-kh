@@ -3,7 +3,8 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2012-2015, Karl Heyes <karl@kheyes.plus.com>,
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -1064,48 +1065,52 @@ void fserve_write_mime_ext (const char *mimetype, char *buf, unsigned int len)
 
 void fserve_recheck_mime_types (ice_config_t *config)
 {
-    FILE *mimefile;
     mime_type *mapping;
-    avl_tree *new_mimetypes;
+    int i;
+    avl_tree *old_mimetypes = NULL, *new_mimetypes = avl_tree_new(_compare_mappings, NULL);
 
-    new_mimetypes = avl_tree_new(_compare_mappings, NULL);
+    mime_type defaults[] = {
+        { "m3u",            "audio/x-mpegurl" },
+        { "pls",            "audio/x-scpls" },
+        { "xspf",           "application/xspf+xml" },
+        { "ogg",            "application/ogg" },
+        { "mp3",            "audio/mpeg" },
+        { "aac",            "audio/aac" },
+        { "aacp",           "audio/aac" },
+        { "css",            "text/css" },
+        { "txt",            "text/plain" },
+        { "html",           "text/html" },
+        { "jpg",            "image/jpg" },
+        { "png",            "image/png" },
+        { NULL, NULL }
+    };
 
-    if (config->mimetypes_fn == NULL || (mimefile = fopen (config->mimetypes_fn, "r")) == NULL)
+    for (i=0; defaults[i].ext; i++)
     {
-        int i;
-        mime_type defaults[] = {
-            { "m3u",            "audio/x-mpegurl" },
-            { "pls",            "audio/x-scpls" },
-            { "xspf",           "application/xspf+xml" },
-            { "ogg",            "application/ogg" },
-            { "mp3",            "audio/mpeg" },
-            { "aac",            "audio/aac" },
-            { "css",            "text/css" },
-            { "txt",            "text/plain" },
-            { "html",           "text/html" },
-            { "jpg",            "image/jpg" },
-            { "png",            "image/png" },
-            { NULL, NULL }
-        };
-        if (config->mimetypes_fn)
-            WARN1 ("Cannot open mime types file %s, using defaults", config->mimetypes_fn);
-        else
-            WARN0 ("no mime types file defined, using defaults");
-        for (i=0; defaults[i].ext; i++)
-        {
-            mapping = malloc (sizeof(mime_type));
-            mapping->ext = strdup (defaults [i].ext);
-            mapping->type = strdup (defaults [i].type);
-            if (avl_insert (new_mimetypes, mapping) != 0)
-                _delete_mapping (mapping);
-        }
+        mapping = malloc (sizeof(mime_type));
+        mapping->ext = strdup (defaults [i].ext);
+        mapping->type = strdup (defaults [i].type);
+        if (avl_insert (new_mimetypes, mapping) != 0)
+            _delete_mapping (mapping);
     }
-    else
+    do
     {
         char *type, *ext, *cur;
+        FILE *mimefile = NULL;
         char line[4096];
 
-        while (fgets(line, 4096, mimefile))
+        if (config->mimetypes_fn == NULL)
+        {
+            INFO0 ("no mime types file defined, using defaults");
+            break;
+        }
+        mimefile = fopen (config->mimetypes_fn, "r");
+        if (mimefile == NULL)
+        {
+            WARN1 ("Cannot open mime types file %s, using defaults", config->mimetypes_fn);
+            break;
+        }
+        while (fgets(line, sizeof line, mimefile))
         {
             line[4095] = 0;
 
@@ -1122,7 +1127,8 @@ void fserve_recheck_mime_types (ice_config_t *config)
 
             *cur++ = 0;
 
-            while(1) {
+            while(1)
+            {
                 while(*cur == ' ' || *cur == '\t')
                     cur++;
                 if(*cur == 0)
@@ -1147,13 +1153,14 @@ void fserve_recheck_mime_types (ice_config_t *config)
             }
         }
         fclose(mimefile);
-    }
+    } while (0);
 
     thread_spin_lock (&pending_lock);
-    if (mimetypes)
-        avl_tree_free (mimetypes, _delete_mapping);
+    old_mimetypes = mimetypes;
     mimetypes = new_mimetypes;
     thread_spin_unlock (&pending_lock);
+    if (old_mimetypes)
+        avl_tree_free (old_mimetypes, _delete_mapping);
 }
 
 
