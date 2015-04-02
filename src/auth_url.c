@@ -164,18 +164,18 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
     unsigned bytes = size * nmemb;
     client_t *client = auth_user->client;
     auth_thread_data *atd = auth_user->thread_data;
+    char *header = (char *)ptr, *header_data;
 
-    if (bytes <= 1) // we should have the EOL at least
+    if (bytes <= 1 || client == NULL)
         return bytes;
-    if (client)
+    do
     {
         auth_t *auth = auth_user->auth;
         auth_url *url = auth->state;
-        int retcode = 0;
-        char *p = ptr;
+        int retcode = 0, header_datalen;
 
         /* replace the EOL with a nul char, libcurl may not provide a nul */
-        p[bytes-2] = '\0';
+        header [bytes-2] = '\0';
         if (sscanf (ptr, "HTTP%*c%*u.%*u %3d %*c", &retcode) == 1)
         {
             if (retcode == 403)
@@ -186,75 +186,81 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
                 if (p) *p='\0';
             }
         }
-        if (strncasecmp (ptr, url->auth_header, url->auth_header_len) == 0)
+        header_data = strchr (header, ':');
+        if (header_data == NULL)
+            return bytes;
+        header_data++;
+        header_data += strspn (header_data, " \t");  // find non-space start
+        header_datalen = strcspn (header_data, "\r\n"); // find length
+
+        if (strncasecmp (header, url->auth_header, url->auth_header_len) == 0)
         {
             client->flags |= CLIENT_AUTHENTICATED;
-            p = strchr (ptr, ':');
-            if (p)
+            if (header_data)
             {
-                ++p;
-                if (strstr (p, "withintro"))
+                if (strstr (header_data, "withintro"))
                     client->flags |= CLIENT_HAS_INTRO_CONTENT;
-                if (strstr (p, "hijack"))
+                if (strstr (header_data, "hijack"))
                     client->flags |= CLIENT_HIJACKER;
-                if (strstr (p, "0"))
+                if (strstr (header_data, "0"))
                 {
                     WARN0 ("auth header returned with 0 value");
                     client->flags &= ~CLIENT_AUTHENTICATED;
                 }
             }
+            break;
         }
-        if (strncasecmp (ptr, url->timelimit_header, url->timelimit_header_len) == 0)
+        if (strncasecmp (header, url->timelimit_header, url->timelimit_header_len) == 0)
         {
-            unsigned int limit = 0;
-            sscanf ((char *)ptr+url->timelimit_header_len, "%u\r\n", &limit);
+            unsigned int limit = 60;
+            sscanf (header_data, "%u\r\n", &limit);
             client->connection.discon_time = time(NULL) + limit;
+            break;
         }
-        if (strncasecmp (ptr, "icecast-slave: 1", 16) == 0)
+        if (strncasecmp (header, "icecast-slave:", 14) == 0)
+        {
             client->flags |= CLIENT_IS_SLAVE;
-
-        if (strncasecmp (ptr, "icecast-auth-message: ", 22) == 0)
-        {
-            char *eol;
-            snprintf (atd->errormsg, sizeof (atd->errormsg), "%s", (char*)ptr+22);
-            eol = strchr (atd->errormsg, '\r');
-            if (eol == NULL)
-                eol = strchr (atd->errormsg, '\n');
-            if (eol)
-                *eol = '\0';
+            break;
         }
-        if (strncasecmp (ptr, "ice-username: ", 14) == 0)
+
+        if (strncasecmp (header, "icecast-auth-message:", 21) == 0)
         {
-            int len = strcspn ((char*)ptr+14, "\r\n");
-            char *name = malloc (len+1);
+            snprintf (atd->errormsg, sizeof (atd->errormsg), "%.*s", header_datalen, header_data);
+            break;
+        }
+        if (strncasecmp (header, "ice-username:", 13) == 0)
+        {
+            char *name = malloc (header_datalen+1);
             if (name)
             {
-                snprintf (name, len+1, "%s", (char *)ptr+14);
+                snprintf (name, header_datalen+1, "%s", header_data);
                 free (client->username);
                 client->username = name;
             }
+            break;
         }
-        if (strncasecmp (ptr, "Location: ", 10) == 0)
+        if (strncasecmp (header, "Location:", 9) == 0)
         {
-            int len = strcspn ((char*)ptr+10, "\r\n");
             free (atd->location);
-            atd->location = malloc (len+1);
-            snprintf (atd->location, len+1, "%s", (char *)ptr+10);
+            atd->location = malloc (header_datalen+1);
+            if (atd->location)
+                snprintf (atd->location, header_datalen+1, "%s", header_data);
+            break;
         }
-        if (strncasecmp (ptr, "Mountpoint: ", 12) == 0)
+        if (strncasecmp (header, "Mountpoint:", 11) == 0)
         {
-            int len = strcspn ((char*)ptr+12, "\r\n");
-            char *mount = malloc (len+1);
+            char *mount = malloc (header_datalen+1);
             if (mount)
             {
-                snprintf (mount, len+1, "%s", (char *)ptr+12);
+                snprintf (mount, header_datalen+1, "%s", header_data);
                 free (auth_user->mount);
                 auth_user->mount = mount;
             }
+            break;
         }
-        if (strncasecmp (ptr, "content-type: ", 14) == 0)
+        if (strncasecmp (header, "content-type:", 13) == 0)
         {
-            format_type_t type = format_get_type ((char*)ptr+14);
+            format_type_t type = format_get_type (header_data);
 
             if (client->refbuf && (type == FORMAT_TYPE_AAC || type == FORMAT_TYPE_MPEG))
             {
@@ -262,8 +268,9 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
                 x->type = type;
                 mpeg_setup (&x->sync, client->connection.ip);
             }
+            break;
         }
-    }
+    } while (0);
 
     return (int)bytes;
 }
