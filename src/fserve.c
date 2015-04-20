@@ -575,10 +575,9 @@ static void file_release (client_t *client)
     if (client->flags & CLIENT_AUTHENTICATED && client->parser->req_type == httpp_req_get)
     {
         const char *mount = fh->finfo.mount;
+
         if (fh->finfo.flags & FS_FALLBACK)
             mount = httpp_getvar (client->parser, HTTPP_VAR_URI);
-        else
-            mount = fh->finfo.mount;
         if (mount)
         {
             ice_config_t *config = config_get_config ();
@@ -1076,12 +1075,13 @@ void fserve_recheck_mime_types (ice_config_t *config)
         { "ogg",            "application/ogg" },
         { "mp3",            "audio/mpeg" },
         { "aac",            "audio/aac" },
-        { "aacp",           "audio/aac" },
+        { "aacp",           "audio/aacp" },
         { "css",            "text/css" },
         { "txt",            "text/plain" },
         { "html",           "text/html" },
         { "jpg",            "image/jpg" },
         { "png",            "image/png" },
+        { "gif",            "image/gif" },
         { NULL, NULL }
     };
 
