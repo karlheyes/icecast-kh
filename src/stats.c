@@ -1513,36 +1513,41 @@ void stats_set_flags (long handle, const char *name, const char *value, int flag
 }
 
 
-static xmlParserCtxtPtr get_parser_for_decode (const char *value)
+static int contains_xml_entity (const char *value)
 {
     if (value)
     {
         const char *p = strchr (value, '&');
         char semi = '\0';
 
-        if (p && sscanf (p, "&%*7[^; ]%c", &semi) == 1 && semi == ';')
-            return xmlNewParserCtxt();
+        if (p && sscanf (p, "&%*9[^; ]%c", &semi) == 1 && semi == ';')
+            return 1;
     }
-    return NULL;
+    return 0;
 }
 
 
 static void stats_set_entity_decode (long handle, const char *name, const char *value)
 {
-    xmlParserCtxtPtr parser = get_parser_for_decode (value);
-
-    if (parser)
+    if (contains_xml_entity (value))
     {
+        xmlDocPtr  doc = xmlNewDoc(NULL);
+        xmlNodePtr xmlnode;
+        xmlNodePtr rootelem = xmlNewNode (NULL, (xmlChar *) "html");
         stats_source_t *src_stats = (stats_source_t *)handle;
         xmlChar *decoded;
         char details[200];
+
+        xmlDocSetRootElement (doc, rootelem);
+
         snprintf (details, sizeof details, "mount %s, name %s, value %s :", src_stats->source, name, value);
         xmlSetGenericErrorFunc (details, log_parse_failure);
-        decoded = xmlStringDecodeEntities (parser,
-                (const xmlChar *) value, XML_SUBSTITUTE_REF, 0, 0, 0);
+        xmlnode = xmlStringGetNodeList (doc, XMLSTR(value));
+        decoded = xmlNodeListGetString (doc, xmlnode, 1);
         stats_set (handle, name, (void*)decoded);
-        xmlFreeParserCtxt (parser);
         xmlFree (decoded);
+        xmlFreeNodeList (xmlnode);
+        xmlFreeDoc (doc);
         return;
     }
     stats_set (handle, name, value);
