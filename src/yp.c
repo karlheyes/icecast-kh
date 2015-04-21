@@ -470,6 +470,12 @@ static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
     free (value);
 
     value = stats_get_value (yp->mount, "server_name");
+    if (value == NULL || strcmp (value, "Unspecified name") == 0)
+    {
+        INFO1 ("mount %s requires valid name", yp->mount);
+        yp_schedule (yp, 600);
+        return 0;
+    }
     add_yp_info (yp, value, YP_SERVER_NAME);
     free (value);
 
@@ -532,6 +538,11 @@ static int do_yp_touch (ypdata_t *yp, char *s, unsigned len)
     char *val;
     int ret;
 
+    if (yp->sid == NULL) // odd case, go back to add, try get another sid.
+    {
+        yp->process = do_yp_touch;
+        yp_schedule (yp, 60);
+    }
     val = (char *)stats_get_value (yp->mount, "listeners");
     if (val)
     {
