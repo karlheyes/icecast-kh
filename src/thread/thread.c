@@ -21,21 +21,27 @@
  #include <config.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <time.h>
-#include <sys/types.h>
-
-#ifndef _WIN32
+#ifndef WIN32
 #include <unistd.h>
 #else
 #include <windows.h>
 #include <winbase.h>
 #endif
-#ifdef HAVE_SYS_TIME
-#include <sys/time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/types.h>
+
+#ifdef TIME_WITH_SYS_TIME
+#  include <sys/time.h>
+#  include <time.h>
+#else
+#  ifdef HAVE_SYS_TIME_H
+#    include <sys/time.h>
+#  else
+#    include <time.h>
+#  endif
 #endif
 
 #ifdef HAVE_FTIME
@@ -291,7 +297,6 @@ static void _catch_signals(void)
 thread_type *thread_create_c(char *name, void *(*start_routine)(void *), 
         void *arg, int detached, int line, const char *file)
 {
-    int ok = 1;
     thread_type *thread = NULL;
     thread_start_t *start = NULL;
     pthread_attr_t attr;
