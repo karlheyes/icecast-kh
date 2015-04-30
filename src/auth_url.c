@@ -185,6 +185,13 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
                 p = strchr (atd->errormsg, '\r');
                 if (p) *p='\0';
             }
+            else if ((auth->flags & AUTH_SKIP_IF_SLOW) && retcode >= 400 && retcode < 600)
+            {
+                snprintf (atd->errormsg, sizeof(atd->errormsg), "auth on %s disabled, response was \'%.200s...\'", auth->mount, header);
+                url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
+                client->flags |= CLIENT_AUTHENTICATED;
+                return bytes;
+            }
         }
         header_data = strchr (header, ':');
         if (header_data == NULL)
@@ -762,6 +769,8 @@ static void *alloc_thread_data (auth_t *auth)
 #ifdef CURLOPT_POSTREDIR
     curl_easy_setopt (atd->curl, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
 #endif
+    if (auth->flags & AUTH_SKIP_IF_SLOW)
+        curl_easy_setopt (atd->curl, CURLOPT_SSL_VERIFYPEER, 0L);
     INFO0 ("...handler data initialized");
     return atd;
 }
