@@ -17,6 +17,32 @@ Feature differences from SVN trunk
 any extra tags are show in the conf/icecast.xml.dist file
 
 
+2.4.0-kh1
+. fix for the 'Detected an entity reference loop' message
+. header parsing in auth url updated to handle spacing better
+. preload default mime types then try to load the mime types file
+. fix ssl routines to handle stalls better
+. fix issue raised by Klaas Jan, handle blank usernames and encode them to keep the validity of the CLF format.
+. cleanup xslt cache/reader processing.
+. make PUT the same as SOURCE, handle 100 Continue header
+. allow type=.fla as a trigger for FLV wrapping
+. user the real/effective/saved user/group calls if available
+. prevent worker pipes being passed to exec'd processes, and force FD 0 1 2 to close
+. fix header line Content-Disposition
+. avoid possible race case in relay removal.
+. for ogg feeds, make sure a new block is allocated at the start, else bad parsing could occur.
+. use 2.4.x setting for default SSL cipher settings.
+. allow for moving a lagging listener to the front of the queue
+. send a CORS template for both HEAD and OPTIONS requests, HEAD needs expanding though
+. open up the write throttle for unparsed file content
+. use original mountpoint in listener disconnection for auth/accesslog selection
+. Apply x-forwarded-for to source clients
+. treat some failure cases correctly if auth presume innocent setting is in use
+. add YP sanity checks for obviously incorrect cases
+. various log message cleanups.
+. various crash cases fixed.
+
+
 2.3.3-kh11
 . added IP and user agent to POST for mount_add/_remove request
 . relay run-on setting added (default 30 seconds). For on-demand relays, this is

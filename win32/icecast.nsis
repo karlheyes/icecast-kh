@@ -13,7 +13,7 @@
 # installer containing your program.
 
 Name "Icecast KH"
-OutFile "icecast-2.3.3-kh11.1_setup.exe"
+OutFile "icecast-2.4.0-kh1_setup.exe"
 
 InstallDir "$ProgramFiles\Icecast KH"
 InstallDirRegKey HKLM SOFTWARE\Icecast "Install_Dir"
