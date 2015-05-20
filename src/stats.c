@@ -120,6 +120,7 @@ static int _compare_stats(void *a, void *b, void *arg);
 static int _compare_source_stats(void *a, void *b, void *arg);
 static int _free_stats(void *key);
 static int _free_source_stats(void *key);
+static int _free_source_stats_wrapper (void *key);
 static stats_node_t *_find_node(const avl_tree *tree, const char *name);
 static stats_source_t *_find_source(avl_tree *tree, const char *source);
 static void process_event (stats_event_t *event);
@@ -189,7 +190,7 @@ void stats_shutdown(void)
 
     _stats_running = 0;
 
-    avl_tree_free(_stats.source_tree, _free_source_stats);
+    avl_tree_free(_stats.source_tree, _free_source_stats_wrapper);
     avl_tree_free(_stats.global_tree, _free_stats);
     thread_mutex_destroy (&_stats.listeners_lock);
 }
@@ -1254,6 +1255,13 @@ static int _free_source_stats(void *key)
     return 1;
 }
 
+static int _free_source_stats_wrapper (void *key)
+{
+    stats_source_t *node = (stats_source_t *)key;
+    avl_tree_rlock (node->stats_tree);
+    _free_source_stats (node);
+    return 1;
+}
 
 /* return a list of blocks which contain lines of text. Each line is a mountpoint
  * reference that a slave will use for relaying.  The prepend setting is to indicate
