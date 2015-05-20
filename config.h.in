@@ -1,4 +1,4 @@
-/* config.h.in.  Generated from configure.in by autoheader.  */
+/* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define if you have pwd.h */
 #undef CHUID
@@ -30,18 +30,6 @@
 /* Define to 1 if you have the `curl_global_init' function. */
 #undef HAVE_CURL_GLOBAL_INIT
 
-/* Define to 1 if you have the declaration of `FindFirstFile', and to 0 if you
-   don't. */
-#undef HAVE_DECL_FINDFIRSTFILE
-
-/* Define to 1 if you have the declaration of `gmtime_r', and to 0 if you
-   don't. */
-#undef HAVE_DECL_GMTIME_R
-
-/* Define to 1 if you have the declaration of `localtime_r', and to 0 if you
-   don't. */
-#undef HAVE_DECL_LOCALTIME_R
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
@@ -50,6 +38,9 @@
 
 /* Define to 1 if you have the <fcntl.h> header file. */
 #undef HAVE_FCNTL_H
+
+/* Define to 1 if you have the `FindFirstFile' function. */
+#undef HAVE_FINDFIRSTFILE
 
 /* Define to 1 if you have the `fnmatch' function. */
 #undef HAVE_FNMATCH
@@ -84,6 +75,9 @@
 /* Define to 1 if you have the <glob.h> header file. */
 #undef HAVE_GLOB_H
 
+/* Define to 1 if you have the `gmtime_r' function. */
+#undef HAVE_GMTIME_R
+
 /* Define to 1 if you have the `inet_aton' function. */
 #undef HAVE_INET_ATON
 
@@ -98,6 +92,9 @@
 
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
+
+/* Define to 1 if you have the `localtime_r' function. */
+#undef HAVE_LOCALTIME_R
 
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H

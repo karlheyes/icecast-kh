@@ -9,9 +9,7 @@ noinst_HEADERS = resolver.h sock.h
 
 libicenet_la_SOURCES = sock.c resolver.c
 libicenet_la_CFLAGS = @XIPH_CFLAGS@
-AM_CPPFLAGS = @XIPH_CPPFLAGS@
-
-INCLUDES = -I$(srcdir)/..
+AM_CPPFLAGS = @XIPH_CPPFLAGS@ -I$(srcdir)/..
 
 debug:
 	$(MAKE) all CFLAGS="@DEBUG@"
