@@ -641,12 +641,16 @@ char *util_dict_urlencode(util_dict *dict, char delim)
     return res;
 }
 
-#ifndef HAVE_DECL_LOCALTIME_R
+#ifndef HAVE_LOCALTIME_R
 struct tm *localtime_r (const time_t *timep, struct tm *result)
 {
+#ifdef _WIN32
+     struct tm *tm = localtime (timep); // win32 uses TLS for this, so we can copy without a lock
+     memcpy (result, tm, sizeof (*result));
+#else
+     struct tm *tm;
      static mutex_t localtime_lock;
      static int initialised = 0;
-     struct tm *tm;
 
      if (initialised == 0)
      {
@@ -657,7 +661,35 @@ struct tm *localtime_r (const time_t *timep, struct tm *result)
      tm = localtime (timep);
      memcpy (result, tm, sizeof (*result));
      thread_mutex_unlock (&localtime_lock);
+#endif
      return result;
+}
+#endif
+
+
+#ifndef HAVE_GMTIME_R
+struct tm *gmtime_r(const time_t *timep, struct tm *result)
+{
+#ifdef _WIN32
+    if (gmtime_s (result, timep) == 0)
+        return result;
+    return NULL;
+#else
+    struct tm *tm;
+    static mutex_t gmtime_lock;
+    static int initialised = 0;
+
+    if (initialised == 0)
+    {
+        thread_mutex_create (&gmtime_lock);
+        initialised = 1;
+    }
+    thread_mutex_lock (&gmtime_lock);
+    tm = gmtime (timep);
+    memcpy (result, tm, sizeof (*result));
+    thread_mutex_unlock (&gmtime_lock);
+    return result;
+#endif
 }
 #endif
 
