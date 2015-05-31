@@ -379,7 +379,7 @@ void config_clear(ice_config_t *c)
     {
         struct xforward_entry *e = c->xforward;
         c->xforward = e->next;
-        free (e->ip);
+        xmlFree (e->ip);
         free (e);
     }
     global_lock();
