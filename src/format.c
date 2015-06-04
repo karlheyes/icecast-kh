@@ -326,49 +326,49 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         }
         if (fs)
         {
-            uint64_t pos1 = 0, pos2 = length ? length : 50000000, max = pos2;
-            char buf[30];
-
+            uint64_t max;
             sscanf (fs, "%" SCNuMAX, &max);
-            if (range)
+            if (length == 0 || max < length)
+                length = max;
+        }
+        if (range)
+        {
+            uint64_t pos1 = 0, pos2 = (uint64_t)-1, max = length ? length : pos2;
+
+            if (strncmp (range, "bytes=", 6) == 0)
             {
-                if (strncmp (range, "bytes=-", 7) == 0)
-                {
-                    sscanf (range, "bytes=-%" SCNuMAX, &pos2);
-                    pos1 = max-pos2;
-                    pos2 = max-1;
-                }
-                else
-                {
-                    if (sscanf (range, "bytes=%" SCNuMAX "-%" SCNuMAX, &pos1, &pos2) < 2)
-                        pos2 = max-1;
-                }
-                if (pos2 >= max || pos1 >= pos2)
-                {
-                    DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", pos1, pos2);
-                    return -1;
-                }
-                length = pos2 - pos1 + 1;
-                snprintf (buf, 30, "%" PRIu64, length);
-                httpp_setvar (client->parser, "__LENGTH", buf);
-                client->respcode = 206;
-                client->intro_offset = pos1;
-                bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
-                        "%s: %s\r\n"
-                        "Content-Length: %" PRIu64 "\r\n"
-                        "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
-                        protocol, contenttypehdr,
-                        contenttype ? contenttype : "application/octet-stream",
-                        length,
-                        pos1, pos2, max);
+                if (sscanf (range+6, "-%" SCNuMAX, &pos2) < 1)
+                    if (sscanf (range+6, "%" SCNuMAX "-%" SCNuMAX, &pos1, &pos2) < 1)
+                        pos2 = 0;
             }
             else
+                pos2 = 0;
+
+            if (pos2 == 0 || pos1 >= pos2)
             {
-                client->respcode = 200;
-                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
-                        "Content-Length: %" PRIu64 "\r\n"
-                        "%s: %s\r\n", protocol, max, contenttypehdr, contenttype);
+                DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", pos1, pos2);
+                return -1;
             }
+            if (max < pos2)
+                pos2 = max;
+            length = pos2 - pos1 + 1;
+            client->respcode = 206;
+            client->intro_offset = pos1;
+            bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
+                    "%s: %s\r\n"
+                    "Content-Length: %" PRIu64 "\r\n"
+                    "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
+                    protocol, contenttypehdr,
+                    contenttype ? contenttype : "application/octet-stream",
+                    length,
+                    pos1, pos2, length);
+        }
+        else if (length)
+        {
+            client->respcode = 200;
+            bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
+                    "Content-Length: %" PRIu64 "\r\n"
+                    "%s: %s\r\n", protocol, length, contenttypehdr, contenttype);
         }
         else
         {
