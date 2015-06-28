@@ -619,7 +619,7 @@ void *worker (void *arg)
                 int ret = 0;
                 client_t *nx = client->next_on_worker;
 
-                if (worker->running == 0 || client->schedule_ms <= sched_ms)
+                if (worker->running == 0 || client->schedule_ms <= sched_ms || (client->wakeup && *client->wakeup))
                 {
                     ret = client->ops->process (client);
                     if (ret < 0)

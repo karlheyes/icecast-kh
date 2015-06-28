@@ -558,7 +558,7 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         client->flags |= CLIENT_IN_METADATA;
         if (ret > 0)
             client_mp3->metadata_offset += ret;
-        client->schedule_ms += 150;
+        client->schedule_ms += 10 + (client->throttle * (ret < 0) ? 15 : 6);
     }
     return ret;
 }
@@ -579,8 +579,8 @@ static int format_mp3_write_buf_to_client (client_t *client)
     len = refbuf->len - client->pos;
     if (client_mp3->interval && len > client_mp3->interval - client_mp3->since_meta_block)
         len = client_mp3->interval - client_mp3->since_meta_block;
-    if (len > 8192)
-        len = 8192; // do not send a huge amount out in one go
+    if (len > 10000)
+        len = 10000; // do not send a huge amount out in one go
 
     if (len)
     {
@@ -589,7 +589,7 @@ static int format_mp3_write_buf_to_client (client_t *client)
         ret = client_send_bytes (client, buf, len);
 
         if (ret < len)
-            client->schedule_ms += (ret < 0) ? 150 : 50;
+            client->schedule_ms += 10 + (client->throttle * (ret < 0) ? 15 : 6);
         if (ret > 0)
         {
             client_mp3->since_meta_block += ret;
@@ -646,7 +646,7 @@ static int send_iceblock_to_client (client_t *client)
         client_mpg->metadata_offset = 0;
     }
     if (ret < len)
-        client->schedule_ms += (ret < 0 ? 200 : 50);
+        client->schedule_ms += 10 + (client->throttle * (ret < 0) ? 15 : 6);
     return ret;
 }
 
@@ -711,6 +711,8 @@ static int complete_read (source_t *source)
         char *buf = source_mp3->read_data->data + source_mp3->read_count;
         int read_in = source_mp3->read_data->len - source_mp3->read_count;
         int bytes = client_read_bytes (client, buf, read_in);
+        int multi = 5600;
+
         if (bytes > 0)
         {
             rate_add (source->in_bitrate, bytes, client->worker->current_time.tv_sec);
@@ -720,6 +722,9 @@ static int complete_read (source_t *source)
             if (read_in - bytes > 700)
                 client->schedule_ms += 20;
         }
+        if (source->incoming_rate)
+            multi = (source->incoming_rate / 300000) + 1;
+        source_mp3->queue_block_size = 1400 * (multi < 6 ? multi : 6);
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
         return 0;
@@ -791,12 +796,9 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         {
             if (refbuf->len)
             {
-                int total = refbuf->len < 1000 ? refbuf->len+800 : refbuf->len;
-                total += source_mp3->queue_block_size;
-                if (source_mp3->prev_block_size)
-                    len = (total + source_mp3->prev_block_size) / 3;
-                else
-                    len = total / 2;
+                if (unprocessed < 200)
+                    source_mp3->queue_block_size -= unprocessed;
+                len = source_mp3->queue_block_size;
             }
             else
                 len = unprocessed + 1000;

@@ -408,6 +408,7 @@ static void update_source_stats (source_t *source)
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
     source->incoming_rate = incoming_rate;
+    source->incoming_adj = 2000000/incoming_rate;
     source->stats_interval = 5 + (global.sources >> 10);
 }
 
@@ -429,6 +430,7 @@ int source_read (source_t *source)
         source->flags &= ~SOURCE_RUNNING;
     do
     {
+        source->wakeup = 0;
         client->schedule_ms = client->worker->time_ms;
         if (source->flags & SOURCE_LISTENERS_SYNC)
         {
@@ -533,6 +535,7 @@ int source_read (source_t *source)
 
                 source->stream_data_tail = refbuf;
                 source->queue_size += refbuf->len;
+                source->wakeup = 1;
 
                 /* move the starting point for new listeners */
                 source->min_queue_offset += refbuf->len;
@@ -741,11 +744,13 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
-        ret = offset % 10;
+        ret = offset & 7;
         offset++;
-        client->schedule_ms += source->skip_duration + ret;
+        client->schedule_ms += source->incoming_adj + ret;
+        client->wakeup = &source->wakeup; // allow for quick wakeup
         return -1;
     }
+    client->wakeup = NULL;
     if (lag > source->queue_size || (lag == source->queue_size && client->pos))
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
@@ -961,6 +966,7 @@ static int http_source_listener (client_t *client)
 
 void source_listener_detach (source_t *source, client_t *client)
 {
+    client->wakeup = NULL;
     if (client->check_buffer != http_source_listener) // not in http headers
     {
         refbuf_t *ref = client->refbuf;
@@ -1158,21 +1164,22 @@ static int send_listener (source_t *source, client_t *client)
     {
         if (throttle_sends > 2) /* exceeded limit, skip 30ms */
         {
-            client->schedule_ms += 30;
+            client->schedule_ms += (source->incoming_adj * 4);
             return 0;
         }
         if (throttle_sends > 1) /* slow down any multiple sends */
         {
-            loop = 2;
-            client->schedule_ms += 50;
+            loop = 4;
+            client->schedule_ms += (source->incoming_adj * 6);
         }
         if (throttle_sends > 0)
         {
-            /* make lagging listeners, lag further on high bandwidth use */
+            /* make lagging listeners, lag further on high server bandwidth use */
             if (lag > (source->incoming_rate*2))
-                client->schedule_ms += 150;
+                client->schedule_ms += 100 + (source->incoming_adj * 6);
         }
     }
+    client->throttle = source->incoming_adj;
     while (1)
     {
         /* jump out if client connection has died */

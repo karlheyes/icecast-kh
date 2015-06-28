@@ -26,6 +26,9 @@ typedef struct source_tag
     char *mount;
     unsigned int flags;
     int listener_send_trigger;
+    char wakeup;
+
+    rwlock_t lock;
 
     client_t *client;
     time_t client_stats_update;
@@ -33,8 +36,6 @@ typedef struct source_tag
     struct _format_plugin_tag *format;
 
     avl_tree *clients;
-
-    util_dict *audio_info;
 
     /* name of a file, whose contents are sent at listener connection */
     icefile_handle intro_file;
@@ -45,6 +46,7 @@ typedef struct source_tag
     fbinfo fallback;
 
     int skip_duration;
+    int incoming_adj;
     long limit_rate;
     time_t wait_time;
 
@@ -79,10 +81,10 @@ typedef struct source_tag
 
     time_t last_read;
 
-    rwlock_t lock;
-
     refbuf_t *stream_data;
     refbuf_t *stream_data_tail;
+
+    util_dict *audio_info;
 
 } source_t;
 
