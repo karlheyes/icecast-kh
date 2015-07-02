@@ -711,7 +711,7 @@ static int complete_read (source_t *source)
         char *buf = source_mp3->read_data->data + source_mp3->read_count;
         int read_in = source_mp3->read_data->len - source_mp3->read_count;
         int bytes = client_read_bytes (client, buf, read_in);
-        int multi = 5600;
+        int multi = 5;
 
         if (bytes > 0)
         {
@@ -723,7 +723,7 @@ static int complete_read (source_t *source)
                 client->schedule_ms += 20;
         }
         if (source->incoming_rate)
-            multi = (source->incoming_rate / 300000) + 1;
+            multi = (source->incoming_rate / 60000) + 1;
         source_mp3->queue_block_size = 1400 * (multi < 6 ? multi : 6);
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
