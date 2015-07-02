@@ -724,7 +724,7 @@ static int complete_read (source_t *source)
         }
         if (source->incoming_rate)
             multi = (source->incoming_rate / 60000) + 1;
-        source_mp3->queue_block_size = 1400 * (multi < 6 ? multi : 6);
+        source_mp3->queue_block_size = 1400 * (multi < 7 ? multi : 7);
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
         return 0;
