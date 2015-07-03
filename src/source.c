@@ -408,7 +408,10 @@ static void update_source_stats (source_t *source)
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
     source->incoming_rate = incoming_rate;
-    source->incoming_adj = 2000000/incoming_rate;
+    if (incoming_rate)
+        source->incoming_adj = 2000000/incoming_rate;
+    else
+        source->incoming_adj = 20;
     source->stats_interval = 5 + (global.sources >> 10);
 }
 
