@@ -30,6 +30,7 @@ typedef struct {
     unsigned short interval;
     short metadata_offset;
     unsigned short since_meta_block;
+    unsigned short max_send_block;
     void         *specific;
 } mp3_client_data;
 
@@ -50,8 +51,8 @@ typedef struct {
     refbuf_t *metadata;
     refbuf_t *read_data;
     int read_count;
-    unsigned short queue_block_size;
-    unsigned short prev_block_size;
+    unsigned short req_qblock_sz;
+    unsigned short qblock_sz;
 
     unsigned build_metadata_len;
     unsigned build_metadata_offset;

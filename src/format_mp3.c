@@ -153,6 +153,8 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
         mpeg_setup (client->format_data, client->connection.ip);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
+    source_mp3->read_data = refbuf_new (3000);
+    source_mp3->read_count = 0;
 }
 
 
@@ -283,8 +285,9 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     source_mp3->interval = -1;
     free (format->charset);
     format->charset = NULL;
-    source_mp3->queue_block_size = 1400;
 
+    source_mp3->qblock_sz = 1400;
+    source_mp3->req_qblock_sz = 0;
     if (mount)
     {
         if (mount->mp3_meta_interval >= 0)
@@ -292,7 +295,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
         if (mount->charset)
             format->charset = strdup (mount->charset);
         if (mount->queue_block_size)
-            source_mp3->queue_block_size = mount->queue_block_size;
+            source_mp3->qblock_sz = source_mp3->req_qblock_sz = mount->queue_block_size;
     }
     if (source_mp3->interval < 0)
     {
@@ -698,7 +701,7 @@ static int complete_read (source_t *source)
 
     if (source_mp3->read_data == NULL)
     {
-        source_mp3->read_data = refbuf_new (source_mp3->queue_block_size);
+        source_mp3->read_data = refbuf_new (source_mp3->qblock_sz);
         source_mp3->read_count = 0;
     }
     if (source_mp3->update_metadata)
@@ -711,7 +714,6 @@ static int complete_read (source_t *source)
         char *buf = source_mp3->read_data->data + source_mp3->read_count;
         int read_in = source_mp3->read_data->len - source_mp3->read_count;
         int bytes = client_read_bytes (client, buf, read_in);
-        int multi = 5;
 
         if (bytes > 0)
         {
@@ -722,9 +724,13 @@ static int complete_read (source_t *source)
             if (read_in - bytes > 700)
                 client->schedule_ms += 20;
         }
-        if (source->incoming_rate)
-            multi = (source->incoming_rate / 60000) + 1;
-        source_mp3->queue_block_size = 1400 * (multi < 7 ? multi : 7);
+        if (source_mp3->req_qblock_sz == 0)
+        {
+            int multi = 5;
+            if (source->incoming_rate)
+                multi = (source->incoming_rate / 60000) + 1;
+            source_mp3->qblock_sz = 1400 * (multi < 7 ? multi : 7);
+        }
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
         return 0;
@@ -771,6 +777,21 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         source->flags &= ~SOURCE_RUNNING;
         return -1;
     }
+    if (mpeg_has_changed (mpeg_sync))
+    {
+        format_plugin_t *plugin = source->format;
+        source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
+        if (mpeg_sync->samplerate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
+        {
+            free (plugin->contenttype);
+            plugin->contenttype = strdup ("video/MP2T");
+        }
+        stats_lock (source->stats, NULL);
+        stats_set_args (source->stats, "audio_codecid", "%d", (mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2));
+        stats_set_args (source->stats, "mpeg_samplerate", "%d", mpeg_sync->samplerate);
+        stats_set_args (source->stats, "mpeg_channels", "%d", mpeg_get_channels (mpeg_sync));
+        stats_release (source->stats);
+    }
     if (unprocessed > 0)
     {
         size_t len;
@@ -790,43 +811,48 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
             // not reached the metadata block so save and rewind for completing the read
             source_mp3->offset -= unprocessed;
         }
-        if (unprocessed > source_mp3->queue_block_size)
-            len = unprocessed + 3100;
-        else
+        // subtle adjustments to the qblock_sz to limit subsequent memory copies
+        if (source_mp3->req_qblock_sz)
         {
             if (refbuf->len)
             {
-                if (unprocessed < 200)
-                    source_mp3->queue_block_size -= unprocessed;
-                len = source_mp3->queue_block_size;
+                if (unprocessed < source_mp3->qblock_sz && source_mp3->qblock_sz > source_mp3->req_qblock_sz)
+                    len = (source_mp3->qblock_sz -= (unprocessed - 10));
+                else
+                    len = (source_mp3->qblock_sz += 400);
             }
             else
-                len = unprocessed + 1000;
+            {
+                len = unprocessed + (source_mp3->req_qblock_sz < unprocessed ? 400 : 200);
+                source_mp3->qblock_sz = len;
+            }
         }
+        else
+        {
+            int diff = source_mp3->qblock_sz - (source_mp3->qblock_sz/1400)*1400;
 
+            if (diff < 880 && source_mp3->qblock_sz > 1400)
+                source_mp3->qblock_sz -= (diff + 10);
+
+            if (refbuf->len)
+            {
+                if (unprocessed < source_mp3->qblock_sz && source_mp3->qblock_sz > 200)
+                    len = (source_mp3->qblock_sz -= (unprocessed - 10));
+                else
+                    len = (source_mp3->qblock_sz += 400);
+            }
+            else
+            {
+                len = unprocessed + (source_mp3->req_qblock_sz < unprocessed ? 400 : 250);
+                source_mp3->qblock_sz = len;
+            }
+        }
         leftover = refbuf_new (len);
         memcpy (leftover->data, refbuf->data + refbuf->len, unprocessed);
         source_mp3->read_data = leftover;
         source_mp3->read_count = unprocessed;
     }
 
-    if (refbuf->len)
-        source_mp3->prev_block_size = refbuf->len;
-
-    if (mpeg_has_changed (mpeg_sync))
-    {
-        format_plugin_t *plugin = source->format;
-        if (mpeg_sync->samplerate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
-        {
-            free (plugin->contenttype);
-            plugin->contenttype = strdup ("video/MP2T");
-        }
-        stats_lock (source->stats, NULL);
-        stats_set_args (source->stats, "audio_codecid", "%d", (mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2));
-        stats_set_args (source->stats, "mpeg_samplerate", "%d", mpeg_sync->samplerate);
-        stats_set_args (source->stats, "mpeg_channels", "%d", mpeg_get_channels (mpeg_sync));
-        stats_release (source->stats);
-    }
     return refbuf->len ? 0 : -1;
 }
 
