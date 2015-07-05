@@ -286,10 +286,12 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     free (format->charset);
     format->charset = NULL;
 
-    source_mp3->qblock_sz = 1400;
+    source_mp3->qblock_sz = 2900;
     source_mp3->req_qblock_sz = 0;
+    source_mp3->max_send_size = 1400;
     if (mount)
     {
+        source_mp3->max_send_size = mount->max_send_size;
         if (mount->mp3_meta_interval >= 0)
             source_mp3->interval = mount->mp3_meta_interval;
         if (mount->charset)
@@ -510,7 +512,6 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
                 client->connection.error = 1;
                 return 0;
             }
-            client_mp3->associated = associated; // change prev meta block
         }
         else if ((client->flags & CLIENT_IN_METADATA) == 0)
         {
@@ -540,9 +541,14 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         block_len = client_mp3->interval; // handle small intervals
 
     connection_bufs_init (&bufs, 2);
-    connection_bufs_append (&bufs, metadata, meta_len);
-    if (block_len)
-        connection_bufs_append (&bufs, refbuf->data + client->pos, block_len);
+    ret = connection_bufs_append (&bufs, metadata, meta_len);
+    if (block_len && ret < client_mp3->max_send_size)
+    {
+        int len = client_mp3->max_send_size - ret;
+        if (block_len < len)
+            len = block_len;
+        connection_bufs_append (&bufs, refbuf->data + client->pos, len);
+    }
     ret = connection_bufs_send (&client->connection, &bufs, 0);
     connection_bufs_release (&bufs);
 
@@ -555,12 +561,15 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         client->pos += queue_bytes;
         client->flags &= ~CLIENT_IN_METADATA;
         client_mp3->metadata_offset = 0;
+        client_mp3->associated = associated; // change prev meta block
     }
     else
     {
-        client->flags |= CLIENT_IN_METADATA;
         if (ret > 0)
+        {
+            client->flags |= CLIENT_IN_METADATA;
             client_mp3->metadata_offset += ret;
+        }
         client->schedule_ms += 10 + (client->throttle * (ret < 0) ? 15 : 6);
     }
     return ret;
@@ -582,8 +591,8 @@ static int format_mp3_write_buf_to_client (client_t *client)
     len = refbuf->len - client->pos;
     if (client_mp3->interval && len > client_mp3->interval - client_mp3->since_meta_block)
         len = client_mp3->interval - client_mp3->since_meta_block;
-    if (len > 10000)
-        len = 10000; // do not send a huge amount out in one go
+    if (len > client_mp3->max_send_size)
+        len = client_mp3->max_send_size; // do not send a huge amount out in one go
 
     if (len)
     {
@@ -722,14 +731,14 @@ static int complete_read (source_t *source)
             format->read_bytes += bytes;
             // increase retry delay on small read, to reduce rescheduling
             if (read_in - bytes > 700)
-                client->schedule_ms += 20;
+                client->schedule_ms += 10;
         }
         if (source_mp3->req_qblock_sz == 0)
         {
-            int multi = 5;
+            int multi = 3;
             if (source->incoming_rate)
-                multi = (source->incoming_rate / 60000) + 1;
-            source_mp3->qblock_sz = 1400 * (multi < 7 ? multi : 7);
+                multi = (source->incoming_rate /150000) + 1;
+            source_mp3->qblock_sz = 2900 * (multi < 6 ? multi : 6);
         }
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
@@ -780,7 +789,7 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     if (mpeg_has_changed (mpeg_sync))
     {
         format_plugin_t *plugin = source->format;
-        source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
+        source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 2900;
         if (mpeg_sync->samplerate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
         {
             free (plugin->contenttype);
@@ -1016,6 +1025,7 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
         client_mp3->specific = calloc (1, sizeof(mpeg_sync));
         mpeg_setup (client_mp3->specific, client->connection.ip);
     }
+    client_mp3->max_send_size = source_mp3->max_send_size;
 
     if (client->refbuf == NULL)
         client->refbuf = refbuf_new (4096);

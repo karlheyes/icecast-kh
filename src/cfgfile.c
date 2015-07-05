@@ -938,6 +938,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         { "skip-accesslog",     config_get_bool,    &mount->skip_accesslog },
         { "charset",            config_get_str,     &mount->charset },
         { "qblock-size",        config_get_int,     &mount->queue_block_size },
+        { "max-send-size",      config_get_int,     &mount->max_send_size },
         { "redirect",           config_get_str,     &mount->redirect },
         { "metadata-interval",  config_get_int,     &mount->mp3_meta_interval },
         { "mp3-metadata-interval",
@@ -985,6 +986,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     mount->access_log.logid = -1;
     mount->access_log.log_ip = 1;
     mount->fallback_override = 1;
+    mount->max_send_size = 1400;
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;

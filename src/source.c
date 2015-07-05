@@ -158,7 +158,7 @@ source_t *source_reserve (const char *mount, int flags)
 
         /* make duplicates for strings or similar */
         src->mount = strdup (mount);
-        src->listener_send_trigger = 8000;
+        src->listener_send_trigger = 16000;
         src->format = calloc (1, sizeof(format_plugin_t));
         src->clients = avl_tree_new (client_compare, NULL);
         src->intro_file = -1;
@@ -735,7 +735,7 @@ static int source_queue_advance (client_t *client)
     int ret;
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
-    uint64_t lag;
+    long lag;
 
     if (client->refbuf == NULL && locate_start_on_queue (source, client) < 0)
         return -1;
@@ -767,11 +767,11 @@ static int source_queue_advance (client_t *client)
     }
     else
     {
-        long remain = source->queue_size - lag;
-        if (remain < source->incoming_rate && client->connection.error == 0)
+        //static unsigned int i = 0;
+        //if (((++i) & 7) == 7)
+            //DEBUG1 ("lag is %ld", lag);
+        if ((lag+source->incoming_rate) > source->queue_size_limit && client->connection.error == 0)
         {
-            //DEBUG2 ("remain %ld, since %"PRIu64, remain, client->counter);
-
             // if the listener is really lagging but has been received a decent
             // amount of data then allow a requeue, else allow the drop
             if (client->counter > (source->queue_size_limit << 1))
@@ -793,7 +793,8 @@ static int source_queue_advance (client_t *client)
                         client->pos = 0;
                     }
                     client->check_buffer = http_source_introfile;
-                    client->schedule_ms += 2000; // do not be too eager to refill socket buffer
+                    // do not be too eager to refill socket buffer
+                    client->schedule_ms += source->incoming_rate < 16000 ? source->incoming_rate/16 : 800;
                     return -1;
                 }
             }
@@ -1127,7 +1128,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 static int send_listener (source_t *source, client_t *client)
 {
     int bytes;
-    int loop = 12;   /* max number of iterations in one go */
+    int loop = 20;   /* max number of iterations in one go */
     long total_written = 0, limiter = source->listener_send_trigger;
     int ret = 0, lag;
     worker_t *worker = client->worker;
@@ -1159,8 +1160,6 @@ static int send_listener (source_t *source, client_t *client)
         return 1;
 
     lag = source->client->queue_pos - client->queue_pos;
-    if (source->incoming_rate && lag < source->incoming_rate)
-        limiter = source->incoming_rate/2;
 
     /* progessive slowdown if nearing max bandwidth.  */
     if (global.max_rate)
