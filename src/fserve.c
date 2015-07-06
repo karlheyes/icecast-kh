@@ -219,6 +219,11 @@ static int _compare_fh(void *arg, void *a, void *b)
 static int _delete_fh (void *mapping)
 {
     fh_node *fh = mapping;
+    if (fh == &no_file)
+    {
+        ERROR0 ("no file handle free detected");
+        return 0;
+    }
     if (fh->refcount)
         WARN2 ("handle for %s has refcount %d", fh->finfo.mount, fh->refcount);
     else
@@ -252,8 +257,10 @@ static void remove_fh_from_cache (fh_node *fh)
 static void remove_from_fh (fh_node *fh, client_t *client)
 {
     thread_mutex_lock (&fh->lock);
-    avl_delete (fh->clients, client, NULL);
     fh->refcount--;
+    if (fh->refcount != fh->clients->length)
+        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
+    avl_delete (fh->clients, client, NULL);
     if (fh->refcount == 0 && fh->finfo.mount)
     {
         rate_free (fh->out_bitrate);
@@ -306,10 +313,12 @@ static fh_node *find_fh (fbinfo *finfo)
 
 static void fh_add_client (fh_node *fh, client_t *client)
 {
+    avl_insert (fh->clients, client);
+    if (fh->refcount != fh->clients->length)
+        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
     fh->refcount++;
     if (fh->refcount > fh->peak)
         fh->peak = fh->refcount;
-    avl_insert (fh->clients, client);
     if (fh->finfo.mount)
         DEBUG2 ("refcount now %d for %s", fh->refcount, fh->finfo.mount);
 }
