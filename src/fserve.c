@@ -258,9 +258,9 @@ static void remove_from_fh (fh_node *fh, client_t *client)
 {
     thread_mutex_lock (&fh->lock);
     fh->refcount--;
-    if (fh->refcount != fh->clients->length)
-        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
     avl_delete (fh->clients, client, NULL);
+    if ((fh->refcount != fh->clients->length && fh->finfo.mount) || ((fh->refcount != fh->clients->length+1) && fh->finfo.mount == NULL))
+        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
     if (fh->refcount == 0 && fh->finfo.mount)
     {
         rate_free (fh->out_bitrate);
@@ -314,9 +314,9 @@ static fh_node *find_fh (fbinfo *finfo)
 static void fh_add_client (fh_node *fh, client_t *client)
 {
     avl_insert (fh->clients, client);
-    if (fh->refcount != fh->clients->length)
-        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
     fh->refcount++;
+    if ((fh->refcount != fh->clients->length && fh->finfo.mount) || ((fh->refcount != fh->clients->length+1) && fh->finfo.mount == NULL))
+        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
     if (fh->refcount > fh->peak)
         fh->peak = fh->refcount;
     if (fh->finfo.mount)
