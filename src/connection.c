@@ -1038,7 +1038,7 @@ static int shoutcast_source_client (client_t *client)
     do
     {
         connection_t *con = &client->connection;
-        if (con->error || con->discon_time <= client->worker->current_time.tv_sec)
+        if (con->error || con->discon.time <= client->worker->current_time.tv_sec)
             break;
 
         if (client->shared_data)  /* need to get password first */
@@ -1156,7 +1156,7 @@ static int http_client_request (client_t *client)
     refbuf_t *refbuf = client->shared_data;
     int remaining = PER_CLIENT_REFBUF_SIZE - 1 - refbuf->len, ret = -1;
 
-    if (remaining && client->connection.discon_time > client->worker->current_time.tv_sec)
+    if (remaining && client->connection.discon.time > client->worker->current_time.tv_sec)
     {
         char *buf = refbuf->data + refbuf->len;
 
@@ -1207,7 +1207,7 @@ static int http_client_request (client_t *client)
             } while (0);
             client->refbuf = client->shared_data;
             client->shared_data = NULL;
-            client->connection.discon_time = 0;
+            client->connection.discon.time = 0;
             client->parser = httpp_create_parser();
             httpp_initialize (client->parser, NULL);
             if (httpp_parse (client->parser, refbuf->data, refbuf->len))
@@ -1234,6 +1234,7 @@ static int http_client_request (client_t *client)
                 auth_check_http (client);
                 switch (client->parser->req_type)
                 {
+                    case httpp_req_head:
                     case httpp_req_get:
                         refbuf->len = PER_CLIENT_REFBUF_SIZE;
                         client->ops = &http_req_get_ops;
@@ -1247,7 +1248,6 @@ static int http_client_request (client_t *client)
                         refbuf->len = PER_CLIENT_REFBUF_SIZE;
                         client->ops = &http_req_stats_ops;
                         break;
-                    case httpp_req_head:
                     case httpp_req_options:
                         return client_send_options (client);
                     default:
@@ -1328,7 +1328,7 @@ static void *connection_thread (void *arg)
              * getting a connect. */
             client->counter = client->schedule_ms = timing_get_time();
             client->connection.con_time = client->schedule_ms/1000;
-            client->connection.discon_time = client->connection.con_time + header_timeout;
+            client->connection.discon.time = client->connection.con_time + header_timeout;
             client->schedule_ms += 6;
             client_add_worker (client);
             stats_event_inc (NULL, "connections");

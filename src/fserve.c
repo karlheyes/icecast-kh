@@ -688,6 +688,8 @@ static int prefile_send (client_t *client)
             return -1;
         if (refbuf == NULL || client->pos == refbuf->len)
         {
+            if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+                return -1;
             if (fh->finfo.fallback)
                 return fserve_move_listener (client);
 
@@ -760,8 +762,6 @@ static int file_send (client_t *client)
         loop--;
         if (fserve_running == 0 || client->connection.error)
             return -1;
-        if (client->connection.discon_time && now >= client->connection.discon_time)
-            return -1;
         if (format_file_read (client, fh->format, fh->f) < 0)
             return -1;
         bytes = client->check_buffer (client);
@@ -794,8 +794,6 @@ static int throttled_file_send (client_t *client)
     now = worker->current_time.tv_sec;
     secs = now - client->timer_start; 
     client->schedule_ms = worker->time_ms;
-    if (client->connection.discon_time && now >= client->connection.discon_time)
-        return -1;
     if (fh->finfo.fallback)
         return fserve_move_listener (client);
 

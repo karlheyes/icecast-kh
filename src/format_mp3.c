@@ -1033,6 +1033,9 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     if (format_general_headers (plugin, client) < 0)
         return -1;
 
+    if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+        return 0;
+
     client->refbuf->len -= 2;
     remaining = 4096 - client->refbuf->len;
     ptr = client->refbuf->data + client->refbuf->len;

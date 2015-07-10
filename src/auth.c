@@ -487,7 +487,8 @@ static int add_authenticated_listener (const char *mount, mount_proxy *mountinfo
 {
     int ret = 0;
 
-    client->flags |= CLIENT_AUTHENTICATED;
+    if (client->parser->req_type != httpp_req_head)
+        client->flags |= CLIENT_AUTHENTICATED;
 
     /* some win32 setups do not do TCP win scaling well, so allow an override */
     if (mountinfo && mountinfo->so_sndbuf > 0)
@@ -599,11 +600,47 @@ void auth_postprocess_source (auth_client *auth_user)
  */
 int auth_add_listener (const char *mount, client_t *client)
 {
-    int ret = 0;
+    int ret = 0, need_auth = 1;
     ice_config_t *config = config_get_config();
     mount_proxy *mountinfo = config_find_mount (config, mount);
 
-    if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+    if (client->flags & CLIENT_AUTHENTICATED)
+        need_auth = 0;
+    else
+    {
+        const char *range = httpp_getvar (client->parser, "range");
+        if (range)
+        {
+            uint64_t pos1 = 0, pos2 = (uint64_t)-1;
+
+            if (strncmp (range, "bytes=", 6) == 0)
+            {
+                if (sscanf (range+6, "-%" SCNuMAX, &pos2) < 1)
+                    if (sscanf (range+6, "%" SCNuMAX "-%" SCNuMAX, &pos1, &pos2) < 1)
+                        pos2 = 0;
+            }
+            else
+                pos2 = 0;
+
+            if (pos2 > 0 && pos1 < pos2)
+            {
+                client->intro_offset = pos1;
+                client->connection.discon.offset = pos2;
+                client->flags |= CLIENT_RANGE_END;
+                if (pos2 - pos1 < 10)
+                    need_auth = 0; // avoid auth check if range is very small, player hack
+            }
+            else
+                WARN2 ("client range invalid (%" PRIu64 ", %" PRIu64 "), ignoring", pos1, pos2);
+        }
+    }
+    if (client->parser->req_type == httpp_req_head)
+    {
+        client->flags &= ~CLIENT_AUTHENTICATED;
+        need_auth = 0;
+    }
+
+    if (need_auth)
     {
         if (mountinfo)
         {

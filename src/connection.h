@@ -37,7 +37,10 @@ struct connection_tag
     uint64_t id;
 
     time_t con_time;
-    time_t discon_time;
+    union {
+        time_t      time;
+        uint64_t    offset;
+    } discon;
     uint64_t sent_bytes;
 
     sock_t sock;

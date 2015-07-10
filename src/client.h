@@ -161,6 +161,7 @@ void worker_wakeup (worker_t *worker);
 #define CLIENT_IP_BAN_LIFT          (1<<8)
 #define CLIENT_META_INSTREAM        (1<<9)
 #define CLIENT_HIJACKER             (1<<10)
+#define CLIENT_RANGE_END            (1<<11)
 #define CLIENT_FORMAT_BIT           (1<<16)
 
 #endif  /* __CLIENT_H__ */

@@ -221,7 +221,7 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
         {
             unsigned int limit = 60;
             sscanf (header_data, "%u\r\n", &limit);
-            client->connection.discon_time = time(NULL) + limit;
+            client->connection.discon.time = time(NULL) + limit;
             break;
         }
         if (strncasecmp (header, "icecast-slave:", 14) == 0)

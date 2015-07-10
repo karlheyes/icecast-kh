@@ -251,13 +251,15 @@ int client_send_404 (client_t *client, const char *message)
     }
     else
     {
-        if (message == NULL)
+        if (client->parser->req_type == httpp_req_head)
+            message = NULL;
+        else if (message == NULL)
             message = "Not Available";
         client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
         snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
                 "HTTP/1.0 404 Not Available\r\n"
                 "Content-Type: text/html\r\n\r\n"
-                "<b>%s</b>\r\n", message);
+                "%s", message ? message: "");
         client->respcode = 404;
         client->refbuf->len = strlen (client->refbuf->data);
         ret = fserve_setup_client (client);

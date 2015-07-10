@@ -148,16 +148,17 @@ int format_get_plugin (format_plugin_t *plugin)
 int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f)
 {
     refbuf_t *refbuf = client->refbuf;
-    ssize_t bytes = -1;
+    ssize_t bytes = -1, len;
     int unprocessed = 0;
 
     do
     {
+        len = 8192;
         if (refbuf == NULL)
         {
             if (file_in_use (f) == 0)
                 return -2;
-            refbuf = client->refbuf = refbuf_new (8192);
+            refbuf = client->refbuf = refbuf_new (len);
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
             client->queue_pos = 0;
@@ -184,7 +185,23 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
         if (file_in_use (f) == 0) return -2;
 
-        bytes = pread (f, refbuf->data, 8192, client->intro_offset);
+        if (client->flags & CLIENT_RANGE_END)
+        {
+            ssize_t range;
+            if (client->intro_offset >= client->connection.discon.offset)
+            {
+                DEBUG0 ("End of requested range");
+                return -1;
+            }
+            range = client->connection.discon.offset - client->intro_offset + 1;
+            if (range < len)
+                len = range;
+        }
+        else
+            if (client->connection.discon.time && client->worker->current_time.tv_sec >= client->connection.discon.time)
+                return -1;
+
+        bytes = pread (f, refbuf->data, len, client->intro_offset);
         if (bytes <= 0)
             return bytes < 0 ? -2 : -1;
 
@@ -251,7 +268,7 @@ int format_generic_write_to_client (client_t *client)
 int format_general_headers (format_plugin_t *plugin, client_t *client)
 {
     unsigned remaining = 4096 - client->refbuf->len;
-    char *ptr = client->refbuf->data + client->refbuf->len;
+    char *ptr = client->refbuf->data + client->refbuf->len, *junk = NULL;
     int bytes = 0;
     int bitrate_filtered = 0;
     avl_node *node;
@@ -279,7 +296,6 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *protocol = "HTTP/1.0";
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
-        const char *range = httpp_getvar (client->parser, "range");
         const char *fs = httpp_getvar (client->parser, "__FILESIZE");
 
         if (useragent)
@@ -326,55 +342,66 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         }
         if (fs)
         {
-            uint64_t max;
-            sscanf (fs, "%" SCNuMAX, &max);
-            if (length == 0 || max < length)
-                length = max;
+            uint64_t len = (uint64_t)-1;
+            sscanf (fs, "%" SCNuMAX, &len);
+            if (length == 0 || len < length)
+                length = len;
         }
-        if (range)
+        if (client->flags & CLIENT_RANGE_END)
         {
-            uint64_t pos1 = 0, pos2 = (uint64_t)-1, max = length ? length : pos2;
+            if (length && client->connection.discon.offset > length)
+                client->connection.discon.offset = length - 1;
 
-            if (strncmp (range, "bytes=", 6) == 0)
+            if (client->connection.discon.offset == 0 || client->intro_offset >= client->connection.discon.offset)
             {
-                if (sscanf (range+6, "-%" SCNuMAX, &pos2) < 1)
-                    if (sscanf (range+6, "%" SCNuMAX "-%" SCNuMAX, &pos1, &pos2) < 1)
-                        pos2 = 0;
-            }
-            else
-                pos2 = 0;
-
-            if (pos2 == 0 || pos1 >= pos2)
-            {
-                DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", pos1, pos2);
+                DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
                 return -1;
             }
-            if (max < pos2)
-                pos2 = max;
-            length = pos2 - pos1 + 1;
-            client->respcode = 206;
-            client->intro_offset = pos1;
-            bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
-                    "%s: %s\r\n"
-                    "Content-Length: %" PRIu64 "\r\n"
-                    "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
-                    protocol, contenttypehdr,
-                    contenttype ? contenttype : "application/octet-stream",
-                    length,
-                    pos1, pos2, length);
+            length = client->connection.discon.offset - client->intro_offset + 1;
+            if (fs) // allow range on files
+            {
+                client->respcode = 206;
+                bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
+                        "%s: %s\r\n"
+                        "Accept-Ranges: bytes\r\n"
+                        "Content-Length: %" PRIu64 "\r\n"
+                        "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
+                        protocol, contenttypehdr,
+                        contenttype ? contenttype : "application/octet-stream",
+                        length,
+                        client->intro_offset, client->connection.discon.offset, length);
+            }
+            else
+            {
+                // for range requests on streams we return a 200 OK but only send a couple of bytes
+                length = 2;
+                client->connection.discon.offset = client->intro_offset + 2;
+                if (client->parser->req_type != httpp_req_head && remaining - bytes > length + 2)
+                {
+                    junk = malloc (length+1);
+                    memset (junk, 255, length);
+                    junk[length] = '\0';
+                    plugin = NULL;
+                    client->flags &= ~CLIENT_AUTHENTICATED;
+                    DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
+                }
+            }
         }
-        else if (length)
+        if (client->respcode == 0)
         {
-            client->respcode = 200;
-            bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
-                    "Content-Length: %" PRIu64 "\r\n"
-                    "%s: %s\r\n", protocol, length, contenttypehdr, contenttype);
-        }
-        else
-        {
-            client->respcode = 200;
-            bytes = snprintf (ptr, remaining, "%s 200 OK\r\nAccept-Ranges: none\r\n"
-                    "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+            if (length)
+            {
+                client->respcode = 200;
+                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
+                        "Content-Length: %" PRIu64 "\r\n"
+                        "%s: %s\r\n", protocol, length, contenttypehdr, contenttype);
+            }
+            else
+            {
+                client->respcode = 200;
+                bytes = snprintf (ptr, remaining, "%s 200 OK\r\nAccept-Ranges: bytes\r\n"
+                        "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+            }
         }
         remaining -= bytes;
         ptr += bytes;
@@ -457,12 +484,13 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     remaining -= bytes;
     ptr += bytes;
 
-    bytes = snprintf (ptr, remaining, "\r\n");
+    bytes = snprintf (ptr, remaining, "\r\n%s", junk ? junk : "");
     remaining -= bytes;
     ptr += bytes;
 
     client->refbuf->len = 4096 - remaining;
     client->refbuf->flags |= WRITE_BLOCK_GENERIC;
+    free (junk);
     return 0;
 }
 

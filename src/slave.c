@@ -492,7 +492,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             thread_rwlock_wlock (&relay->source->lock);
             client->parser = parser; // old parser will be free in the format clear
             thread_rwlock_unlock (&relay->source->lock);
-            client->connection.discon_time = 0;
+            client->connection.discon.time = 0;
             client->connection.con_time = time (NULL);
             client_set_queue (client, NULL);
             free (server);
@@ -1402,10 +1402,10 @@ static int relay_read (client_t *client)
             source->flags &= ~SOURCE_RUNNING;
         if (source->listeners == 0 && (relay->flags & RELAY_ON_DEMAND))
         {
-            if (client->connection.discon_time == 0)
-                client->connection.discon_time = client->worker->current_time.tv_sec + relay->run_on;
+            if (client->connection.discon.time == 0)
+                client->connection.discon.time = client->worker->current_time.tv_sec + relay->run_on;
 
-            if (client->worker->current_time.tv_sec > client->connection.discon_time)
+            if (client->worker->current_time.tv_sec > client->connection.discon.time)
                 source->flags &= ~SOURCE_RUNNING;
         }
         if (source_read (source) > 0)

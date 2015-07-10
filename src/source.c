@@ -643,8 +643,8 @@ static int source_client_read (client_t *client)
     }
 
     thread_rwlock_wlock (&source->lock);
-    if (client->connection.discon_time &&
-            client->connection.discon_time <= client->worker->current_time.tv_sec)
+    if (client->connection.discon.time &&
+            client->connection.discon.time <= client->worker->current_time.tv_sec)
     {
         source->flags &= ~SOURCE_RUNNING;
         INFO1 ("streaming duration expired on %s", source->mount);
@@ -708,7 +708,7 @@ static int source_client_read (client_t *client)
         free (source->fallback.mount);
         source->fallback.mount = NULL;
         source->flags &= ~SOURCE_LISTENERS_SYNC;
-        client->connection.discon_time = 0;
+        client->connection.discon.time = 0;
         client->ops = &source_client_halt_ops;
         global_lock();
         global.sources--;
@@ -720,7 +720,7 @@ static int source_client_read (client_t *client)
             return -1;
         }
         /* set a wait time for leaving the source reserved */
-        client->connection.discon_time = client->worker->current_time.tv_sec + source->wait_time;
+        client->connection.discon.time = client->worker->current_time.tv_sec + source->wait_time;
         client->schedule_ms = client->worker->time_ms + (1000 * source->wait_time);
         INFO2 ("listeners gone, keeping %s reserved for %ld seconds", source->mount, (long)source->wait_time);
     }
@@ -958,10 +958,15 @@ static int http_source_listener (client_t *client)
     ret = format_generic_write_to_client (client);
     if (client->pos == refbuf->len)
     {
-        client->check_buffer = http_source_intro;
-        client->intro_offset = 0;
-        client->connection.sent_bytes = 0;
-        return ret;
+        if (client->flags & CLIENT_AUTHENTICATED)
+        {
+            client->check_buffer = http_source_intro;
+            client->intro_offset = 0;
+            client->connection.sent_bytes = 0;
+            return ret;
+        }
+        client->connection.error = 1;
+        return -1;
     }
     client->schedule_ms += 200;
     return ret;
@@ -1143,7 +1148,12 @@ static int send_listener (source_t *source, client_t *client)
         return -1;
 
     /* check for limited listener time */
-    if (client->connection.discon_time && now >= client->connection.discon_time)
+    if (client->flags & CLIENT_RANGE_END)
+    {
+        if (client->connection.discon.offset <= client->connection.sent_bytes)
+            return -1;
+    }
+    else if (client->connection.discon.time && now >= client->connection.discon.time)
     {
         INFO1 ("time limit reached for client #%" PRIu64, client->connection.id);
         return -1;
@@ -1298,7 +1308,7 @@ void source_init (source_t *source)
     if (mountinfo)
     {
         if (mountinfo->max_stream_duration)
-            source->client->connection.discon_time = source->client->worker->current_time.tv_sec + mountinfo->max_stream_duration;
+            source->client->connection.discon.time = source->client->worker->current_time.tv_sec + mountinfo->max_stream_duration;
         if (mountinfo->on_connect)
             source_run_script (mountinfo->on_connect, source->mount);
         auth_stream_start (mountinfo, source);
@@ -1998,9 +2008,9 @@ int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client,
  */
 static int source_client_shutdown (client_t *client)
 {
-    if (global.running == ICE_RUNNING && client->connection.discon_time)
+    if (global.running == ICE_RUNNING && client->connection.discon.time)
     {
-        if (client->connection.discon_time >= client->worker->current_time.tv_sec)
+        if (client->connection.discon.time >= client->worker->current_time.tv_sec)
         {
             client->schedule_ms = client->worker->time_ms + 50;
             return 0;
@@ -2157,7 +2167,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     return client_send_403redirect (client, passed_mount, "server bandwidth reached");
                 }
             }
-            if (httpp_getvar (client->parser, "range"))
+            if ((client->flags & CLIENT_AUTHENTICATED) == 0 || httpp_getvar (client->parser, "range"))
             {
                 int ret;
                 int (*build_headers)(format_plugin_t *, client_t *) = format_general_headers;
@@ -2195,8 +2205,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         }
 
         /* set a per-mount disconnect time if auth hasn't set one already */
-        if (mountinfo->max_listener_duration && client->connection.discon_time == 0)
-            client->connection.discon_time = time(NULL) + mountinfo->max_listener_duration;
+        if (mountinfo->max_listener_duration && client->connection.discon.time == 0)
+            client->connection.discon.time = time(NULL) + mountinfo->max_listener_duration;
 
         INFO3 ("max on %s is %d (cur %lu)", source->mount,
                 mountinfo->max_listeners, source->listeners);
@@ -2239,7 +2249,14 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         return client_send_403redirect (client, passed_mount, "max listeners reached");
 
     } while (1);
+
     client->connection.sent_bytes = 0;
+
+    if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+    {
+        thread_rwlock_unlock (&source->lock);
+        return fserve_setup_client (client);
+    }
 
     if (client->respcode == 0)
     {
@@ -2248,6 +2265,17 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     }
 
     httpp_deletevar (client->parser, "range");
+    if (client->flags & CLIENT_RANGE_END)
+    {
+        // range given on a stream, impose a length limit
+        if (client->connection.discon.offset < client->intro_offset)
+           client->connection.discon.offset = 4096;
+        else
+        {
+            client->connection.discon.offset -= client->intro_offset;
+            client->intro_offset = 0;
+        }
+    }
     source_setup_listener (source, client);
     source->listeners++;
     if ((client->flags & CLIENT_ACTIVE) && (source->flags & SOURCE_RUNNING))
@@ -2291,7 +2319,7 @@ void source_setup_listener (source_t *source, client_t *client)
     // add client to the source
     avl_insert (source->clients, client);
     if (source->flags & SOURCE_ON_DEMAND)
-        source->client->connection.discon_time = 0; // a run-over with on-demand relays needs resetting
+        source->client->connection.discon.time = 0; // a run-over with on-demand relays needs resetting
 
     if ((source->flags & (SOURCE_ON_DEMAND|SOURCE_RUNNING)) == SOURCE_ON_DEMAND)
     {

@@ -119,7 +119,7 @@ static void process_header (const char *p, auth_client *auth_user)
     {
         unsigned limit;
         sscanf (p+24, "%u", &limit);
-        client->connection.discon_time = time(NULL) + limit;
+        client->connection.discon.time = time(NULL) + limit;
     }
     if (strncasecmp (p, "icecast-auth-message: ", 22) == 0)
     {
