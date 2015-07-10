@@ -389,6 +389,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         }
         if (client->respcode == 0)
         {
+            if (contenttype == NULL)
+                contenttype = "application/octet-stream";
             if (length)
             {
                 client->respcode = 200;
