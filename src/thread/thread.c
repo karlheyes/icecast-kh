@@ -762,30 +762,30 @@ void thread_rename(const char *name)
 
 static void _mutex_lock_c(mutex_t *mutex, const char *file, int line) 
 {
+    int rc;
 #if _POSIX_C_SOURCE>=200112L
     if (lock_problem_abort)
     {
         struct timespec now;
-        int rc;
         thread_get_timespec (&now);
         now.tv_sec += 7;
         rc = pthread_mutex_timedlock (&mutex->sys_mutex, &now);
-        if (rc)
-        {
-            if (file)
-                log_write (thread_log, 1, "thread/", "mutex", "lock error triggered at %s:%d (%d)", file,line, rc);
-            else
-                log_write (thread_log, 1, "thread/", "mutex", "lock error triggered no reference (%d)", rc);
-            if (mutex->file)
-                log_write (thread_log, 1, "thread/", "mutex", "last lock at %s:%d", mutex->file,mutex->line);
-            abort();
-        }
-        mutex->file = file;
-        mutex->line = line;
-        return;
     }
+    else
 #endif
-    pthread_mutex_lock(&mutex->sys_mutex);
+        rc = pthread_mutex_lock(&mutex->sys_mutex);
+    if (rc)
+    {
+        if (file)
+            log_write (thread_log, 1, "thread/", "mutex", "lock error triggered at %s:%d (%d)", file,line, rc);
+        else
+            log_write (thread_log, 1, "thread/", "mutex", "lock error triggered no reference (%d)", rc);
+        if (mutex->file)
+            log_write (thread_log, 1, "thread/", "mutex", "last lock at %s:%d", mutex->file,mutex->line);
+        abort();
+    }
+    mutex->file = file;
+    mutex->line = line;
 }
 
 static void _mutex_unlock_c(mutex_t *mutex, const char *file, int line)
