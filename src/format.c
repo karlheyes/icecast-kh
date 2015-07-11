@@ -373,17 +373,28 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             }
             else
             {
-                // for range requests on streams we return a 200 OK but only send a couple of bytes
-                length = 2;
-                client->connection.discon.offset = client->intro_offset + 2;
-                if (client->parser->req_type != httpp_req_head && remaining - bytes > length + 2)
+                // treat range 0- as if no range set, for chrome
+                if (client->connection.discon.offset == (uint64_t)-1)
                 {
-                    junk = malloc (length+1);
-                    memset (junk, 255, length);
-                    junk[length] = '\0';
-                    plugin = NULL;
-                    client->flags &= ~CLIENT_AUTHENTICATED;
-                    DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
+                    client->connection.discon.offset = 0;
+                    client->intro_offset = 0;
+                    client->flags &= ~CLIENT_RANGE_END;
+                    length = 0;
+                }
+                else
+                {
+                    // for range requests on streams we return a 200 OK but only send a couple of bytes
+                    length = 2;
+                    client->connection.discon.offset = client->intro_offset + 2;
+                    if (client->parser->req_type != httpp_req_head && remaining - bytes > length + 2)
+                    {
+                        junk = malloc (length+1);
+                        memset (junk, 255, length);
+                        junk[length] = '\0';
+                        plugin = NULL;
+                        client->flags &= ~CLIENT_AUTHENTICATED;
+                        DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
+                    }
                 }
             }
         }
