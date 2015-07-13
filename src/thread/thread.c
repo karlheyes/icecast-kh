@@ -520,6 +520,7 @@ int thread_rwlock_tryrlock_c(rwlock_t *rwlock, int line, const char *file)
     switch (ret)
     {
         default:
+            log_write (thread_log, 1, "thread/", "rwlock", "try rlock error triggered at %p, %s:%d (%d)", rwlock, file, line, ret);
             abort();
         case 0:
             return 0;

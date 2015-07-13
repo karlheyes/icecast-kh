@@ -224,7 +224,11 @@ static int directory_recheck (client_t *client)
 {
     int ret = -1;
 
-    thread_rwlock_rlock (&yp_lock);
+    if (thread_rwlock_tryrlock (&yp_lock) < 0)
+    {
+        client->schedule_ms = client->worker->time_ms + 300;
+        return 0;
+    }
     do {
         if (ypclient.connection.error)
             break;
