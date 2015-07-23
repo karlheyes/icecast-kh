@@ -548,7 +548,8 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             if (mp->resync_count > 20000)
             {
                 INFO1 ("no frame sync after 20k on %s", mp->mount);
-                return -1;
+                mp->settings |= 0x8000; // lets skip parsing
+                return 0;
             }
             if ((new_block->flags & REFBUF_SHARED) == 0)
             {
