@@ -734,13 +734,6 @@ static int complete_read (source_t *source)
             if (read_in - bytes > 700)
                 client->schedule_ms += 10;
         }
-        if (source_mp3->req_qblock_sz == 0)
-        {
-            int multi = 3;
-            if (source->incoming_rate)
-                multi = (source->incoming_rate /150000) + 1;
-            source_mp3->qblock_sz = 2900 * (multi < 6 ? multi : 6);
-        }
     }
     if (source_mp3->read_count < source_mp3->read_data->len)
         return 0;
@@ -839,23 +832,10 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         }
         else
         {
-            int diff = source_mp3->qblock_sz - (source_mp3->qblock_sz/1400)*1400;
-
-            if (diff < 880 && source_mp3->qblock_sz > 1400)
-                source_mp3->qblock_sz -= (diff + 10);
-
-            if (refbuf->len)
-            {
-                if (unprocessed < source_mp3->qblock_sz && source_mp3->qblock_sz > 200)
-                    len = (source_mp3->qblock_sz -= (unprocessed - 10));
-                else
-                    len = (source_mp3->qblock_sz += 400);
-            }
-            else
-            {
-                len = unprocessed + (source_mp3->req_qblock_sz < unprocessed ? 400 : 250);
-                source_mp3->qblock_sz = len;
-            }
+            int multi = 3;
+            if (source->incoming_rate)
+                multi = (source->incoming_rate/300000) + 1;
+            len = source_mp3->qblock_sz = 2900 * (multi < 6 ? multi : 6);
         }
         leftover = refbuf_new (len);
         memcpy (leftover->data, refbuf->data + refbuf->len, unprocessed);
