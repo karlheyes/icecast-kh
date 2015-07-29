@@ -220,10 +220,11 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
                "Content-Type: text/xml\r\n"
                "Content-Length: ";
         xmlDocDumpFormatMemoryEnc (doc, &buff, &len, NULL, 1);
-        buf_len = strlen (http) + len + 20;
+        buf_len = strlen (http) + len + 50;
         client_set_queue (client, NULL);
         client->refbuf = refbuf_new (buf_len);
-        len = snprintf (client->refbuf->data, buf_len, "%s%d\r\n\r\n%s", http, len, buff);
+        len = snprintf (client->refbuf->data, buf_len, "%s%d\r\n%s\r\n\r\n%s", http, len,
+                client_keepalive_header (client), buff);
         client->refbuf->len = len;
         xmlFree(buff);
         xmlFreeDoc (doc);

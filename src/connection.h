@@ -32,6 +32,8 @@ typedef struct connection_tag connection_t;
 #include "httpp/httpp.h"
 #include "net/sock.h"
 
+extern struct _client_functions http_request_ops;
+
 struct connection_tag
 {
     uint64_t id;
@@ -44,7 +46,8 @@ struct connection_tag
     uint64_t sent_bytes;
 
     sock_t sock;
-    int error;
+    unsigned short chunk_pos; // for short writes on chunk size line
+    char error;
 
 #ifdef HAVE_OPENSSL
     SSL *ssl;   /* SSL handler */
@@ -85,6 +88,12 @@ void connection_bufs_flush (struct connection_bufs *v);
 int  connection_bufs_append (struct connection_bufs *vectors, void *buf, unsigned int len);
 int  connection_bufs_read (connection_t *con, struct connection_bufs *vecs, int skip);
 int  connection_bufs_send (connection_t *con, struct connection_bufs *vecs, int skip);
+
+#define CHUNK_HDR_SZ            16
+
+void connection_chunk_start (connection_t *con, struct connection_bufs *vecs, char *chunk_hdr, unsigned chunk_sz);
+int  connection_chunk_end (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz);
+
 
 #ifdef HAVE_OPENSSL
 int  connection_read_ssl (connection_t *con, void *buf, size_t len);

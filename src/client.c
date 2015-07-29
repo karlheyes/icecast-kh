@@ -60,6 +60,25 @@ void client_register (client_t *client)
 }
 
 
+const char *client_keepalive_header (client_t *client)
+{
+    return (client->flags & CLIENT_KEEPALIVE) ?  "Connection: Keep-Alive" : "Connection: Close";
+}
+
+
+/* verify that the socket is still connected. */
+int client_connected (client_t *client)
+{
+    int ret = 1;
+    if (client)
+    {
+        if (sock_active (client->connection.sock) == 0)
+            ret = 0;
+    }
+    return ret;
+}
+
+
 void client_destroy(client_t *client)
 {
     if (client == NULL)
@@ -94,15 +113,8 @@ void client_destroy(client_t *client)
         client->flags &= ~CLIENT_IP_BAN_LIFT;
     }
 
-    connection_close (&client->connection);
     if (client->parser)
         httpp_destroy (client->parser);
-
-    global_lock ();
-    global.clients--;
-    stats_event_args (NULL, "clients", "%d", global.clients);
-    config_clear_listener (client->server_conn);
-    global_unlock ();
 
     /* we need to free client specific format data (if any) */
     if (client->free_client_data)
@@ -110,8 +122,35 @@ void client_destroy(client_t *client)
 
     free(client->username);
     free(client->password);
+    client->username = NULL;
+    client->password = NULL;
+    client->parser = NULL;
+    client->respcode = 0;
+    client->free_client_data = NULL;
 
-    free(client);
+    if (client->connection.error || (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
+    {
+        connection_close (&client->connection);
+        global_lock ();
+        global.clients--;
+        stats_event_args (NULL, "clients", "%d", global.clients);
+        config_clear_listener (client->server_conn);
+        global_unlock ();
+
+        free(client);
+        return;
+    }
+    DEBUG0 ("keepalive detected, placing back onto worker");
+    client->counter = client->schedule_ms = timing_get_time();
+    client->connection.con_time = client->schedule_ms/1000;
+    client->connection.discon.time = client->connection.con_time + 7;
+    client->ops = &http_request_ops;
+    client->flags = CLIENT_ACTIVE;
+    client->shared_data = NULL;
+    client->refbuf = NULL;
+    client->pos = 0;
+    client->intro_offset = client->connection.sent_bytes = 0;
+    client_add_worker (client);
 }
 
 
@@ -160,15 +199,20 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
 
 int client_send_302(client_t *client, const char *location)
 {
+    int len;
+    char body [4096];
+
     client_set_queue (client, NULL);
     client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+    len = snprintf (body, sizeof body, "Moved <a href=\"%s\">here</a>\r\n", location);
     snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
             "HTTP/1.0 302 Temporarily Moved\r\n"
             "Content-Type: text/html\r\n"
-            "Location: %s\r\n\r\n"
-            "Moved <a href=\"%s\">here</a>\r\n", location, location);
+            "Content-Length: %d\r\n"
+            "Location: %s\r\n\r\n%s",
+            len, location, body);
     client->respcode = 302;
-    client->refbuf->len = strlen (client->refbuf->data);
+    client->refbuf->len = len;
     return fserve_setup_client (client);
 }
 
@@ -255,11 +299,13 @@ int client_send_404 (client_t *client, const char *message)
             message = NULL;
         else if (message == NULL)
             message = "Not Available";
+        ret = strlen (message);
         client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
         snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
                 "HTTP/1.0 404 Not Available\r\n"
-                "Content-Type: text/html\r\n\r\n"
-                "%s", message ? message: "");
+                "%s\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n"
+                "%s", client_keepalive_header (client), ret,
+                message ? message: "");
         client->respcode = 404;
         client->refbuf->len = strlen (client->refbuf->data);
         ret = fserve_setup_client (client);
@@ -298,6 +344,7 @@ int client_send_options(client_t *client)
     client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
     snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
             "HTTP/1.1 200 OK\r\n"
+            "Connection: Keep-alive\r\n"
             "Access-Control-Allow-Origin: *\r\n"
             "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
             "Access-Control-Allow-Methods: GET, OPTIONS, HEAD, STATS\r\n\r\n");

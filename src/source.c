@@ -1156,6 +1156,7 @@ static int send_listener (source_t *source, client_t *client)
     else if (client->connection.discon.time && now >= client->connection.discon.time)
     {
         INFO1 ("time limit reached for client #%" PRIu64, client->connection.id);
+        client->connection.error = 1;
         return -1;
     }
     if (source_running (source) == 0)

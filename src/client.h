@@ -140,6 +140,8 @@ int  client_send_buffer_callback (client_t *client, int(*callback)(client_t*));
 int  client_read_bytes (client_t *client, void *buf, unsigned len);
 void client_set_queue (client_t *client, refbuf_t *refbuf);
 int  client_compare (void *compare_arg, void *a, void *b);
+int  client_connected (client_t *client);
+const char *client_keepalive_header (client_t *client);
 
 int  client_change_worker (client_t *client, worker_t *dest_worker);
 void client_add_worker (client_t *client);
@@ -162,6 +164,8 @@ void worker_wakeup (worker_t *worker);
 #define CLIENT_META_INSTREAM        (1<<9)
 #define CLIENT_HIJACKER             (1<<10)
 #define CLIENT_RANGE_END            (1<<11)
+#define CLIENT_KEEPALIVE            (1<<12)
+#define CLIENT_CHUNKED              (1<<13)
 #define CLIENT_FORMAT_BIT           (1<<16)
 
 #endif  /* __CLIENT_H__ */

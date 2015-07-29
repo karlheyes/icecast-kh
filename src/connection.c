@@ -525,6 +525,39 @@ int connection_bufs_send (connection_t *con, struct connection_bufs *vectors, in
 }
 
 
+void connection_chunk_start (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz)
+{
+    int chunk_hdrlen = snprintf (chunk_hdr, CHUNK_HDR_SZ, "%x\r\n", chunk_sz);
+
+    if (con->chunk_pos < chunk_hdrlen)
+    {
+        char *p = chunk_hdr + con->chunk_pos;
+        int len = chunk_hdrlen - con->chunk_pos;
+        connection_bufs_append (bufs, p, len);
+    }
+}
+
+
+int connection_chunk_end (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz)
+{
+    char *p = strchr (chunk_hdr, '\r');
+    if (p)
+    {
+        int len = 2;
+        int l = (p-chunk_hdr) + 2 + chunk_sz;
+        if (con->chunk_pos > l)
+        {
+           len = 1;
+           p++;
+        }
+        return connection_bufs_append (bufs, p, len);
+    }
+    ERROR0 ("chunk has no EOL");
+    abort();
+}
+
+
+
 static void add_generic_text (cache_file_contents *c, const char *in_str, time_t now)
 {
     char *str = strdup (in_str);
@@ -1154,13 +1187,21 @@ int setup_source_client_callback (client_t *client)
 static int http_client_request (client_t *client)
 {
     refbuf_t *refbuf = client->shared_data;
-    int remaining = PER_CLIENT_REFBUF_SIZE - 1 - refbuf->len, ret = -1;
+    int remaining, ret = -1;
+
+    if (refbuf == NULL)
+    {
+        client->shared_data = refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+        refbuf->len = 0; // for building up the request coming in
+    }
+    remaining = PER_CLIENT_REFBUF_SIZE - 1 - refbuf->len;
 
     if (remaining && client->connection.discon.time > client->worker->current_time.tv_sec)
     {
         char *buf = refbuf->data + refbuf->len;
 
-        ret = client_read_bytes (client, buf, remaining);
+        if (client_connected (client))
+            ret = client_read_bytes (client, buf, remaining);
         if (ret > 0)
         {
             char *ptr;
@@ -1212,6 +1253,8 @@ static int http_client_request (client_t *client)
             httpp_initialize (client->parser, NULL);
             if (httpp_parse (client->parser, refbuf->data, refbuf->len))
             {
+                const char *str;
+
                 if (useragents.filename)
                 {
                     const char *agent = httpp_getvar (client->parser, "user-agent");
@@ -1225,12 +1268,25 @@ static int http_client_request (client_t *client)
                 }
 
                 /* headers now parsed, make sure any sent content is next */
-                if (strcmp("ICE",  httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL)) &&
-                        strcmp("HTTP", httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL)))
+                str = httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL);
+                if (strcmp("ICE", str) && strcmp("HTTP", str))
                 {
                     ERROR0("Bad HTTP protocol detected");
                     return -1;
                 }
+                str = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
+                if (str && strcmp (str, "1.1") == 0)
+                    client->flags |= CLIENT_KEEPALIVE;  // make default for 1.1
+
+                str = httpp_getvar (client->parser, "connection");
+                if (str)
+                {
+                    if (strcasecmp (str, "keep-alive") == 0)
+                        client->flags |= CLIENT_KEEPALIVE;
+                    else
+                        client->flags &= ~CLIENT_KEEPALIVE;
+                }
+
                 auth_check_http (client);
                 switch (client->parser->req_type)
                 {

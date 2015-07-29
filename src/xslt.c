@@ -488,13 +488,13 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
                 "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n%s"
                 "Expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n"
                 "Cache-Control: no-store, no-cache, must-revalidate\r\n"
-                "Pragma: no-cache\r\n"
+                "Pragma: no-cache\r\n%s\r\n"
                 "Access-Control-Allow-Origin: *\r\n"
                 "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
                 "Access-Control-Allow-Methods: GET, OPTIONS, HEAD\r\n"
                 "\r\n",
                 mediatype, len,
-                cache[idx].disposition ? cache[idx].disposition : "");
+                cache[idx].disposition ? cache[idx].disposition : "", client_keepalive_header (client));
 
         thread_rwlock_unlock (&xslt_lock);
         client->respcode = 200;

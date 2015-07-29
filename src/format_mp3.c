@@ -599,7 +599,33 @@ static int format_mp3_write_buf_to_client (client_t *client)
     {
         char *buf = refbuf->data + client->pos;
 
-        ret = client_send_bytes (client, buf, len);
+        if (client->flags & CLIENT_CHUNKED)
+        {
+            int overall;
+            char chunk_hdr [CHUNK_HDR_SZ];
+            struct connection_bufs bufs;
+
+            connection_bufs_init (&bufs, 4);
+            connection_chunk_start (&client->connection, &bufs, chunk_hdr, len);
+            connection_bufs_append (&bufs, buf, len);
+            overall = connection_chunk_end (&client->connection, &bufs, chunk_hdr, len);
+
+            ret = connection_bufs_send (&client->connection, &bufs, 0);
+            connection_bufs_release (&bufs);
+            //DEBUG2 ("test, ret %d, overall %d", ret, overall);
+            if (ret == overall)
+            {
+                client->connection.chunk_pos = 0;
+                ret = len;
+            }
+            else
+            {
+                client->connection.chunk_pos += ret;
+                ret = -1;
+            }
+        }
+        else
+            ret = client_send_bytes (client, buf, len);
 
         if (ret < len)
             client->schedule_ms += 10 + (client->throttle * (ret < 0) ? 15 : 6);
@@ -1011,6 +1037,11 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     if (client->refbuf == NULL)
         client->refbuf = refbuf_new (4096);
     client->refbuf->len = 0;
+
+    metadata = httpp_getvar(client->parser, "icy-metadata");
+    if (metadata && atoi(metadata))
+        httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack force 1.0 if icy metadata requested
+
     if (format_general_headers (plugin, client) < 0)
         return -1;
 
@@ -1031,7 +1062,6 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     else
     {
         /* check for shoutcast style metadata inserts */
-        metadata = httpp_getvar(client->parser, "icy-metadata");
         if (metadata && atoi(metadata))
         {
             if (source_mp3->interval >= 0)

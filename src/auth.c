@@ -234,19 +234,6 @@ static void auth_client_free (auth_client *auth_user)
 }
 
 
-/* verify that the listener is still connected. */
-static int is_listener_connected (client_t *client)
-{
-    int ret = 1;
-    if (client)
-    {
-        if (sock_active (client->connection.sock) == 0)
-            ret = 0;
-    }
-    return ret;
-}
-
-
 /* wrapper function for auth thread to authenticate new listener
  * connection details
  */
@@ -256,7 +243,7 @@ static void auth_new_listener (auth_client *auth_user)
 
     /* make sure there is still a client at this point, a slow backend request
      * can be avoided if client has disconnected */
-    if (allow_auth == 0 || is_listener_connected (client) == 0)
+    if (allow_auth == 0 || client_connected (client) == 0)
     {
         DEBUG0 ("dropping listener connection");
         client->respcode = 400;

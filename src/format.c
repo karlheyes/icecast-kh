@@ -293,27 +293,27 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     if (client->respcode == 0)
     {
         const char *useragent = httpp_getvar (client->parser, "user-agent");
-        const char *protocol = "HTTP/1.0";
+        const char *protocol = (client->flags & CLIENT_KEEPALIVE) ?  "HTTP/1.1" : "HTTP/1.0";
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
         const char *fs = httpp_getvar (client->parser, "__FILESIZE");
-
-        if (useragent)
-        {
-            const char *resp = httpp_get_query_param (client->parser, "_hdr");
-            int fmtcode = 0;
+        const char *opt = httpp_get_query_param (client->parser, "_hdr");
+        int fmtcode = 0;
 #define FMT_RETURN_ICY          1
 #define FMT_LOWERCASE_TYPE      2
 #define FMT_FORCE_AAC           4
+#define FMT_DISABLE_CHUNKED     8
 
-            do
+        do
+        {
+            if (opt)
             {
-                if (resp)
-                {
-                    fmtcode = atoi (resp);
-                    break;
-                }
-                if (fs) break;  // ignore following settings for files.
+                fmtcode = atoi (opt);
+                break;
+            }
+            // ignore following settings for files.
+            if (fs == NULL && useragent)
+            {
                 if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
                     fmtcode = FMT_RETURN_ICY;
                 if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
@@ -332,14 +332,17 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     if (plugin->type == FORMAT_TYPE_AAC)
                         fmtcode |= FMT_FORCE_AAC;
                 }
-            } while (0);
-            if (fmtcode & FMT_RETURN_ICY)
-                protocol = "ICY";
-            if (fmtcode & FMT_LOWERCASE_TYPE)
-                contenttypehdr = "content-type";
-            if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
-                contenttype = "audio/aac";
-        }
+            }
+        } while (0);
+
+        if (fmtcode & FMT_DISABLE_CHUNKED)
+            client->flags &= ~CLIENT_KEEPALIVE;
+        if (fmtcode & FMT_RETURN_ICY)
+            protocol = "ICY";
+        if (fmtcode & FMT_LOWERCASE_TYPE)
+            contenttypehdr = "content-type";
+        if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
+            contenttype = "audio/aac";
         if (fs)
         {
             uint64_t len = (uint64_t)-1;
@@ -354,7 +357,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 
             if (client->connection.discon.offset == 0 || client->intro_offset >= client->connection.discon.offset)
             {
-                DEBUG2 ("client range invalid (%" PRIu64 ", %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
+                DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
                 return -1;
             }
             length = client->connection.discon.offset - client->intro_offset + 1;
@@ -411,9 +414,19 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             }
             else
             {
+                const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
+                int chunked = (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
+                const char *TE = "";
+
+                if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
+                {
+                    client->flags |= CLIENT_CHUNKED;
+                    TE = "Transfer-Encoding: chunked\r\n";
+                    protocol = "HTTP/1.1";
+                }
                 client->respcode = 200;
-                bytes = snprintf (ptr, remaining, "%s 200 OK\r\nAccept-Ranges: bytes\r\n"
-                        "%s: %s\r\n", protocol, contenttypehdr, contenttype);
+                bytes = snprintf (ptr, remaining, "%s 200 OK\r\nAccept-Ranges: bytes\r\n%s"
+                        "%s: %s\r\n", protocol, TE, contenttypehdr, contenttype);
             }
         }
         remaining -= bytes;
@@ -492,8 +505,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             "Access-Control-Allow-Origin: *\r\n"
             "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
             "Access-Control-Allow-Methods: GET, OPTIONS, HEAD\r\n"
-            "Connection: close\r\n"
-            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n");
+            "%s\r\n"
+            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n", client_keepalive_header (client));
     remaining -= bytes;
     ptr += bytes;
 
