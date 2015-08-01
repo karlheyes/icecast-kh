@@ -1091,6 +1091,7 @@ static void *yp_pending_update (void *arg)
     thread_mutex_lock (&yp_pending_lock);
     while (yp_changes_head)
     {
+        int processed = 0;
         // detaching the list allows lock drop, but we recheck it later
         list = yp_changes_head;
         yp_changes_head = NULL;
@@ -1107,8 +1108,10 @@ static void *yp_pending_update (void *arg)
 
             free (yp_change->mount);
             free (yp_change);
+            processed++;
         }
         thread_rwlock_unlock (&yp_lock);
+        INFO1 ("Processed %d changes", processed);
         thread_mutex_lock (&yp_pending_lock);
     }
     yp_pending_thread = 0;
@@ -1119,10 +1122,19 @@ static void *yp_pending_update (void *arg)
 
 static void yp_queue_change (yp_change_t *change)
 {
+    if (global.running != ICE_RUNNING)
+    {
+        free (change->mount);
+        free (change);
+        return;
+    }
     thread_mutex_lock (&yp_pending_lock);
-    *yp_changes = change;
-    yp_changes = &change->next;
-    if (yp_pending_thread == 0 && global.running == ICE_RUNNING)
+    if (change)
+    {
+        *yp_changes = change;
+        yp_changes = &change->next;
+    }
+    if (yp_pending_thread == 0)
     {
         yp_pending_thread = 1;
         thread_create ("YP change", yp_pending_update, NULL, THREAD_DETACHED);
