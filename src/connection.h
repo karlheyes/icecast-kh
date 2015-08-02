@@ -46,7 +46,7 @@ struct connection_tag
     uint64_t sent_bytes;
 
     sock_t sock;
-    unsigned short chunk_pos; // for short writes on chunk size line
+    unsigned int chunk_pos; // for short writes on chunk size line
     char error;
 
 #ifdef HAVE_OPENSSL
@@ -91,7 +91,7 @@ int  connection_bufs_send (connection_t *con, struct connection_bufs *vecs, int 
 
 #define CHUNK_HDR_SZ            16
 
-void connection_chunk_start (connection_t *con, struct connection_bufs *vecs, char *chunk_hdr, unsigned chunk_sz);
+int  connection_chunk_start (connection_t *con, struct connection_bufs *vecs, char *chunk_hdr, unsigned chunk_sz);
 int  connection_chunk_end (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz);
 
 

@@ -610,19 +610,22 @@ static int format_mp3_write_buf_to_client (client_t *client)
             connection_bufs_append (&bufs, buf, len);
             overall = connection_chunk_end (&client->connection, &bufs, chunk_hdr, len);
 
-            ret = connection_bufs_send (&client->connection, &bufs, 0);
-            connection_bufs_release (&bufs);
-            //DEBUG2 ("test, ret %d, overall %d", ret, overall);
-            if (ret == overall)
-            {
-                client->connection.chunk_pos = 0;
-                ret = len;
-            }
-            else
+            ret = connection_bufs_send (&client->connection, &bufs, client->connection.chunk_pos);
+            //if (ret != overall)
+                //DEBUG2 ("test, ret %d, overall %d", ret, overall);
+            if (ret > 0)
             {
                 client->connection.chunk_pos += ret;
-                ret = -1;
+                if (client->connection.chunk_pos > bufs.total) abort();
             }
+            if (client->connection.chunk_pos == overall)
+            {
+                client->connection.chunk_pos = 0;
+                ret = len; // move on to next block
+            }
+            else
+                ret = -1; // trigger a delay
+            connection_bufs_release (&bufs);
         }
         else
             ret = client_send_bytes (client, buf, len);

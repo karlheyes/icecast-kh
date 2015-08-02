@@ -491,6 +491,7 @@ int connection_bufs_send (connection_t *con, struct connection_bufs *vectors, in
     IOVEC *p = vectors->block, old_vals;
     int i = vectors->count,  offset = 0, ret = -1;
 
+    if (skip > vectors->total) abort();
     i = connbufs_locate_start (vectors, skip, &old_vals, &offset);
     p = vectors->block + i;
 
@@ -525,33 +526,19 @@ int connection_bufs_send (connection_t *con, struct connection_bufs *vectors, in
 }
 
 
-void connection_chunk_start (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz)
+int connection_chunk_start (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz)
 {
     int chunk_hdrlen = snprintf (chunk_hdr, CHUNK_HDR_SZ, "%x\r\n", chunk_sz);
 
-    if (con->chunk_pos < chunk_hdrlen)
-    {
-        char *p = chunk_hdr + con->chunk_pos;
-        int len = chunk_hdrlen - con->chunk_pos;
-        connection_bufs_append (bufs, p, len);
-    }
+    return connection_bufs_append (bufs, chunk_hdr, chunk_hdrlen);
 }
 
 
 int connection_chunk_end (connection_t *con, struct connection_bufs *bufs, char *chunk_hdr, unsigned chunk_sz)
 {
     char *p = strchr (chunk_hdr, '\r');
-    if (p)
-    {
-        int len = 2;
-        int l = (p-chunk_hdr) + 2 + chunk_sz;
-        if (con->chunk_pos > l)
-        {
-           len = 1;
-           p++;
-        }
-        return connection_bufs_append (bufs, p, len);
-    }
+    if (p && p[1] == '\n')
+        return connection_bufs_append (bufs, p, 2);
     ERROR0 ("chunk has no EOL");
     abort();
 }
