@@ -212,6 +212,7 @@ int client_send_302(client_t *client, const char *location)
             "Location: %s\r\n\r\n%s",
             len, location, body);
     client->respcode = 302;
+    client->flags &= ~CLIENT_KEEPALIVE;
     client->refbuf->len = len;
     return fserve_setup_client (client);
 }
@@ -226,6 +227,7 @@ int client_send_400(client_t *client, const char *message)
             "Content-Type: text/html\r\n\r\n"
             "<b>%s</b>\r\n", message?message:"");
     client->respcode = 400;
+    client->flags &= ~CLIENT_KEEPALIVE;
     client->refbuf->len = strlen (client->refbuf->data);
     return fserve_setup_client (client);
 }
@@ -247,6 +249,7 @@ int client_send_401 (client_t *client, const char *realm)
             "You need to authenticate\r\n", realm);
     config_release_config();
     client->respcode = 401;
+    client->flags &= ~CLIENT_KEEPALIVE;
     client->refbuf->len = strlen (client->refbuf->data);
     return fserve_setup_client (client);
 }
@@ -262,6 +265,7 @@ int client_send_403(client_t *client, const char *reason)
             "HTTP/1.0 403 %s\r\n"
             "Content-Type: text/html\r\n\r\n", reason);
     client->respcode = 403;
+    client->flags &= ~CLIENT_KEEPALIVE;
     client->refbuf->len = strlen (client->refbuf->data);
     return fserve_setup_client (client);
 }
