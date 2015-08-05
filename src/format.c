@@ -424,6 +424,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     TE = "Transfer-Encoding: chunked\r\n";
                     protocol = "HTTP/1.1";
                 }
+                client->flags &= ~CLIENT_KEEPALIVE;
                 client->respcode = 200;
                 bytes = snprintf (ptr, remaining, "%s 200 OK\r\nAccept-Ranges: bytes\r\n%s"
                         "%s: %s\r\n", protocol, TE, contenttypehdr, contenttype);

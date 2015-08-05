@@ -508,6 +508,7 @@ static int create_ogg_client_data (format_plugin_t *plugin, client_t *client)
         if (client->refbuf == NULL)
             client->refbuf = refbuf_new (4096);
         client->refbuf->len = 0;
+        httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack to avoid chunk
         ret = format_general_headers (plugin, client);
     }
     return ret;
