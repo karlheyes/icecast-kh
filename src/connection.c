@@ -1074,7 +1074,7 @@ static int shoutcast_source_client (client_t *client)
                 break;
 
             ret = client_read_bytes (client, buf, remaining);
-            if (ret == 0 || con->error)
+            if (ret == 0 || con->error || global.running != ICE_RUNNING)
                 break;
             if (ret < 0)
                 return 0;
