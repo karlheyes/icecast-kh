@@ -115,6 +115,7 @@ static int prefile_send (client_t *client);
 static int file_send (client_t *client);
 static int _compare_fh(void *arg, void *a, void *b);
 static int _delete_fh (void *mapping);
+static void remove_fh_from_cache (fh_node *fh);
 
 static fh_node no_file;
 
@@ -156,6 +157,12 @@ void fserve_shutdown(void)
         avl_delete (fh_cache, &no_file, NULL);
         while (fh_cache->length > 1 && count)
         {
+            fh_node *fh = fh_cache->root->right->key;
+            if (fh && fh->refcount == 0)
+            {
+                remove_fh_from_cache (fh);
+                continue;
+            }
             DEBUG1 ("waiting for %u entries to clear", fh_cache->length);
             thread_sleep (100000);
             count--;
