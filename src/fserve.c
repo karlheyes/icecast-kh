@@ -577,7 +577,6 @@ static void file_release (client_t *client)
 
     if (fh->finfo.limit)
         stats_event_dec (NULL, "listeners");
-    remove_from_fh (fh, client);
 
     client_set_queue (client, NULL);
 
@@ -597,6 +596,7 @@ static void file_release (client_t *client)
             config_release_config();
         }
     }
+    remove_from_fh (fh, client);
     if (ret < 0)
     {
         client->flags &= ~CLIENT_AUTHENTICATED;
