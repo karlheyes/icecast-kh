@@ -866,6 +866,11 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
                 multi = (source->incoming_rate/300000) + 1;
             len = source_mp3->qblock_sz = 2900 * (multi < 6 ? multi : 6);
         }
+        if (len < unprocessed + 40) // avoid block shrinkage
+        {
+            WARN3 ("source %s, len %ld, unprocessed %d", source->mount, (long)len, unprocessed);
+            len = unprocessed + 1000;
+        }
         leftover = refbuf_new (len);
         memcpy (leftover->data, refbuf->data + refbuf->len, unprocessed);
         source_mp3->read_data = leftover;
