@@ -881,6 +881,7 @@ static int locate_start_on_queue (source_t *source, client_t *client)
 static int http_source_introfile (client_t *client)
 {
     source_t *source = client->shared_data;
+    long duration, rate = source->incoming_rate, incoming_rate;
 
     //DEBUG2 ("client intro_pos is %ld, sent bytes is %ld", client->intro_offset, client->connection.sent_bytes);
     if (format_file_read (client, source->format, source->intro_file) < 0)
@@ -896,6 +897,39 @@ static int http_source_introfile (client_t *client)
         client->intro_offset = 0;  /* replay intro file */
         return -1;
     }
+
+    if (client->timer_start == 0)
+    {
+        long to_send = 0;
+        if (rate == 0) // stream must of just started
+            rate = 32000;
+        if (client->connection.sent_bytes < source->default_burst_size)
+            to_send = source->default_burst_size - client->connection.sent_bytes;
+        duration = (long)((float)to_send / source->incoming_rate);
+        client->timer_start = client->worker->current_time.tv_sec - (duration + 4);
+        client->counter = 4 * source->incoming_rate;
+        client->intro_offset = 0;
+    }
+    duration = (client->worker->current_time.tv_sec - client->timer_start);
+    if (duration)
+        rate = (long)((float)client->counter / duration);
+    incoming_rate = (long)(source->incoming_rate);
+
+    // DEBUG4 ("duration %lu, counter %ld, rate %ld, bytes %ld", duration, client->counter, rate, client->connection.sent_bytes);
+    if (rate > incoming_rate)
+    {
+        //DEBUG1 ("rate too high %lu, delaying", rate);
+        client->schedule_ms += 40;
+        return -1;
+    }
+    if (duration > 30 && rate < incoming_rate/4)
+    {
+        INFO0 ("Dropped listener, running too slow");
+        client->connection.error = 1;
+        client_set_queue (client, NULL);
+        return -1; // assume a slow/stalled connection so drop
+    }
+
     return source->format->write_buf_to_client (client);
 }
 
