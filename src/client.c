@@ -299,9 +299,7 @@ int client_send_404 (client_t *client, const char *message)
     }
     else
     {
-        if (client->parser->req_type == httpp_req_head)
-            message = NULL;
-        else if (message == NULL)
+        if (client->parser->req_type == httpp_req_head || message == NULL)
             message = "Not Available";
         ret = strlen (message);
         client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
