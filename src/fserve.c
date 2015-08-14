@@ -589,21 +589,31 @@ static void file_release (client_t *client)
 
     if (client->flags & CLIENT_AUTHENTICATED && client->parser->req_type == httpp_req_get)
     {
-        const char *mount = fh->finfo.mount;
+        const char *m = NULL;
 
         if (fh->finfo.flags & FS_FALLBACK)
-            mount = httpp_getvar (client->parser, HTTPP_VAR_URI);
-        if (mount)
+            m = httpp_getvar (client->parser, HTTPP_VAR_URI);
+        else
+            m = fh->finfo.mount;
+        if (m)
         {
-            ice_config_t *config = config_get_config ();
+            ice_config_t *config;
+            char *mount = strdup (m);
+
+            remove_from_fh (fh, client);
+            config = config_get_config ();
             mount_proxy *mountinfo = config_find_mount (config, mount);
             if (mountinfo && mountinfo->access_log.name)
                 logging_access_id (&mountinfo->access_log, client);
             ret = auth_release_listener (client, mount, mountinfo);
             config_release_config();
+            free (mount);
         }
+        else
+            remove_from_fh (fh, client);
     }
-    remove_from_fh (fh, client);
+    else
+        remove_from_fh (fh, client);
     if (ret < 0)
     {
         client->flags &= ~CLIENT_AUTHENTICATED;
