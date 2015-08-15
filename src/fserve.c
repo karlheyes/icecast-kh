@@ -480,6 +480,8 @@ int fserve_client_create (client_t *httpclient, const char *path)
         char *dot = strrchr (sourceuri, '.');
         char *protocol = "http";
         const char *agent = httpp_getvar (httpclient->parser, "user-agent");
+        int x;
+        char scratch[1000];
 
         if (agent)
         {
@@ -503,12 +505,10 @@ int fserve_client_create (client_t *httpclient, const char *path)
         if (host == NULL)
         {
             config = config_get_config();
-            snprintf (httpclient->refbuf->data, BUFSIZE,
-                    "HTTP/1.0 200 OK\r\n"
-                    "Content-Type: audio/x-mpegurl\r\n\r\n"
-                    "%s://%s%s%s%s%s:%d%s%s\r\n", 
+            x = snprintf (scratch, sizeof scratch,
+                    "%s://%s%s%s%s%s:%d%s%s\r\n",
                     protocol,
-                    user, at[0]?":":"", pass, at, 
+                    user, at[0]?":":"", pass, at,
                     config->hostname, config->port,
                     sourceuri,
                     args?args:"");
@@ -516,16 +516,20 @@ int fserve_client_create (client_t *httpclient, const char *path)
         }
         else
         {
-            snprintf (httpclient->refbuf->data, BUFSIZE,
-                    "HTTP/1.0 200 OK\r\n"
-                    "Content-Type: audio/x-mpegurl\r\n\r\n"
+            x = snprintf (scratch, sizeof scratch,
                     "%s://%s%s%s%s%s%s%s\r\n",
                     protocol,
-                    user, at[0]?":":"", pass, at, 
-                    host, 
+                    user, at[0]?":":"", pass, at,
+                    host,
                     sourceuri,
                     args?args:"");
         }
+        snprintf (httpclient->refbuf->data, BUFSIZE,
+                "HTTP/1.0 200 OK\r\n"
+                "Content-Length: %d\r\n"
+                "%s\r\n"
+                "Content-Type: audio/x-mpegurl\r\n\r\n%s",
+                x, client_keepalive_header (httpclient), scratch);
         httpclient->refbuf->len = strlen (httpclient->refbuf->data);
         free (sourceuri);
         free (fullpath);
