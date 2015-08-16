@@ -371,6 +371,7 @@ static void mp3_set_title (source_t *source)
         char *ibp = iceblock->data + 2;
         int r, n, ib_len = iceblock->len - 2;
 
+        xmlSetStructuredErrorFunc (source->mount, config_xml_parse_failure);
         memset (p->data, '\0', size);
         p->associated = flvmeta;
         flvmeta->associated = iceblock;

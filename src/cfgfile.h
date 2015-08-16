@@ -339,6 +339,7 @@ listener_t *config_clear_listener (listener_t *listener);
 relay_server *config_clear_relay (relay_server *relay);
 void config_clear(ice_config_t *config);
 mount_proxy *config_find_mount (ice_config_t *config, const char *mount);
+void config_xml_parse_failure (void*x,  xmlErrorPtr error);
 
 int config_rehash(void);
 

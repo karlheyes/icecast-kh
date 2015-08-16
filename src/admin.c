@@ -357,6 +357,7 @@ int admin_handle_request (client_t *client, const char *uri)
 
     if (mount)
     {
+        xmlSetStructuredErrorFunc ((char*)mount, config_xml_parse_failure);
         /* no auth/stream required for this */
         if (strcmp (uri, "buildm3u") == 0)
             return command_buildm3u (client, mount);
@@ -399,6 +400,7 @@ static int admin_handle_general_request (client_t *client, const char *uri)
     }
 
     cmd = find_admin_command (admin_general, uri);
+    xmlSetStructuredErrorFunc ((char*)uri, config_xml_parse_failure);
     if (cmd == NULL)
     {
         INFO1 ("processing file %s", uri);

@@ -449,6 +449,7 @@ int config_parse_file(const char *filename, ice_config_t *configuration)
 
     if (filename == NULL || strcmp(filename, "") == 0) return CONFIG_EINSANE;
     
+    xmlSetStructuredErrorFunc ("conf/file", config_xml_parse_failure);
     doc = xmlParseFile(filename);
     if (doc == NULL) {
         return CONFIG_EPARSE;
@@ -1358,3 +1359,11 @@ mount_proxy *config_find_mount (ice_config_t *config, const char *mount)
     return mountinfo;
 }
 
+
+void config_xml_parse_failure (void *user, xmlErrorPtr error)
+{
+   if (error->file)
+       log_parse_failure (user, "%s %s", error->file, error->message);
+   else
+       log_parse_failure (user, "%s", error->message);
+}

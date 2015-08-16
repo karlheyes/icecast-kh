@@ -224,7 +224,7 @@ void *xslt_update (void *arg)
     char *fn = x->cache.filename;
     xsltStylesheetPtr sheet;
 
-    xmlSetGenericErrorFunc ("", log_parse_failure);
+    xmlSetStructuredErrorFunc ("xsl/file", config_xml_parse_failure);
     xsltSetGenericErrorFunc ("", log_parse_failure);
 
     sheet = x->cache.stylesheet = xsltParseStylesheetFile (XMLSTR(fn));
