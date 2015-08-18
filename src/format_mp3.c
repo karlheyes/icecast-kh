@@ -226,7 +226,7 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
                 break;
             len = end - metadata - 12;
             s = malloc (len);
-            snprintf (s, len, "%s", metadata+13);
+            snprintf (s, len, "%.*s", len-1, metadata+13);
             free (source_mp3->url_title);
             source_mp3->url_title = s;
             INFO2 ("incoming title for %s %s", name, s);
@@ -242,7 +242,7 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
                 break;
             len = end - metadata - 10;
             s = malloc (len);
-            snprintf (s, len, "%s", metadata+11);
+            snprintf (s, len, "%.*s", len-1, metadata+11);
             free (source_mp3->inline_url);
             source_mp3->inline_url = s;
             INFO2 ("incoming URL for %s %s", name, s);
