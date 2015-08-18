@@ -221,7 +221,7 @@ int parse_xml_tags (xmlNodePtr parent, const struct cfg_tag *args)
             argp++;
         }
         if (argp->name == NULL)
-            WARN3 ("unknown element \"%s\" parsing \"%s\" at line %ld", node->name,
+            xmlParserWarning (NULL, "unknown element \"%s\" parsing \"%s\" at line %ld", node->name,
                     parent->name, xmlGetLineNo(node));
     }
     if (ret == 0 && seen_element == 0)
@@ -449,6 +449,7 @@ int config_parse_file(const char *filename, ice_config_t *configuration)
 
     if (filename == NULL || strcmp(filename, "") == 0) return CONFIG_EINSANE;
     
+    xmlSetGenericErrorFunc ("conf/file", log_parse_failure);
     xmlSetStructuredErrorFunc ("conf/file", config_xml_parse_failure);
     doc = xmlParseFile(filename);
     if (doc == NULL) {

@@ -158,7 +158,7 @@ void log_parse_failure (void *ctx, const char *fmt, ...)
     eol = strrchr (line, '\n');
     if (eol) *eol='\0';
     va_end (ap);
-    log_write (errorlog, 2, (char*)ctx, "", "%s", line);
+    log_write (errorlog, 2, "xml/", "parsing", "%s", line);
 }
 
 
