@@ -336,8 +336,10 @@ int write_flv_buf_to_client (client_t *client)
     ret = send_flv_buffer (client, flv);
     if (flv->mpeg_sync.raw_offset == 0)
     {
+        int queue_bytes = client->refbuf->len;
         client->pos = ref->len;
-        client->queue_pos += client->refbuf->len;
+        client->queue_pos += queue_bytes;
+        client->counter += queue_bytes;
         if (flv->seen_metadata != scmeta)
             flv->seen_metadata = scmeta;
     }
