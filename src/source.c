@@ -1435,7 +1435,7 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
 
 void source_set_fallback (source_t *source, const char *dest_mount)
 {
-    int bitrate = 0;
+    int rate = 0;
     client_t *client = source->client;
     time_t connected;
 
@@ -1457,14 +1457,14 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 
     connected = client->worker->current_time.tv_sec - client->connection.con_time;
     if (connected > 40)
-        bitrate = (int)rate_avg (source->in_bitrate);
-    if (bitrate == 0 && source->limit_rate)
-        bitrate = source->limit_rate;
+        rate = (int)rate_avg (source->in_bitrate);
+    if (rate == 0 && source->limit_rate)
+        rate = source->limit_rate;
 
     source->fallback.mount = strdup (dest_mount);
     source->fallback.fallback = source->mount;
     source->fallback.flags = FS_FALLBACK;
-    source->fallback.limit = bitrate;
+    source->fallback.limit = rate;
     source->fallback.type = source->format->type;
     INFO4 ("fallback set on %s to %s(%d) with %ld listeners", source->mount, dest_mount,
             source->fallback.limit, source->listeners);
