@@ -128,18 +128,20 @@ void client_destroy(client_t *client)
     client->respcode = 0;
     client->free_client_data = NULL;
 
-    if (client->connection.error || (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
+    global_lock ();
+    if (global.running != ICE_RUNNING || client->connection.error ||
+            (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
     {
-        connection_close (&client->connection);
-        global_lock ();
         global.clients--;
         stats_event_args (NULL, "clients", "%d", global.clients);
         config_clear_listener (client->server_conn);
         global_unlock ();
+        connection_close (&client->connection);
 
         free(client);
         return;
     }
+    global_unlock ();
     DEBUG0 ("keepalive detected, placing back onto worker");
     client->counter = client->schedule_ms = timing_get_time();
     client->connection.con_time = client->schedule_ms/1000;
