@@ -648,7 +648,10 @@ static int fserve_move_listener (client_t *client)
     fbinfo f;
 
     memset (&f, 0, sizeof (f));
-    client_set_queue (client, NULL);
+    if (client->refbuf && client->pos < client->refbuf->len)
+        client->flags |= CLIENT_HAS_INTRO_CONTENT; // treat it as a partial write needing completion
+    else
+        client_set_queue (client, NULL);
     f.flags = fh->finfo.flags & (~FS_DELETE);
     f.limit = fh->finfo.limit;
     f.mount = fh->finfo.fallback;

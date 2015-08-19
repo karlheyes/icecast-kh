@@ -2352,7 +2352,10 @@ void source_setup_listener (source_t *source, client_t *client)
     client->flags &= ~CLIENT_IN_FSERVE;
     client->timer_start = client->worker->current_time.tv_sec;
 
-    client->check_buffer = http_source_listener;
+    if (client->connection.sent_bytes > 0)
+        client->check_buffer = http_source_introfile; // may need incomplete data sending
+    else
+        client->check_buffer = http_source_listener; // special case for headers
     // add client to the source
     avl_insert (source->clients, client);
     if (source->flags & SOURCE_ON_DEMAND)
