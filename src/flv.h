@@ -21,6 +21,7 @@ struct flv
 {
     int prev_tagsize;
     int block_pos;
+    unsigned int samples_in_buffer;
     uint64_t prev_ms;
     int64_t samples;
     refbuf_t *seen_metadata;

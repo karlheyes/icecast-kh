@@ -331,10 +331,12 @@ int write_flv_buf_to_client (client_t *client)
             repack = 1;
             flv->mpeg_sync.raw_offset = 0;
             connection_bufs_flush (&flv->bufs);
+            flv->samples -= flv->samples_in_buffer; // role back the sample count;
         }
     }
     if (repack)
     {
+        uint64_t prev_samples = flv->samples;
         int unprocessed = mpeg_complete_frames (&flv->mpeg_sync, ref, client->pos);
 
         if (unprocessed < 0)
@@ -344,6 +346,7 @@ int write_flv_buf_to_client (client_t *client)
 
         if (flv->seen_metadata != scmeta)
             flv_write_metadata (flv, scmeta, client->mount);
+        flv->samples_in_buffer = (unsigned)(flv->samples - prev_samples);
     }
     ret = send_flv_buffer (client, flv);
     if (flv->mpeg_sync.raw_offset == 0)
