@@ -308,7 +308,7 @@ int write_flv_buf_to_client (client_t *client)
 {
     refbuf_t *ref = client->refbuf, *scmeta = ref->associated;
     struct flv *flv = client->format_data;
-    int ret;
+    int ret, repack = 0;
 
     if (client->pos > ref->len)
     {
@@ -321,6 +321,19 @@ int write_flv_buf_to_client (client_t *client)
 
     /* check for metadata updates and insert if needed */
     if (flv->mpeg_sync.raw_offset == 0)
+        repack = 1;
+    else if (flv->bufs.count > 0) // if ref has changed then references are now invalid
+    {
+        char *p1 = flv->bufs.block[1].iov_base, *p2 = ref->data;
+        int diff = (p1 < p2) ? p2-p1 : p1-p2;
+        if (diff > ref->len) // original buffer must of been copied, need to repack to keep valid
+        {
+            repack = 1;
+            flv->mpeg_sync.raw_offset = 0;
+            connection_bufs_flush (&flv->bufs);
+        }
+    }
+    if (repack)
     {
         int unprocessed = mpeg_complete_frames (&flv->mpeg_sync, ref, client->pos);
 
@@ -330,8 +343,7 @@ int write_flv_buf_to_client (client_t *client)
             ref->len += unprocessed;   /* output was truncated, so revert changes */
 
         if (flv->seen_metadata != scmeta)
-            if (flv_write_metadata (flv, scmeta, client->mount) < 0)
-                return 0;
+            flv_write_metadata (flv, scmeta, client->mount);
     }
     ret = send_flv_buffer (client, flv);
     if (flv->mpeg_sync.raw_offset == 0)
