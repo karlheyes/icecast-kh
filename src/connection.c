@@ -406,14 +406,6 @@ int connection_send (connection_t *con, const void *buf, size_t len)
 }
 
 
-#ifdef WIN32
-#define IO_VECTOR_LEN(x) ((x)->len)
-#define IO_VECTOR_BASE(x) ((x)->buf)
-#else
-#define IO_VECTOR_LEN(x) ((x)->iov_len)
-#define IO_VECTOR_BASE(x) ((x)->iov_base)
-#endif
-
 void connection_bufs_init (struct connection_bufs *v, short start)
 {
     memset (v, 0, sizeof (struct connection_bufs));

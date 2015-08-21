@@ -64,6 +64,13 @@ struct connection_bufs
     IOVEC *block;
 };
 
+#ifdef WIN32
+#define IO_VECTOR_LEN(x) ((x)->len)
+#define IO_VECTOR_BASE(x) ((x)->buf)
+#else
+#define IO_VECTOR_LEN(x) ((x)->iov_len)
+#define IO_VECTOR_BASE(x) ((x)->iov_base)
+#endif
 
 #ifdef HAVE_OPENSSL
 #define not_ssl_connection(x)    ((x)->ssl==NULL)

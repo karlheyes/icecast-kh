@@ -324,7 +324,7 @@ int write_flv_buf_to_client (client_t *client)
         repack = 1;
     else if (flv->bufs.count > 0) // if ref has changed then references are now invalid
     {
-        char *p1 = flv->bufs.block[1].iov_base, *p2 = ref->data;
+        char *p1 = IO_VECTOR_BASE (&flv->bufs.block[1]), *p2 = ref->data;
         int diff = (p1 < p2) ? p2-p1 : p1-p2;
         if (diff > ref->len) // original buffer must of been copied, need to repack to keep valid
         {
