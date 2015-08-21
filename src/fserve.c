@@ -721,13 +721,16 @@ static int prefile_send (client_t *client)
             {
                 if (file_in_use (fh->f)) // is there a file to read from
                 {
-                    if (fh->finfo.limit)
-                        client->ops = &throttled_file_content_ops;
-                    else
-                        client->ops = &file_content_ops;
                     refbuf_release (client->refbuf);
                     client->refbuf = NULL;
                     client->pos = 0;
+                    if (fh->finfo.limit)
+                    {
+                        client->ops = &throttled_file_content_ops;
+                        rate_add (fh->out_bitrate, 0, worker->time_ms);
+                        return 0;
+                    }
+                    client->ops = &file_content_ops;
                     return client->ops->process (client);
                 }
                 if (client->respcode)
@@ -826,27 +829,24 @@ static int throttled_file_send (client_t *client)
 
     if (client->flags & CLIENT_WANTS_FLV) /* increase limit for flv clients as wrapping takes more space */
         limit = (unsigned long)(limit * 1.01);
-    if (secs)
-        rate = (client->counter+1400)/secs;
+    rate = secs ? (client->counter+1400)/secs : limit * 2;
     // DEBUG3 ("counter %lld, duration %ld, limit %u", client->counter, secs, rate);
-    if (rate > limit || secs < 3)
+    if (rate > limit)
     {
         if (limit >= 1400)
             client->schedule_ms += 1000/(limit/1400);
         else
             client->schedule_ms += 50; // should not happen but guard against it
         rate_add (fh->out_bitrate, 0, worker->time_ms);
-        if (secs > 2)
-        {
-            global_add_bitrates (global.out_bitrate, 0, worker->time_ms);
-            return 0;
-        }
+        global_add_bitrates (global.out_bitrate, 0, worker->time_ms);
+        if (client->counter > 8192)
+            return 0; // allow an initial amount without throttling
     }
     switch (format_file_read (client, fh->format, fh->f))
     {
         case -1: // DEBUG0 ("loop of file triggered");
             client->intro_offset = 0;
-            client->schedule_ms += 150;
+            client->schedule_ms += client->throttle ? client->throttle : 150;
             return 0;
         case -2: // DEBUG0 ("major failure on read, better leave");
             return -1;
