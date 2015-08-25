@@ -1168,6 +1168,8 @@ static int http_client_request (client_t *client)
     refbuf_t *refbuf = client->shared_data;
     int remaining, ret = -1;
 
+    if (global.running != ICE_RUNNING)
+        return -1;
     if (refbuf == NULL)
     {
         client->shared_data = refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
@@ -1179,8 +1181,7 @@ static int http_client_request (client_t *client)
     {
         char *buf = refbuf->data + refbuf->len;
 
-        if (client_connected (client))
-            ret = client_read_bytes (client, buf, remaining);
+        ret = client_read_bytes (client, buf, remaining);
         if (ret > 0)
         {
             char *ptr;
