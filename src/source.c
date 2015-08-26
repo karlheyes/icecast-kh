@@ -1107,7 +1107,7 @@ static int send_to_listener (client_t *client)
     ret = send_listener (source, client);
     if (ret == 1)
         return 1; // client moved, and source unlocked
-    if (ret < 0)
+    if (ret < 0 && client->shared_data == source)
         ret = source_listener_release (source, client);
     thread_rwlock_unlock (&source->lock);
     return ret;
@@ -1126,17 +1126,17 @@ int listener_waiting_on_source (source_t *source, client_t *client)
     }
     if (source->fallback.mount)
     {
-        int move_failed;
+        int ret;
 
         source_listener_detach (source, client);
         thread_rwlock_unlock (&source->lock);
-        move_failed = move_listener (client, &source->fallback);
+        ret = move_listener (client, &source->fallback);
         thread_rwlock_wlock (&source->lock);
         source->termination_count--;
-        if (move_failed == 0)
+        if (ret <= 0)
         {
             source->listeners--;
-            return 0;
+            return ret;
         }
         source_setup_listener (source, client);
     }
