@@ -14,8 +14,6 @@
 #include <config.h>
 #endif
 
-#define _POSIX 1
-
 #include "compat.h"
 #include <sys/types.h>
 #include <string.h>

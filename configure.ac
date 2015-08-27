@@ -28,6 +28,9 @@ else
     AC_DEFINE([_GNU_SOURCE], 1, [Define to include GNU extensions to POSIX])
 fi
 AM_CONDITIONAL([WIN32], [test x$host_os = xmingw32])
+if test x$host_os = xmingw32; then
+AC_DEFINE([_POSIX], 1, [Define to use C99 routines on MS])
+fi
 
 dnl Checks for programs.
 
