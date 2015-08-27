@@ -371,8 +371,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                         "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
                         protocol, contenttypehdr,
                         contenttype ? contenttype : "application/octet-stream",
-                        length,
-                        client->intro_offset, client->connection.discon.offset, length);
+                        length, (uint64_t)client->intro_offset,
+                        client->connection.discon.offset, length);
             }
             else
             {
