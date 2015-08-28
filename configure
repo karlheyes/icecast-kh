@@ -16193,6 +16193,11 @@ else
   WIN32_FALSE=
 fi
 
+if test x$host_os = xmingw32; then
+
+$as_echo "#define _POSIX 1" >>confdefs.h
+
+fi
 
 
 

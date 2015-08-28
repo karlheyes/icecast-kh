@@ -297,6 +297,9 @@ typedef int socklen_t;
 /* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
 
+/* Define to use C99 routines on MS */
+#undef _POSIX
+
 /* Replace __func__ if not supported */
 #undef __func__
 
