@@ -290,6 +290,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     source_mp3->qblock_sz = 2900;
     source_mp3->req_qblock_sz = 0;
     source_mp3->max_send_size = 1400;
+    format->flags &= ~FORMAT_FL_ALLOW_HTTPCHUNKED;
     if (mount)
     {
         source_mp3->max_send_size = mount->max_send_size;
@@ -299,6 +300,8 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
             format->charset = strdup (mount->charset);
         if (mount->queue_block_size)
             source_mp3->qblock_sz = source_mp3->req_qblock_sz = mount->queue_block_size;
+        if (mount->allow_chunked)
+           format->flags |= FORMAT_FL_ALLOW_HTTPCHUNKED;
     }
     if (source_mp3->interval < 0)
     {

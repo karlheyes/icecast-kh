@@ -127,6 +127,7 @@ typedef struct _mount_proxy {
     int hidden; /* Do we list this on the xsl pages */
     unsigned int source_timeout;  /* source timeout in seconds */
     char *charset;  /* character set if not utf8 */
+    int allow_chunked; /* allow chunked transfers */
     int mp3_meta_interval; /* outgoing per-stream metadata interval */
     int queue_block_size; /* for non-ogg streams, try to create blocks of this size */
     int max_send_size;

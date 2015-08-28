@@ -37,18 +37,23 @@ typedef enum _format_type_tag
 
 typedef struct _format_plugin_tag format_plugin_t;
 
+// possible flags for format_plugin
+#define FORMAT_FL_ALLOW_HTTPCHUNKED             1
+
+
 struct _format_plugin_tag
 {
     format_type_t type;
+    unsigned int flags;
 
     /* we need to know the mount to report statistics */
     char *mount;
 
     char *contenttype;
     char *charset;
+    http_parser_t *parser;
     uint64_t read_bytes;
     uint64_t sent_bytes;
-    http_parser_t *parser;
 
     refbuf_t *(*get_buffer)(struct source_tag *);
     int (*write_buf_to_client)(client_t *client);

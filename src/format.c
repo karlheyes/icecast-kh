@@ -414,10 +414,14 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             }
             else
             {
-                const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
-                int chunked = (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
+                int chunked = 0; // (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
                 const char *TE = "";
 
+                if (plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
+                {
+                    const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
+                    chunked = (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
+                }
                 if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
                 {
                     client->flags |= CLIENT_CHUNKED;

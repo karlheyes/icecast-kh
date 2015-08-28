@@ -932,6 +932,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         { "fallback-mount",     config_get_str,     &mount->fallback_mount },
         { "fallback-override",  config_get_bool,    &mount->fallback_override },
         { "fallback-when-full", config_get_bool,    &mount->fallback_when_full },
+        { "allow-chunked",      config_get_bool,    &mount->allow_chunked },
         { "max-listeners",      config_get_int,     &mount->max_listeners },
         { "max-bandwidth",      config_get_bitrate, &mount->max_bandwidth },
         { "wait-time",          config_get_int,     &mount->wait_time },
