@@ -686,6 +686,11 @@ static int source_client_read (client_t *client)
         if (client->timer_start + 1000 < client->worker->time_ms)
         {
             WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
+            if (source->listeners != source->clients->length)
+            {
+                WARN3 ("source %s has inconsist listeners (%ld, %u)", source->mount, source->listeners, source->clients->length);
+                source->listeners = source->clients->length;
+            }
             source->flags &= ~SOURCE_TERMINATING;
         }
         else
@@ -1107,7 +1112,7 @@ static int send_to_listener (client_t *client)
     ret = send_listener (source, client);
     if (ret == 1)
         return 1; // client moved, and source unlocked
-    if (ret < 0 && client->shared_data == source)
+    if (ret < 0)
         ret = source_listener_release (source, client);
     thread_rwlock_unlock (&source->lock);
     return ret;
@@ -1130,6 +1135,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 
         source_listener_detach (source, client);
         thread_rwlock_unlock (&source->lock);
+        client->shared_data = NULL;
         ret = move_listener (client, &source->fallback);
         thread_rwlock_wlock (&source->lock);
         source->termination_count--;
@@ -2081,16 +2087,19 @@ static int source_listener_release (source_t *source, client_t *client)
     ice_config_t *config;
     mount_proxy *mountinfo;
 
-    thread_rwlock_unlock (&source->lock);
-    thread_rwlock_wlock (&source->lock);
+    if (client->shared_data == source) // still attached to source?
+    {
+        thread_rwlock_unlock (&source->lock);
+        thread_rwlock_wlock (&source->lock);
 
-    /* search through sources client list to find previous link in list */
-    source_listener_detach (source, client);
-    source->listeners--;
-    client->shared_data = NULL;
-    client_set_queue (client, NULL);
-    if (source->listeners == 0)
-        rate_reduce (source->out_bitrate, 500);
+        /* search through sources client list to find previous link in list */
+        source_listener_detach (source, client);
+        source->listeners--;
+        client->shared_data = NULL;
+        client_set_queue (client, NULL);
+        if (source->listeners == 0)
+            rate_reduce (source->out_bitrate, 500);
+    }
 
     stats_event_dec (NULL, "listeners");
     /* change of listener numbers, so reduce scope of global sampling */
