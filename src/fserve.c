@@ -603,10 +603,11 @@ static void file_release (client_t *client)
         {
             ice_config_t *config;
             char *mount = strdup (m);
+            mount_proxy *mountinfo;
 
             remove_from_fh (fh, client);
             config = config_get_config ();
-            mount_proxy *mountinfo = config_find_mount (config, mount);
+            mountinfo = config_find_mount (config, mount);
             if (mountinfo && mountinfo->access_log.name)
                 logging_access_id (&mountinfo->access_log, client);
             ret = auth_release_listener (client, mount, mountinfo);
