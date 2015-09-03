@@ -148,7 +148,7 @@ int format_get_plugin (format_plugin_t *plugin)
 int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f)
 {
     refbuf_t *refbuf = client->refbuf;
-    ssize_t bytes = -1, len;
+    ssize_t bytes = -1, len, range = 0;
     int unprocessed = 0;
 
     do
@@ -187,10 +187,9 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
         if (client->flags & CLIENT_RANGE_END)
         {
-            ssize_t range;
             if (client->intro_offset >= client->connection.discon.offset)
             {
-                DEBUG0 ("End of requested range");
+                DEBUG1 ("End of requested range (%" PRId64 ")", client->connection.discon.offset);
                 return -1;
             }
             range = client->connection.discon.offset - client->intro_offset + 1;
@@ -210,7 +209,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
         {
             // special case of filtering ID3 from fallback files
             unsigned char *p = (unsigned char*)refbuf->data;
-            
+
             if (p[3] < 0xFF && p[4] < 0xFF && (p[5] & 0xF) == 0)
             {
                 int ver = p[3], rev = p[4];
@@ -232,7 +231,12 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
              * certain boundaries */
             unprocessed = plugin->align_buffer (client, plugin);
             if (unprocessed == bytes)
-                return -1;
+            {
+                if (range == 0)
+                    return -1;
+                refbuf->len = unprocessed;
+                unprocessed = 0;
+            }
             if (unprocessed < 0 || unprocessed > bytes)
             {
                 unprocessed = 0;
@@ -361,7 +365,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 return -1;
             }
             length = client->connection.discon.offset - client->intro_offset + 1;
-            if (fs) // allow range on files
+            if (fs && length > 10) // allow range on files
             {
                 client->respcode = 206;
                 bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
