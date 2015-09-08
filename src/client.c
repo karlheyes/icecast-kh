@@ -207,7 +207,7 @@ int client_send_302(client_t *client, const char *location)
     client_set_queue (client, NULL);
     client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
     len = snprintf (body, sizeof body, "Moved <a href=\"%s\">here</a>\r\n", location);
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
+    len = snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
             "HTTP/1.0 302 Temporarily Moved\r\n"
             "Content-Type: text/html\r\n"
             "Content-Length: %d\r\n"

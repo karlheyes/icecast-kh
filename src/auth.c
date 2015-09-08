@@ -648,11 +648,16 @@ int auth_add_listener (const char *mount, client_t *client)
             }
             if (mountinfo->redirect)
             {
-                int len = strlen (mountinfo->redirect) + strlen (mount) + 3;
-                char *addr = alloca (len);
-                snprintf (addr, len, "%s%s", mountinfo->redirect, mount);
-                config_release_config ();
-                return client_send_302 (client, addr);
+                char buffer [4096] = "";
+                unsigned int len = sizeof buffer;
+
+                if (util_expand_pattern (mount, mountinfo->redirect, buffer, &len) == 0)
+                {
+                    config_release_config ();
+                    return client_send_302 (client, buffer);
+                }
+                WARN3 ("failed to expand %s on %s for %s", mountinfo->redirect, mountinfo->mountname, mount);
+                return client_send_501 (client);
             }
             do
             {
