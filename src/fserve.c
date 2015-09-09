@@ -713,13 +713,13 @@ static int prefile_send (client_t *client)
             return -1;
         if (refbuf == NULL || client->pos == refbuf->len)
         {
-            if ((client->flags & CLIENT_AUTHENTICATED) == 0)
-                return -1;
-            if (fh->finfo.fallback)
+            if (fh->finfo.fallback && (client->flags & CLIENT_AUTHENTICATED))
                 return fserve_move_listener (client);
 
             if (refbuf == NULL || refbuf->next == NULL)
             {
+                if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+                    return -1;
                 if (file_in_use (fh->f)) // is there a file to read from
                 {
                     refbuf_release (client->refbuf);
