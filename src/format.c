@@ -220,7 +220,9 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
                 client->intro_offset = size + 10;
                 DEBUG3 ("Detected ID3v2 (%d.%d) in file, tag size %" PRIu64, ver, rev, (uint64_t)size);
-                continue;
+                if (range > client->intro_offset)
+                    continue;
+                plugin = NULL;
             }
         }
         refbuf->len = bytes;
@@ -244,6 +246,8 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             }
         }
         client->intro_offset += (bytes - unprocessed);
+        if (unprocessed == 0 && refbuf->len)
+            break;
     } while (1);
     return refbuf->len - client->pos;
 }
@@ -272,7 +276,7 @@ int format_generic_write_to_client (client_t *client)
 int format_general_headers (format_plugin_t *plugin, client_t *client)
 {
     unsigned remaining = 4096 - client->refbuf->len;
-    char *ptr = client->refbuf->data + client->refbuf->len, *junk = NULL;
+    char *ptr = client->refbuf->data + client->refbuf->len;
     int bytes = 0;
     int bitrate_filtered = 0;
     avl_node *node;
@@ -390,14 +394,13 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 }
                 else
                 {
-                    // for range requests on streams we return a 200 OK but only send a couple of bytes
-                    length = 2;
-                    client->connection.discon.offset = client->intro_offset + 2;
-                    if (client->parser->req_type != httpp_req_head && remaining - bytes > length + 2)
+                    // for small range requests on streams we return a 200 OK and a fixed block
+                    if (client->parser->req_type != httpp_req_head && length < 1000)
                     {
-                        junk = malloc (length+1);
-                        memset (junk, 255, length);
-                        junk[length] = '\0';
+                        refbuf_t *r = refbuf_new (length);
+                        memset (r->data, 255, length);
+                        client->refbuf->next = r;
+                        r->flags |= WRITE_BLOCK_GENERIC;
                         plugin = NULL;
                         client->flags &= ~CLIENT_AUTHENTICATED;
                         DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
@@ -519,13 +522,12 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     remaining -= bytes;
     ptr += bytes;
 
-    bytes = snprintf (ptr, remaining, "\r\n%s", junk ? junk : "");
+    bytes = snprintf (ptr, remaining, "\r\n");
     remaining -= bytes;
     ptr += bytes;
 
     client->refbuf->len = 4096 - remaining;
     client->refbuf->flags |= WRITE_BLOCK_GENERIC;
-    free (junk);
     return 0;
 }
 
