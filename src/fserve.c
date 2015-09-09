@@ -586,7 +586,7 @@ static void file_release (client_t *client)
     fh_node *fh = client->shared_data;
     int ret = -1;
 
-    if (fh->finfo.limit)
+    if (fh->finfo.limit && (client->flags & CLIENT_AUTHENTICATED))
         stats_event_dec (NULL, "listeners");
 
     client_set_queue (client, NULL);
