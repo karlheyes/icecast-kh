@@ -301,6 +301,7 @@ static void config_clear_mount (mount_proxy *mount)
     if (mount->subtype)     xmlFree (mount->subtype);
     if (mount->charset)     xmlFree (mount->charset);
     if (mount->cluster_password) xmlFree (mount->cluster_password);
+    if (mount->redirect)            xmlFree (mount->redirect);
 
     if (mount->auth_type)   xmlFree (mount->auth_type);
     option = mount->auth_options;
@@ -916,6 +917,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
     mount_proxy *mount = calloc(1, sizeof(mount_proxy));
+    char *redirect = NULL;
 
     struct cfg_tag icecast_tags[] =
     {
@@ -942,7 +944,8 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         { "charset",            config_get_str,     &mount->charset },
         { "qblock-size",        config_get_int,     &mount->queue_block_size },
         { "max-send-size",      config_get_int,     &mount->max_send_size },
-        { "redirect",           config_get_str,     &mount->redirect },
+        { "redirect",           config_get_str,     &redirect },
+        { "redirect-to",        config_get_str,     &mount->redirect },
         { "metadata-interval",  config_get_int,     &mount->mp3_meta_interval },
         { "mp3-metadata-interval",
                                 config_get_int,     &mount->mp3_meta_interval },
@@ -993,11 +996,21 @@ static int _parse_mount (xmlNodePtr node, void *arg)
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
-    
+
     if (mount->mountname == NULL)
     {
+        xmlFree (redirect);
         config_clear_mount (mount);
         return -1;
+    }
+    if (redirect)
+    {
+        char patt[] = "/${mount}";
+        int len = strlen (redirect) + strlen (patt) + 1;
+        xmlFree (mount->redirect);
+        mount->redirect = xmlMalloc (len);
+        snprintf (mount->redirect, len, "%s%s", redirect, patt);
+        xmlFree (redirect);
     }
     if (mount->auth)
         mount->auth->mount = strdup (mount->mountname);
