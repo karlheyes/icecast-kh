@@ -1173,7 +1173,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 static int send_listener (source_t *source, client_t *client)
 {
     int bytes;
-    int loop = 20;   /* max number of iterations in one go */
+    int loop = 40;   /* max number of iterations in one go */
     long total_written = 0, limiter = source->listener_send_trigger;
     int ret = 0, lag;
     worker_t *worker = client->worker;
@@ -1232,7 +1232,7 @@ static int send_listener (source_t *source, client_t *client)
                 client->schedule_ms += 100 + (source->incoming_adj * 6);
         }
     }
-    client->throttle = source->incoming_adj;
+    client->throttle = source->incoming_adj ? source->incoming_adj : 1;
     while (1)
     {
         /* jump out if client connection has died */
