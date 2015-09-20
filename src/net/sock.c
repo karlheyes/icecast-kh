@@ -217,11 +217,6 @@ int sock_stalled (int error)
 }
 
 
-static int sock_connect_pending (int error)
-{
-    return error == EINPROGRESS || error == EALREADY;
-}
-
 /* sock_valid_socket
 **
 ** determines if a sock_t represents a valid socket
@@ -703,7 +698,12 @@ sock_t sock_connect_wto (const char *hostname, int port, int timeout)
     return sock_connect_wto_bind(hostname, port, NULL, timeout);
 }
 
+
 #ifdef HAVE_GETADDRINFO
+static int sock_connect_pending (int error)
+{
+    return error == EINPROGRESS || error == EALREADY;
+}
 
 sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
 {
@@ -978,7 +978,7 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
 sock_t sock_get_server_socket(int port, const char *sinterface)
 {
     struct sockaddr_in sa;
-    int error, opt;
+    int error;
     sock_t sock;
     char ip[MAX_ADDR_LEN];
 
@@ -1012,8 +1012,8 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
 
     sock_set_cloexec (sock);
     /* reuse it if we can */
-    opt = 1;
 #ifndef WIN32
+    int opt = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt, sizeof(int));
 #endif
 
