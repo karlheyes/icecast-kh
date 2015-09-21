@@ -1,4 +1,4 @@
-AC_INIT([Icecast], [2.4.0-kh1], [karl@kheyes.plus.com])
+AC_INIT([Icecast], [2.4.0-kh2], [karl@kheyes.plus.com])
 
 LT_INIT
 AC_PREREQ(2.59)

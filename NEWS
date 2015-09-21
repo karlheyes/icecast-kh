@@ -17,6 +17,26 @@ Feature differences from SVN trunk
 any extra tags are show in the conf/icecast.xml.dist file
 
 
+2.4.0-kh2
+. possible global listener count error fixed
+. possible crash with FLV and fallback handling fixed
+. FLV throttle fixup when dealing with files
+. fix up case for requeue on lagging client.
+. use throttling thresholds based on bitrate
+. scale non-ogg blocks based on bitrate but still enforce a send limit with an
+  optional <max-send-size> tag. not usually needed
+. implementation of HTTP keep-alive, mainly for web type requests.
+. add <redirect-to> tag in <mount>, similar to <redirect> but allows for expansion
+  such as ${mount}. the redirect tag is just an alias of this now.
+. intro file sending had no burst calculations.
+. allow for auth bypass in certain very limited cases, like small range requests used
+  by certain clients, or HEAD requests.
+. HTTP header cleanups depending on the request, content length etc
+. allow for byte accurate drop, this is for range requests for some clients.
+. shutdown cleanups, to avoid stalls.
+. tidy up xml page error reporting.
+. build updates
+
 2.4.0-kh1
 . fix for the 'Detected an entity reference loop' message
 . header parsing in auth url updated to handle spacing better
