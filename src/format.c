@@ -368,9 +368,9 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
                 return -1;
             }
-            length = client->connection.discon.offset - client->intro_offset + 1;
-            if (fs && length > 10) // allow range on files
+            if (fs) // allow range on files
             {
+                uint64_t len = client->connection.discon.offset - client->intro_offset + 1;
                 client->respcode = 206;
                 bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
                         "%s: %s\r\n"
@@ -379,11 +379,13 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                         "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
                         protocol, contenttypehdr,
                         contenttype ? contenttype : "application/octet-stream",
-                        length, (uint64_t)client->intro_offset,
+                        len, (uint64_t)client->intro_offset,
                         client->connection.discon.offset, length);
+                length = len;
             }
             else
             {
+                length = client->connection.discon.offset - client->intro_offset + 1;
                 // treat range 0- as if no range set, for chrome
                 if (client->connection.discon.offset == (uint64_t)-1)
                 {
@@ -392,20 +394,16 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     client->flags &= ~CLIENT_RANGE_END;
                     length = 0;
                 }
-                else
-                {
-                    // for small range requests on streams we return a 200 OK and a fixed block
-                    if (client->parser->req_type != httpp_req_head && length < 1000)
-                    {
-                        refbuf_t *r = refbuf_new (length);
-                        memset (r->data, 255, length);
-                        client->refbuf->next = r;
-                        r->flags |= WRITE_BLOCK_GENERIC;
-                        plugin = NULL;
-                        client->flags &= ~CLIENT_AUTHENTICATED;
-                        DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
-                    }
-                }
+            }
+            if (client->parser->req_type != httpp_req_head && length < 1000)
+            {
+                refbuf_t *r = refbuf_new (length);
+                memset (r->data, 255, length);
+                client->refbuf->next = r;
+                r->flags |= WRITE_BLOCK_GENERIC;
+                plugin = NULL;
+                client->flags &= ~CLIENT_AUTHENTICATED;
+                DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
             }
         }
         if (client->respcode == 0)
