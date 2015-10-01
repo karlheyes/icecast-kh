@@ -925,6 +925,7 @@ static int http_source_introfile (client_t *client)
     {
         //DEBUG1 ("rate too high %lu, delaying", rate);
         client->schedule_ms += 40;
+        rate_add (source->in_bitrate, 0, client->worker->current_time.tv_sec);
         return -1;
     }
     if (duration > 30 && rate < incoming_rate/4)
@@ -2359,7 +2360,6 @@ void source_setup_listener (source_t *source, client_t *client)
     client->queue_pos = 0;
     client->mount = source->mount;
     client->flags &= ~CLIENT_IN_FSERVE;
-    client->timer_start = client->worker->current_time.tv_sec;
 
     if (client->connection.sent_bytes > 0)
         client->check_buffer = http_source_introfile; // may need incomplete data sending
