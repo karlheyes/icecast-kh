@@ -395,7 +395,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                     length = 0;
                 }
             }
-            if (client->parser->req_type != httpp_req_head && length < 1000)
+            if (client->parser->req_type != httpp_req_head && length < 1000 && (client->flags & CLIENT_RANGE_END))
             {
                 refbuf_t *r = refbuf_new (length);
                 memset (r->data, 255, length);
