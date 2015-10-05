@@ -204,27 +204,6 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
         if (bytes <= 0)
             return bytes < 0 ? -2 : -1;
 
-        if (client->connection.sent_bytes > 0 && client->intro_offset == 0 &&
-                bytes >= 10 && memcmp (refbuf->data, "ID3", 3) == 0)
-        {
-            // special case of filtering ID3 from fallback files
-            unsigned char *p = (unsigned char*)refbuf->data;
-
-            if (p[3] < 0xFF && p[4] < 0xFF && (p[5] & 0xF) == 0)
-            {
-                int ver = p[3], rev = p[4];
-                size_t size = (p[6] & 0x7f);
-                size = (size << 7) + (p[7] & 0x7f);
-                size = (size << 7) + (p[8] & 0x7f);
-                size = (size << 7) + (p[9] & 0x7f);
-
-                client->intro_offset = size + 10;
-                DEBUG3 ("Detected ID3v2 (%d.%d) in file, tag size %" PRIu64, ver, rev, (uint64_t)size);
-                if (range > client->intro_offset)
-                    continue;
-                plugin = NULL;
-            }
-        }
         refbuf->len = bytes;
         client->pos = 0;
         if (plugin && plugin->align_buffer)

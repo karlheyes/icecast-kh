@@ -1043,6 +1043,8 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     {
         client_mp3->specific = calloc (1, sizeof(mpeg_sync));
         mpeg_setup (client_mp3->specific, client->connection.ip);
+        if (httpp_getvar (client->parser, "__FILESIZE"))
+            mpeg_set_flags (client_mp3->specific, 1<<8);
     }
     client_mp3->max_send_size = source_mp3->max_send_size;
 

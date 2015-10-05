@@ -43,6 +43,7 @@ int mpeg_samplerates [4][4] = {
 
 //  settings is a bitmask
 //  bit 15         skip processing
+//  bit 8          allow trailing tags, eg from file
 //  bit 7          settings changed
 //  bit 6, 5, 4    channels
 //  bit 3, 2       version
@@ -71,6 +72,11 @@ int mpeg_get_version (struct mpeg_sync *mp)
 int mpeg_get_layer (struct mpeg_sync *mp)
 {
     return (mp->settings & 0x3);
+}
+
+void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags)
+{
+    mpsync->settings |= flags;
 }
 
 
@@ -364,6 +370,101 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
 }
 
 
+// this is only really called once, we need to return a length but reset for frame check
+//
+static int handle_id3_frame (struct mpeg_sync *mp, unsigned char *p, int remaining)
+{
+    int frame_len = mp->raw_offset;
+
+    if (remaining - frame_len < 0)
+        return 0;
+    mp->mask = 0;
+    return frame_len;
+}
+
+static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
+{
+    int ret = 0;
+
+    do
+    {
+        if (remaining < 16) break;
+
+        ret = 1;
+        if (memcmp (p, "APETAGEX", 8) == 0)
+        {
+            unsigned int ver = p[8], len = p[12];
+
+            ver += (p[9] << 8);
+            ver += (p[10] << 16);
+            ver += (p[11] << 24);
+            ver /= 1000;
+
+            len += (p[13] << 8);
+            len += (p[14] << 16);
+            len += (p[15] << 24);
+            len += 32;
+
+            if (len > remaining)
+                return 0;
+            if (mp->settings & (1<<8))
+            {
+                mp->process_frame = handle_id3_frame;
+                mp->mask = 0xFF000000;
+                mp->marker = 0x41;  // match the 'A'
+                mp->raw_offset = len;
+                DEBUG2 ("Detected APETAG v%u, length %u", ver, len);
+            }
+            else
+            {
+                DEBUG2 ("Detected APETAG v%u, skipping %u bytes", ver, len);
+                memset (p, 0, len);
+            }
+            break;
+        }
+        if (memcmp (p, "TAG", 3) == 0)
+        {
+            if (remaining < 128)
+                return 0;
+            if (mp->settings & (1<<8))
+            {
+                mp->process_frame = handle_id3_frame;
+                mp->mask = 0xFF000000;
+                mp->marker = 0x54;  // match the 'T'
+                mp->raw_offset = 128;
+                DEBUG0 ("Detected ID3v1, keeping");
+            }
+            else
+            {
+                DEBUG0 ("Detected ID3v1, skipping 128 bytes");
+                memset (p, 0, 128);
+            }
+            break;
+        }
+        if (memcmp (p, "ID3", 3) == 0)
+        {
+            if (p[3] < 0xFF && p[4] < 0xFF && (p[5] & 0xF) == 0)
+            {
+                int ver = p[3], rev = p[4];
+                size_t size = (p[6] & 0x7f);
+                size = (size << 7) + (p[7] & 0x7f);
+                size = (size << 7) + (p[8] & 0x7f);
+                size = (size << 7) + (p[9] & 0x7f);
+
+                DEBUG3 ("Detected ID3v2 (%d.%d), tag size %" PRIu64, ver, rev, (uint64_t)size);
+                mp->process_frame = handle_id3_frame;
+                mp->mask = 0xFF000000;
+                mp->marker = 0x49;      // match the 'I'
+                mp->raw_offset = size + 10;
+                break;
+            }
+        }
+        ret = -1;
+    } while (0);
+    return ret;
+}
+
+
 static unsigned long make_val32 (unsigned char *p)
 {
     unsigned long v = *p;
@@ -385,8 +486,13 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
 
     if (mp->settings & 0x8000)
         return 2; // we should skip processing
-    mp->settings = 0;
-    if (p[0] == 0x47)
+
+    // reset all but external options
+    mp->settings = mp->settings & (1<<8);
+
+    if (p[0] == 'I' || p[0] == 'T' || p[0] == 'A')
+       ret = check_for_id3 (mp, p, remaining);
+    if (ret < 0 && p[0] == 0x47)
         ret = check_for_ts (mp, p, remaining);
     if (ret < 0)
     {
@@ -421,51 +527,69 @@ static int match_syncbits (mpeg_sync *mp, unsigned char *p)
 static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, int prevent_move)
 {
     int skip = remaining, singlebyte = mp->mask & 0xFFFFFF ? 0 : 1;
-    unsigned char *p = start;
+    unsigned char *p = NULL;
 
     if (mp->mask)
     {
         unsigned char *s = start;
         int r = remaining;
 
-        while (r && (p = memchr (s, mp->marker, r)))
+        do
         {
-            if (singlebyte)
-                break;
-            r = remaining - (p - start);
-            if (r < 4)
-                break;
-            if (match_syncbits (mp, p) == 0)
-                break;
-            s = p+1;
-            r--;
-        }
+            if (r < 9) break;
+            if (memcmp (s, "TAG", 3) == 0 || memcmp (s, "ID3", 3) == 0 || memcmp (s, "APETAGEX", 8) == 0)
+            {
+               DEBUG1 ("Detected \"%.3s\" midstream", s);
+               break;
+            }
+            p = start;
+            while (r && (p = memchr (s, mp->marker, r)))
+            {
+                if (singlebyte)
+                    break;
+                r = remaining - (p - start);
+                if (r < 4)
+                    break;
+                if (match_syncbits (mp, p) == 0)
+                    break;
+                s = p+1;
+                r--;
+            }
+        } while (0);
         if (p == NULL)
-            p = start + remaining;
+            mp->mask = 0;
     }
-    else if (remaining >= 8 && memcmp (p+4, "ftyp", 4) == 0)
+    if (p == NULL)
     {
-        mp->settings |= 0x8000; // mp4 looks to be here, lets skip parsing
-        return 0;
-    }
-    else
-    {
-        int offset = remaining;
-        do {
-           if (offset < 3) break;
-           if (*p == 0x47) break;
-           if (*p == 0xFF)
-	      if (p[1] != 0xFF || p[2] <= 0xFB) break;
-           p++;
-           offset--;
-        } while (1);
-        if (offset == 0) p = NULL;
+        p = start;
+        if (remaining >= 8 && memcmp (p+4, "ftyp", 4) == 0)
+        {
+            mp->settings |= 0x8000; // mp4 looks to be here, lets skip parsing
+            return 0;
+        }
+        else
+        {
+            int offset = remaining;
+            do {
+                if (offset < 3) break;
+                if (*p == 0x47) break;
+                if (*p == 0xFF)
+                    if (p[1] != 0xFF || p[2] <= 0xFB) break;
+                if (memcmp (p, "ID3", 3) == 0 || memcmp (p, "TAG", 3) == 0)
+                    break;
+                if (offset > 7 && memcmp (p, "APETAGEX", 8) == 0)
+                    break;
+                p++;
+                offset--;
+            } while (1);
+            if (offset == 0) p = NULL;
+        }
     }
     if (p)
     {
         skip = p - start;
         remaining -= skip;
-        if (remaining < 20000 && prevent_move == 0)
+        if (remaining < 20000 && prevent_move == 0 && skip)
             memmove (start, p, remaining);
         mp->resync_count += skip;
     }

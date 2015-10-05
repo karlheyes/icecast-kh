@@ -40,6 +40,7 @@ typedef struct mpeg_sync
 void mpeg_setup (mpeg_sync *mpsync, const char *mount);
 void mpeg_cleanup (mpeg_sync *mpsync);
 void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count);
+void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags);
 
 int  mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset);
 void mpeg_data_insert (mpeg_sync *mp, refbuf_t *inserted);
