@@ -154,7 +154,7 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
         mpeg_setup (client->format_data, client->connection.ip);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
-    source_mp3->read_data = refbuf_new (3000);
+    source_mp3->read_data = refbuf_new (8000);
     source_mp3->read_count = 0;
 }
 
@@ -287,7 +287,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     free (format->charset);
     format->charset = NULL;
 
-    source_mp3->qblock_sz = 2900;
+    source_mp3->qblock_sz = 1400;
     source_mp3->req_qblock_sz = 0;
     source_mp3->max_send_size = 1400;
     format->flags &= ~FORMAT_FL_ALLOW_HTTPCHUNKED;
@@ -773,7 +773,7 @@ static int complete_read (source_t *source)
     if (source->incoming_rate && source->incoming_rate < 65536)
         client->schedule_ms += (65536/source->incoming_rate);
     else
-        client->schedule_ms += 2;
+        client->schedule_ms += 1;
     return 1;
 }
 
@@ -816,7 +816,7 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     if (mpeg_has_changed (mpeg_sync))
     {
         format_plugin_t *plugin = source->format;
-        source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 2900;
+        source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
         if (mpeg_sync->samplerate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
         {
             free (plugin->contenttype);
@@ -865,10 +865,10 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         }
         else
         {
-            int multi = 3;
+            int multi = 7;
             if (source->incoming_rate)
                 multi = (source->incoming_rate/300000) + 1;
-            len = source_mp3->qblock_sz = 2900 * (multi < 6 ? multi : 6);
+            len = source_mp3->qblock_sz = 1400 * (multi < 14 ? multi : 14);
         }
         if (len < unprocessed + 40) // avoid block shrinkage
         {
