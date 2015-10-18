@@ -424,7 +424,7 @@ int source_read (source_t *source)
 {
     client_t *client = source->client;
     refbuf_t *refbuf = NULL;
-    int skip = 1, loop = 3;
+    int skip = 1, loop = 1;
     time_t current = client->worker->current_time.tv_sec;
     long queue_size_target;
     int fds = 0;
@@ -752,9 +752,9 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
-        ret = offset & 7;
+        ret = (offset & 7) << 2;
         offset++;
-        client->schedule_ms += source->incoming_adj + ret;
+        client->schedule_ms += (source->incoming_adj + ret);
         client->wakeup = &source->wakeup; // allow for quick wakeup
         return -1;
     }
