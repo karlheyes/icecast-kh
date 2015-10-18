@@ -653,6 +653,7 @@ void *worker (void *arg)
     worker_t *worker = arg;
     long prev_count = -1;
     client_t **prevp = &worker->clients;
+    uint64_t c = 0;
 
     worker->running = 1;
     worker->wakeup_ms = (int64_t)0;
@@ -661,8 +662,9 @@ void *worker (void *arg)
     while (1)
     {
         client_t *client = *prevp;
-        uint64_t sched_ms = worker->time_ms + 2;
+        uint64_t sched_ms = worker->time_ms + 1;
 
+        c = 0;
         while (client)
         {
             if (client->worker != worker) abort();
@@ -671,9 +673,25 @@ void *worker (void *arg)
             {
                 int ret = 0;
                 client_t *nx = client->next_on_worker;
-
-                if (worker->running == 0 || client->schedule_ms <= sched_ms || (client->wakeup && *client->wakeup))
+                if ((c & 15) == 0)
                 {
+                    // update these after so many to keep in sync
+                    worker->time_ms = timing_get_time();
+                    worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
+                }
+
+                int process = (worker->running == 0 || client->schedule_ms <= sched_ms) ? 1 : 0;
+                if (process == 0 && client->wakeup && *client->wakeup)
+                {
+                    if (c & 1)
+                        process = 1; // enable this one to pass through
+                    else
+                        client->schedule_ms = worker->time_ms;
+                }
+
+                if (process)
+                {
+                    c++;
                     ret = client->ops->process (client);
                     if (ret < 0)
                     {
