@@ -333,8 +333,8 @@ static auth_result url_remove_listener (auth_client *auth_user)
     auth_url *url = auth_user->auth->state;
     auth_thread_data *atd = auth_user->thread_data;
     time_t now = time(NULL), duration = now - client->connection.con_time;
-    char *username, *password, *mount, *server, *ipaddr;
-    const char *qargs;
+    char *username, *password, *mount, *server, *ipaddr, *user_agent;
+    const char *qargs, *tmp;
     char *userpwd = NULL, post [4096];
 
     if (url->removeurl == NULL || client == NULL)
@@ -357,6 +357,11 @@ static auth_result url_remove_listener (auth_client *auth_user)
     else
         password = strdup ("");
 
+    tmp = httpp_getvar(client->parser, "user-agent");
+    if (tmp == NULL)
+        tmp = "-";
+    user_agent = util_url_escape (tmp);
+
     /* get the full uri (with query params if available) */
     qargs = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
     snprintf (post, sizeof post, "%s%s", auth_user->mount, qargs ? qargs : "");
@@ -365,14 +370,15 @@ static auth_result url_remove_listener (auth_client *auth_user)
 
     snprintf (post, sizeof (post),
             "action=listener_remove&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
-            "&user=%s&pass=%s&ip=%s&duration=%lu&sent=%" PRIu64,
+            "&user=%s&pass=%s&ip=%s&duration=%lu&agent=%s&sent=%" PRIu64,
             server, auth_user->port, client->connection.id, mount, username,
-            password, ipaddr, (long unsigned)duration, client->connection.sent_bytes);
+            password, ipaddr, (long unsigned)duration, user_agent, client->connection.sent_bytes);
     free (ipaddr);
     free (server);
     free (mount);
     free (username);
     free (password);
+    free (user_agent);
 
     if (strchr (url->removeurl, '@') == NULL)
     {
