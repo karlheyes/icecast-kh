@@ -283,7 +283,7 @@ static void get_ssl_certificate (ice_config_t *config)
 
         ssl_ctx = SSL_CTX_new (SSLv23_server_method());
         ssl_opts = SSL_CTX_get_options (ssl_ctx);
-        SSL_CTX_set_options (ssl_ctx, ssl_opts|SSL_OP_NO_SSLv2|SSL_OP_NO_COMPRESSION);
+        SSL_CTX_set_options (ssl_ctx, ssl_opts|SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION);
 
         if (SSL_CTX_use_certificate_chain_file (ssl_ctx, config->cert_file) <= 0)
         {
