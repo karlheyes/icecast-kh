@@ -90,6 +90,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin)
     plugin->apply_client = mpeg_apply_client;
     plugin->_state = state;
     state->max_send_size = 1400;
+    state->interval = -1;
     INFO1 ("Created format details for %s", plugin->mount);
     return 0;
 }
