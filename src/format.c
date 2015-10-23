@@ -378,6 +378,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             {
                 refbuf_t *r = refbuf_new (length);
                 memset (r->data, 255, length);
+                refbuf_release (client->refbuf->next); // truncate any, maybe intro content
                 client->refbuf->next = r;
                 r->flags |= WRITE_BLOCK_GENERIC;
                 plugin = NULL;
