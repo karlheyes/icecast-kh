@@ -2228,7 +2228,9 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     thread_rwlock_unlock (&source->lock);
                     return ret;
                 }
-                if (client->parser->req_type == httpp_req_head || client->refbuf->next)
+                if (client->parser->req_type == httpp_req_head)
+                    break;
+                if ((client->flags & CLIENT_HAS_INTRO_CONTENT) == 0 && client->refbuf->next)
                     break;
                 if ((source->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) == SOURCE_ON_DEMAND)
                 {
