@@ -673,12 +673,6 @@ void *worker (void *arg)
             {
                 int ret = 0;
                 client_t *nx = client->next_on_worker;
-                if ((c & 15) == 0)
-                {
-                    // update these after so many to keep in sync
-                    worker->time_ms = timing_get_time();
-                    worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
-                }
 
                 int process = (worker->running == 0 || client->schedule_ms <= sched_ms) ? 1 : 0;
                 if (process == 0 && client->wakeup && *client->wakeup)
@@ -692,6 +686,12 @@ void *worker (void *arg)
                 if (process)
                 {
                     c++;
+                    if ((c & 31) == 0)
+                    {
+                        // update these after so many to keep in sync
+                        worker->time_ms = timing_get_time();
+                        worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
+                    }
                     ret = client->ops->process (client);
                     if (ret < 0)
                     {
