@@ -752,7 +752,7 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
-        ret = (offset & 7) << 2;
+        ret = (offset & 31);
         offset++;
         client->schedule_ms += (source->incoming_adj + ret);
         client->wakeup = &source->wakeup; // allow for quick wakeup

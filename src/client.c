@@ -662,7 +662,7 @@ void *worker (void *arg)
     while (1)
     {
         client_t *client = *prevp;
-        uint64_t sched_ms = worker->time_ms + 1;
+        uint64_t sched_ms = worker->time_ms + 12;
 
         c = 0;
         while (client)
@@ -675,7 +675,12 @@ void *worker (void *arg)
                 client_t *nx = client->next_on_worker;
 
                 int process = (worker->running == 0 || client->schedule_ms <= sched_ms) ? 1 : 0;
-                if (process == 0 && client->wakeup && *client->wakeup)
+                if (process)
+                {
+                    if (c > 300 && c & 1)  // only process alternate clients after so many
+                       process = 0;
+                }
+                else if (client->wakeup && *client->wakeup)
                 {
                     if (c & 1)
                         process = 1; // enable this one to pass through
