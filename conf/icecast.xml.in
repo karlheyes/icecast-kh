@@ -164,7 +164,8 @@
         or 
 
         for url auth, the add url needs to return a "icecast-auth-user:" http
-        header for a user to authenicate. URLs are sent params via POST.
+        response header for a user to authenicate. URLs are sent params via POST.
+        handlers is the number of auth requests in parallel for this auth mount.
 
         <authentication type="url">
              <option name="username" value="admin"/>
@@ -176,6 +177,19 @@
              <option name="listener_add"    value="http://myauthserver.com/scripts/add_listener.php"/>
              <option name="listener_remove" value="http://myauthserver.com/scripts/del_listener.php"/>
         </authentication>
+
+        for the listener add case, you return 200 OK to icecast (else it treats it as failed. Other
+        response headers affect subsequent actions.
+        icecast-auth-user: 1  - will just let the listener through,
+        icecast-auth-user: withintro  - will just let the listener through, expects intro content
+                                        in body (and valid content type)
+        Mountpoint: /....  - sends listener to alternate mountpoint on server, keeps connection open
+
+        if you do not send the icecast-auth-user header then you can send
+        Locationn: http://...   - returns a 302 response to listener
+        icecast-auth-message: .. - custom message to return to the listener, a 403 at the beginning
+                                   changes response code from 401
+
     </mount>
     -->
 

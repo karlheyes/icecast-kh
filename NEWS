@@ -17,6 +17,15 @@ Feature differences from SVN trunk
 any extra tags are show in the conf/icecast.xml.dist file
 
 
+2.4.0-kh3
+. fixes for range handling for certain players like iphone/chrome
+. fixes for burst handling with intro playback
+. ID3 pushed into the frame parser.
+. adjustments to having a wider range of block sizes on non-ogg streams
+. adjustments to scheduling of clients.
+. added agent to listener remove on url auth
+. force SSLv3 off the ciphers.
+
 2.4.0-kh2
 . possible global listener count error fixed
 . possible crash with FLV and fallback handling fixed
