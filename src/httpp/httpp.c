@@ -390,6 +390,9 @@ int httpp_parse(http_parser_t *parser, const char *http_data, unsigned long len)
 
     if (parser->req_type != httpp_req_none && parser->req_type != httpp_req_unknown) {
         switch (parser->req_type) {
+        case httpp_req_put:
+            httpp_setvar(parser, HTTPP_VAR_REQ_TYPE, "PUT");
+            break;
         case httpp_req_get:
             httpp_setvar(parser, HTTPP_VAR_REQ_TYPE, "GET");
             break;
