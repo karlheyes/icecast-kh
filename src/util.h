@@ -47,6 +47,30 @@ typedef struct _util_dict {
   struct _util_dict *next;
 } util_dict;
 
+
+struct cache_list_node
+{
+    char *content;
+    struct cache_list_node *next;
+};
+
+struct _cache_contents;
+typedef void (*cachefile_add_func)(struct _cache_contents *, const void *ip, time_t now);
+typedef int  (*cachefile_compare_func)(void *, void *, void *);
+
+typedef struct _cache_contents
+{
+    time_t                  file_recheck;
+    time_t                  file_mtime;
+    void                    *wildcards;
+    avl_tree                *contents;
+    // callback routines key insert and comparison
+    cachefile_compare_func  compare;
+    cachefile_add_func      add;
+    char                    *filename;
+} cache_file_contents;
+
+
 util_dict *util_dict_new(void);
 void util_dict_free(util_dict *dict);
 /* dict, key must not be NULL. */
@@ -70,5 +94,15 @@ void rate_reduce (struct rate_calc *calc, unsigned int range);
 
 int get_line(FILE *file, char *buf, size_t siz);
 int util_expand_pattern (const char *mount, const char *pattern, char *buf, unsigned int *len_p);
+
+void cached_file_init (cache_file_contents *cache, const char *filename, cachefile_add_func add, cachefile_compare_func compare);
+
+int cached_treenode_free (void*x);
+int cached_pattern_compare (const char *value, const char *pattern);
+
+void cached_file_clear (cache_file_contents *cache);
+int cached_pattern_search (cache_file_contents *cache, const char *line, time_t now);
+void cached_file_recheck (cache_file_contents *cache, time_t now);
+
 
 #endif  /* __UTIL_H__ */
