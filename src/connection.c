@@ -1643,14 +1643,16 @@ int connection_setup_sockets (ice_config_t *config)
             sock_t sock = sock_get_server_socket (listener->port, listener->bind_address);
             if (sock == SOCK_ERROR)
                 break;
+            /* some win32 setups do not do TCP win scaling well, so allow an override */
+            if (listener->so_sndbuf)
+                sock_set_send_buffer (sock, listener->so_sndbuf);
+            if (listener->so_mss)
+                sock_set_mss (sock, listener->so_mss);
             if (sock_listen (sock, listener->qlen) == SOCK_ERROR)
             {
                 sock_close (sock);
                 break;
             }
-            /* some win32 setups do not do TCP win scaling well, so allow an override */
-            if (listener->so_sndbuf)
-                sock_set_send_buffer (sock, listener->so_sndbuf);
             sock_set_blocking (sock, 0);
             successful = 1;
             global.serversock [count] = sock;

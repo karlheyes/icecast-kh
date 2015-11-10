@@ -193,6 +193,7 @@ struct _listener_t
     int shoutcast_compat;
     int ssl;
     int so_sndbuf;
+    int so_mss;
 };
 
 

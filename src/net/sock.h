@@ -97,6 +97,7 @@ ssize_t sock_writev (sock_t sock, WSABUF *iov, size_t count);
 # define sock_get_server_socket _mangle(sock_get_server_socket)
 # define sock_listen _mangle(sock_listen)
 # define sock_set_send_buffer _mangle(sock_set_send_buffer)
+# define sock_set_mss _mangle(sock_set_mss)
 # define sock_accept _mangle(sock_accept)
 # define sock_create_pipe_emulation _mangle(sock_create_pipe_emulation)
 #endif
@@ -119,6 +120,7 @@ int sock_set_delay(sock_t sock);
 void sock_set_error(int val);
 int sock_close(sock_t  sock);
 int sock_create_pipe_emulation (int handles[2]);
+void sock_set_mss (sock_t sock, int mss_size);
 
 /* Connection related socket functions */
 sock_t sock_connect_wto(const char *hostname, int port, int timeout);

@@ -1236,6 +1236,9 @@ static int _parse_listen_sock (xmlNodePtr node, void *arg)
         { "bind-address",       config_get_str,     &listener->bind_address },
         { "queue-len",          config_get_int,     &listener->qlen },
         { "so-sndbuf",          config_get_int,     &listener->so_sndbuf },
+#ifndef _WIN32
+        { "so-mss",             config_get_int,     &listener->so_mss },
+#endif
         { "ssl",                config_get_bool,    &listener->ssl },
         { "shoutcast-mount",    config_get_str,     &listener->shoutcast_mount },
         { NULL, NULL, NULL },

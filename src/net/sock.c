@@ -1030,6 +1030,22 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
 
 #endif
 
+void sock_set_mss (sock_t sock, int mss_size)
+{
+#ifndef _WIN32
+    if (setsockopt (sock, IPPROTO_TCP, TCP_MAXSEG, (char *) &mss_size, sizeof(mss_size)) == 0)
+    {
+#if 0
+        int new_mss = 0;
+        socklen_t len = sizeof (new_mss);
+        int rc = getsockopt(sock, IPPROTO_TCP, TCP_MAXSEG, (char *) &new_mss, &len);
+        if (rc == 0)
+            printf ("mss is %d\n", new_mss);
+#endif
+    }
+#endif
+}
+
 void sock_set_send_buffer (sock_t sock, int win_size)
 {
     setsockopt (sock, SOL_SOCKET, SO_SNDBUF, (char *) &win_size, sizeof(win_size));
