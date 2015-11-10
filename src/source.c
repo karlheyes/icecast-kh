@@ -913,7 +913,6 @@ static int http_source_introfile (client_t *client)
         duration = (long)((float)to_send / source->incoming_rate);
         client->timer_start = client->worker->current_time.tv_sec - (duration + 4);
         client->counter = 4 * source->incoming_rate;
-        client->intro_offset = 0;
     }
     duration = (client->worker->current_time.tv_sec - client->timer_start);
     if (duration)
