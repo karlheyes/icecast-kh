@@ -281,7 +281,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     if (client->respcode == 0)
     {
         const char *useragent = httpp_getvar (client->parser, "user-agent");
-        const char *protocol = (client->flags & CLIENT_KEEPALIVE) ?  "HTTP/1.1" : "HTTP/1.0";
+        const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
+        const char *protocol;
         const char *contenttypehdr = "Content-Type";
         const char *contenttype = plugin->contenttype;
         const char *fs = httpp_getvar (client->parser, "__FILESIZE");
@@ -294,6 +295,10 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 
         do
         {
+            if (ver && strcmp (ver, "1.1") == 0)
+                protocol = "HTTP/1.1";
+            else
+                protocol = "HTTP/1.0";
             if (opt)
             {
                 fmtcode = atoi (opt);
@@ -389,6 +394,12 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         }
         if (client->respcode == 0)
         {
+            char datebuf [100] = "\0";
+            struct tm result;
+
+            if (gmtime_r (&client->worker->current_time.tv_sec, &result))
+                strftime (datebuf, sizeof(datebuf), "Date: %a, %d %b %Y %X GMT\r\n", &result);
+
             if (contenttype == NULL)
                 contenttype = "application/octet-stream";
             if (length)
@@ -396,28 +407,27 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 client->respcode = 200;
                 bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
                         "Content-Length: %" PRIu64 "\r\n"
-                        "%s: %s\r\n", protocol, length, contenttypehdr, contenttype);
+                        "%s: %s\r\n%s", protocol, length, contenttypehdr, contenttype, datebuf);
             }
             else
             {
-                int chunked = 0; // (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
+                int chunked = 0;
                 const char *TE = "";
 
                 if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
                 {
-                    const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
                     chunked = (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
                 }
                 if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
                 {
                     client->flags |= CLIENT_CHUNKED;
                     TE = "Transfer-Encoding: chunked\r\n";
-                    protocol = "HTTP/1.1";
                 }
                 client->flags &= ~CLIENT_KEEPALIVE;
                 client->respcode = 200;
-                bytes = snprintf (ptr, remaining, "%s 200 OK\r\nAccept-Ranges: bytes\r\n%s"
-                        "%s: %s\r\n", protocol, TE, contenttypehdr, contenttype);
+
+                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n%s"
+                        "%s: %s\r\n%s", protocol, TE, contenttypehdr, contenttype, datebuf);
             }
         }
         remaining -= bytes;
