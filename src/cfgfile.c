@@ -755,6 +755,7 @@ static int _parse_logging (xmlNodePtr node, void *arg)
     config->error_log.archive = -1;
     config->playlist_log.logid = -1;
     config->playlist_log.display = 10;
+    config->playlist_log.archive = -1;
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
@@ -767,11 +768,15 @@ static int _parse_logging (xmlNodePtr node, void *arg)
             config->error_log.size = old_trigger_size;
         if (config->access_log.size == 0)
             config->access_log.size = old_trigger_size;
+        if (config->playlist_log.size == 0)
+            config->playlist_log.size = old_trigger_size;
     }
     if (old_archive > -1)
     {
         if (config->error_log.archive == -1)
             config->error_log.archive = old_archive;
+        if (config->access_log.archive == -1)
+            config->access_log.archive = old_archive;
         if (config->access_log.archive == -1)
             config->access_log.archive = old_archive;
     }
