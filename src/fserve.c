@@ -597,6 +597,8 @@ static void file_release (client_t *client)
 
         if (fh->finfo.flags & FS_FALLBACK)
             m = httpp_getvar (client->parser, HTTPP_VAR_URI);
+        else if (client->mount)
+            m = client->mount;
         else
             m = fh->finfo.mount;
         if (m)
