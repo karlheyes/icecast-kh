@@ -72,7 +72,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
     if (req == NULL)
         req = httpp_getvar (client->parser, HTTPP_VAR_URI);
     /* build the request */
-    snprintf (reqbuf, sizeof(reqbuf), "%s %s %s/%s",
+    snprintf (reqbuf, sizeof(reqbuf), "%.10s %.235s %.5s/%s",
             httpp_getvar (client->parser, HTTPP_VAR_REQ_TYPE), req,
             httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL),
             httpp_getvar (client->parser, HTTPP_VAR_VERSION));
