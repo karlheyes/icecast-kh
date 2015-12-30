@@ -125,7 +125,8 @@ static auth_client *auth_client_setup (const char *mount, client_t *client)
     auth_user->hostname = strdup (config->hostname);
     auth_user->port = config->port;
     auth_user->client = client;
-    client->mount = auth_user->mount;
+    if (client)
+	client->mount = auth_user->mount;
     return auth_user;
 }
 
