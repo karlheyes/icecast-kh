@@ -408,14 +408,14 @@ static auth_result url_remove_listener (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
 
-    DEBUG1 ("...handler %d sending request", auth_user->handler);
+    DEBUG2 ("...handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     if (curl_easy_perform (atd->curl))
     {
-        WARN2 ("auth to server %s failed with \"%s\"", url->removeurl, atd->errormsg);
+        WARN3 ("auth to server %s (%s) failed with \"%s\"", url->removeurl, auth_user->mount, atd->errormsg);
         url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
     }
     else
-        DEBUG1 ("...handler %d request complete", auth_user->handler);
+        DEBUG2 ("...handler %d (%s) request complete", auth_user->handler, auth_user->mount);
 
     free (userpwd);
 
@@ -534,9 +534,9 @@ static auth_result url_add_listener (auth_client *auth_user)
     x->intro_len = 0;
     x->tailp = &x->head;
 
-    DEBUG1 ("handler %d sending request", auth_user->handler);
+    DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     res = curl_easy_perform (atd->curl);
-    DEBUG1 ("handler %d request finished", auth_user->handler);
+    DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
 
     free (userpwd);
 
@@ -555,7 +555,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     if (res)
     {
         url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
-        WARN2 ("auth to server %s failed with %s", url->addurl, atd->errormsg);
+        WARN3 ("auth to server %s (%s) failed with %s", url->addurl, auth_user->mount, atd->errormsg);
         INFO1 ("will not auth new listeners for %d seconds", url->stop_req_duration);
         if (auth->flags & AUTH_SKIP_IF_SLOW)
         {
@@ -638,10 +638,10 @@ static void url_stream_start (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
 
-    DEBUG1 ("handler %d sending request", auth_user->handler);
+    DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     if (curl_easy_perform (atd->curl))
-        WARN2 ("auth to server %s failed with %s", url->stream_start, atd->errormsg);
-    DEBUG1 ("handler %d request finished", auth_user->handler);
+        WARN3 ("auth to server %s (%s) failed with %s", url->stream_start, auth_user->mount, atd->errormsg);
+    DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
 }
 
 
@@ -687,10 +687,10 @@ static void url_stream_end (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
 
-    DEBUG1 ("handler %d sending request", auth_user->handler);
+    DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     if (curl_easy_perform (atd->curl))
-        WARN2 ("auth to server %s failed with %s", url->stream_end, atd->errormsg);
-    DEBUG1 ("handler %d request finished", auth_user->handler);
+        WARN3 ("auth to server %s (%s) failed with %s", url->stream_end, auth_user->mount, atd->errormsg);
+    DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
 }
 
 
@@ -734,7 +734,7 @@ static void url_stream_auth (auth_client *auth_user)
 
     client->flags &= ~CLIENT_AUTHENTICATED;
     if (curl_easy_perform (atd->curl))
-        WARN2 ("auth to server %s failed with %s", url->stream_auth, atd->errormsg);
+        WARN3 ("auth to server %s (%s) failed with %s", url->stream_auth, auth_user->mount, atd->errormsg);
 }
 
 
