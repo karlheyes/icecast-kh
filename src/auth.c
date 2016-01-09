@@ -262,8 +262,7 @@ static void auth_new_listener (auth_client *auth_user)
                 return;
         }
     }
-    if (auth_postprocess_listener (auth_user) < 0)
-        DEBUG0 ("listener connection failed");
+    auth_postprocess_listener (auth_user);
 }
 
 
