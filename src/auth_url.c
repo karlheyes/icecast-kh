@@ -289,11 +289,12 @@ static size_t handle_returned_data (void *ptr, size_t size, size_t nmemb, void *
     auth_client *auth_user = stream;
     unsigned bytes = size * nmemb;
     client_t *client = auth_user->client;
+    refbuf_t *r = client->refbuf;
 
-    if (client && client->respcode == 0 &&
+    if (client && client->respcode == 0 && r &&
          client->flags & CLIENT_HAS_INTRO_CONTENT)
     {
-        refbuf_t *n, *r = client->refbuf;
+        refbuf_t *n;
         struct build_intro_contents *x = (void*)r->data;
 
         n = refbuf_new (bytes);
