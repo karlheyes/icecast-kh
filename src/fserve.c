@@ -243,7 +243,8 @@ static int _delete_fh (void *mapping)
         format_plugin_clear (fh->format, NULL);
         free (fh->format);
     }
-    avl_tree_free (fh->clients, NULL);
+    if (fh->clients)
+        avl_tree_free (fh->clients, NULL);
     rate_free (fh->out_bitrate);
     free (fh->finfo.mount);
     free (fh->finfo.fallback);
@@ -265,27 +266,29 @@ static void remove_from_fh (fh_node *fh, client_t *client)
 {
     thread_mutex_lock (&fh->lock);
     fh->refcount--;
-    avl_delete (fh->clients, client, NULL);
-    if ((fh->refcount != fh->clients->length && fh->finfo.mount) || ((fh->refcount != fh->clients->length+1) && fh->finfo.mount == NULL))
-        ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
+    if (fh->clients)
+    {
+        avl_delete (fh->clients, client, NULL);
+        if ((fh->refcount != fh->clients->length && fh->finfo.mount) || ((fh->refcount != fh->clients->length+1) && fh->finfo.mount == NULL))
+            ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
+    }
     if (fh->refcount == 0 && fh->finfo.mount)
     {
         rate_free (fh->out_bitrate);
-        fh->out_bitrate = rate_setup (10000, 1000);
         if ((fh->finfo.flags & FS_FALLBACK) == 0)
         {
+            fh->out_bitrate = NULL;
             if (fh->finfo.flags & FS_DELETE)
             {
                 thread_mutex_unlock (&fh->lock);
                 _delete_fh (fh);
+                client->shared_data = NULL;
                 return;
             }
-            else
-            {
-                DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
-                fh->expire = time(NULL) + 10;
-            }
+            DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
+            fh->expire = time(NULL) + 10;
         }
+        fh->out_bitrate = rate_setup (10000, 1000);
     }
     thread_mutex_unlock (&fh->lock);
 }
@@ -320,6 +323,8 @@ static fh_node *find_fh (fbinfo *finfo)
 
 static void fh_add_client (fh_node *fh, client_t *client)
 {
+    if (fh->clients == NULL)
+        return;
     avl_insert (fh->clients, client);
     fh->refcount++;
     if ((fh->refcount != fh->clients->length && fh->finfo.mount) || ((fh->refcount != fh->clients->length+1) && fh->finfo.mount == NULL))
@@ -943,7 +948,17 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         }
     }
     else
+    {
+        if (client->mount && (client->flags & CLIENT_AUTHENTICATED) && (client->respcode >= 300 || client->respcode < 200))
+        {
+            fh = calloc (1, sizeof (no_file));
+            fh->finfo.mount = strdup (client->mount);
+            fh->finfo.flags |= FS_DELETE;
+            fh->refcount = 1;
+            thread_mutex_create (&fh->lock);
+        }
         thread_mutex_lock (&fh->lock);
+    }
     client->mount = fh->finfo.mount;
     if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
     {
