@@ -1207,12 +1207,13 @@ int util_expand_pattern (const char *mount, const char *pattern, char *buf, unsi
        *len_p = (unsigned int)r;
        return 0;
    }
+   if (len < 1 || len >= max) return -1;
+
    if (len && mount[0] == '/')
    {
       mount++;  // lets skip over the first slash if there is one
       len--;
    }
-   if (len < 1 || len > max) return -1;
 
    mnt = strdup (mount);
    while (i < max)
