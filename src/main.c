@@ -330,7 +330,7 @@ static void _ch_root_uid_setup(void)
            else
                fprintf (stdout, "Changed supplementary groups based on user: %s.\n", conf->user);
 #ifdef HAVE_SETRESGID
-           if (setresgid (uid, uid, uid) < 0)
+           if (setresgid (gid, gid, gid) < 0)
 #else
            if (setgid (gid) < 0)
 #endif
