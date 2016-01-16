@@ -393,6 +393,7 @@ int auth_get_cmd_auth (auth_t *authenticator, config_options_t *options)
     if (state->listener_add == NULL)
     {
         ERROR0 ("No command specified for authentication");
+        free (state);
         return -1;
     }
     authenticator->state = state;
