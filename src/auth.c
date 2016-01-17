@@ -520,6 +520,7 @@ static int add_authenticated_listener (const char *mount, mount_proxy *mountinfo
             httpp_deletevar (client->parser, "range");
             client->flags |= CLIENT_NO_CONTENT_LENGTH;
         }
+        client->mount = mount;
         ret = fserve_client_create (client, mount);
     }
     return ret;
