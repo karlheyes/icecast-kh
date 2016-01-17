@@ -1000,10 +1000,11 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     else
     {
         worker_t *worker = client->worker;
+        ret = (fh->finfo.limit) ? 0 : -1;
         client->flags |= CLIENT_ACTIVE;
         worker_wakeup (worker); /* worker may of already processed client but make sure */
     }
-    return (fh->finfo.limit) ? 0 : -1;
+    return ret;
 }
 
 
