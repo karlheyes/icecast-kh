@@ -282,7 +282,6 @@ static void remove_from_fh (fh_node *fh, client_t *client)
             {
                 thread_mutex_unlock (&fh->lock);
                 _delete_fh (fh);
-                client->shared_data = NULL;
                 return;
             }
             DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
@@ -613,6 +612,7 @@ static void file_release (client_t *client)
             mount_proxy *mountinfo;
 
             remove_from_fh (fh, client);
+            client->shared_data = NULL;
             config = config_get_config ();
             mountinfo = config_find_mount (config, mount);
             if (mountinfo && mountinfo->access_log.name)
@@ -628,6 +628,7 @@ static void file_release (client_t *client)
         remove_from_fh (fh, client);
     if (ret < 0)
     {
+        client->shared_data = NULL;
         client->flags &= ~CLIENT_AUTHENTICATED;
         client_destroy (client);
     }
