@@ -407,6 +407,7 @@ static fh_node *open_fh (fbinfo *finfo)
             if (format_get_plugin (fh->format) < 0)
             {
                 avl_tree_unlock (fh_cache);
+                file_close (fh->f);
                 free (fh->format);
                 free (fh);
                 return NULL;
