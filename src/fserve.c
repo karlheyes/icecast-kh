@@ -956,6 +956,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             fh->finfo.mount = strdup (client->mount);
             fh->finfo.flags |= FS_DELETE;
             fh->refcount = 1;
+            fh->f = SOCK_ERROR;
             thread_mutex_create (&fh->lock);
         }
         thread_mutex_lock (&fh->lock);
@@ -1051,7 +1052,7 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
             result->finfo.flags &= ~FS_FALLBACK;
             result->format = NULL;
             result->stats = 0;
-            result->f = -1;
+            result->f = SOCK_ERROR;
             result->finfo.fallback = strdup (dest);
             result->finfo.type = type;
         }
