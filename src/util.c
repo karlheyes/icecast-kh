@@ -209,6 +209,9 @@ static int hex(char c)
 static int verify_path(char *path) {
     int dir = 0, indotseq = 0;
 
+    if (path == NULL || *path == '\0')
+       return 0;  // safety, empty path is invalid
+
     while(*path) {
         if(*path == '/' || *path == '\\') {
             if(indotseq)
@@ -230,7 +233,11 @@ static int verify_path(char *path) {
         dir = 0;
         path++;
     }
-
+#ifdef _WIN32
+    // any path requests ending in '.' on windows are treated as bad
+    if (*(path-1) == '.')
+        return 0;
+#endif
     return 1;
 }
 
