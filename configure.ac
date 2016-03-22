@@ -15,6 +15,7 @@ AC_PROG_CC
 AC_CANONICAL_HOST
 AC_PROG_LIBTOOL
 AC_SYS_LARGEFILE
+XIPH_C_ATTRIBUTE
 
 dnl Set some options based on environment
 

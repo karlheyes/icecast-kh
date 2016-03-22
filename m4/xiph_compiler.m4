@@ -33,7 +33,12 @@ dnl
 AC_DEFUN([XIPH_C_ATTRIBUTE],
 [dnl
 AC_TRY_COMPILE([int func(void) __attribute__((unused));],
-  [int x __attribute__ ((unused));],,[dnl
+  [int x __attribute__ ((unused));],[dnl
+  AH_VERBATIM([_GNU_PRINTF],[/* Use GNU setting because of mingw else use standard attribute format setting */
+#ifndef __GNUC__
+#define gnu_printf printf
+#endif
+  ])],[dnl
   AH_TEMPLATE([__attribute__],[Define to empty if __attribute__ is not supported])
   AC_DEFINE([__attribute__(x)],[])
 ])
