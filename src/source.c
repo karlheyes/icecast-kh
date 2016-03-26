@@ -1245,7 +1245,7 @@ static int send_listener (source_t *source, client_t *client)
            sleep for too long if more data can be sent */
         if (loop == 0 || total_written > limiter)
         {
-            client->schedule_ms += 2;
+            client->schedule_ms += 40;
             break;
         }
         bytes = client->check_buffer (client);
