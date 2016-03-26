@@ -354,7 +354,7 @@ static http_parser_t *get_relay_response (connection_t *con, const char *mount,
     memset (response, 0, sizeof(response));
     if (util_read_header (con->sock, response, 4096, READ_ENTIRE_HEADER) == 0)
     {
-        INFO0 ("Header read failure");
+        WARN2 ("Header read failure from %s %s", server, mount);
         return NULL;
     }
     parser = httpp_create_parser();
