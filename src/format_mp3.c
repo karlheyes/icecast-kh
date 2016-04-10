@@ -89,7 +89,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin)
     plugin->apply_settings = format_mp3_apply_settings;
     plugin->apply_client = mpeg_apply_client;
     plugin->_state = state;
-    state->max_send_size = 1400;
+    state->max_send_size = 0;
     state->interval = -1;
     INFO1 ("Created format details for %s", plugin->mount);
     return 0;
@@ -288,13 +288,14 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     free (format->charset);
     format->charset = NULL;
 
-    source_mp3->qblock_sz = 1400;
+    source_mp3->qblock_sz = 4096;
     source_mp3->req_qblock_sz = 0;
-    source_mp3->max_send_size = 1400;
+    source_mp3->max_send_size = 0;
     format->flags &= ~FORMAT_FL_ALLOW_HTTPCHUNKED;
     if (mount)
     {
-        source_mp3->max_send_size = mount->max_send_size;
+        if (mount->max_send_size)
+            source_mp3->max_send_size = mount->max_send_size;
         if (mount->mp3_meta_interval >= 0)
             source_mp3->interval = mount->mp3_meta_interval;
         if (mount->charset)
@@ -866,10 +867,10 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         }
         else
         {
-            int multi = 7;
+            int multi = 8;
             if (source->incoming_rate)
-                multi = (source->incoming_rate/300000) + 1;
-            len = source_mp3->qblock_sz = 1400 * (multi < 14 ? multi : 14);
+                multi = (source->incoming_rate/100000) + 1;
+            len = source_mp3->qblock_sz = 1000 * (multi < 16 ? multi : 16);
         }
         if (len < unprocessed + 40) // avoid block shrinkage
         {
@@ -1047,7 +1048,10 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
         if (httpp_getvar (client->parser, "__FILESIZE"))
             mpeg_set_flags (client_mp3->specific, 1<<8);
     }
-    client_mp3->max_send_size = source_mp3->max_send_size;
+    if (source_mp3->max_send_size)
+        client_mp3->max_send_size = source_mp3->max_send_size;
+    else
+        client_mp3->max_send_size = 24000; // largest single write, block very unlikely to be larger
 
     if (client->refbuf == NULL)
         client->refbuf = refbuf_new (4096);

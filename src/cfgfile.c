@@ -997,7 +997,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     mount->access_log.logid = -1;
     mount->access_log.log_ip = 1;
     mount->fallback_override = 1;
-    mount->max_send_size = 1400;
+    mount->max_send_size = 0;
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;

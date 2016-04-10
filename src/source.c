@@ -406,7 +406,7 @@ static void update_source_stats (source_t *source)
 
     source->bytes_sent_since_update %= 1024;
     source->bytes_read_since_update %= 1024;
-    source->listener_send_trigger = incoming_rate < 8000 ? 4000 : incoming_rate/2;
+    source->listener_send_trigger = incoming_rate < 8000 ? 8000 : (8000 + (incoming_rate>>4));
     source->incoming_rate = incoming_rate;
     if (incoming_rate)
         source->incoming_adj = 2000000/incoming_rate;
@@ -581,7 +581,7 @@ int source_read (source_t *source)
         } while (loop);
 
         /* lets see if we have too much data in the queue */
-        loop = 50 + (source->incoming_rate >> 14); // scale max on high bitrates
+        loop = 40 + (source->incoming_rate >> 15); // scale max on high bitrates
         if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
         {
             queue_size_target = 4000 + (source->client->queue_pos - source->shrink_pos);
@@ -1245,7 +1245,7 @@ static int send_listener (source_t *source, client_t *client)
            sleep for too long if more data can be sent */
         if (loop == 0 || total_written > limiter)
         {
-            client->schedule_ms += 40;
+            client->schedule_ms += 25;
             break;
         }
         bytes = client->check_buffer (client);
