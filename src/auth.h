@@ -104,6 +104,7 @@ typedef struct auth_tag
 #define AUTH_DEL_EXISTING_LISTENER      (1<<1)
 #define AUTH_ALLOW_LISTENER_DUP         (1<<2)
 #define AUTH_SKIP_IF_SLOW               (1<<3)
+#define AUTH_CLEAN_ENV                  (1<<4)
 
 
 int  auth_add_listener (const char *mount, client_t *client);

@@ -843,7 +843,7 @@ int auth_get_authenticator (xmlNodePtr node, void *x)
         /* allocate N threads */
         auth->handles = calloc (auth->handlers, sizeof (auth_thread_t));
         auth->refcount = 1;
-        auth->flags |= AUTH_RUNNING;
+        auth->flags |= (AUTH_RUNNING|AUTH_CLEAN_ENV);
         for (i=0; i<auth->handlers; i++)
         {
             if (auth->alloc_thread_data)
