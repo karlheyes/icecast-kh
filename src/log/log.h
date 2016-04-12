@@ -31,7 +31,7 @@ void log_set_trigger(int id, unsigned long trigger);
 void log_set_reopen_after (int id, unsigned int trigger);
 int  log_set_filename(int id, const char *filename);
 void log_set_lines_kept (int log_id, unsigned int count);
-void log_contents (int log_id, char **_contents, unsigned int *_len);
+int  log_contents (int log_id, char **_contents, unsigned int *_len);
 int log_set_archive_timestamp(int id, int value);
 void log_flush(int log_id);
 void log_reopen(int log_id);

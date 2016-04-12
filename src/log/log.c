@@ -413,24 +413,32 @@ static int create_log_entry (int log_id, const char *pre, const char *line)
 }
 
 
-void log_contents (int log_id, char **_contents, unsigned int *_len)
+int log_contents (int log_id, char **_contents, unsigned int *_len)
 {
     int remain;
     log_entry_t *entry;
     char *ptr;
 
-    if (log_id < 0) return;
-    if (log_id >= LOG_MAXLOGS) return; /* Bad log number */
+    if (log_id < 0) return -1;
+    if (log_id >= LOG_MAXLOGS) return -1; /* Bad log number */
 
-    _lock_logger ();
-    remain = loglist [log_id].total + loglist [log_id].entries + 1;
-    *_contents = malloc (remain);
-    **_contents= '\0';
-    *_len = loglist [log_id].total;
+    if (_contents == NULL)
+    {
+        _lock_logger ();  // normal initial route
+        if (loglist [log_id].in_use == 0)
+        {
+            _unlock_logger ();
+            return -1;
+        }
+        *_len = loglist [log_id].total + loglist [log_id].entries; // add space for newlines
+        return 1;
+    }
+    remain = *_len;
 
     entry = loglist [log_id].log_head;
     ptr = *_contents;
-    while (entry)
+    *ptr = '\0';
+    while (entry && remain)
     {
         int len = snprintf (ptr, remain, "%s\n", entry->line);
         if (len > 0)
@@ -441,6 +449,9 @@ void log_contents (int log_id, char **_contents, unsigned int *_len)
         entry = entry->next;
     }
     _unlock_logger ();
+    if (remain)
+        *_len -= remain;
+    return 0;
 }
 
 

@@ -1117,6 +1117,7 @@ static int command_list_log (client_t *client, int response)
     refbuf_t *content;
     const char *logname = httpp_get_query_param (client->parser, "log");
     int log = -1;
+    unsigned int len = 0;
     ice_config_t *config;
 
     if (logname == NULL)
@@ -1130,13 +1131,13 @@ static int command_list_log (client_t *client, int response)
     else if (strcmp (logname, "playlistlog") == 0)
         log = config->playlist_log.logid;
 
-    if (log < 0)
+    if (log_contents (log, NULL, &len) < 0)
     {
         config_release_config();
         WARN1 ("request to show unknown log \"%s\"", logname);
         return client_send_400 (client, "unknown");
     }
-    content = refbuf_new (0);
+    content = refbuf_new (len+1);
     log_contents (log, &content->data, &content->len);
     config_release_config();
 
@@ -1161,7 +1162,8 @@ static int command_list_log (client_t *client, int response)
         http->len = len;
         http->next = content; 
         client->respcode = 200;
-        client_set_queue (client, http);
+        client_set_queue (client, NULL);
+        client->refbuf = http;
         return fserve_setup_client (client);
     }
 }
