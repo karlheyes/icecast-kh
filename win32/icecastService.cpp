@@ -14,6 +14,7 @@ extern "C" {
 #include "refbuf.h"
 #include "client.h"
 #include "stats.h"
+#include "fserve.h"
 }
 
 // Issues to be wary of. Careful of the runtime you use, I've had printf and similar routines
@@ -113,6 +114,7 @@ static int run_server (int argc, char *argv[])
     int		ret;
 
     initialize_subsystems();
+    fserve_initialize();
 
     ret = server_init (argc, argv);
     if (ret == 0)
