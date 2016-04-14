@@ -929,7 +929,7 @@ static int http_source_introfile (client_t *client)
     }
     if (duration > 30 && rate < incoming_rate/4)
     {
-        INFO0 ("Dropped listener, running too slow");
+        INFO2 ("Dropped listener %s, running too slow on %s", &client->connection.ip[0], source->mount);
         client->connection.error = 1;
         client_set_queue (client, NULL);
         return -1; // assume a slow/stalled connection so drop
