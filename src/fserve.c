@@ -122,6 +122,8 @@ static fh_node no_file;
 
 void fserve_initialize(void)
 {
+    if (fserve_running) return;
+
     ice_config_t *config = config_get_config();
 
     mimetypes = NULL;
