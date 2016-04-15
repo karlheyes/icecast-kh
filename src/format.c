@@ -348,7 +348,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             if (length && client->connection.discon.offset > length)
                 client->connection.discon.offset = length - 1;
 
-            if (client->connection.discon.offset == 0 || client->intro_offset >= client->connection.discon.offset)
+            if (client->intro_offset > client->connection.discon.offset)
             {
                 DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
                 return -1;
