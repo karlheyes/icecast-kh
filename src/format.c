@@ -353,32 +353,39 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
                 return -1;
             }
+            uint64_t len = client->connection.discon.offset - client->intro_offset + 1;
+            char total_size [32] = "*";
+
             if (fs) // allow range on files
             {
-                uint64_t len = client->connection.discon.offset - client->intro_offset + 1;
+                snprintf (total_size, sizeof total_size, "%" PRIu64, length);
                 client->respcode = 206;
-                bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
-                        "%s: %s\r\n"
-                        "Accept-Ranges: bytes\r\n"
-                        "Content-Length: %" PRIu64 "\r\n"
-                        "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%" PRIu64 "\r\n",
-                        protocol, contenttypehdr,
-                        contenttype ? contenttype : "application/octet-stream",
-                        len, (uint64_t)client->intro_offset,
-                        client->connection.discon.offset, length);
-                length = len;
             }
             else
             {
-                length = client->connection.discon.offset - client->intro_offset + 1;
                 // treat range 0- as if no range set, for chrome
                 if (client->connection.discon.offset == (uint64_t)-1)
                 {
                     client->connection.discon.offset = 0;
                     client->intro_offset = 0;
                     client->flags &= ~CLIENT_RANGE_END;
-                    length = 0;
+                    len = 0;
                 }
+                else
+                    client->respcode = 200;
+            }
+            length = len;
+            if (length)
+            {
+                bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
+                        "%s: %s\r\n"
+                        "Accept-Ranges: bytes\r\n"
+                        "Content-Length: %" PRIu64 "\r\n"
+                        "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%s\r\n",
+                        protocol, contenttypehdr,
+                        contenttype ? contenttype : "application/octet-stream",
+                        len, (uint64_t)client->intro_offset,
+                        client->connection.discon.offset, total_size);
             }
             if (client->parser->req_type != httpp_req_head && length < 1000 && (client->flags & CLIENT_RANGE_END))
             {
