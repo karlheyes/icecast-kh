@@ -1225,14 +1225,18 @@ static int command_alloc(client_t *client)
     xmlDocPtr doc = xmlNewDoc (XMLSTR("1.0"));
     xmlNodePtr rootnode = xmlNewDocNode(doc, NULL, XMLSTR("icestats"), NULL);
     avl_node *node;
+    char value[25];
 
     xmlDocSetRootElement(doc, rootnode);
+
+    snprintf (value, sizeof value, "%d", xmlMemUsed());
+    xmlNewChild (rootnode, NULL, XMLSTR("libxml_mem"), XMLSTR(value));
+
     avl_tree_rlock (global.alloc_tree);
     node = avl_get_first (global.alloc_tree);
     while (node)
     {
         alloc_node *an = node->key;
-        char value[25];
         xmlNodePtr bnode = xmlNewChild (rootnode, NULL, XMLSTR("block"), NULL);
         xmlSetProp (bnode, XMLSTR("name"), XMLSTR(an->name));
         snprintf (value, sizeof value, "%d", an->count);

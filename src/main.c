@@ -96,6 +96,7 @@ static void _print_usage(void)
 
 void initialize_subsystems(void)
 {
+    global_initialize();
     log_initialize();
     errorlog = log_open_file (stderr);
     thread_initialize();
@@ -103,7 +104,6 @@ void initialize_subsystems(void)
     resolver_initialize();
     config_initialize();
     connection_initialize();
-    global_initialize();
     refbuf_initialize();
 
     stats_initialize();
@@ -120,6 +120,7 @@ void shutdown_subsystems(void)
     slave_shutdown();
     fserve_shutdown();
     stats_shutdown();
+    xslt_shutdown();
     stop_logging();
 
     config_shutdown();
@@ -134,7 +135,6 @@ void shutdown_subsystems(void)
 
     /* Now that these are done, we can stop the loggers. */
     log_shutdown();
-    xslt_shutdown();
     thread_shutdown();
     global_shutdown();
 }

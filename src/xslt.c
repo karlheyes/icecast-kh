@@ -192,6 +192,9 @@ void xslt_initialize(void)
     thread_rwlock_create (&xslt_lock);
     thread_spin_create (&update_lock);
     xsl_updating = 0;
+#ifdef MY_ALLOC
+    xmlMemSetup(xmlMemFree, xmlMemMalloc, xmlMemRealloc, xmlMemoryStrdup);
+#endif
     xmlInitParser();
     LIBXML_TEST_VERSION
     xmlSubstituteEntitiesDefault(1);
