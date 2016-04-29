@@ -387,7 +387,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                         len, (uint64_t)client->intro_offset,
                         client->connection.discon.offset, total_size);
             }
-            if (client->parser->req_type != httpp_req_head && length < 1000 && (client->flags & CLIENT_RANGE_END))
+            if (client->parser->req_type != httpp_req_head && length < 100 && (client->flags & CLIENT_RANGE_END) && fs == NULL)
             {
                 refbuf_t *r = refbuf_new (length);
                 memset (r->data, 255, length);
