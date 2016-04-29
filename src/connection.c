@@ -1076,7 +1076,7 @@ static int http_client_request (client_t *client)
 
                     if (agent && cached_pattern_search (&useragents, agent, client->worker->current_time.tv_sec) > 0)
                     {
-                        INFO2 ("dropping client at %s because useragent is %s",
+                        INFO2 ("dropping client at %s because useragent is %.70s",
                                 client->connection.ip, agent);
                         return -1;
                     }
@@ -1086,7 +1086,7 @@ static int http_client_request (client_t *client)
                 str = httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL);
                 if (strcmp("ICE", str) && strcmp("HTTP", str))
                 {
-                    ERROR0("Bad HTTP protocol detected");
+                    ERROR2("Bad protocol (%.15s) detected from %s", str, &client->connection.ip[0]);
                     return -1;
                 }
                 str = httpp_getvar (client->parser, HTTPP_VAR_VERSION);

@@ -1111,7 +1111,7 @@ static void *yp_pending_update (void *arg)
             processed++;
         }
         thread_rwlock_unlock (&yp_lock);
-        INFO1 ("Processed %d changes", processed);
+        DEBUG1 ("Processed %d changes", processed);
         thread_mutex_lock (&yp_pending_lock);
     }
     yp_pending_thread = 0;
