@@ -161,7 +161,7 @@ void stats_initialize(void)
     stats_event_time (NULL, "server_start", STATS_GENERAL);
 
     /* global currently active stats */
-    stats_event_flags (NULL, "clients", "0", STATS_COUNTERS);
+    stats_event_flags (NULL, "clients", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "connections", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "sources", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "stats", "0", STATS_COUNTERS);
@@ -1356,7 +1356,13 @@ void stats_global_calc (void)
     char buffer [VAL_BUFSIZE];
 
     connection_stats ();
-    avl_tree_rlock (_stats.global_tree);
+
+    snprintf (buffer, sizeof(buffer), "%" PRIu64, (int64_t)global.clients);
+    build_event (&event, NULL, "clients", buffer);
+    event.flags |= STATS_COUNTERS;
+    process_event (&event);
+
+    avl_tree_wlock (_stats.global_tree);
     anode = avl_get_first(_stats.global_tree);
     while (anode)
     {
@@ -1367,9 +1373,9 @@ void stats_global_calc (void)
         anode = avl_get_next (anode);
     }
     avl_tree_unlock (_stats.global_tree);
+
     build_event (&event, NULL, "outgoing_kbitrate", buffer);
     event.flags = STATS_COUNTERS|STATS_HIDDEN;
-
     snprintf (buffer, sizeof(buffer), "%" PRIu64,
             (int64_t)global_getrate_avg (global.out_bitrate) * 8 / 1024);
     process_event (&event);

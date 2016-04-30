@@ -133,7 +133,6 @@ void client_destroy(client_t *client)
             (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
     {
         global.clients--;
-        stats_event_args (NULL, "clients", "%d", global.clients);
         config_clear_listener (client->server_conn);
         global_unlock ();
         connection_close (&client->connection);
