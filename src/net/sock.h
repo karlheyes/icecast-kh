@@ -80,6 +80,7 @@ ssize_t sock_writev (sock_t sock, WSABUF *iov, size_t count);
 # define sock_valid_socket _mangle(sock_valid_socket)
 # define sock_set_blocking _mangle(sock_set_blocking)
 # define sock_set_nolinger _mangle(sock_set_nolinger)
+# define sock_set_cork _mangle(sock_set_cork)
 # define sock_set_nodelay _mangle(sock_set_nodelay)
 # define sock_set_delay _mangle(sock_set_delay)
 # define sock_set_keepalive _mangle(sock_set_keepalive)
@@ -115,6 +116,8 @@ int sock_set_blocking(sock_t sock, int block);
 int sock_set_nolinger(sock_t sock);
 int sock_set_keepalive(sock_t sock);
 int sock_set_nodelay(sock_t sock);
+int sock_set_cork (sock_t sock, int yes);
+
 void sock_set_send_buffer (sock_t sock, int win_size);
 int sock_set_delay(sock_t sock);
 void sock_set_error(int val);

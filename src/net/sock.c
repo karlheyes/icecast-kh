@@ -297,6 +297,21 @@ int sock_set_nolinger(sock_t sock)
             sizeof(struct linger));
 }
 
+int sock_set_cork (sock_t sock, int yes)
+{
+#if defined (TCP_CORK)
+    int cork = yes ? 1 : 0;
+
+    return setsockopt (sock, IPPROTO_TCP, TCP_CORK, (void *)&cork, sizeof(cork));
+#elif defined TCP_NOPUSH
+    int nopush = yes ? 1 : 0;
+
+    return setsockopt (sock, IPPROTO_TCP, TCP_NOPUSH, (void *)&nopush, sizeof(nopush));
+#else
+    return -1;
+#endif
+}
+
 int sock_set_nodelay(sock_t sock)
 {
     int nodelay = 1;

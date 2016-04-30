@@ -128,6 +128,8 @@ void client_destroy(client_t *client)
     client->respcode = 0;
     client->free_client_data = NULL;
 
+    sock_set_cork (client->connection.sock, 0); // ensure any corked data is actually sent.
+
     global_lock ();
     if (global.running != ICE_RUNNING || client->connection.error ||
             (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
@@ -142,6 +144,7 @@ void client_destroy(client_t *client)
     }
     global_unlock ();
     DEBUG0 ("keepalive detected, placing back onto worker");
+    sock_set_cork (client->connection.sock, 1);    // reenable cork for the next go around
     client->counter = client->schedule_ms = timing_get_time();
     client->connection.con_time = client->schedule_ms/1000;
     client->connection.discon.time = client->connection.con_time + 7;
