@@ -21,6 +21,7 @@
 
 #include <avl/avl.h>
 #include "httpp.h"
+#include "global.h"
 
 #if defined(_WIN32) && !defined(HAVE_STRCASECMP)
 #define strcasecmp stricmp
