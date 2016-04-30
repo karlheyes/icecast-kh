@@ -24,6 +24,7 @@
 #ifndef WIN32
 #include <unistd.h>
 #else
+#include <winsock2.h>
 #include <windows.h>
 #include <winbase.h>
 #endif
@@ -32,6 +33,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include "global.h"
 
 #ifdef TIME_WITH_SYS_TIME
 #  include <sys/time.h>
@@ -325,7 +327,9 @@ thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
         start->arg = arg;
         start->thread = thread;
 
+#ifndef WIN32
         pthread_attr_setstacksize (&attr, 2048*1024);
+#endif
         pthread_attr_setinheritsched (&attr, PTHREAD_INHERIT_SCHED);
         if (detached)
         {
@@ -350,7 +354,11 @@ thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
     LOG_ERROR1("Could not create new thread %s", name);
 #endif
     if (start) free (start);
-    if (thread) free (thread);
+    if (thread)
+    {
+        free (thread->name);
+        free (thread);
+    }
     return NULL;
 }
 
