@@ -49,7 +49,7 @@ typedef struct access_log
     int type;
     int archive;
     int display;
-    int size;
+    long size;
     unsigned duration;
     char *exclude_ext;
 } access_log;
@@ -63,7 +63,7 @@ typedef struct error_log
     int logid;
     int archive;
     int display;
-    int size;
+    long size;
     unsigned duration;
     int level;
 } error_log;
@@ -74,7 +74,7 @@ typedef struct playlist_log
     int logid;
     int archive;
     int display;
-    int size;
+    long size;
     unsigned duration;
 } playlist_log;
 

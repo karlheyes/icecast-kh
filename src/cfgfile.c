@@ -141,7 +141,21 @@ int config_get_int (xmlNodePtr node, void *x)
         xmlChar *str = xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
         if (str == NULL)
             return 1;
-        *(int*)x = strtol ((char*)str, NULL, 0);
+        *(int*)x = (int)strtol ((char*)str, NULL, 0);
+        xmlFree (str);
+    }
+    return 0;
+}
+
+
+int config_get_long (xmlNodePtr node, void *x)
+{
+    if (xmlIsBlankNode (node) == 0)
+    {
+        xmlChar *str = xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
+        if (str == NULL)
+            return 1;
+        *(long*)x = strtol ((char*)str, NULL, 0);
         xmlFree (str);
     }
     return 0;
@@ -665,7 +679,7 @@ static int _parse_accesslog (xmlNodePtr node, void *arg)
         { "exclude_ext",    config_get_str,     &log->exclude_ext },
         { "display",        config_get_int,     &log->display },
         { "querystr",       config_get_bool,    &log->qstr },
-        { "size",           config_get_int,     &log->size },
+        { "size",           config_get_long,    &log->size },
         { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
     };
@@ -691,7 +705,7 @@ static int _parse_errorlog (xmlNodePtr node, void *arg)
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
         { "level",          config_get_int,     &log->level },
-        { "size",           config_get_int,     &log->size },
+        { "size",           config_get_long,    &log->size },
         { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
     };
@@ -709,7 +723,7 @@ static int _parse_playlistlog (xmlNodePtr node, void *arg)
         { "name",           config_get_str,     &log->name },
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
-        { "size",           config_get_int,     &log->size },
+        { "size",           config_get_long,    &log->size },
         { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
     };
@@ -721,7 +735,8 @@ static int _parse_playlistlog (xmlNodePtr node, void *arg)
 static int _parse_logging (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
-    int old_trigger_size = -1, old_archive = -1;
+    long old_trigger_size = -1;
+    int old_archive = -1;
     struct cfg_tag icecast_tags[] =
     {
         { "accesslog",      _parse_accesslog,   &config->access_log },
@@ -739,7 +754,7 @@ static int _parse_logging (xmlNodePtr node, void *arg)
         { "playlistlog",    config_get_str,     &config->playlist_log },
         { "playlistlog_lines",
                             config_get_int,     &config->playlist_log.display },
-        { "logsize",        config_get_int,     &old_trigger_size },
+        { "logsize",        config_get_long,    &old_trigger_size },
         { "logarchive",     config_get_bool,    &old_archive },
         { NULL, NULL, NULL }
     };
