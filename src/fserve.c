@@ -994,12 +994,16 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
 
+    // workaround for #134: fill the preallocated, but empty, chained buffer in case a range request was made
     if (client->flags & CLIENT_RANGE_END)
     {
-        refbuf = client->refbuf->next;
-        bytes = pread (fh->f, refbuf->data, refbuf->len, client->intro_offset);
-        if (bytes < 0)
-            return -1;
+        if (client->refbuf && client->refbuf->next)
+        {
+            refbuf = client->refbuf->next;
+            bytes = pread (fh->f, refbuf->data, refbuf->len, client->intro_offset);
+            if (bytes < 0)
+                return -1;
+        }
     }
     
     client->ops = &buffer_content_ops;
