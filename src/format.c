@@ -162,7 +162,6 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
             client->queue_pos = 0;
-            client->intro_offset = 0;
             refbuf->flags |= BUFFER_LOCAL_USE;
         }
         if (client->pos < refbuf->len)

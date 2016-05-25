@@ -948,7 +948,6 @@ static int http_source_intro (client_t *client)
         client->check_buffer = source_queue_advance;
         return source_queue_advance (client);
     }
-    client->intro_offset = 0;
     client->check_buffer = http_source_introfile;
     return http_source_introfile (client);
 }
@@ -1000,7 +999,6 @@ static int http_source_listener (client_t *client)
         if (client->flags & CLIENT_AUTHENTICATED)
         {
             client->check_buffer = http_source_intro;
-            client->intro_offset = 0;
             client->connection.sent_bytes = 0;
             return ret;
         }

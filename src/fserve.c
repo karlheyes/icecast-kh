@@ -947,7 +947,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             if (client->connection.sent_bytes == 0)
                 client->timer_start -= 2;
             client->counter = 0;
-            client->intro_offset = 0;
             global_reduce_bitrate_sampling (global.out_bitrate);
         }
     }
