@@ -905,6 +905,7 @@ static int shoutcast_source_client (client_t *client)
             if (ret < 0)
                 return 0;
 
+            refbuf->len += ret;
             buf [ret] = '\0';
             len = strcspn (refbuf->data, "\r\n");
             if (refbuf->data [len] == '\0')  /* no EOL yet */
