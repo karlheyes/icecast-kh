@@ -126,7 +126,7 @@ static auth_client *auth_client_setup (const char *mount, client_t *client)
     auth_user->port = config->port;
     auth_user->client = client;
     if (client)
-	client->mount = auth_user->mount;
+        client->mount = auth_user->mount;
     return auth_user;
 }
 
@@ -247,7 +247,7 @@ static void auth_new_listener (auth_client *auth_user)
      * can be avoided if client has disconnected */
     if (allow_auth == 0 || client_connected (client) == 0)
     {
-        DEBUG0 ("dropping listener connection");
+        DEBUG1 ("dropping listener #%" PRIu64 " connection", client->connection.id);
         client->respcode = 400;
         return;
     }
@@ -279,6 +279,7 @@ static void auth_remove_listener (auth_client *auth_user)
     {
         client_t *client = auth_user->client;
         client->flags &= ~CLIENT_AUTHENTICATED;
+        DEBUG1 ("client #%" PRIu64 " completed", client->connection.id);
         if (client->worker)
             client_send_404 (client, NULL);
         else
@@ -547,6 +548,7 @@ static int auth_postprocess_listener (auth_client *auth_user)
             mount = auth->rejected_mount;
         else
         {
+            DEBUG1 ("listener #%" PRIu64 " rejected", client->connection.id);
             client_send_401 (client, auth_user->auth->realm);
             return -1;
         }
@@ -682,7 +684,7 @@ int auth_add_listener (const char *mount, client_t *client)
                     auth_client *auth_user = auth_client_setup (mount, client);
                     auth_user->process = auth_new_listener;
                     client->flags &= ~CLIENT_ACTIVE;
-                    DEBUG0 ("adding client for authentication");
+                    DEBUG1 ("adding client #%" PRIu64 " for authentication", client->connection.id);
                     queue_auth_client (auth_user, mountinfo);
                     config_release_config ();
                     return 0;
