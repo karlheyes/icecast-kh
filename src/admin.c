@@ -84,7 +84,6 @@ struct admin_command
 static struct admin_command admin_general[] =
 {
     { "managerelays",       RAW,    { command_manage_relay } },
-    { "manageauth",         RAW,    { command_manageauth } },
     { "listmounts",         RAW,    { command_list_mounts } },
     { "function",           RAW,    { command_admin_function } },
 #ifdef MY_ALLOC
@@ -95,7 +94,6 @@ static struct admin_command admin_general[] =
     { "showlog.txt",        TEXT,   { command_list_log } },
     { "showlog.xsl",        XSLT,   { command_list_log } },
     { "managerelays.xsl",   XSLT,   { command_manage_relay } },
-    { "manageauth.xsl",     XSLT,   { command_manageauth } },
     { "listmounts.xsl",     XSLT,   { command_list_mounts } },
     { "moveclients.xsl",    XSLT,   { command_list_mounts } },
     { "function.xsl",       XSLT,   { command_admin_function } },
