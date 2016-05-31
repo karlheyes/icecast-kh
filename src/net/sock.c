@@ -866,7 +866,10 @@ sock_t sock_get_server_socket (int port, const char *sinterface)
         if (sock < 0)
             continue;
 
-        setsockopt (sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&on, sizeof(on));
+#ifndef WIN32
+        /* reuse it if we can */
+        setsockopt (sock, SOL_SOCKET, SO_REUSEADDR, (void *)&on, sizeof(on));
+#endif
         on = 0;
 #ifdef IPV6_V6ONLY
         setsockopt (sock, IPPROTO_IPV6, IPV6_V6ONLY, (void*)&on, sizeof on);
@@ -1026,8 +1029,8 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
         return SOCK_ERROR;
 
     sock_set_cloexec (sock);
-    /* reuse it if we can */
 #ifndef WIN32
+    /* reuse it if we can */
     int opt = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const void *)&opt, sizeof(int));
 #endif
@@ -1037,7 +1040,7 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
     if (error == -1)
     {
         sock_close (sock);
-        sock =  SOCK_ERROR;
+        sock = SOCK_ERROR;
     }
 
     return sock;

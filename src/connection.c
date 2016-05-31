@@ -1374,6 +1374,7 @@ int connection_check_pass (http_parser_t *parser, const char *user, const char *
     return ret;
 }
 
+
 static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
 {
     do {
@@ -1397,6 +1398,7 @@ static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
         }
     } while(0);
 }
+
 
 static int _handle_source_request (client_t *client)
 {

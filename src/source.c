@@ -872,7 +872,7 @@ static int locate_start_on_queue (source_t *source, client_t *client)
             client->counter = 0;
             client->queue_pos = source->client->queue_pos - lag;
             client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
-            DEBUG4 ("%s Joining queue on %s (%"PRIu64 ", %"PRIu64 ")", client->connection.ip, source->mount, source->client->queue_pos, client->queue_pos);
+            DEBUG4 ("%s Joining queue on %s (%"PRIu64 ", %"PRIu64 ")", &client->connection.ip[0], source->mount, source->client->queue_pos, client->queue_pos);
             return 0;
         }
         lag -= refbuf->len;
@@ -985,7 +985,7 @@ static int http_source_listener (client_t *client)
         refbuf->len = 0;
         if (build_headers (source->format, client) < 0)
         {
-            ERROR0 ("internal problem, dropping client");
+            ERROR1 ("internal problem, dropping client %" PRIu64, client->connection.id);
             return -1;
         }
         client->flags |= CLIENT_HAS_INTRO_CONTENT;
@@ -2102,6 +2102,7 @@ static int source_listener_release (source_t *source, client_t *client)
     stats_event_dec (NULL, "listeners");
     /* change of listener numbers, so reduce scope of global sampling */
     global_reduce_bitrate_sampling (global.out_bitrate);
+    DEBUG2 ("Listener %" PRIu64 " leaving %s", client->connection.id, source->mount);
 
     config = config_get_config ();
     mountinfo = config_find_mount (config, source->mount);
@@ -2190,7 +2191,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
 
         if (client->flags & CLIENT_IS_SLAVE)
         {
-            INFO0 ("client is from a slave, bypassing limits");
+            INFO1 ("client %" PRIu64 " is from a slave, bypassing limits", client->connection.id);
             break;
         }
         if (source->format)
@@ -2374,7 +2375,7 @@ void source_setup_listener (source_t *source, client_t *client)
         source->client->schedule_ms = 0;
         client->schedule_ms += 300;
         worker_wakeup (source->client->worker);
-        DEBUG0 ("woke up relay");
+        DEBUG1 ("woke up relay on %s", source->mount);
     }
 }
 
@@ -2627,7 +2628,7 @@ int listener_change_worker (client_t *client, source_t *source)
         thread_rwlock_unlock (&source->lock);
         ret = client_change_worker (client, dest_worker);
         if (ret)
-            DEBUG2 ("moving listener from %p to %p", this_worker, dest_worker);
+            DEBUG3 ("moving listener %" PRIu64 " from %p to %p", client->connection.id, this_worker, dest_worker);
         else
             thread_rwlock_rlock (&source->lock);
     }
