@@ -621,7 +621,7 @@ int auth_add_listener (const char *mount, client_t *client)
                 client->intro_offset = pos1;
                 client->connection.discon.offset = pos2;
                 client->flags |= CLIENT_RANGE_END;
-                if (pos2 - pos1 < 10)
+                if (pos2 - pos1 < 100)
                     need_auth = 0; // avoid auth check if range is very small, player hack
             }
             else

@@ -283,7 +283,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
         const char *protocol;
         const char *contenttypehdr = "Content-Type";
-        const char *contenttype = plugin->contenttype;
+        const char *contenttype = plugin ? plugin->contenttype : "application/octet-stream";
         const char *fs = httpp_getvar (client->parser, "__FILESIZE");
         const char *opt = httpp_get_query_param (client->parser, "_hdr");
         int fmtcode = 0;
@@ -304,7 +304,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 break;
             }
             // ignore following settings for files.
-            if (fs == NULL && useragent)
+            if (fs == NULL && useragent && plugin)
             {
                 if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
                     fmtcode = FMT_RETURN_ICY;
@@ -394,7 +394,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 client->refbuf->next = r;
                 r->flags |= WRITE_BLOCK_GENERIC;
                 plugin = NULL;
-                client->flags &= ~CLIENT_AUTHENTICATED;
+                client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
                 DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
             }
         }
