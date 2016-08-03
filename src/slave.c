@@ -79,6 +79,7 @@ struct master_conn_details
     int previous;
     int ok;
     int max_interval;
+    int run_on;
     time_t synctime;
     char *buffer;
     char *username;
@@ -737,7 +738,7 @@ static relay_server *create_master_relay (const char *local, const char *remote,
         relay->flags |= RELAY_ON_DEMAND;
     if (master->on_demand) relay->flags |= RELAY_ON_DEMAND;
     relay->interval = master->max_interval;
-    relay->run_on = 30;
+    relay->run_on = master->run_on;
     if (master->send_auth)
     {
         relay->username = (char *)xmlStrdup (XMLSTR(master->username));
@@ -1052,6 +1053,7 @@ static void update_from_master (ice_config_t *config)
     details->on_demand = config->on_demand;
     details->server_id = strdup (config->server_id);
     details->max_interval = config->master_update_interval;
+    details->run_on = config->master_run_on;
     if (config->master_redirect)
     {
         details->args = malloc (4096);

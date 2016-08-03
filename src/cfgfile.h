@@ -290,6 +290,7 @@ typedef struct ice_config_tag
     int master_relay_auth;
     int master_ssl_port;
     int master_redirect;
+    int master_run_on;
     int max_redirects;
     struct _redirect_host *redirect_hosts;
     struct xforward_entry *xforward;

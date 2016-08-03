@@ -566,6 +566,7 @@ static void _set_defaults(ice_config_t *configuration)
     configuration->master_password = NULL;
     configuration->master_bind = NULL;
     configuration->master_relay_auth = 0;
+    configuration->master_run_on = 30;
     configuration->base_dir = (char *)xmlCharStrdup (CONFIG_DEFAULT_BASE_DIR);
     configuration->log_dir = (char *)xmlCharStrdup (CONFIG_DEFAULT_LOG_DIR);
     configuration->webroot_dir = (char *)xmlCharStrdup (CONFIG_DEFAULT_WEBROOT_DIR);
@@ -1126,7 +1127,7 @@ static int _parse_relay (xmlNodePtr node, void *arg)
     };
 
     relay->interval = config->master_update_interval;
-    relay->run_on = 30;
+    relay->run_on = config->master_run_on;
     relay->hosts = host;
     /* default settings */
     host->port = config->port;
@@ -1232,6 +1233,7 @@ static int _parse_master (xmlNodePtr node, void *arg)
         { "interval",           config_get_int,     &config->master_update_interval },
         { "relay-auth",         config_get_bool,    &config->master_relay_auth },
         { "redirect",           config_get_bool,    &config->master_redirect },
+        { "run-on",             config_get_int,     &config->master_run_on },
         { NULL, NULL, NULL },
     };
 
