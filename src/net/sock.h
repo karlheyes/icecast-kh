@@ -122,7 +122,7 @@ void sock_set_send_buffer (sock_t sock, int win_size);
 int sock_set_delay(sock_t sock);
 void sock_set_error(int val);
 int sock_close(sock_t  sock);
-int sock_create_pipe_emulation (int handles[2]);
+int sock_create_pipe_emulation (SOCKET handles[2]);
 void sock_set_mss (sock_t sock, int mss_size);
 
 /* Connection related socket functions */

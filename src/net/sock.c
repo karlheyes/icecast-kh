@@ -1114,7 +1114,7 @@ sock_t sock_accept(sock_t serversock, char *ip, size_t len)
 }
 
 #ifdef _WIN32
-int sock_create_pipe_emulation (int handles[2])
+int sock_create_pipe_emulation (SOCKET handles[2])
 {
     sock_t s;
     struct  sockaddr_in serv_addr;

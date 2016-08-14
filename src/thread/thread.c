@@ -648,7 +648,7 @@ void thread_exit_c(long val, int line, char *file)
         _mutex_unlock(&_threadtree_mutex);
     }
 
-    pthread_exit ((void*)val);
+    pthread_exit ((void*)(uintptr_t)val);
 }
 
 /* sleep for a number of microseconds */

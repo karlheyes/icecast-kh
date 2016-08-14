@@ -29,6 +29,8 @@
 #define STATS_REGULAR   01000
 #define STATS_ALL      ~0
 
+typedef uintptr_t stats_handle_t;
+
 void stats_initialize(void);
 void stats_shutdown(void);
 
@@ -58,18 +60,18 @@ void stats_sendxml(client_t *client);
 xmlDocPtr stats_get_xml(int flags, const char *show_mount);
 char *stats_get_value(const char *source, const char *name);
 
-long stats_handle (const char *mount);
-long stats_lock (long handle, const char *mount);
-void stats_release (long handle);
-void stats_flush (long handle);
-void stats_set (long handle, const char *name, const char *value);
-void stats_set_expire (long stats, time_t mark);
-void stats_set_inc (long handle, const char *name);
-void stats_set_args (long handle, const char *name, const char *format, ...);
-void stats_set_flags (long handle, const char *name, const char *value, int flags);
-void stats_set_conv (long handle, const char *name, const char *value, const char *charset);
-void stats_set_time (long handle, const char *name, int flags, time_t tm);
-char *stats_retrieve (long handle, const char *name);
+stats_handle_t stats_handle (const char *mount);
+stats_handle_t stats_lock (stats_handle_t handle, const char *mount);
+void stats_release (stats_handle_t handle);
+void stats_flush (stats_handle_t handle);
+void stats_set (stats_handle_t handle, const char *name, const char *value);
+void stats_set_expire (stats_handle_t stats, time_t mark);
+void stats_set_inc (stats_handle_t handle, const char *name);
+void stats_set_args (stats_handle_t handle, const char *name, const char *format, ...);
+void stats_set_flags (stats_handle_t handle, const char *name, const char *value, int flags);
+void stats_set_conv (stats_handle_t handle, const char *name, const char *value, const char *charset);
+void stats_set_time (stats_handle_t handle, const char *name, int flags, time_t tm);
+char *stats_retrieve (stats_handle_t handle, const char *name);
 
 void stats_listener_to_xml (client_t *listener, xmlNodePtr parent);
 

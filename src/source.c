@@ -1984,7 +1984,7 @@ void source_recheck_mounts (int update_all)
             DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, count);
             if (count >= 0)
             {
-                long stats = stats_handle (mount->mountname);
+                stats_handle_t stats = stats_handle (mount->mountname);
                 if (source == NULL) // mark for purge if there is no source at all
                     stats_set_expire (stats, mark);
                 stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);

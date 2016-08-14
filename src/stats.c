@@ -328,7 +328,7 @@ char *stats_get_value(const char *source, const char *name)
 }
 
 
-char *stats_retrieve (long handle, const char *name)
+char *stats_retrieve (stats_handle_t handle, const char *name)
 {
     char *v = NULL;
     stats_source_t *src_stats = (stats_source_t *)handle;
@@ -650,7 +650,7 @@ static void process_source_event (stats_event_t *event)
 }
 
 
-void stats_set_time (long handle, const char *name, int flags, time_t tm)
+void stats_set_time (stats_handle_t handle, const char *name, int flags, time_t tm)
 {
     char buffer[100];
 
@@ -1382,7 +1382,7 @@ void stats_global_calc (void)
 }
 
 
-long stats_handle (const char *mount)
+stats_handle_t stats_handle (const char *mount)
 {
     stats_source_t *src_stats;
 
@@ -1406,22 +1406,22 @@ long stats_handle (const char *mount)
     avl_tree_wlock (src_stats->stats_tree);
     avl_tree_unlock (_stats.source_tree);
 
-    return (long)src_stats;
+    return (stats_handle_t)src_stats;
 }
 
 
-long stats_lock (long handle, const char *mount)
+stats_handle_t stats_lock (stats_handle_t handle, const char *mount)
 {
     stats_source_t *src_stats = (stats_source_t *)handle;
     if (src_stats == NULL)
         src_stats = (stats_source_t*)stats_handle (mount);
     else
         avl_tree_wlock (src_stats->stats_tree);
-    return (long)src_stats;
+    return (stats_handle_t)src_stats;
 }
 
 
-void stats_release (long handle)
+void stats_release (stats_handle_t handle)
 {
     stats_source_t *src_stats = (stats_source_t *)handle;
     if (src_stats)
@@ -1430,7 +1430,7 @@ void stats_release (long handle)
 
 
 // drops stats attached to this handle but don't remove the handle itself
-void stats_flush (long handle)
+void stats_flush (stats_handle_t handle)
 {
     if (handle)
     {
@@ -1452,7 +1452,7 @@ void stats_flush (long handle)
 
 
 // assume source stats are write locked 
-void stats_set (long handle, const char *name, const char *value)
+void stats_set (stats_handle_t handle, const char *name, const char *value)
 {
     if (handle)
     {
@@ -1465,7 +1465,7 @@ void stats_set (long handle, const char *name, const char *value)
 }
 
 
-void stats_set_inc (long handle, const char *name)
+void stats_set_inc (stats_handle_t handle, const char *name)
 {
     if (handle)
     {
@@ -1480,7 +1480,7 @@ void stats_set_inc (long handle, const char *name)
 }
 
 
-void stats_set_args (long handle, const char *name, const char *format, ...)
+void stats_set_args (stats_handle_t handle, const char *name, const char *format, ...)
 {
     va_list val;
     int ret;
@@ -1503,7 +1503,7 @@ void stats_set_args (long handle, const char *name, const char *format, ...)
 }
 
 
-void stats_set_expire (long handle, time_t mark)
+void stats_set_expire (stats_handle_t handle, time_t mark)
 {
     stats_source_t *src_stats = (stats_source_t *)handle;
     
@@ -1512,7 +1512,7 @@ void stats_set_expire (long handle, time_t mark)
 }
 
 
-void stats_set_flags (long handle, const char *name, const char *value, int flags)
+void stats_set_flags (stats_handle_t handle, const char *name, const char *value, int flags)
 {
     stats_source_t *src_stats = (stats_source_t *)handle;
     stats_event_t event;
@@ -1541,7 +1541,7 @@ static int contains_xml_entity (const char *value)
 }
 
 
-static void stats_set_entity_decode (long handle, const char *name, const char *value)
+static void stats_set_entity_decode (stats_handle_t handle, const char *name, const char *value)
 {
     if (contains_xml_entity (value))
     {
@@ -1568,7 +1568,7 @@ static void stats_set_entity_decode (long handle, const char *name, const char *
 }
 
 
-void stats_set_conv (long handle, const char *name, const char *value, const char *charset)
+void stats_set_conv (stats_handle_t handle, const char *name, const char *value, const char *charset)
 {
     if (charset)
     {

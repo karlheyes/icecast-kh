@@ -34,8 +34,11 @@ struct _worker_t
     int count, pending_count;
     int move_allocations;
     spin_t lock;
+#ifdef _MSVER
+    SOCKET wakeup_fd[2];
+#else
     int wakeup_fd[2];
-
+#endif
     client_t *pending_clients;
     client_t **pending_clients_tail,
              *clients;

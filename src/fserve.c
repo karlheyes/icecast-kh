@@ -102,7 +102,7 @@ typedef struct {
     icefile_handle f;
     time_t stats_update;
     time_t expire;
-    long stats;
+    stats_handle_t stats;
     format_plugin_t *format;
     struct rate_calc *out_bitrate;
     avl_tree *clients;
