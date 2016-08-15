@@ -251,7 +251,7 @@ int sock_active (sock_t sock)
 **
 ** turns an ascii ip address into a binary representation
 */
-#ifdef _WIN32
+#ifndef HAVE_INET_ATON
 int inet_aton(const char *s, struct in_addr *a)
 {
     int lsb, b2, b3, msb;

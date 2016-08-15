@@ -34,7 +34,7 @@ struct _worker_t
     int count, pending_count;
     int move_allocations;
     spin_t lock;
-#ifdef _MSVER
+#ifdef _WIN32
     SOCKET wakeup_fd[2];
 #else
     int wakeup_fd[2];

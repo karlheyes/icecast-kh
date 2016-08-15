@@ -122,7 +122,6 @@ void sock_set_send_buffer (sock_t sock, int win_size);
 int sock_set_delay(sock_t sock);
 void sock_set_error(int val);
 int sock_close(sock_t  sock);
-int sock_create_pipe_emulation (SOCKET handles[2]);
 void sock_set_mss (sock_t sock, int mss_size);
 
 /* Connection related socket functions */
@@ -149,8 +148,11 @@ sock_t sock_get_server_socket(int port, const char *sinterface);
 int sock_listen(sock_t serversock, int backlog);
 sock_t sock_accept(sock_t serversock, char *ip, size_t len);
 
-#ifdef _WIN32
+#ifndef HAVE_INET_ATON
 int inet_aton(const char *s, struct in_addr *a);
+#endif
+#ifdef _WIN32
+int sock_create_pipe_emulation (SOCKET handles[2]);
 #endif
 
 #endif  /* __SOCK_H */
