@@ -2,12 +2,12 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT([Icecast], [2.4.0-kh3], [karl@kheyes.plus.com])
 
 AC_PREREQ(2.59)
-AC_CONFIG_SRCDIR(src/main.c)
+AC_CONFIG_SRCDIR([src/main.c])
+AM_CONFIG_HEADER([config.h])
+AC_CONFIG_MACRO_DIR([m4])
 
 AM_INIT_AUTOMAKE
-AM_CONFIG_HEADER(config.h)
 AM_MAINTAINER_MODE
-AC_CONFIG_MACRO_DIR([m4])
 
 LT_INIT
 
