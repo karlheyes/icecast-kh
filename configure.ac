@@ -184,7 +184,8 @@ AC_SUBST(ICECAST_OPTIONAL)
 AC_SUBST(HAVE_KATE)
 AC_SUBST(KATE_LIBS)
 
-AC_OUTPUT([Makefile conf/Makefile src/Makefile src/avl/Makefile
+AC_CONFIG_FILES([Makefile conf/Makefile src/Makefile src/avl/Makefile
 src/httpp/Makefile src/thread/Makefile src/log/Makefile
 src/net/Makefile src/timing/Makefile doc/Makefile web/Makefile web/images/Makefile
 admin/Makefile win32/Makefile win32/res/Makefile])
+AC_OUTPUT
