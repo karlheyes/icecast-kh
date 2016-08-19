@@ -1,8 +1,8 @@
+dnl Process this file with autoconf to produce a configure script.
 AC_INIT([Icecast], [2.4.0-kh3], [karl@kheyes.plus.com])
 
 AC_PREREQ(2.59)
 AC_CONFIG_SRCDIR(src/main.c)
-dnl Process this file with autoconf to produce a configure script.
 
 AM_INIT_AUTOMAKE
 AM_CONFIG_HEADER(config.h)
