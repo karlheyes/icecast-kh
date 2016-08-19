@@ -143,7 +143,7 @@ XIPH_PATH_CURL([
     ])
 dnl -- YP support --
 AC_ARG_ENABLE([yp],
-        AC_HELP_STRING([--disable-yp],[disable YP directory support]),
+        AS_HELP_STRING([--disable-yp],[disable YP directory support]),
         enable_yp="$enableval",
         enable_yp="yes")
 if test "x$enable_yp" = "xyes" -a "x$enable_curl" = xyes
