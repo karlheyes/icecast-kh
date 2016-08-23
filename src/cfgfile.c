@@ -566,6 +566,7 @@ static void _set_defaults(ice_config_t *configuration)
     configuration->master_password = NULL;
     configuration->master_bind = NULL;
     configuration->master_relay_auth = 0;
+    configuration->master_relay_retry = configuration->master_update_interval;
     configuration->master_run_on = 30;
     configuration->base_dir = (char *)xmlCharStrdup (CONFIG_DEFAULT_BASE_DIR);
     configuration->log_dir = (char *)xmlCharStrdup (CONFIG_DEFAULT_LOG_DIR);
@@ -1232,6 +1233,7 @@ static int _parse_master (xmlNodePtr node, void *arg)
         { "bind",               config_get_str,     &config->master_bind },
         { "interval",           config_get_int,     &config->master_update_interval },
         { "relay-auth",         config_get_bool,    &config->master_relay_auth },
+        { "retry-delay",        config_get_int,     &config->master_relay_retry },
         { "redirect",           config_get_bool,    &config->master_redirect },
         { "run-on",             config_get_int,     &config->master_run_on },
         { NULL, NULL, NULL },
@@ -1241,6 +1243,8 @@ static int _parse_master (xmlNodePtr node, void *arg)
         return -1;
     if (config->master_update_interval < 2)
         config->master_update_interval = 60;
+    if (config->master_relay_retry < 1)
+        config->master_relay_retry = 60;
 
     return 0;
 }

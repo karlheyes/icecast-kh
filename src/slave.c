@@ -1052,7 +1052,7 @@ static void update_from_master (ice_config_t *config)
     details->bind = (config->master_bind) ? strdup (config->master_bind) : NULL;
     details->on_demand = config->on_demand;
     details->server_id = strdup (config->server_id);
-    details->max_interval = config->master_update_interval;
+    details->max_interval = config->master_relay_retry;
     details->run_on = config->master_run_on;
     if (config->master_redirect)
     {

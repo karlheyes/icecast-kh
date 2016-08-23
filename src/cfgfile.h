@@ -288,6 +288,7 @@ typedef struct ice_config_tag
     char *master_username;
     char *master_password;
     int master_relay_auth;
+    int master_relay_retry;
     int master_ssl_port;
     int master_redirect;
     int master_run_on;
