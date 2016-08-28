@@ -2,8 +2,6 @@
 
 AUTOMAKE_OPTIONS = foreign
 
-SUBDIRS = res
-
 EXTRA_DIST = ConfigTab.cpp ConfigTab.h Icecast2win.clw Icecast2win.cpp \
     Icecast2win.dsp Icecast2win.dsw Icecast2win.h Icecast2win.rc \
     Icecast2winDlg.cpp Icecast2winDlg.h Makefile.am \

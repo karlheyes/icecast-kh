@@ -90,9 +90,6 @@
 /* Define if you have libkate */
 #undef HAVE_KATE
 
-/* Define to 1 if you have the <limits.h> header file. */
-#undef HAVE_LIMITS_H
-
 /* Define to 1 if you have the `localtime_r' function. */
 #undef HAVE_LOCALTIME_R
 
@@ -149,9 +146,6 @@
 
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
-
-/* Define to 1 if you have the <signal.h> header file. */
-#undef HAVE_SIGNAL_H
 
 /* Define to 1 if the system has the type `socklen_t'. */
 #undef HAVE_SOCKLEN_T
@@ -237,8 +231,7 @@
 /* Define to 1 if you have the `xsltSaveResultToString' function. */
 #undef HAVE_XSLTSAVERESULTTOSTRING
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #undef LT_OBJDIR
 
 /* Name of package */
@@ -291,6 +284,12 @@ typedef int socklen_t;
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
 
+/* Use GNU setting because of mingw else use standard attribute format setting */
+#ifndef __GNUC__
+#define gnu_printf printf
+#endif
+  
+
 /* Define to include GNU extensions to POSIX */
 #undef _GNU_SOURCE
 
@@ -299,6 +298,9 @@ typedef int socklen_t;
 
 /* Define to use C99 routines on MS */
 #undef _POSIX
+
+/* Define to empty if __attribute__ is not supported */
+#undef __attribute__
 
 /* Replace __func__ if not supported */
 #undef __func__
