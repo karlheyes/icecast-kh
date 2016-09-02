@@ -1,275 +1,276 @@
+/* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define if you have pwd.h */
-#undef CHUID
+#define CHUID 1
 
 /* Define to 1 if you have the <alloca.h> header file. */
-#undef HAVE_ALLOCA_H
+#define HAVE_ALLOCA_H 1
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
-#undef HAVE_ARPA_INET_H
+#define HAVE_ARPA_INET_H 1
 
 /* Define to 1 if you have the `atoll' function. */
-#undef HAVE_ATOLL
+#define HAVE_ATOLL 1
 
 /* Define to compile in auth URL support code */
-#undef HAVE_AUTH_URL
+#define HAVE_AUTH_URL 1
 
 /* Define to 1 if you have the `chroot' function. */
-#undef HAVE_CHROOT
+#define HAVE_CHROOT 1
 
 /* Define if you have clock_gettime */
-#undef HAVE_CLOCK_GETTIME
+#define HAVE_CLOCK_GETTIME 1
 
 /* Define if you have libcurl. */
-#undef HAVE_CURL
+#define HAVE_CURL 1
 
 /* Define to 1 if you have the <curl/curl.h> header file. */
-#undef HAVE_CURL_CURL_H
+#define HAVE_CURL_CURL_H 1
 
 /* Define to 1 if you have the `curl_global_init' function. */
-#undef HAVE_CURL_GLOBAL_INIT
+#define HAVE_CURL_GLOBAL_INIT 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
-#undef HAVE_DLFCN_H
+#define HAVE_DLFCN_H 1
 
 /* Define to 1 if you have the `endhostent' function. */
-#undef HAVE_ENDHOSTENT
+#define HAVE_ENDHOSTENT 1
 
 /* Define to 1 if you have the <fcntl.h> header file. */
-#undef HAVE_FCNTL_H
+#define HAVE_FCNTL_H 1
 
 /* Define to 1 if you have the `FindFirstFile' function. */
-#undef HAVE_FINDFIRSTFILE
+/* #undef HAVE_FINDFIRSTFILE */
 
 /* Define to 1 if you have the `fnmatch' function. */
-#undef HAVE_FNMATCH
+#define HAVE_FNMATCH 1
 
 /* Define to 1 if you have the <fnmatch.h> header file. */
-#undef HAVE_FNMATCH_H
+#define HAVE_FNMATCH_H 1
 
 /* Define to 1 if you have the `fork' function. */
-#undef HAVE_FORK
+#define HAVE_FORK 1
 
 /* Define to 1 if you have the `fseeko' function. */
-#undef HAVE_FSEEKO
+#define HAVE_FSEEKO 1
 
 /* Define to 1 if you have the `fsync' function. */
-#undef HAVE_FSYNC
+#define HAVE_FSYNC 1
 
 /* Define to 1 if you have the `getaddrinfo' function. */
-#undef HAVE_GETADDRINFO
+#define HAVE_GETADDRINFO 1
 
 /* Define if you have the getnameinfo function */
-#undef HAVE_GETNAMEINFO
+#define HAVE_GETNAMEINFO 1
 
 /* Define to 1 if you have the `getrlimit' function. */
-#undef HAVE_GETRLIMIT
+#define HAVE_GETRLIMIT 1
 
 /* Define to 1 if you have the `gettimeofday' function. */
-#undef HAVE_GETTIMEOFDAY
+#define HAVE_GETTIMEOFDAY 1
 
 /* Define to 1 if you have the `glob' function. */
-#undef HAVE_GLOB
+#define HAVE_GLOB 1
 
 /* Define to 1 if you have the <glob.h> header file. */
-#undef HAVE_GLOB_H
+#define HAVE_GLOB_H 1
 
 /* Define to 1 if you have the `gmtime_r' function. */
-#undef HAVE_GMTIME_R
+#define HAVE_GMTIME_R 1
 
 /* Define to 1 if you have the `inet_aton' function. */
-#undef HAVE_INET_ATON
+#define HAVE_INET_ATON 1
 
 /* Define to 1 if you have the `inet_pton' function. */
-#undef HAVE_INET_PTON
+#define HAVE_INET_PTON 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-#undef HAVE_INTTYPES_H
+#define HAVE_INTTYPES_H 1
 
 /* Define if you have libkate */
-#undef HAVE_KATE
+#define HAVE_KATE 1
 
 /* Define to 1 if you have the `localtime_r' function. */
-#undef HAVE_LOCALTIME_R
+#define HAVE_LOCALTIME_R 1
 
 /* Define to 1 if you have the <malloc.h> header file. */
-#undef HAVE_MALLOC_H
+#define HAVE_MALLOC_H 1
 
 /* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
+#define HAVE_MEMORY_H 1
 
 /* Define if you have nanosleep */
-#undef HAVE_NANOSLEEP
+#define HAVE_NANOSLEEP 1
 
 /* Define to 1 if you have the <netdb.h> header file. */
-#undef HAVE_NETDB_H
+#define HAVE_NETDB_H 1
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
-#undef HAVE_NETINET_IN_H
+#define HAVE_NETINET_IN_H 1
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
-#undef HAVE_NETINET_TCP_H
+#define HAVE_NETINET_TCP_H 1
 
 /* Define if you have libogg installed */
-#undef HAVE_OGG
+#define HAVE_OGG 1
 
 /* Define if you have libopenssl. */
-#undef HAVE_OPENSSL
+#define HAVE_OPENSSL 1
 
 /* Define to 1 if you have the `pipe2' function. */
-#undef HAVE_PIPE2
+#define HAVE_PIPE2 1
 
 /* Define to 1 if you have the `poll' function. */
-#undef HAVE_POLL
+#define HAVE_POLL 1
 
 /* Define to 1 if you have the `pread' function. */
-#undef HAVE_PREAD
+#define HAVE_PREAD 1
 
 /* Define if you have POSIX threads libraries and header files. */
-#undef HAVE_PTHREAD
+#define HAVE_PTHREAD 1
 
 /* Define to 1 if you have the `pthread_spin_lock' function. */
-#undef HAVE_PTHREAD_SPIN_LOCK
+#define HAVE_PTHREAD_SPIN_LOCK 1
 
 /* Define to 1 if you have the <pwd.h> header file. */
-#undef HAVE_PWD_H
+#define HAVE_PWD_H 1
 
 /* Define if you have the sethostent function */
-#undef HAVE_SETHOSTENT
+#define HAVE_SETHOSTENT 1
 
 /* Define to 1 if you have the `setresgid' function. */
-#undef HAVE_SETRESGID
+#define HAVE_SETRESGID 1
 
 /* Define to 1 if you have the `setresuid' function. */
-#undef HAVE_SETRESUID
+#define HAVE_SETRESUID 1
 
 /* Define if signalfd exists */
-#undef HAVE_SIGNALFD
+#define HAVE_SIGNALFD 1 
 
 /* Define to 1 if the system has the type `socklen_t'. */
-#undef HAVE_SOCKLEN_T
+#define HAVE_SOCKLEN_T 1
 
 /* Define if Speex support is available */
-#undef HAVE_SPEEX
+#define HAVE_SPEEX 1
 
 /* Define to 1 if you have the <stdbool.h> header file. */
-#undef HAVE_STDBOOL_H
+#define HAVE_STDBOOL_H 1
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#undef HAVE_STDINT_H
+#define HAVE_STDINT_H 1
 
 /* Define to 1 if you have the <stdlib.h> header file. */
-#undef HAVE_STDLIB_H
+#define HAVE_STDLIB_H 1
 
 /* Define to 1 if you have the `strcasecmp' function. */
-#undef HAVE_STRCASECMP
+#define HAVE_STRCASECMP 1
 
 /* Define to 1 if you have the <strings.h> header file. */
-#undef HAVE_STRINGS_H
+#define HAVE_STRINGS_H 1
 
 /* Define to 1 if you have the <string.h> header file. */
-#undef HAVE_STRING_H
+#define HAVE_STRING_H 1
 
 /* Define to 1 if you have the `strsep' function. */
-#undef HAVE_STRSEP
+#define HAVE_STRSEP 1
 
 /* Define to 1 if you have the `strtoll' function. */
-#undef HAVE_STRTOLL
+#define HAVE_STRTOLL 1
 
 /* Define to 1 if the system has the type `struct signalfd_siginfo'. */
-#undef HAVE_STRUCT_SIGNALFD_SIGINFO
+#define HAVE_STRUCT_SIGNALFD_SIGINFO 1
 
 /* Define to 1 if `ss_family' is a member of `struct sockaddr_storage'. */
-#undef HAVE_STRUCT_SOCKADDR_STORAGE_SS_FAMILY
+#define HAVE_STRUCT_SOCKADDR_STORAGE_SS_FAMILY 1
 
 /* Define to 1 if the system has the type `struct timespec'. */
-#undef HAVE_STRUCT_TIMESPEC
+#define HAVE_STRUCT_TIMESPEC 1
 
 /* Define to 1 if you have the <sys/select.h> header file. */
-#undef HAVE_SYS_SELECT_H
+#define HAVE_SYS_SELECT_H 1
 
 /* Define to 1 if you have the <sys/socket.h> header file. */
-#undef HAVE_SYS_SOCKET_H
+#define HAVE_SYS_SOCKET_H 1
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
-#undef HAVE_SYS_STAT_H
+#define HAVE_SYS_STAT_H 1
 
 /* Define to 1 if you have the <sys/timeb.h> header file. */
-#undef HAVE_SYS_TIMEB_H
+#define HAVE_SYS_TIMEB_H 1
 
 /* Define to 1 if you have the <sys/types.h> header file. */
-#undef HAVE_SYS_TYPES_H
+#define HAVE_SYS_TYPES_H 1
 
 /* Define to 1 if you have the <sys/uio.h> header file. */
-#undef HAVE_SYS_UIO_H
+#define HAVE_SYS_UIO_H 1
 
 /* Define to 1 if you have the <sys/wait.h> header file. */
-#undef HAVE_SYS_WAIT_H
+#define HAVE_SYS_WAIT_H 1
 
 /* Define if Theora support is available */
-#undef HAVE_THEORA
+#define HAVE_THEORA 1
 
 /* Define to 1 if you have the `time' function. */
-#undef HAVE_TIME
+#define HAVE_TIME 1
 
 /* Define to 1 if the system has the type `uint32_t'. */
-#undef HAVE_UINT32_T
+#define HAVE_UINT32_T 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
-#undef HAVE_UNISTD_H
+#define HAVE_UNISTD_H 1
 
 /* Define to 1 if you have the <windows.h> header file. */
-#undef HAVE_WINDOWS_H
+/* #undef HAVE_WINDOWS_H */
 
 /* Define if you have winsock2.h on MINGW */
-#undef HAVE_WINSOCK2_H
+/* #undef HAVE_WINSOCK2_H */
 
 /* Define to 1 if you have the `writev' function. */
-#undef HAVE_WRITEV
+#define HAVE_WRITEV 1
 
 /* Define to 1 if you have the `xsltSaveResultToString' function. */
-#undef HAVE_XSLTSAVERESULTTOSTRING
+#define HAVE_XSLTSAVERESULTTOSTRING 1
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
-#undef LT_OBJDIR
+#define LT_OBJDIR ".libs/"
 
 /* Name of package */
-#undef PACKAGE
+#define PACKAGE "icecast"
 
 /* Define to the address where bug reports for this package should be sent. */
-#undef PACKAGE_BUGREPORT
+#define PACKAGE_BUGREPORT "karl@kheyes.plus.com"
 
 /* Define to the full name of this package. */
-#undef PACKAGE_NAME
+#define PACKAGE_NAME "Icecast"
 
 /* Define to the full name and version of this package. */
-#undef PACKAGE_STRING
+#define PACKAGE_STRING "Icecast 2.4.0-kh3"
 
 /* Define to the one symbol short name of this package. */
-#undef PACKAGE_TARNAME
+#define PACKAGE_TARNAME "icecast"
 
 /* Define to the home page for this package. */
-#undef PACKAGE_URL
+#define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#undef PACKAGE_VERSION
+#define PACKAGE_VERSION "2.4.0-kh3"
 
 /* Define to necessary symbol if this constant uses a non-standard name on
    your system. */
-#undef PTHREAD_CREATE_JOINABLE
+/* #undef PTHREAD_CREATE_JOINABLE */
 
 /* Define to 1 if you have the ANSI C header files. */
-#undef STDC_HEADERS
+#define STDC_HEADERS 1
 
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
-#undef TIME_WITH_SYS_TIME
+#define TIME_WITH_SYS_TIME 1
 
 /* Define to compile in YP support code */
-#undef USE_YP
+#define USE_YP 1
 
 /* Version number of package */
-#undef VERSION
+#define VERSION "2.4.0-kh3"
 
 #ifndef HAVE_SOCKLEN_T
 typedef int socklen_t;
@@ -282,7 +283,7 @@ typedef int socklen_t;
 #endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
-#undef _FILE_OFFSET_BITS
+/* #undef _FILE_OFFSET_BITS */
 
 /* Use GNU setting because of mingw else use standard attribute format setting */
 #ifndef __GNUC__
@@ -291,22 +292,22 @@ typedef int socklen_t;
   
 
 /* Define to include GNU extensions to POSIX */
-#undef _GNU_SOURCE
+#define _GNU_SOURCE 1
 
 /* Define for large files, on AIX-style hosts. */
-#undef _LARGE_FILES
+/* #undef _LARGE_FILES */
 
 /* Define to use C99 routines on MS */
-#undef _POSIX
+/* #undef _POSIX */
 
 /* Define to empty if __attribute__ is not supported */
-#undef __attribute__
+/* #undef __attribute__ */
 
 /* Replace __func__ if not supported */
-#undef __func__
+/* #undef __func__ */
 
 /* Define to `long int' if <sys/types.h> does not define. */
-#undef off_t
+/* #undef off_t */
 
 /* define if va_copy is not available */
-#undef va_copy
+/* #undef va_copy */

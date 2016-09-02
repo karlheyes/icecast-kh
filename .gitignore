@@ -1,0 +1,16 @@
+.deps/
+.libs/
+*.la
+*.lo
+*.o
+/autom4te.cache/
+/conf/icecast.xml.dist
+/conf/icecast_minimal.xml.dist
+/conf/icecast_shoutcast_compat.xml.dist
+/config.h
+/config.log
+/config.status
+/git_hash.h
+/src/icecast
+/stamp-h1
+Makefile

@@ -90,6 +90,9 @@
 /* Define if you have libkate */
 #undef HAVE_KATE
 
+/* Define to 1 if you have the <limits.h> header file. */
+#undef HAVE_LIMITS_H
+
 /* Define to 1 if you have the `localtime_r' function. */
 #undef HAVE_LOCALTIME_R
 
@@ -146,6 +149,9 @@
 
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
+
+/* Define to 1 if you have the <signal.h> header file. */
+#undef HAVE_SIGNAL_H
 
 /* Define to 1 if the system has the type `socklen_t'. */
 #undef HAVE_SOCKLEN_T

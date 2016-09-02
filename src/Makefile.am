@@ -1,7 +1,5 @@
 ## Process this with automake to create Makefile.in
 
-AUTOMAKE_OPTIONS = foreign
-
 SUBDIRS = avl thread httpp net log timing
 
 if WIN32
