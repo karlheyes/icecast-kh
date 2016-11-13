@@ -144,7 +144,10 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
         {
             source_mp3->offset = 0;
             plugin->get_buffer = mp3_get_filter_meta;
-            source_mp3->interval = source_mp3->inline_metadata_interval;
+            if (source_mp3->inline_metadata_interval > 7999 && source_mp3->inline_metadata_interval < 32001)
+                source_mp3->interval = source_mp3->inline_metadata_interval;
+            else
+                source_mp3->interval = ICY_METADATA_INTERVAL;
             INFO2 ("icy metadata format expected on %s, interval %d", plugin->mount, source_mp3->interval);
         }
     }
@@ -312,7 +315,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
         if (metadata)
         {
             int interval = atoi (metadata);
-            if (interval > 0)
+            if (interval > 7999 && interval < 32000)
                 source_mp3->interval = interval;
         }
     }
@@ -867,12 +870,12 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         }
         else
         {
-            int multi = 8;
+            int multi = 6;
             if (source->incoming_rate)
-                multi = (source->incoming_rate/100000) + 1;
-            len = source_mp3->qblock_sz = 1000 * (multi < 16 ? multi : 16);
+                multi = (source->incoming_rate/140000) + 1;
+            len = source_mp3->qblock_sz = 1400 * (multi < 16 ? multi : 16);
         }
-        if (len < unprocessed + 40) // avoid block shrinkage
+        if (len < unprocessed + 40) // avoid extreme block shrinkage
         {
             WARN3 ("source %s, len %ld, unprocessed %d", source->mount, (long)len, unprocessed);
             len = unprocessed + 1000;
@@ -926,7 +929,7 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
     mp3_state *source_mp3 = plugin->_state;
     client_t *client = source->client;  // maybe move mp3_state into client instead of plugin?
     unsigned char *src;
-    unsigned int bytes, mp3_block;
+    unsigned int bytes, mp3_block, copy_meta = 1;
 
     if (complete_read (source) == 0)
         return NULL;
@@ -943,6 +946,11 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
     {
         unsigned int metadata_remaining;
 
+        if (source_mp3->offset < -source_mp3->inline_metadata_interval || source_mp3->offset > source_mp3->inline_metadata_interval)
+        {
+            ERROR2 ("bad interval vals on %s, %d", source->mount, source_mp3->offset);
+            abort();
+        }
         mp3_block = source_mp3->inline_metadata_interval - source_mp3->offset;
 
         /* is there only enough to account for mp3 data */
@@ -966,40 +974,39 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
         /* process the inline metadata, len == 0 indicates not seen any yet */
         if (source_mp3->build_metadata_len == 0)
         {
-            memset (source_mp3->build_metadata, 0,
-                    sizeof (source_mp3->build_metadata));
+            copy_meta = (*src) ? 1 : 0; // is there any length to the metadata
+            if (copy_meta)
+                memset (source_mp3->build_metadata, 0, sizeof (source_mp3->build_metadata));
             source_mp3->build_metadata_offset = 0;
             source_mp3->build_metadata_len = 1 + (*src * 16);
         }
 
-        /* do we have all of the metatdata block */
-        metadata_remaining = source_mp3->build_metadata_len -
-            source_mp3->build_metadata_offset;
+        metadata_remaining = source_mp3->build_metadata_len - source_mp3->build_metadata_offset;
         if (bytes < metadata_remaining)
         {
-            memcpy (source_mp3->build_metadata +
-                    source_mp3->build_metadata_offset, src, bytes);
+            // incomplete short meta block
+            if (copy_meta)
+                memcpy (source_mp3->build_metadata + source_mp3->build_metadata_offset, src, bytes);
             source_mp3->build_metadata_offset += bytes;
             break;
         }
-        /* copy all bytes except the last one, that way we 
-         * know a null byte terminates the message */
-        memcpy (source_mp3->build_metadata + source_mp3->build_metadata_offset,
-                src, metadata_remaining-1);
-
-        /* overwrite metadata in the buffer */
-        bytes -= metadata_remaining;
-        memmove (src, src+metadata_remaining, bytes);
-
-        if (source_mp3->build_metadata_len > 1 && parse_icy_metadata (source->mount, source_mp3) < 0)
+        if (copy_meta)
         {
-            WARN1 ("Unable to parse metadata insert for %s", source->mount);
-            source->flags &= ~SOURCE_RUNNING;
-            refbuf_release (refbuf);
-            return NULL;
+            /* copy all bytes except the last one, that way we know a null byte terminates the message */
+            memcpy (source_mp3->build_metadata + source_mp3->build_metadata_offset, src, metadata_remaining-1);
+
+            if (source_mp3->build_metadata_len > 1 && parse_icy_metadata (source->mount, source_mp3) < 0)
+            {
+                WARN1 ("Unable to parse metadata insert for %s", source->mount);
+                source->flags &= ~SOURCE_RUNNING;
+                refbuf_release (refbuf);
+                return NULL;
+            }
         }
         source_mp3->offset = 0;
         source_mp3->build_metadata_len = 0;
+        bytes -= metadata_remaining;
+        memmove (src, src+metadata_remaining, bytes); /* overwrite meta block */
     }
     /* the data we have just read may of just been metadata */
     if (refbuf->len <= 0)

@@ -37,9 +37,9 @@ typedef struct {
 
 typedef struct {
     /* These are for inline metadata */
-    int inline_metadata_interval;
-    int interval;
-    unsigned short offset;
+    int32_t inline_metadata_interval;
+    int32_t interval;
+    int32_t offset;
     short update_metadata;
 
     char *url_artist;
