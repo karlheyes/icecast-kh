@@ -828,7 +828,7 @@ static client_t *accept_client (void)
     }
     do
     {
-        int i, num;
+        int i;
         refbuf_t *r;
 
         if (accept_ip_address (addr) == 0)
@@ -863,7 +863,7 @@ static client_t *accept_client (void)
                 break;
             }
         }
-        num = global.clients;
+        // long num = global.clients;
         global_unlock ();
         client->flags |= CLIENT_ACTIVE;
         return client;

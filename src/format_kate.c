@@ -81,14 +81,14 @@ static refbuf_t *process_kate_page (ogg_state_t *ogg_info, ogg_codec_t *codec, o
     ogg_packet packet;
     int header_page = 0;
     refbuf_t *refbuf = NULL;
-    ogg_int64_t granulepos;
+    //ogg_int64_t granulepos;
 
     if (ogg_stream_pagein (&codec->os, page) < 0)
     {
         ogg_info->error = 1;
         return NULL;
     }
-    granulepos = ogg_page_granulepos (page);
+    //granulepos = ogg_page_granulepos (page);
 
     while (ogg_stream_packetout (&codec->os, &packet) > 0)
     {
