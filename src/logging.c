@@ -77,7 +77,7 @@ void logging_access_id (access_log *accesslog, client_t *client)
             httpp_getvar (client->parser, HTTPP_VAR_PROTOCOL),
             httpp_getvar (client->parser, HTTPP_VAR_VERSION));
 
-    stayed = now - client->connection.con_time;
+    stayed = (client->connection.con_time > now) ? 0 : (now - client->connection.con_time); // in case the clock has shifted
     username = (client->username && client->username[0]) ? util_url_escape (client->username) : strdup("-");
     referrer = httpp_getvar (client->parser, "referer");
     user_agent = httpp_getvar (client->parser, "user-agent");
