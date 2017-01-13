@@ -119,6 +119,9 @@ static int ssl_ok;
 #define SSL_OP_NO_COMPRESSION 0
 #endif
 static SSL_CTX *ssl_ctx;
+static mutex_t *ssl_mutexes = NULL;
+static unsigned long ssl_id_function (void);
+static void ssl_locking_function (int mode, int n, const char *file, int line);
 #endif
 
 int header_timeout;
@@ -195,6 +198,17 @@ void connection_initialize(void)
 #ifdef HAVE_OPENSSL
     SSL_load_error_strings();                /* readable error messages */
     SSL_library_init();                      /* initialize library */
+    ssl_mutexes = malloc(CRYPTO_num_locks() * sizeof(mutex_t));
+    if (ssl_mutexes)
+    {
+        int i;
+        for (i=0; i < CRYPTO_num_locks();  i++)
+            thread_mutex_create (&ssl_mutexes[i]);
+        CRYPTO_set_id_callback (ssl_id_function);
+        CRYPTO_set_locking_callback (ssl_locking_function);
+    }
+    else
+        WARN0("unable to set up internal locking for SSL, memory problem");
 #endif
 }
 
@@ -202,6 +216,18 @@ void connection_shutdown(void)
 {
     connection_listen_sockets_close (NULL, 1);
     thread_spin_destroy (&_connection_lock);
+#ifdef HAVE_OPENSSL
+    CRYPTO_set_id_callback(NULL);
+    CRYPTO_set_locking_callback(NULL);
+    if (ssl_mutexes)
+    {
+        int i;
+        for(i = 0; i < CRYPTO_num_locks(); i++)
+            thread_mutex_destroy (&ssl_mutexes[i]);
+        free (ssl_mutexes);
+        ssl_mutexes = NULL;
+    }
+#endif
 }
 
 static uint64_t _next_connection_id(void)
@@ -217,6 +243,19 @@ static uint64_t _next_connection_id(void)
 
 
 #ifdef HAVE_OPENSSL
+static unsigned long ssl_id_function (void)
+{
+    return (unsigned long)thread_self();
+}
+
+static void ssl_locking_function (int mode, int n, const char *file, int line)
+{
+    if (mode & CRYPTO_LOCK)
+        thread_mutex_lock_c (&ssl_mutexes[n], line, file);
+    else
+        thread_mutex_unlock_c (&ssl_mutexes[n], line, file);
+}
+
 static void get_ssl_certificate (ice_config_t *config)
 {
     ssl_ok = 0;
