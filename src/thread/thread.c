@@ -418,7 +418,7 @@ void thread_mutex_destroy_c (mutex_t *mutex, int line, const char *file)
 #endif
 }
 
-void thread_mutex_lock_c(mutex_t *mutex, int line, char *file)
+void thread_mutex_lock_c(mutex_t *mutex, int line, const char *file)
 {
 #ifdef THREAD_DEBUG
     LOG_DEBUG3("Lock on %s requested at %s:%d", mutex->name, file, line);
@@ -426,13 +426,13 @@ void thread_mutex_lock_c(mutex_t *mutex, int line, char *file)
     _mutex_lock_c(mutex, file, line);
 #ifdef THREAD_DEBUG
     mutex->lock_start = get_count();
-    mutex->file = file;
+    mutex->file = (char*)file;
     mutex->line = line;
     LOG_DEBUG3("Lock on %s acquired at %s:%d", mutex->name, file, line);
 #endif /* THREAD_DEBUG */
 }
 
-void thread_mutex_unlock_c(mutex_t *mutex, int line, char *file)
+void thread_mutex_unlock_c(mutex_t *mutex, int line, const char *file)
 {
     _mutex_unlock_c(mutex, file, line);
 #ifdef THREAD_DEBUG

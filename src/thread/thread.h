@@ -178,8 +178,8 @@ void thread_use_log_id(int log_id);
 thread_type *thread_create_c(char *name, void *(*start_routine)(void *), 
         void *arg, int detached, int line, const char *file);
 void thread_mutex_create_c(mutex_t *mutex, int line, const char *file);
-void thread_mutex_lock_c(mutex_t *mutex, int line, char *file);
-void thread_mutex_unlock_c(mutex_t *mutex, int line, char *file);
+void thread_mutex_lock_c(mutex_t *mutex, int line, const char *file);
+void thread_mutex_unlock_c(mutex_t *mutex, int line, const char *file);
 void thread_mutex_destroy_c (mutex_t *mutex, int line, const char *file);
 void thread_cond_create_c(cond_t *cond, int line, char *file);
 void thread_cond_signal_c(cond_t *cond, int line, char *file);
