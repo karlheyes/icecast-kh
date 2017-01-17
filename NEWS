@@ -17,6 +17,20 @@ Feature differences from SVN trunk
 any extra tags are show in the conf/icecast.xml.dist file
 
 
+2.4.0-kh4
+. handle really short icy intervals from relayed streams.
+. updates for header handling, ranges, auth/html5 etc
+. invalidate requests on windows ending with dot, could be used for extension trickery
+. have clients stats reported once per second instead of after a change.
+. use CORK/PUSH setting if available else fall back to nodelay.
+. added so-mss setting to listen-socket.
+. missing run-on setting for master now fixed, defaults to 30s.
+. auth cmd drops LD_PRELOAD, stdin/out/err and handle errors better.
+. various internal code cleanups, boundary checks, log messages
+. build updates
+  - autofoo mostly from rubenk
+  - type cleanups for win64
+
 2.4.0-kh3
 . fixes for range handling for certain players like iphone/chrome
 . fixes for burst handling with intro playback
