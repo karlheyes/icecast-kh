@@ -116,6 +116,11 @@ typedef mutex_t spin_t;
 #define thread_spin_unlock(x)    thread_mutex_unlock(x)
 #endif
 
+typedef int (*thread_mx_create_func)(void**m, int create);
+typedef int (*thread_mx_lock_func)(void**m, int create);
+
+int thread_mtx_create_callback(void**m, int create);
+int thread_mtx_lock_callback(void**m, int lock);
 
 #define thread_create(n,x,y,z) thread_create_c(n,x,y,z,__LINE__,__FILE__)
 #define thread_mutex_create(x) thread_mutex_create_c(x,__LINE__,__FILE__)

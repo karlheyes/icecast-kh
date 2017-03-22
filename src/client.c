@@ -52,6 +52,10 @@
 int worker_count, worker_min_count;
 worker_t *worker_balance_to_check, *worker_least_used;
 
+int logger_fd[2];
+
+static void logger_commits (int id);
+
 
 void client_register (client_t *client)
 {
@@ -531,15 +535,15 @@ void client_add_worker (client_t *client)
 #endif
 
 
-static void worker_control_create (worker_t *worker)
+void worker_control_create (int wakeup_fd[])
 {
-    if (pipe_create (&worker->wakeup_fd[0]) < 0)
+    if (pipe_create (&wakeup_fd[0]) < 0)
     {
         ERROR0 ("pipe failed, descriptor limit?");
         abort();
     }
-    sock_set_blocking (worker->wakeup_fd[0], 0);
-    sock_set_blocking (worker->wakeup_fd[1], 0);
+    sock_set_blocking (wakeup_fd[0], 0);
+    sock_set_blocking (wakeup_fd[1], 0);
 }
 
 
@@ -597,7 +601,7 @@ static client_t **worker_wait (worker_t *worker)
                 break;
             sock_close (worker->wakeup_fd[1]);
             sock_close (worker->wakeup_fd[0]);
-            worker_control_create (worker);
+            worker_control_create (&worker->wakeup_fd[0]);
             worker_wakeup (worker);
             WARN0 ("Had to recreate worker control feed");
         } while (1);
@@ -768,7 +772,7 @@ static void worker_start (void)
 {
     worker_t *handler = calloc (1, sizeof(worker_t));
 
-    worker_control_create (handler);
+    worker_control_create (&handler->wakeup_fd[0]);
 
     handler->pending_clients_tail = &handler->pending_clients;
     thread_spin_create (&handler->lock);
@@ -820,6 +824,12 @@ void workers_adjust (int new_count)
         else if (worker_count > new_count)
             worker_stop ();
     }
+    if (worker_count == 0)
+    {
+        logger_commits(0);
+        sock_close (logger_fd[1]);
+        sock_close (logger_fd[0]);
+    }
 }
 
 
@@ -827,3 +837,53 @@ void worker_wakeup (worker_t *worker)
 {
     pipe_write (worker->wakeup_fd[1], "W", 1);
 }
+
+
+static void logger_commits (int id)
+{
+    pipe_write (logger_fd[1], "L", 1);
+}
+
+static void *log_commit_thread (void *arg)
+{
+   INFO0 ("started");
+   while (1)
+   {
+       int ret = util_timed_wait_for_fd (logger_fd[0], 5000);
+       if (ret == 0) continue;
+       if (ret > 0)
+       {
+           char cm[80];
+           ret = pipe_read (logger_fd[0], cm, sizeof cm);
+           if (ret > 0)
+           {
+               // fprintf (stderr, "logger woken with %d\n", ret);
+               log_commit_entries ();
+               continue;
+           }
+       }
+       if (ret < 0 && sock_recoverable (sock_error()))
+           continue;
+       int err = sock_error();
+       sock_close (logger_fd[0]);
+       sock_close (logger_fd[1]);
+       if (worker_count)
+       {
+           worker_control_create (logger_fd);
+           ERROR1 ("logger received code %d", err);
+           continue;
+       }
+       // fprintf (stderr, "logger closed with zero workers\n");
+       break;
+   }
+   return NULL;
+}
+
+
+void worker_logger (void)
+{
+    worker_control_create (logger_fd);
+    log_set_commit_callback (logger_commits);
+    thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
+}
+

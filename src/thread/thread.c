@@ -971,3 +971,41 @@ void thread_time_add_ms (struct timespec *ts, unsigned long value)
     }
 }
 
+
+int thread_mtx_create_callback (void **p, int alloc)
+{
+    mutex_t *mutex;
+    if (p == NULL)
+        return -1;
+    if (alloc)
+    {
+        mutex = malloc (sizeof(mutex_t));
+        thread_mutex_create (mutex);
+        *p = mutex;
+    }
+    else
+    {
+        mutex = *p;
+        thread_mutex_destroy (mutex);
+        *p = NULL;
+    }
+    return 0;
+}
+
+
+int thread_mtx_lock_callback (void **p, int lock)
+{
+    mutex_t *mutex;
+    if (p == NULL)
+        return -1;
+    mutex = *p;
+    if (lock)
+    {
+        thread_mutex_lock (mutex);
+    }
+    else
+    {
+        thread_mutex_unlock (mutex);
+    }
+    return 0;
+}

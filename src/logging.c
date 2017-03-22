@@ -257,6 +257,8 @@ int restart_logging (ice_config_t *config)
 
 int start_logging (ice_config_t *config)
 {
+    worker_logger ();
+
     if (strcmp (config->error_log.name, "-") == 0)
         errorlog = log_open_file (stderr);
     if (strcmp(config->access_log.name, "-") == 0)
