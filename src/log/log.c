@@ -405,6 +405,8 @@ static int do_log_run (int log_id)
     log_entry_t *next;
     int loop = 0;
 
+    if (loglist [log_id].in_use == 0)
+        return 0;
     if (loglist [log_id].written_entry == NULL)
         next = loglist [log_id].log_head;
     else
@@ -432,7 +434,7 @@ void log_commit_entries ()
 
     //fprintf (stderr, "in log commit\n");
     _lock_logger ();
-    for (log_id = 0; loglist [log_id].in_use ; log_id++)
+    for (log_id = 0; log_id < logs_allocated ; log_id++)
     {
         do
         {
