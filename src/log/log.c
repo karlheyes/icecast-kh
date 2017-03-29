@@ -77,6 +77,7 @@ static int _get_log_id(void);
 static void _release_log_id(int log_id);
 static void _lock_logger(void);
 static void _unlock_logger(void);
+static int do_log_run (int log_id);
 
 
 static int _log_open (int id, time_t now)
@@ -145,6 +146,7 @@ static void log_init (log_t *log)
     log->total = 0;
     log->entries = 0;
     log->keep_entries = 0;
+    log->written_entry = NULL;
     log->log_head = NULL;
     log->log_tail = NULL;
 }
@@ -346,6 +348,9 @@ void log_close(int log_id)
     }
 
     loglist[log_id].in_use = 0;
+    int loop = 0;
+    while (++loop < 100 && do_log_run (log_id) > 0)
+        ;
     loglist[log_id].level = 2;
     free (loglist[log_id].filename);
     loglist[log_id].filename = NULL;
@@ -371,6 +376,7 @@ void log_close(int log_id)
 
 void log_shutdown(void)
 {
+    log_close (0);
     free (loglist);
     /* destroy mutexes */
     if (log_mutex_alloc)
@@ -405,8 +411,6 @@ static int do_log_run (int log_id)
     log_entry_t *next;
     int loop = 0;
 
-    if (loglist [log_id].in_use == 0)
-        return 0;
     if (loglist [log_id].written_entry == NULL)
         next = loglist [log_id].log_head;
     else
@@ -438,7 +442,8 @@ void log_commit_entries ()
     {
         do
         {
-            c = do_log_run (log_id);
+            if (loglist [log_id].in_use)
+                c = do_log_run (log_id);
             if (c == 0) break;      // skip to next log
         } while ((count += c) < 400);
     }

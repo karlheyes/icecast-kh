@@ -987,6 +987,7 @@ int thread_mtx_create_callback (void **p, int alloc)
     {
         mutex = *p;
         thread_mutex_destroy (mutex);
+        free (mutex);
         *p = NULL;
     }
     return 0;
