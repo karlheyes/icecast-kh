@@ -894,6 +894,8 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
 {
     fh_node *fh = &no_file;
     int ret = 0;
+    refbuf_t *refbuf;
+    ssize_t bytes;
 
     if (finfo)
     {
@@ -991,6 +993,18 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
 
+    // workaround for #134: fill the preallocated, but empty, chained buffer in case a range request was made
+    if (client->flags & CLIENT_RANGE_END)
+    {
+        if (client->refbuf && client->refbuf->next)
+        {
+            refbuf = client->refbuf->next;
+            bytes = pread (fh->f, refbuf->data, refbuf->len, client->intro_offset);
+            if (bytes < 0)
+                return -1;
+        }
+    }
+    
     client->ops = &buffer_content_ops;
     client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
     client->flags |= CLIENT_IN_FSERVE;
