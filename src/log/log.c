@@ -8,6 +8,9 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE     1L
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -434,7 +437,7 @@ static int do_log_run (int log_id)
 
 void log_commit_entries ()
 {
-    int count = 0, c, log_id;
+    int count = 0, c = 0, log_id;
 
     //fprintf (stderr, "in log commit\n");
     _lock_logger ();
