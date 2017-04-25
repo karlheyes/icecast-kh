@@ -715,6 +715,13 @@ sock_t sock_connect_wto (const char *hostname, int port, int timeout)
 
 
 #ifdef HAVE_GETADDRINFO
+struct _server_sockets
+{
+    struct addrinfo *res;
+    struct addrinfo *next;
+};
+
+
 static int sock_connect_pending (int error)
 {
     return error == EINPROGRESS || error == EALREADY;
@@ -837,17 +844,14 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
 }
 
 
-sock_t sock_get_server_socket (int port, const char *sinterface)
+static int sock_alloc_sockets (struct _server_sockets *s, int port, const char *sinterface)
 {
-    struct sockaddr_storage sa;
-    struct addrinfo hints, *res, *ai;
+    struct addrinfo hints;
     char service [10];
-    int sock;
 
     if (port < 0)
         return SOCK_ERROR;
 
-    memset (&sa, 0, sizeof(sa));
     memset (&hints, 0, sizeof(hints));
 
     hints.ai_family = AF_UNSPEC;
@@ -855,14 +859,35 @@ sock_t sock_get_server_socket (int port, const char *sinterface)
     hints.ai_socktype = SOCK_STREAM;
     snprintf (service, sizeof (service), "%d", port);
 
-    if (getaddrinfo (sinterface, service, &hints, &res))
+    if (getaddrinfo (sinterface, service, &hints, &s->res))
+        return -1;
+    s->next = s->res;
+    return 0;
+}
+
+
+void sock_free_server_sockets (sock_server_t _s)
+{
+    struct _server_sockets *s = _s;
+    if (s == NULL) return;
+    if (s->res)
+        freeaddrinfo (s->res);
+    free (s);
+}
+
+sock_t sock_get_next_server_socket (sock_server_t _s)
+{
+    struct _server_sockets *s = _s;
+    struct addrinfo *ai;
+
+    if (s == NULL || s->next == NULL)
         return SOCK_ERROR;
-    ai = res;
+    ai = s->next;
     do
     {
         int on = 1;
         int type = ai->ai_socktype;
-        sock = sock_open (ai->ai_family, type, ai->ai_protocol);
+        sock_t sock = sock_open (ai->ai_family, type, ai->ai_protocol);
         if (sock < 0)
             continue;
 
@@ -870,8 +895,8 @@ sock_t sock_get_server_socket (int port, const char *sinterface)
         /* reuse it if we can */
         setsockopt (sock, SOL_SOCKET, SO_REUSEADDR, (void *)&on, sizeof(on));
 #endif
-        on = 0;
 #ifdef IPV6_V6ONLY
+        on = 1;
         setsockopt (sock, IPPROTO_IPV6, IPV6_V6ONLY, (void*)&on, sizeof on);
 #endif
 
@@ -880,17 +905,19 @@ sock_t sock_get_server_socket (int port, const char *sinterface)
             sock_close (sock);
             continue;
         }
-        freeaddrinfo (res);
+        s->next = ai->ai_next;
         return sock;
 
     } while ((ai = ai->ai_next));
+    s->next = NULL;
 
-    freeaddrinfo (res);
     return SOCK_ERROR;
 }
 
 
 #else
+
+#define _server_sockets sockaddr_in
 
 
 int sock_try_connection (sock_t sock, const char *hostname, unsigned int port)
@@ -993,35 +1020,44 @@ sock_t sock_connect_wto_bind (const char *hostname, int port, const char *bnd, i
 ** interface.  if interface is null, listen on all interfaces.
 ** returns the socket, or SOCK_ERROR on failure
 */
-sock_t sock_get_server_socket(int port, const char *sinterface)
+static int sock_alloc_sockets (struct _server_sockets *sa, int port, const char *sinterface)
 {
-    struct sockaddr_in sa;
-    int error;
-    sock_t sock;
-    char ip[MAX_ADDR_LEN];
+    if (port < 0 || sa == NULL)
+        return -1;
+    do
+    {
+        /* set the interface to bind to if specified */
+        if (sinterface)
+        {
+            char ip[MAX_ADDR_LEN];
 
-    if (port < 0)
-        return SOCK_ERROR;
+            if (!resolver_getip (sinterface, ip, sizeof (ip)))
+                break;
 
-    /* defaults */
-    memset(&sa, 0, sizeof(sa));
-
-    /* set the interface to bind to if specified */
-    if (sinterface != NULL) {
-        if (!resolver_getip(sinterface, ip, sizeof (ip)))
-            return SOCK_ERROR;
-
-        if (!inet_aton(ip, &sa.sin_addr)) {
-            return SOCK_ERROR;
-        } else {
-            sa.sin_family = AF_INET;
-            sa.sin_port = htons((short)port);
+            if (!inet_aton (ip, &sa->sin_addr))
+                break;
         }
-    } else {
-        sa.sin_addr.s_addr = INADDR_ANY;
-        sa.sin_family = AF_INET;
-        sa.sin_port = htons((short)port);
-    }
+        else
+        {
+            sa->sin_addr.s_addr = INADDR_ANY;
+        }
+        sa->sin_family = AF_INET;
+        sa->sin_port = htons((short)port);
+
+        return 0;
+    } while (1);
+
+    return -1;
+}
+
+
+sock_t sock_get_next_server_socket (sock_server_t _s)
+{
+    struct sockaddr_in *sa = _s;
+    sock_t sock;
+    int error;
+
+    if (sa == NULL) return SOCK_ERROR;
 
     /* get a socket */
     sock = sock_open (AF_INET, SOCK_STREAM, 0);
@@ -1036,7 +1072,7 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
 #endif
 
     /* bind socket to port */
-    error = bind(sock, (struct sockaddr *)&sa, sizeof (struct sockaddr_in));
+    error = bind (sock, (struct sockaddr *)sa, sizeof (struct sockaddr_in));
     if (error == -1)
     {
         sock_close (sock);
@@ -1046,7 +1082,34 @@ sock_t sock_get_server_socket(int port, const char *sinterface)
     return sock;
 }
 
+void sock_free_server_sockets (sock_server_t _s)
+{
+    struct _server_sockets *s = _s;
+    free (s);
+}
 #endif
+
+void *sock_get_server_sockets (int port, const char *sinterface)
+{
+    struct _server_sockets *s = calloc (1, sizeof (*s));
+
+    int ret = sock_alloc_sockets (s, port, sinterface);
+    if (ret == 0)
+        return s;
+    free (s);
+    return NULL;
+}
+
+sock_t sock_get_server_socket (int port, const char *sinterface)
+{
+    struct _server_sockets *s = calloc (1, sizeof (*s));
+
+    if (sock_alloc_sockets (s, port, sinterface) < 0)
+        return SOCK_ERROR;
+    sock_t sock = sock_get_next_server_socket (s);
+    sock_free_server_sockets (s);
+    return sock;
+}
 
 void sock_set_mss (sock_t sock, int mss_size)
 {

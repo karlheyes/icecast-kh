@@ -1,9 +1,9 @@
+#include <config.h>
 #include <winsock2.h>
 #include <stdio.h>
 #include <direct.h>
 
 extern "C" {
-#include <config.h>
 #include "thread/thread.h"
 #include "avl/avl.h"
 #include "log/log.h"

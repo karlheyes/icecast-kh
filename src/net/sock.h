@@ -48,6 +48,8 @@
 #define sock_t int
 #endif
 
+#define sock_server_t void*
+
 /* The following values are based on unix avoiding errno value clashes */
 #define SOCK_SUCCESS 0
 #define SOCK_ERROR (sock_t)-1
@@ -144,6 +146,10 @@ int sock_read_line(sock_t sock, char *string, const int len);
 int sock_read_pending(sock_t sock, unsigned timeout);
 
 /* server socket functions */
+sock_server_t sock_get_server_sockets (int port, const char *sinterface);
+sock_t sock_get_next_server_socket (sock_server_t);
+void sock_free_server_sockets (sock_server_t);
+
 sock_t sock_get_server_socket(int port, const char *sinterface);
 int sock_listen(sock_t serversock, int backlog);
 sock_t sock_accept(sock_t serversock, char *ip, size_t len);

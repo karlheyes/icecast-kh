@@ -3,6 +3,9 @@
 /* Define if you have pwd.h */
 #undef CHUID
 
+/* socket type for the rest */
+#undef FD_t
+
 /* Define to 1 if you have the <alloca.h> header file. */
 #undef HAVE_ALLOCA_H
 
@@ -146,6 +149,9 @@
 
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
+
+/* Define to 1 if the system has the type `SOCKET*'. */
+#undef HAVE_SOCKETP
 
 /* Define to 1 if the system has the type `socklen_t'. */
 #undef HAVE_SOCKLEN_T
@@ -298,6 +304,9 @@ typedef int socklen_t;
 
 /* Define to use C99 routines on MS */
 #undef _POSIX
+
+/* Define for IPv6 on win32 */
+#undef _WIN32_WINNT
 
 /* Define to empty if __attribute__ is not supported */
 #undef __attribute__

@@ -64,6 +64,11 @@ AC_CHECK_TYPES([uint32_t], [], [], [
 #include <inttypes.h>
 #include <stdint.h>
 ])
+AC_CHECK_TYPES([SOCKET*],
+        [AC_DEFINE([FD_t], [SOCKET], [socket type for Windows])],
+        [AC_DEFINE([FD_t], [int], [socket type for the rest])], [
+#include <winsock2.h>
+])
 if test "x$ac_cv_func_fnmatch" != "xyes" 
 then
 AC_CHECK_LIB(fnmatch, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-lfnmatch"])],

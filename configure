@@ -17359,6 +17359,26 @@ _ACEOF
 
 fi
 
+as_ac_Type=`$as_echo "ac_cv_type_SOCKET*" | $as_tr_sh`
+ac_fn_c_check_type "$LINENO" "SOCKET*" "$as_ac_Type" "
+#include <winsock2.h>
+
+"
+if eval test \"x\$"$as_ac_Type"\" = x"yes"; then :
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_SOCKETP 1
+_ACEOF
+
+
+$as_echo "#define FD_t SOCKET" >>confdefs.h
+
+else
+
+$as_echo "#define FD_t int" >>confdefs.h
+
+fi
+
 if test "x$ac_cv_func_fnmatch" != "xyes"
 then
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for fnmatch in -lfnmatch" >&5
@@ -17683,11 +17703,15 @@ if test "x$host_os" = "xmingw32"; then
 
 $as_echo "#define HAVE_WINSOCK2_H 1" >>confdefs.h
 
-   # AC_DEFINE([_WIN32_WINNT], [0x0501], [Define for ipv6 on win32])
-   # AC_DEFINE([HAVE_GETNAMEINFO])
-   # AC_DEFINE([HAVE_GETADDRINFO])
-   # ac_cv_search_getnameinfo='none required'
-   # ac_cv_func_getaddrinfo=yes
+
+$as_echo "#define _WIN32_WINNT 0x0501" >>confdefs.h
+
+   $as_echo "#define HAVE_GETNAMEINFO 1" >>confdefs.h
+
+   $as_echo "#define HAVE_GETADDRINFO 1" >>confdefs.h
+
+   ac_cv_search_getnameinfo='none required'
+   ac_cv_func_getaddrinfo=yes
    XIPH_LIBS="$XIPH_LIBS -lws2_32 -lwsock32"
    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }

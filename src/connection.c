@@ -36,6 +36,9 @@
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
@@ -1651,37 +1654,36 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
 
 int connection_setup_sockets (ice_config_t *config)
 {
-    int count = 0;
+    int count = 0, socket_count = 0, arr_size;
     listener_t *listener, **prev;
-    void *tmp;
 
-    if (global.server_sockets >= config->listen_sock_count)
-        return 0;
     global_lock();
-
-    tmp = realloc (global.serversock, (config->listen_sock_count*sizeof (sock_t)));
-    if (tmp) global.serversock = tmp;
-
-    tmp = realloc (global.server_conn, (config->listen_sock_count*sizeof (listener_t*)));
-    if (tmp) global.server_conn = tmp;
 
     listener = config->listen_sock;
     prev = &config->listen_sock;
-    count = global.server_sockets;
+    arr_size = count = global.server_sockets;
     if (count)
         INFO1 ("%d listening sockets already open", count);
     while (listener)
     {
-        int successful = 0;
+        socket_count = 0;
 
-        if (count > config->listen_sock_count)
-        {
-            ERROR2("sockets seem odd (%d,%d), skipping", count, config->listen_sock_count);
-            break;
-        }
+        sock_server_t sockets = sock_get_server_sockets (listener->port, listener->bind_address);
+
         do
         {
-            sock_t sock = sock_get_server_socket (listener->port, listener->bind_address);
+            if (count >= arr_size) // need to resize arrays?
+            {
+                void *tmp;
+                arr_size += 10;
+                tmp = realloc (global.serversock, (config->listen_sock_count*sizeof (sock_t)));
+                if (tmp) global.serversock = tmp;
+
+                tmp = realloc (global.server_conn, (config->listen_sock_count*sizeof (listener_t*)));
+                if (tmp) global.server_conn = tmp;
+            }
+
+            sock_t sock = sock_get_next_server_socket (sockets);
             if (sock == SOCK_ERROR)
                 break;
             /* some win32 setups do not do TCP win scaling well, so allow an override */
@@ -1695,13 +1697,15 @@ int connection_setup_sockets (ice_config_t *config)
                 break;
             }
             sock_set_blocking (sock, 0);
-            successful = 1;
             global.serversock [count] = sock;
             global.server_conn [count] = listener;
             listener->refcount++;
+            socket_count++;
             count++;
-        } while(0);
-        if (successful == 0)
+        } while(1);
+
+        sock_free_server_sockets (sockets);
+        if (socket_count == 0)
         {
             if (listener->bind_address)
                 ERROR2 ("Could not create listener socket on port %d bind %s",
@@ -1714,9 +1718,10 @@ int connection_setup_sockets (ice_config_t *config)
             continue;
         }
         if (listener->bind_address)
-            INFO2 ("listener socket on port %d address %s", listener->port, listener->bind_address);
+            INFO3 ("%d listener socket(s) for port %d address %s", socket_count, listener->port, listener->bind_address);
         else
-            INFO1 ("listener socket on port %d", listener->port);
+            INFO2 ("%d listener socket(s) for port %d", socket_count, listener->port);
+
         prev = &listener->next;
         listener = listener->next;
     }

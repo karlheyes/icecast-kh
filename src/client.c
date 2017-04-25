@@ -52,7 +52,7 @@
 int worker_count, worker_min_count;
 worker_t *worker_balance_to_check, *worker_least_used;
 
-int logger_fd[2];
+FD_t logger_fd[2];
 
 static void logger_commits (int id);
 
@@ -523,7 +523,7 @@ void client_add_worker (client_t *client)
  #ifdef HAVE_PIPE2
  #define pipe_create(x)      pipe2(x,O_CLOEXEC)
  #elif defined(FD_CLOEXEC)
-  int pipe_create(int x[]) {
+  int pipe_create(FD_t x[]) {
     int r = pipe(x); if (r==0) {fcntl(x[0], F_SETFD,FD_CLOEXEC); \
     fcntl(x[1], F_SETFD,FD_CLOEXEC); } return r;
   }
@@ -535,7 +535,7 @@ void client_add_worker (client_t *client)
 #endif
 
 
-void worker_control_create (int wakeup_fd[])
+void worker_control_create (FD_t wakeup_fd[])
 {
     if (pipe_create (&wakeup_fd[0]) < 0)
     {
