@@ -247,6 +247,18 @@ int sock_active (sock_t sock)
     return 0;
 }
 
+int sock_peek (sock_t sock, char *arr, int len)
+{
+    char c;
+    int l;
+
+    l = recv (sock, arr, len, MSG_PEEK);
+    if (l > 0 || (l == SOCK_ERROR && sock_recoverable (sock_error())))
+        return l;
+    return 0;
+}
+
+
 /* inet_aton
 **
 ** turns an ascii ip address into a binary representation

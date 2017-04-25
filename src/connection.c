@@ -720,6 +720,31 @@ void connection_uses_ssl (connection_t *con)
 #endif
 }
 
+int connection_peek (connection_t *con)
+{
+#ifdef HAVE_OPENSSL
+    if (con->ssl == NULL)   // if set then ssl is already determined, so skip this
+    {
+        unsigned char arr[20];
+        int r = sock_peek (con->sock, (char*)arr, sizeof (arr));
+        if (r > 0)
+        {
+            if (r > 5 && arr[0] == 0x16 && arr[1] == 0x3 && arr[5] == 0x1)
+            {
+                DEBUG1 ("Detected SSL on incoming connection from %s", con->ip);
+                connection_uses_ssl (con);
+                return 1;
+            }
+            return r < 10 ? 0 : 1;
+        }
+        if (r < 0)
+            return -1;
+        con->error = 1;
+    }
+#endif
+    return 0;
+}
+
 #ifdef HAVE_SIGNALFD
 void connection_close_sigfd (void)
 {
@@ -1058,6 +1083,14 @@ static int http_client_request (client_t *client)
     {
         char *buf = refbuf->data + refbuf->len;
 
+        if (refbuf->len == 0)
+        {
+            if (connection_peek (&client->connection) < 0)
+            {
+                client->schedule_ms = client->worker->time_ms + (client->connection.ssl ? 55 : 30);
+                return 0;
+            }
+        }
         ret = client_read_bytes (client, buf, remaining);
         if (ret > 0)
         {
@@ -1738,12 +1771,12 @@ int connection_setup_sockets (ice_config_t *config)
 
 void connection_close(connection_t *con)
 {
-    if (con->sock != SOCK_ERROR)
-        sock_close (con->sock);
-    free (con->ip);
 #ifdef HAVE_OPENSSL
     if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); }
 #endif
+    if (con->sock != SOCK_ERROR)
+        sock_close (con->sock);
+    free (con->ip);
     memset (con, 0, sizeof (connection_t));
     con->sock = SOCK_ERROR;
 }
