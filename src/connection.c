@@ -279,9 +279,9 @@ static void get_ssl_certificate (ice_config_t *config)
             WARN1 ("Invalid cert file %s", config->cert_file);
             break;
         }
-        if (SSL_CTX_use_PrivateKey_file (ssl_ctx, config->cert_file, SSL_FILETYPE_PEM) <= 0)
+        if (SSL_CTX_use_PrivateKey_file (ssl_ctx, config->key_file, SSL_FILETYPE_PEM) <= 0)
         {
-            WARN1 ("Invalid private key file %s", config->cert_file);
+            WARN1 ("Invalid private key file %s", config->key_file);
             break;
         }
         if (!SSL_CTX_check_private_key (ssl_ctx))
@@ -295,6 +295,9 @@ static void get_ssl_certificate (ice_config_t *config)
         }
         ssl_ok = 1;
         INFO1 ("SSL certificate found at %s", config->cert_file);
+        if (strcmp (config->cert_file, config->key_file) != 0)
+            INFO1 ("SSL private key found at %s", config->key_file);
+
         INFO1 ("SSL using ciphers %s", config->cipher_list);
         return;
     } while (0);
