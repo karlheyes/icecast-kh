@@ -485,7 +485,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
                     *at = "", *user = "", *pass ="";
         char *sourceuri = strdup (path);
         char *dot = strrchr (sourceuri, '.');
-        char *protocol = "http";
+        char *protocol = httpclient->connection.ssl ? "https" : "http";
         const char *agent = httpp_getvar (httpclient->parser, "user-agent");
         int x;
         char scratch[1000];

@@ -731,6 +731,7 @@ static int command_buildm3u (client_t *client, const char *mount)
     const char *password = NULL;
     ice_config_t *config;
     const char *host = httpp_getvar (client->parser, "host");
+    const char *protocol = client->connection.ssl ? "https" : "http";
 
     if (COMMAND_REQUIRE(client, "username", username) < 0 ||
             COMMAND_REQUIRE(client, "password", password) < 0)
@@ -747,8 +748,8 @@ static int command_buildm3u (client_t *client, const char *mount)
                 "HTTP/1.0 200 OK\r\n"
                 "Content-Type: audio/x-mpegurl\r\n"
                 "Content-Disposition: attachment; filename=\"listen.m3u\"\r\n\r\n"
-                "http://%s:%s@%s%s%s\r\n",
-                username, password,
+                "%s://%s:%s@%s%s%s\r\n",
+                protocol, username, password,
                 host, port, mount);
     }
     else
@@ -757,8 +758,8 @@ static int command_buildm3u (client_t *client, const char *mount)
                 "HTTP/1.0 200 OK\r\n"
                 "Content-Type: audio/x-mpegurl\r\n"
                 "Content-Disposition: attachment; filename=\"listen.m3u\"\r\n\r\n"
-                "http://%s:%s@%s:%d%s\r\n",
-                username, password,
+                "%s://%s:%s@%s:%d%s\r\n",
+                protocol, username, password,
                 config->hostname, config->port, mount);
     }
     config_release_config();
