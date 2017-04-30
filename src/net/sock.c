@@ -249,7 +249,6 @@ int sock_active (sock_t sock)
 
 int sock_peek (sock_t sock, char *arr, int len)
 {
-    char c;
     int l;
 
     l = recv (sock, arr, len, MSG_PEEK);
