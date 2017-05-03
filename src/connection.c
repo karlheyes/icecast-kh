@@ -1708,17 +1708,6 @@ int connection_setup_sockets (ice_config_t *config)
 
         do
         {
-            if (count >= arr_size) // need to resize arrays?
-            {
-                void *tmp;
-                arr_size += 10;
-                tmp = realloc (global.serversock, (config->listen_sock_count*sizeof (sock_t)));
-                if (tmp) global.serversock = tmp;
-
-                tmp = realloc (global.server_conn, (config->listen_sock_count*sizeof (listener_t*)));
-                if (tmp) global.server_conn = tmp;
-            }
-
             sock_t sock = sock_get_next_server_socket (sockets);
             if (sock == SOCK_ERROR)
                 break;
@@ -1732,6 +1721,17 @@ int connection_setup_sockets (ice_config_t *config)
                 sock_close (sock);
                 break;
             }
+            if (count >= arr_size) // need to resize arrays?
+            {
+                void *tmp;
+                arr_size += 10;
+                tmp = realloc (global.serversock, (arr_size*sizeof (sock_t)));
+                if (tmp) global.serversock = tmp;
+
+                tmp = realloc (global.server_conn, (arr_size*sizeof (listener_t*)));
+                if (tmp) global.server_conn = tmp;
+            }
+
             sock_set_blocking (sock, 0);
             global.serversock [count] = sock;
             global.server_conn [count] = listener;
