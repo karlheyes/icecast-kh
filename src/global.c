@@ -35,11 +35,7 @@ static mutex_t _global_mutex;
 
 void global_initialize(void)
 {
-    global.server_sockets = 0;
-    global.relays = NULL;
-    global.running = 0;
-    global.clients = 0;
-    global.sources = 0;
+    memset (&global, 0, sizeof (global));
     global.source_tree = avl_tree_new(source_compare_sources, NULL);
 #ifdef MY_ALLOC
     global.alloc_tree = avl_tree_new(compare_allocs, NULL);
