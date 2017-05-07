@@ -720,7 +720,7 @@ static int source_client_read (client_t *client)
         if (source->wait_time == 0 || global.running != ICE_RUNNING)
         {
             INFO1 ("no more listeners on %s", source->mount);
-            return -1;
+            return -1;   // don't unlock source as the release is called which requires it
         }
         /* set a wait time for leaving the source reserved */
         client->connection.discon.time = client->worker->current_time.tv_sec + source->wait_time;
