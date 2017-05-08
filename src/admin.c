@@ -731,7 +731,7 @@ static int command_buildm3u (client_t *client, const char *mount)
     const char *password = NULL;
     ice_config_t *config;
     const char *host = httpp_getvar (client->parser, "host");
-    const char *protocol = client->connection.ssl ? "https" : "http";
+    const char *protocol = not_ssl_connection (&client->connection) ? "http" : "https";
 
     if (COMMAND_REQUIRE(client, "username", username) < 0 ||
             COMMAND_REQUIRE(client, "password", password) < 0)

@@ -1090,7 +1090,7 @@ static int http_client_request (client_t *client)
         {
             if (connection_peek (&client->connection) < 0)
             {
-                client->schedule_ms = client->worker->time_ms + (client->connection.ssl ? 55 : 30);
+                client->schedule_ms = client->worker->time_ms + (not_ssl_connection (&client->connection) ? 30 : 55);
                 return 0;
             }
         }
