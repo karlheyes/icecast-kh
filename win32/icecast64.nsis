@@ -13,9 +13,9 @@
 # installer containing your program.
 
 Name "Icecast KH"
-OutFile "icecast-2.4.0-kh5_win32_setup.exe"
+OutFile "icecast-2.4.0-kh5_win64_setup.exe"
 
-InstallDir "$ProgramFiles\Icecast KH"
+InstallDir "$ProgramFiles64\Icecast KH"
 InstallDirRegKey HKLM SOFTWARE\Icecast "Install_Dir"
 
 LoadLanguageFile "${NSISDIR}\Contrib\Language files\English.nlf"
@@ -56,13 +56,13 @@ Section "Icecast Installation"
   SectionIn RO
 
   SetOutPath "$INSTDIR"
-  File /r "x32/*.dll"
+  File /r "x64/*.dll"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-  File "x32/icecast.exe"
+  File "x64/icecast.exe"
   SetOverwrite off
-  File "x32/icecast.xml"
+  File "x64/icecast.xml"
   SetOverwrite on
 
   SetOutPath "$INSTDIR\logs"
