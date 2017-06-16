@@ -48,6 +48,7 @@ struct connection_tag
     sock_t sock;
     unsigned int chunk_pos; // for short writes on chunk size line
     char error;
+    unsigned char readchk;
 
 #ifdef HAVE_OPENSSL
     SSL *ssl;   /* SSL handler */
