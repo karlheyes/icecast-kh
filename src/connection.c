@@ -1708,6 +1708,7 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
 
 int connection_setup_sockets (ice_config_t *config)
 {
+    static int sockets_setup = 2;
     int count = 0, socket_count = 0, arr_size;
     listener_t *listener, **prev;
 
@@ -1716,6 +1717,17 @@ int connection_setup_sockets (ice_config_t *config)
     listener = config->listen_sock;
     prev = &config->listen_sock;
     arr_size = count = global.server_sockets;
+    if (config->chuid && sockets_setup)
+    {
+        // in case of changowner, run through the first time as root, but reject the second run through as that will 
+        // be as a user. after that it's fine.
+        sockets_setup--;
+        if (sockets_setup == 0)
+        {
+            global_unlock();
+            return 0;
+        }
+    }
     if (count)
         INFO1 ("%d listening sockets already open", count);
     while (listener)

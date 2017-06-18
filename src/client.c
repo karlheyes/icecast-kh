@@ -880,10 +880,14 @@ static void *log_commit_thread (void *arg)
 }
 
 
-void worker_logger (void)
+void worker_logger_init (void)
 {
     worker_control_create (logger_fd);
     log_set_commit_callback (logger_commits);
+}
+
+void worker_logger (void)
+{
     thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
 }
 

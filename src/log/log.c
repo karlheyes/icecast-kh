@@ -95,9 +95,10 @@ static int _log_open (int id, time_t now)
     {
         if (loglist [id] . filename)  /* only re-open files where we have a name */
         {
+            FILE *f = NULL;
             struct stat st;
 
-            if (loglist [id] . logfile)
+            if (loglist [id].logfile && loglist [id].logfile != stderr)
             {
                 char new_name [4096];
                 fclose (loglist [id] . logfile);
@@ -119,9 +120,14 @@ static int _log_open (int id, time_t now)
 #endif
                 rename (loglist [id] . filename, new_name);
             }
-            loglist [id] . logfile = fopen (loglist [id] . filename, "a");
-            if (loglist [id] . logfile == NULL)
+            f = fopen (loglist [id] . filename, "a");
+            if (f == NULL)
+            {
+                loglist [id] . logfile = stderr;
+                do_log_run (id);
                 return 0;
+            }
+            loglist [id].logfile = f;
             setvbuf (loglist [id] . logfile, NULL, IO_BUFFER_TYPE, 0);
             if (stat (loglist [id] . filename, &st) < 0)
                 loglist [id] . size = 0;
@@ -203,27 +209,23 @@ int log_open_file(FILE *file)
 int log_open(const char *filename)
 {
     int id;
-    FILE *file;
 
     if (filename == NULL) return LOG_EINSANE;
     if (strcmp(filename, "") == 0) return LOG_EINSANE;
-    
-    file = fopen(filename, "a");
 
-    id = log_open_file(file);
+    id = _get_log_id();
 
     if (id >= 0)
     {
-        struct stat st;
-
-        setvbuf (loglist [id] . logfile, NULL, IO_BUFFER_TYPE, 0);
         free (loglist [id] . filename);
         loglist [id] . filename = strdup (filename);
-        if (stat (loglist [id] . filename, &st) == 0)
-            loglist [id] . size = st.st_size;
-        loglist [id] . entries = 0;
-        loglist [id] . log_head = NULL;
-        loglist [id] . log_tail = NULL;
+        loglist [id].entries = 0;
+        loglist [id].log_head = NULL;
+        loglist [id].log_tail = NULL;
+        loglist [id].logfile = NULL;
+        loglist [id].size = 0;
+        loglist [id].reopen_at = 0;
+        loglist [id].archive_timestamp = 0;
     }
 
     return id;
@@ -332,8 +334,7 @@ void log_reopen(int log_id)
     _lock_logger();
     if (loglist [log_id] . filename && loglist [log_id] . logfile)
     {
-        fclose (loglist [log_id] . logfile);
-        loglist [log_id] . logfile = NULL;
+        loglist [log_id].reopen_at = (time_t)0;
     }
     _unlock_logger();
 }
@@ -350,7 +351,6 @@ void log_close(int log_id)
         return;
     }
 
-    loglist[log_id].in_use = 0;
     int loop = 0;
     while (++loop < 100 && do_log_run (log_id) > 0)
         ;
@@ -374,11 +374,13 @@ void log_close(int log_id)
         loglist [log_id].entries--;
     }
     loglist [log_id].entries = 0;
+    loglist[log_id].in_use = 0;
     _unlock_logger();
 }
 
 void log_shutdown(void)
 {
+    log_commit_entries ();
     log_close (0);
     free (loglist);
     /* destroy mutexes */
@@ -413,7 +415,9 @@ static int do_log_run (int log_id)
 {
     log_entry_t *next;
     int loop = 0;
+    time_t now;
 
+    time (&now);
     if (loglist [log_id].written_entry == NULL)
         next = loglist [log_id].log_head;
     else
@@ -422,6 +426,9 @@ static int do_log_run (int log_id)
     // fprintf (stderr, "in log run, id %d\n", log_id);
     while (next && ++loop < 100)
     {
+        if (_log_open (log_id, now) == 0)
+            break;
+
         loglist [log_id].written_entry = next;
         _unlock_logger ();
 
@@ -578,10 +585,7 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
     vsnprintf (line+datelen, sizeof line-datelen, fmt, ap);
 
     _lock_logger();
-    if (_log_open (log_id, now))
-    {
-        create_log_entry (log_id, line);
-    }
+    create_log_entry (log_id, line);
     _unlock_logger();
 
     va_end(ap);
@@ -590,26 +594,18 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
 void log_write_direct(int log_id, const char *fmt, ...)
 {
     va_list ap;
-    time_t now;
     char line[LOG_MAXLINELEN];
 
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
     
     va_start(ap, fmt);
 
-    now = time(NULL);
-
     _lock_logger();
     vsnprintf(line, LOG_MAXLINELEN, fmt, ap);
-    if (_log_open (log_id, now))
-    {
-        create_log_entry (log_id, line);
-    }
+    create_log_entry (log_id, line);
     _unlock_logger();
 
     va_end(ap);
-
-    fflush(loglist[log_id].logfile);
 }
 
 static int _get_log_id(void)

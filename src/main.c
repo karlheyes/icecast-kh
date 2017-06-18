@@ -128,7 +128,6 @@ void shutdown_subsystems(void)
     resolver_shutdown();
     sock_shutdown();
 
-    DEBUG0 ("library cleanups");
 #ifdef HAVE_CURL
     curl_global_cleanup();
 #endif
@@ -191,9 +190,14 @@ static int _parse_config_opts(int argc, char **argv, char *filename, int size)
 
 
 /* bind the socket and start listening */
-static int _server_proc_init(void)
+static int server_proc_init(void)
 {
     ice_config_t *config = config_get_config_unlocked();
+
+    if (init_logging (config) < 0)
+        return 0;
+
+    INFO2 ("%s server reading configuration from %s", ICECAST_VERSION_STRING, config->config_filename);
 
     if (config->chuid && connection_setup_sockets (config) == 0)
         return 0;
@@ -396,7 +400,7 @@ int server_init (int argc, char *argv[])
     config_parse_cmdline(argc, argv);
 
     /* Bind socket, before we change userid */
-    if (_server_proc_init() == 0)
+    if (server_proc_init() == 0)
     {
         _fatal_error("Server startup failed. Exiting");
         return -1;

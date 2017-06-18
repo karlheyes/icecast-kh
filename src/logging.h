@@ -89,6 +89,7 @@ void logging_access_id (struct access_log *accesslog, client_t *client);
 void logging_access(client_t *client);
 void logging_playlist(const char *mount, const char *metadata, long listeners);
 int  restart_logging (ice_config_t *config);
+int init_logging (ice_config_t *config);
 int  start_logging(ice_config_t *config);
 void stop_logging(void);
 void log_parse_failure (void *ctx, const char *fmt, ...);
