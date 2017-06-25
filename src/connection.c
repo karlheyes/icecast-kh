@@ -123,7 +123,9 @@ static int ssl_ok;
 #endif
 static SSL_CTX *ssl_ctx;
 static mutex_t *ssl_mutexes = NULL;
+#if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
 static unsigned long ssl_id_function (void);
+#endif
 static void ssl_locking_function (int mode, int n, const char *file, int line);
 #endif
 
@@ -207,7 +209,9 @@ void connection_initialize(void)
         int i;
         for (i=0; i < CRYPTO_num_locks();  i++)
             thread_mutex_create (&ssl_mutexes[i]);
+#if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
         CRYPTO_set_id_callback (ssl_id_function);
+#endif
         CRYPTO_set_locking_callback (ssl_locking_function);
     }
     else
@@ -220,7 +224,9 @@ void connection_shutdown(void)
     connection_listen_sockets_close (NULL, 1);
     thread_spin_destroy (&_connection_lock);
 #ifdef HAVE_OPENSSL
+#if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
     CRYPTO_set_id_callback(NULL);
+#endif
     CRYPTO_set_locking_callback(NULL);
     if (ssl_mutexes)
     {
@@ -246,10 +252,12 @@ static uint64_t _next_connection_id(void)
 
 
 #ifdef HAVE_OPENSSL
+#if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
 static unsigned long ssl_id_function (void)
 {
     return (unsigned long)thread_self();
 }
+#endif
 
 static void ssl_locking_function (int mode, int n, const char *file, int line)
 {
