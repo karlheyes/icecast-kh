@@ -742,10 +742,17 @@ int connection_init (connection_t *con, sock_t sock, const char *addr)
 void connection_uses_ssl (connection_t *con)
 {
 #ifdef HAVE_OPENSSL
+    if (ssl_ctx == NULL)
+    {
+        DEBUG1 ("Detected SSL on connection from %s, but SSL not defined", con->ip);
+        con->error = 1;
+        return;
+    }
     con->ssl = SSL_new (ssl_ctx);
     SSL_set_accept_state (con->ssl);
     SSL_set_fd (con->ssl, con->sock);
     SSL_set_mode (con->ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER|SSL_MODE_ENABLE_PARTIAL_WRITE);
+    DEBUG1 ("Detected SSL on connection from %s", con->ip);
 #endif
 }
 
@@ -760,7 +767,6 @@ int connection_peek (connection_t *con)
         {
             if (r > 5 && arr[0] == 0x16 && arr[1] == 0x3 && arr[5] == 0x1)
             {
-                DEBUG1 ("Detected SSL on incoming connection from %s", con->ip);
                 connection_uses_ssl (con);
                 return 1;
             }
