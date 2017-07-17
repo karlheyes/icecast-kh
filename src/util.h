@@ -48,6 +48,16 @@ typedef struct _util_dict {
 } util_dict;
 
 
+struct node_IP_time
+{
+    char ip[24];
+    union
+    {
+        time_t timeout;
+        struct node_IP_time *next;
+    } a;
+};
+
 struct cache_list_node
 {
     char *content;
@@ -62,11 +72,14 @@ typedef struct _cache_contents
 {
     time_t                  file_recheck;
     time_t                  file_mtime;
-    void                    *wildcards;
+    void                    *extra;
     avl_tree                *contents;
     // callback routines key insert and comparison
     cachefile_compare_func  compare;
     cachefile_add_func      add;
+
+    void *deletions[9];
+    int  deletions_count;
     char                    *filename;
 } cache_file_contents;
 

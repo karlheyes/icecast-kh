@@ -100,17 +100,6 @@ static int  _handle_get_request (client_t *client);
 static int  _handle_source_request (client_t *client);
 static int  _handle_stats_request (client_t *client);
 
-struct banned_entry
-{
-    char ip[16]; // may want to expand later for ipv6
-    union
-    {
-        time_t timeout;
-        struct banned_entry *next;
-    } a;
-};
-
-
 static spin_t _connection_lock;
 static uint64_t _current_id = 0;
 thread_type *conn_tid;
@@ -162,7 +151,6 @@ struct _client_functions http_req_stats_ops =
 
 /* filtering client connection based on IP */
 cache_file_contents banned_ip, allowed_ip;
-struct banned_entry *ban_entry_removal;
 
 /* filtering listener connection based on useragent */
 cache_file_contents useragents;
@@ -173,17 +161,19 @@ int connection_running = 0;
 
 static int compare_banned_ip (void *arg, void *a, void *b)
 {
-    struct banned_entry *this = (struct banned_entry *)a;
-    struct banned_entry *that = (struct banned_entry *)b;
+    struct node_IP_time *this = (struct node_IP_time *)a;
+    struct node_IP_time *that = (struct node_IP_time *)b;
     int ret = strcmp (&this->ip[0], &that->ip[0]);
 
-    if (ban_entry_removal == NULL && ret)
+    if (ret && that->a.timeout)
     {
-        time_t now = *((time_t*)arg);
-        if (that->a.timeout && that->a.timeout < now - 60)
+        cache_file_contents *c = arg;
+        time_t threshold = c->file_recheck - 60;
+
+        if (c->deletions_count < 9 && that->a.timeout < threshold)
         {
-            ban_entry_removal = that; // identify possible removal
-            DEBUG3 ("now %ld, timer %ld, ip %s", (long)now, (long)that->a.timeout, &that->ip[0]);
+            c->deletions [c->deletions_count] = that;
+            c->deletions_count++;
         }
     }
     return ret;
@@ -564,20 +554,20 @@ static void add_banned_ip (cache_file_contents *c, const void *e, time_t now)
 {
     if (c)
     {
-        struct banned_entry *banned;
+        struct node_IP_time *banned;
         const char *ip = e;
 #ifdef HAVE_FNMATCH_H
         if (ip [strcspn (ip, "*?[")]) // if wildcard present
         {
             struct cache_list_node *entry = calloc (1, sizeof (*entry));
             entry->content = strdup (ip);
-            entry->next = c->wildcards;
-            c->wildcards = entry;
+            entry->next = c->extra;
+            c->extra = entry;
             DEBUG1 ("Adding wildcard entry \"%.30s\"", ip);
             return;
         }
 #endif
-        banned = calloc (1, sizeof (struct banned_entry));
+        banned = calloc (1, sizeof (struct node_IP_time));
         snprintf (&banned->ip[0], sizeof (banned->ip), "%s", ip);
         banned->a.timeout = now;
         DEBUG1 ("Adding literal entry \"%.30s\"", ip);
@@ -625,9 +615,10 @@ time_t cachefile_timecheck = (time_t)0;
  */
 static int search_banned_ip_locked (char *ip)
 {
-    if (banned_ip.wildcards)
+    int ret = 0;
+    if (banned_ip.extra)
     {
-        struct cache_list_node *entry = banned_ip.wildcards;
+        struct cache_list_node *entry = banned_ip.extra;
         while (entry)
         {
             if (cached_pattern_compare (ip, entry->content) == 0)
@@ -637,29 +628,32 @@ static int search_banned_ip_locked (char *ip)
     }
     if (banned_ip.contents)
     {
+        int i;
         void *result;
 
-        ban_entry_removal = NULL;
+        banned_ip.deletions_count = 0;
         if (avl_get_by_key (banned_ip.contents, ip, &result) == 0)
         {
-            struct banned_entry *match = result;
+            struct node_IP_time *match = result;
             if (match->a.timeout == 0 || match->a.timeout > cachefile_timecheck)
             {
                 if (match->a.timeout && cachefile_timecheck + 300 > match->a.timeout)
                     match->a.timeout = cachefile_timecheck + 300;
-                return 1;
+                ret = 1;
             }
-            avl_delete (banned_ip.contents, ip, cached_treenode_free);
+            else
+                avl_delete (banned_ip.contents, ip, cached_treenode_free);
         }
-        /* we may of seen another one to remove */
-        if (ban_entry_removal)
+        /* we may of seen others to remove */
+        for (i = 0; i < banned_ip.deletions_count; ++i)
         {
-            INFO1 ("removing %s from ban list for now", &ban_entry_removal->ip[0]);
-            avl_delete (banned_ip.contents, &ban_entry_removal->ip[0], cached_treenode_free);
-            ban_entry_removal = NULL;
+            struct node_IP_time *to_go = banned_ip.deletions[i];
+            INFO1 ("removing %s from ban list for now", &(to_go->ip[0]));
+            avl_delete (banned_ip.contents, &(to_go->ip[0]), cached_treenode_free);
         }
+        banned_ip.deletions_count = 0;
     }
-    return 0;
+    return ret;
 }
 
 static int search_banned_ip (char *ip)

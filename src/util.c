@@ -970,8 +970,8 @@ static void add_generic_text (cache_file_contents *c, const void *in_str, time_t
         {
             struct cache_list_node *node = calloc (1, sizeof (*node));
             node->content = str;
-            node->next = c->wildcards;
-            c->wildcards = node;
+            node->next = c->extra;
+            c->extra = node;
             DEBUG1 ("Adding wildcard entry \"%.30s\"", str);
             return;
         }
@@ -991,15 +991,17 @@ int cached_treenode_free (void*x)
 
 void cachefile_prune (cache_file_contents *cache)
 {
+    if (cache == NULL)
+        return;
     if (cache->contents)
     {
         avl_tree_free (cache->contents, cached_treenode_free);
         cache->contents = NULL;
     }
-    while (cache->wildcards)
+    while (cache->extra)
     {
-        struct cache_list_node *entry = cache->wildcards;
-        cache->wildcards = entry->next;
+        struct cache_list_node *entry = cache->extra;
+        cache->extra = entry->next;
         free (entry->content);
         free (entry);
     }
@@ -1072,9 +1074,9 @@ int cached_pattern_search (cache_file_contents *cache, const char *line, time_t 
     do
     {
         cached_file_recheck (cache, now);
-        if (cache->wildcards)
+        if (cache->extra)
         {
-            struct cache_list_node *entry = cache->wildcards;
+            struct cache_list_node *entry = cache->extra;
             while (entry)
             {
                 if (cached_pattern_compare (line, entry->content) == 0)
