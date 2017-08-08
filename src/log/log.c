@@ -153,8 +153,8 @@ static void log_init (log_t *log)
     log->logfile = NULL;
     log->buffer = NULL;
     log->total = 0;
-    log->entries = 5;
-    log->keep_entries = 0;
+    log->entries = 0;
+    log->keep_entries = 5;
     log->written_entry = NULL;
     log->log_head = NULL;
     log->log_tail = NULL;
