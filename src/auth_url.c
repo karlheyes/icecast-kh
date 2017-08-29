@@ -87,6 +87,7 @@
 #include "httpp/httpp.h"
 #include "mpeg.h"
 #include "global.h"
+#include "stats.h"
 
 #include "logging.h"
 #define CATMODULE "auth_url"
@@ -437,6 +438,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     ice_config_t *config;
     struct build_intro_contents *x;
     char *userpwd = NULL, post [4096];
+    char *current_listeners;
 
     if (url->addurl == NULL || client == NULL)
         return AUTH_OK;
@@ -484,12 +486,13 @@ static auth_result url_add_listener (auth_client *auth_user)
     ipaddr = util_url_escape (client->connection.ip);
     tmp = httpp_getvar (client->parser, "referer");
     referer = tmp ? util_url_escape (tmp) : strdup ("");
+    current_listeners = stats_get_value(auth->mount, "listeners");
 
     snprintf (post, sizeof (post),
             "action=listener_add&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
-            "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s",
+            "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s&current_listeners=%s",
             server, port, client->connection.id, mount, username,
-            password, ipaddr, user_agent, referer);
+            password, ipaddr, user_agent, referer, current_listeners);
     free (server);
     free (mount);
     free (referer);
