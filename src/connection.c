@@ -8,7 +8,7 @@
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
  *                      and others (see AUTHORS for details).
- * Copyright 2000-2014, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2000-2017, Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* -*- c-basic-offset: 4; indent-tabs-mode: nil; -*- */
@@ -158,7 +158,6 @@ cache_file_contents useragents;
 int connection_running = 0;
 
 
-
 static int compare_banned_ip (void *arg, void *a, void *b)
 {
     struct node_IP_time *this = (struct node_IP_time *)a;
@@ -256,6 +255,7 @@ static void ssl_locking_function (int mode, int n, const char *file, int line)
     else
         thread_mutex_unlock_c (&ssl_mutexes[n], line, file);
 }
+
 
 static void get_ssl_certificate (ice_config_t *config)
 {
@@ -656,6 +656,7 @@ static int search_banned_ip_locked (char *ip)
     return ret;
 }
 
+
 static int search_banned_ip (char *ip)
 {
     int ret;
@@ -750,6 +751,7 @@ void connection_uses_ssl (connection_t *con)
 #endif
 }
 
+
 int connection_peek (connection_t *con)
 {
 #ifdef HAVE_OPENSSL
@@ -774,6 +776,7 @@ int connection_peek (connection_t *con)
     return 0;
 }
 
+
 #ifdef HAVE_SIGNALFD
 void connection_close_sigfd (void)
 {
@@ -784,6 +787,7 @@ void connection_close_sigfd (void)
 #else
 #define connection_close_sigfd()    do {}while(0);
 #endif
+
 
 static sock_t wait_for_serversock (void)
 {

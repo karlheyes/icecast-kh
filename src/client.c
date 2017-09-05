@@ -684,7 +684,7 @@ void *worker (void *arg)
                 if (process)
                 {
                     if (c > 300 && c & 1)  // only process alternate clients after so many
-                       process = 0;
+                        process = 0;
                 }
                 else if (client->wakeup && *client->wakeup)
                 {

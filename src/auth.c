@@ -188,6 +188,7 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
  */
 void auth_release (auth_t *authenticator)
 {
+    if (authenticator == NULL) return;
     authenticator->refcount--;
     DEBUG2 ("...refcount on auth_t %s is now %d", authenticator->mount, authenticator->refcount);
     if (authenticator->refcount)
