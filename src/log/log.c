@@ -394,7 +394,7 @@ static log_entry_t *log_entry_pop (int log_id)
 {
     log_entry_t *to_go = loglist [log_id].log_head;
 
-    if (to_go == NULL || loglist [log_id].written_entry == to_go)
+    if (to_go == NULL || loglist [log_id].written_entry == NULL || loglist [log_id].written_entry == to_go)
         return NULL;
     loglist [log_id].log_head = to_go->next;
     loglist [log_id].total -= to_go->len;
