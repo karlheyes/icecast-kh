@@ -50,11 +50,12 @@
 
 // Generated using `openssl dhparam -C -2 2048`
 // BEGIN DH CODE
-#ifndef HEADER_DH_H
+#ifdef HAVE_OPENSSL
 #include <openssl/dh.h>
-#endif
-DH *get_dh2048()
-	{
+
+#if !defined(SSL_CTX_set_dh_auto)
+static DH *get_dh2048()
+{
 	static unsigned char dh2048_p[]={
 		0xF7,0x5F,0x18,0x4E,0xA4,0x66,0xC5,0xAE,0xE1,0x3C,0x52,0x75,
 		0xEC,0x81,0x79,0x52,0xA9,0x9E,0xEA,0x0A,0xD5,0x2C,0x58,0xC0,
@@ -78,20 +79,25 @@ DH *get_dh2048()
 		0xE8,0x03,0xAC,0xA2,0x5D,0x49,0x2A,0xC7,0xF1,0xA5,0x7A,0x61,
 		0xC2,0x30,0xA4,0x3D,0xD9,0x2D,0xBC,0x6F,0xE6,0xE1,0xDE,0xD2,
 		0x98,0xE6,0x46,0x7B,
-		};
-	static unsigned char dh2048_g[]={
-		0x02,
-		};
-	DH *dh;
+    };
+    static unsigned char dh2048_g[]={
+        0x02,
+    };
+    DH *dh;
 
-	if ((dh=DH_new()) == NULL) return(NULL);
-	dh->p=BN_bin2bn(dh2048_p,sizeof(dh2048_p),NULL);
-	dh->g=BN_bin2bn(dh2048_g,sizeof(dh2048_g),NULL);
-	if ((dh->p == NULL) || (dh->g == NULL))
-		{ DH_free(dh); return(NULL); }
-	return(dh);
-	}
-// END DH CODE
+	if ((dh=DH_new()) == NULL) return NULL;
+	dh->p = BN_bin2bn (dh2048_p, sizeof(dh2048_p), NULL);
+	dh->g = BN_bin2bn (dh2048_g, sizeof(dh2048_g), NULL);
+    if ((dh->p == NULL) || (dh->g == NULL))
+    {
+        DH_free (dh);
+        return NULL;
+    }
+	return dh;
+}
+#endif
+#endif  // END DH CODE
+
 
 #include "compat.h"
 
@@ -320,23 +326,23 @@ static void get_ssl_certificate (ice_config_t *config)
         // Enable DH and ECDH
         // See: https://john.nachtimwald.com/2014/10/01/enable-dh-and-ecdh-in-openssl-server/
 #if defined(SSL_CTX_set_ecdh_auto)
-        SSL_CTX_set_ecdh_auto(ssl_ctx, 1);
+        SSL_CTX_set_ecdh_auto (ssl_ctx, 1);
 #else
         EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-        if ( (NULL == ecdh) || 1 != SSL_CTX_set_tmp_ecdh(ssl_ctx, ecdh) )
+        if ( (NULL == ecdh) || 1 != SSL_CTX_set_tmp_ecdh (ssl_ctx, ecdh) )
         {
-            WARN0 ("Can't setup Elliptic curve Diffie–Hellman parameters");
+            WARN0 ("Cannot setup Elliptic curve Diffie–Hellman parameters");
         }
         EC_KEY_free (ecdh);
 #endif
 
 #if defined(SSL_CTX_set_dh_auto)
-        SSL_CTX_set_dh_auto(ssl_ctx, 1);
+        SSL_CTX_set_dh_auto (ssl_ctx, 1);
 #else
         DH *dh = get_dh2048 ();
         if ( (NULL == dh) || (1 != SSL_CTX_set_tmp_dh (ssl_ctx, dh)) )
         {
-            WARN0 ("Can't setup Diffie-Hellman parameters");
+            WARN0 ("Cannot setup Diffie-Hellman parameters");
         }
         DH_free (dh);
 #endif
