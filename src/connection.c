@@ -1349,7 +1349,6 @@ static void *connection_thread (void *arg)
     cached_file_init (&allowed_ip, config->allowfile, NULL, NULL);
     cached_file_init (&useragents, config->agentfile, NULL, NULL);
 
-    get_ssl_certificate (config);
     connection_setup_sockets (config);
     header_timeout = config->header_timeout;
     config_release_config ();
@@ -1814,6 +1813,7 @@ int connection_setup_sockets (ice_config_t *config)
             return 0;
         }
     }
+    get_ssl_certificate (config);
     if (count)
         INFO1 ("%d listening sockets already open", count);
     while (listener)
