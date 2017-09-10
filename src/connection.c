@@ -241,6 +241,7 @@ void connection_initialize(void)
     conn_tid = NULL;
     connection_running = 0;
 #ifdef HAVE_OPENSSL
+    ssl_ctx = NULL;
     SSL_load_error_strings();                /* readable error messages */
     SSL_library_init();                      /* initialize library */
     ssl_mutexes = malloc(CRYPTO_num_locks() * sizeof(mutex_t));
@@ -264,6 +265,7 @@ void connection_shutdown(void)
     connection_listen_sockets_close (NULL, 1);
     thread_spin_destroy (&_connection_lock);
 #ifdef HAVE_OPENSSL
+    SSL_CTX_free (ssl_ctx);
 #if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
     CRYPTO_set_id_callback(NULL);
 #endif
@@ -311,25 +313,26 @@ static void ssl_locking_function (int mode, int n, const char *file, int line)
 static void get_ssl_certificate (ice_config_t *config)
 {
     ssl_ok = 0;
+    SSL_CTX *new_ssl_ctx = NULL;
+
     do
     {
         long ssl_opts;
 
-        ssl_ctx = NULL;
         if (config->cert_file == NULL)
             break;
 
-        ssl_ctx = SSL_CTX_new (SSLv23_server_method());
-        ssl_opts = SSL_CTX_get_options (ssl_ctx);
-        SSL_CTX_set_options (ssl_ctx, ssl_opts|SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION|SSL_OP_CIPHER_SERVER_PREFERENCE|SSL_OP_ALL);
+        new_ssl_ctx = SSL_CTX_new (SSLv23_server_method());
+        ssl_opts = SSL_CTX_get_options (new_ssl_ctx);
+        SSL_CTX_set_options (new_ssl_ctx, ssl_opts|SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION|SSL_OP_CIPHER_SERVER_PREFERENCE|SSL_OP_ALL);
 
         // Enable DH and ECDH
         // See: https://john.nachtimwald.com/2014/10/01/enable-dh-and-ecdh-in-openssl-server/
 #if defined(SSL_CTX_set_ecdh_auto)
-        SSL_CTX_set_ecdh_auto (ssl_ctx, 1);
+        SSL_CTX_set_ecdh_auto (new_ssl_ctx, 1);
 #else
         EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-        if ( (NULL == ecdh) || 1 != SSL_CTX_set_tmp_ecdh (ssl_ctx, ecdh) )
+        if ( (NULL == ecdh) || 1 != SSL_CTX_set_tmp_ecdh (new_ssl_ctx, ecdh) )
         {
             WARN0 ("Cannot setup Elliptic curve Diffie–Hellman parameters");
         }
@@ -337,31 +340,31 @@ static void get_ssl_certificate (ice_config_t *config)
 #endif
 
 #if defined(SSL_CTX_set_dh_auto)
-        SSL_CTX_set_dh_auto (ssl_ctx, 1);
+        SSL_CTX_set_dh_auto (new_ssl_ctx, 1);
 #else
         DH *dh = get_dh2048 ();
-        if ( (NULL == dh) || (1 != SSL_CTX_set_tmp_dh (ssl_ctx, dh)) )
+        if ( (NULL == dh) || (1 != SSL_CTX_set_tmp_dh (new_ssl_ctx, dh)) )
         {
             WARN0 ("Cannot setup Diffie-Hellman parameters");
         }
         DH_free (dh);
 #endif
-        if (SSL_CTX_use_certificate_chain_file (ssl_ctx, config->cert_file) <= 0)
+        if (SSL_CTX_use_certificate_chain_file (new_ssl_ctx, config->cert_file) <= 0)
         {
-            WARN1 ("Invalid cert file %s", config->cert_file);
+            WARN2 ("Invalid cert file %s (%s)", config->cert_file, ERR_reason_error_string (ERR_peek_last_error()));
             break;
         }
-        if (SSL_CTX_use_PrivateKey_file (ssl_ctx, config->key_file, SSL_FILETYPE_PEM) <= 0)
+        if (SSL_CTX_use_PrivateKey_file (new_ssl_ctx, config->key_file, SSL_FILETYPE_PEM) <= 0)
         {
-            WARN1 ("Invalid private key file %s", config->key_file);
+            WARN2 ("Invalid private key file %s (%s)", config->key_file, ERR_reason_error_string (ERR_peek_last_error()));
             break;
         }
-        if (!SSL_CTX_check_private_key (ssl_ctx))
+        if (!SSL_CTX_check_private_key (new_ssl_ctx))
         {
-            ERROR1 ("Invalid %s - Private key does not match cert public key", config->cert_file);
+            ERROR2 ("Invalid %s - Private key does not match cert public key (%s)", config->key_file, ERR_reason_error_string (ERR_peek_last_error()));
             break;
         }
-        if (SSL_CTX_set_cipher_list(ssl_ctx, config->cipher_list) <= 0)
+        if (SSL_CTX_set_cipher_list (new_ssl_ctx, config->cipher_list) <= 0)
         {
             WARN1 ("Invalid cipher list: %s", config->cipher_list);
         }
@@ -371,15 +374,19 @@ static void get_ssl_certificate (ice_config_t *config)
             INFO1 ("SSL private key found at %s", config->key_file);
 
         INFO1 ("SSL using ciphers %s", config->cipher_list);
+        if (ssl_ctx)
+            SSL_CTX_free (ssl_ctx);
+        ssl_ctx = new_ssl_ctx;
         return;
     } while (0);
+
+    if (new_ssl_ctx)
+        SSL_CTX_free (new_ssl_ctx);
+
     if (ssl_ctx)
-    {
-        WARN2 ("failed to load cert %s (%s)", config->cert_file, ERR_reason_error_string (ERR_peek_last_error()));
-        SSL_CTX_free (ssl_ctx);
-        ssl_ctx = NULL;
-    }
-    INFO0 ("No SSL capability on any configured ports");
+        INFO0 ("SSL not reloaded, will keep using previous certificate/key");
+    else
+        INFO0 ("No SSL capability on any configured ports");
 }
 
 
@@ -1373,9 +1380,6 @@ static void *connection_thread (void *arg)
         if (global.new_connections_slowdown)
             thread_sleep (global.new_connections_slowdown * 5000);
     }
-#ifdef HAVE_OPENSSL
-    SSL_CTX_free (ssl_ctx);
-#endif
     global_lock();
     cached_file_clear (&banned_ip);
     cached_file_clear (&allowed_ip);
