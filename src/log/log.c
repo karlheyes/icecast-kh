@@ -63,7 +63,7 @@ typedef struct log_tag
     unsigned int duration;
     int archive_timestamp;
 
-    unsigned long total;
+    unsigned long buffer_bytes;
     unsigned int entries;
     unsigned int keep_entries;
     log_entry_t *written_entry;
@@ -152,7 +152,7 @@ static void log_init (log_t *log)
     log->filename = NULL;
     log->logfile = NULL;
     log->buffer = NULL;
-    log->total = 0;
+    log->buffer_bytes = 0;
     log->entries = 0;
     log->keep_entries = 5;
     log->written_entry = NULL;
@@ -299,7 +299,7 @@ void log_set_lines_kept (int log_id, unsigned int count)
     {
         log_entry_t *to_go = loglist [log_id].log_head;
         loglist [log_id].log_head = to_go->next;
-        loglist [log_id].total -= to_go->len;
+        loglist [log_id].buffer_bytes -= to_go->len;
         free (to_go->line);
         free (to_go);
         loglist [log_id].entries--;
@@ -368,7 +368,7 @@ void log_close(int log_id)
     {
         log_entry_t *to_go = loglist [log_id].log_head;
         loglist [log_id].log_head = to_go->next;
-        loglist [log_id].total -= to_go->len;
+        loglist [log_id].buffer_bytes -= to_go->len;
         free (to_go->line);
         free (to_go);
         loglist [log_id].entries--;
@@ -397,7 +397,7 @@ static log_entry_t *log_entry_pop (int log_id)
     if (to_go == NULL || loglist [log_id].written_entry == NULL || loglist [log_id].written_entry == to_go)
         return NULL;
     loglist [log_id].log_head = to_go->next;
-    loglist [log_id].total -= to_go->len;
+    loglist [log_id].buffer_bytes -= to_go->len;
     loglist [log_id].entries--;
 
     if (to_go == loglist [log_id].log_tail)
@@ -433,7 +433,8 @@ static int do_log_run (int log_id)
         _unlock_logger ();
 
         // fprintf (stderr, "in log run, line is %s\n", next->line);
-        fprintf (loglist [log_id].logfile, "%s\n", next->line);
+        if (fprintf (loglist [log_id].logfile, "%s\n", next->line) >= 0)
+            loglist [log_id].size += next->len;
 
         _lock_logger ();
         next = next->next;
@@ -501,7 +502,7 @@ static int create_log_entry (int log_id, const char *line)
     len = entry->len = strlen (line);
     entry->line = malloc (entry->len+1);
     snprintf (entry->line, entry->len+1, "%s", line);
-    loglist [log_id].total += entry->len;
+    loglist [log_id].buffer_bytes += entry->len;
 
     if (loglist [log_id].log_tail)
         loglist [log_id].log_tail->next = entry;
@@ -536,7 +537,7 @@ int log_contents (int log_id, char **_contents, unsigned int *_len)
             _unlock_logger ();
             return -1;
         }
-        *_len = loglist [log_id].total + loglist [log_id].entries; // add space for newlines
+        *_len = loglist [log_id].buffer_bytes + loglist [log_id].entries; // add space for newlines
         return 1;
     }
     remain = *_len;
