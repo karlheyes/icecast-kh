@@ -60,6 +60,9 @@
 /* Define to 1 if you have the `fsync' function. */
 #undef HAVE_FSYNC
 
+/* Define to 1 if you have the `ftime' function. */
+#undef HAVE_FTIME
+
 /* Define to 1 if you have the `getaddrinfo' function. */
 #undef HAVE_GETADDRINFO
 
@@ -215,9 +218,6 @@
 
 /* Define if Theora support is available */
 #undef HAVE_THEORA
-
-/* Define to 1 if you have the `time' function. */
-#undef HAVE_TIME
 
 /* Define to 1 if the system has the type `uint32_t'. */
 #undef HAVE_UINT32_T

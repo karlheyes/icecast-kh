@@ -16,6 +16,22 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.4.0-kh6
+. drop client is read channel is closed off, handles proxies better like AWS.
+. Logging
+  better log messaging at startup if change owner used.
+  fixed race bug generally affecting the per-mount logs, excessive purging.
+  fix auto log cyclying
+. Add listeners= to POST on auth url. current listener count in the stats
+. internal improvement to cached entries for addresses
+. SSL updates
+  build fix where no SSL is available
+  allow for DH/ECDH
+  allow for reading the cert before dropping privs, but keep certificate if reload is fails.
+  crash fix if no SSL certificate defined.
+  small fix for internal openssl threading.
+
+
 2.4.0-kh5
 . use a separate thread for logging, prevents worker stalls in certain setups.
 . backward compatibile playlist archive setting fix.
