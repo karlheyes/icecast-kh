@@ -362,16 +362,11 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             }
             else
             {
-                // treat range 0- as if no range set, for chrome
-                if (client->connection.discon.offset == (uint64_t)-1)
-                {
-                    client->connection.discon.offset = 0;
-                    client->intro_offset = 0;
-                    client->flags &= ~CLIENT_RANGE_END;
-                    len = 0;
-                }
-                else
-                    client->respcode = 200;
+                // ignore ranges on streams, treat as full
+                client->connection.discon.offset = 0;
+                client->intro_offset = 0;
+                client->flags &= ~CLIENT_RANGE_END;
+                len = 0;
             }
             length = len;
             if (length)
@@ -385,6 +380,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                         contenttype ? contenttype : "application/octet-stream",
                         len, (uint64_t)client->intro_offset,
                         client->connection.discon.offset, total_size);
+                client->respcode = 206;
             }
             if (client->parser->req_type != httpp_req_head && length < 100 && (client->flags & CLIENT_RANGE_END) && fs == NULL)
             {
