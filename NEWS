@@ -16,6 +16,11 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.4.0-kh7
+. fix up recent ssl update to build against openssl 1.1
+. drop range requests on streams, was breaking iOS 11.
+. log typo fix
+
 2.4.0-kh6
 . drop client is read channel is closed off, handles proxies better like AWS.
 . Logging
