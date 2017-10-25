@@ -334,7 +334,7 @@ void log_reopen(int log_id)
     _lock_logger();
     if (loglist [log_id] . filename && loglist [log_id] . logfile)
     {
-        loglist [log_id].reopen_at = (time_t)0;
+        loglist [log_id].size = loglist [log_id].trigger_level+1;
     }
     _unlock_logger();
 }
