@@ -373,6 +373,7 @@ void log_close(int log_id)
         free (to_go);
         loglist [log_id].entries--;
     }
+    loglist [log_id].written_entry = NULL;
     loglist [log_id].entries = 0;
     loglist[log_id].in_use = 0;
     _unlock_logger();
