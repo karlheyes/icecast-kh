@@ -438,14 +438,10 @@ static auth_result url_add_listener (auth_client *auth_user)
     auth_t *auth = auth_user->auth;
     auth_url *url = auth->state;
     auth_thread_data *atd = auth_user->thread_data;
-    int res = 0, port, ret = AUTH_FAILED, poffset = 0;
-    const char *tmp;
-    char *user_agent, *username, *password;
-    char *mount, *ipaddr, *server, *referer;
-    ice_config_t *config;
+
+    int res = 0, ret = AUTH_FAILED, poffset = 0;
     struct build_intro_contents *x;
     char *userpwd = NULL, post [8192];
-    char *current_listeners;
 
     if (url->addurl == NULL || client == NULL)
         return AUTH_OK;
@@ -468,48 +464,55 @@ static auth_result url_add_listener (auth_client *auth_user)
             return AUTH_FAILED;
         }
     }
+    do
+    {
+        ice_config_t *config = config_get_config ();
+        char *user_agent, *username, *password, *mount, *ipaddr, *referer, *current_listeners,
+             *server = util_url_escape (config->hostname);
+        int port = config->port;
+        config_release_config ();
 
-    config = config_get_config ();
-    server = util_url_escape (config->hostname);
-    port = config->port;
-    config_release_config ();
-    tmp = httpp_getvar (client->parser, "user-agent");
-    if (tmp == NULL)
-        tmp = "-";
-    user_agent = util_url_escape (tmp);
-    if (client->username)
-        username  = util_url_escape (client->username);
-    else
-        username = strdup ("");
-    if (client->password)
-        password  = util_url_escape (client->password);
-    else
-        password = strdup ("");
+        const char *tmp = httpp_getvar (client->parser, "user-agent");
 
-    /* get the full uri (with query params if available) */
-    tmp = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
-    snprintf (post, sizeof post, "%s%s", auth_user->mount, tmp ? tmp : "");
-    mount = util_url_escape (post);
-    ipaddr = util_url_escape (client->connection.ip);
-    tmp = httpp_getvar (client->parser, "referer");
-    referer = tmp ? util_url_escape (tmp) : strdup ("");
-    current_listeners = stats_get_value(auth->mount, "listeners");
-    if (current_listeners == NULL)
-        current_listeners = strdup("");
+        if (tmp == NULL)
+            tmp = "-";
+        user_agent = util_url_escape (tmp);
 
-    poffset = snprintf (post, sizeof (post),
-            "action=listener_add&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
-            "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s&listeners=%s",
-            server, port, client->connection.id, mount, username,
-            password, ipaddr, user_agent, referer, current_listeners);
-    free (current_listeners);
-    free (server);
-    free (mount);
-    free (referer);
-    free (user_agent);
-    free (username);
-    free (password);
-    free (ipaddr);
+        if (client->username)
+            username  = util_url_escape (client->username);
+        else
+            username = strdup ("");
+        if (client->password)
+            password  = util_url_escape (client->password);
+        else
+            password = strdup ("");
+
+        /* get the full uri (with query params if available) */
+        tmp = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
+        snprintf (post, sizeof post, "%s%s", auth_user->mount, tmp ? tmp : "");
+        mount = util_url_escape (post);
+        ipaddr = util_url_escape (client->connection.ip);
+        tmp = httpp_getvar (client->parser, "referer");
+        referer = tmp ? util_url_escape (tmp) : strdup ("");
+
+        current_listeners = stats_get_value(auth->mount, "listeners");
+        if (current_listeners == NULL)
+            current_listeners = strdup("");
+
+        poffset = snprintf (post, sizeof (post),
+                "action=listener_add&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
+                "&user=%s&pass=%s&ip=%s&agent=%s&referer=%s&listeners=%s",
+                server, port, client->connection.id, mount, username,
+                password, ipaddr, user_agent, referer, current_listeners);
+        free (current_listeners);
+        free (server);
+        free (mount);
+        free (referer);
+        free (user_agent);
+        free (username);
+        free (password);
+        free (ipaddr);
+    } while (0);
 
     if (url->header_chk_list)
     {
