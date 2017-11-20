@@ -332,10 +332,19 @@ void log_reopen(int log_id)
     if (log_id < 0 && log_id >= LOG_MAXLOGS)
         return;
     _lock_logger();
-    if (loglist [log_id] . filename && loglist [log_id] . logfile)
+    do
     {
-        loglist [log_id].size = loglist [log_id].trigger_level+1;
-    }
+        if (loglist [log_id] . filename == NULL || loglist [log_id] . logfile == NULL)
+            break;
+        if (loglist [log_id]. archive_timestamp < 0)
+        {
+            struct stat st;
+            if (stat (loglist [log_id] . filename, &st) == 0)
+                break;
+            // a missing log indicates an external move so trigger a reopen
+        }
+        loglist [log_id].size = loglist [log_id].trigger_level + 1;
+    } while (0);
     _unlock_logger();
 }
 
@@ -352,7 +361,7 @@ void log_close(int log_id)
     }
 
     int loop = 0;
-    while (++loop < 100 && do_log_run (log_id) > 0)
+    while (++loop < 10 && do_log_run (log_id) > 0)
         ;
     loglist[log_id].level = 2;
     free (loglist[log_id].filename);
