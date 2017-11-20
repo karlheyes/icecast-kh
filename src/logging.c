@@ -164,15 +164,16 @@ void log_parse_failure (void *ctx, const char *fmt, ...)
 
 static int recheck_log_file (ice_config_t *config, int *id, const char *file)
 {
-    char fn [FILENAME_MAX];
+    char fn [FILENAME_MAX] = "";
 
-    if (file == NULL || strcmp (file, "-") == 0)
+    if (file == NULL)
     {
         log_close (*id);
         *id = -1;
         return 0;
     }
-    snprintf (fn, FILENAME_MAX, "%s%s%s", config->log_dir, PATH_SEPARATOR, file);
+    if (strcmp (file, "-") != 0)
+        snprintf (fn, FILENAME_MAX, "%s%s%s", config->log_dir, PATH_SEPARATOR, file);
     if (*id < 0)
     {
         *id = log_open (fn);
@@ -264,7 +265,7 @@ int init_logging (ice_config_t *config)
     worker_logger_init();
 
     if (strcmp (config->error_log.name, "-") == 0)
-        errorlog = log_open_file (stderr);
+        config->error_log.logid = log_open_file (stderr);
     if (strcmp(config->access_log.name, "-") == 0)
         config->access_log.logid = log_open_file (stderr);
     return restart_logging (config);
@@ -281,7 +282,7 @@ int start_logging (ice_config_t *config)
 void stop_logging(void)
 {
     ice_config_t *config = config_get_config_unlocked();
-    log_close (errorlog);
+    log_close (config->error_log.logid);
     log_close (config->access_log.logid);
     log_close (config->playlist_log.logid);
 }
