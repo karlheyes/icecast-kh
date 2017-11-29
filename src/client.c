@@ -438,6 +438,14 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
     client->pos = 0;
 }
 
+static uint64_t worker_check_time_ms (worker_t *worker)
+{
+    uint64_t tm = timing_get_time();
+    if (tm - worker->time_ms > 1000 && worker->time_ms)
+        WARN2 ("worker %p has been stuck for %" PRIu64 " ms", worker, (tm - worker->time_ms));
+    return tm;
+}
+
 
 static worker_t *find_least_busy_handler (int log)
 {
@@ -579,9 +587,7 @@ static client_t **worker_wait (worker_t *worker)
 
     if (global.running == ICE_RUNNING)
     {
-        uint64_t tm = timing_get_time();
-        if (tm - worker->time_ms > 1000 && worker->time_ms)
-            WARN2 ("worker %p has been stuck for %lu ms", worker, (unsigned long)(tm - worker->time_ms));
+        uint64_t tm = worker_check_time_ms (worker);
         if (worker->wakeup_ms > tm)
             duration = (int)(worker->wakeup_ms - tm);
         if (duration > 60000) /* make duration at most 60s */
@@ -680,27 +686,27 @@ void *worker (void *arg)
                 int ret = 0;
                 client_t *nx = client->next_on_worker;
 
-                int process = (worker->running == 0 || client->schedule_ms <= sched_ms) ? 1 : 0;
-                if (process)
+                int process = 1;
+                if (worker->running)  // force all active clients to run on worker shutdown
                 {
-                    if (c > 300 && c & 1)  // only process alternate clients after so many
+                    if (client->schedule_ms <= sched_ms)
+                    {
+                        if (c > 9000 && client->wakeup == NULL)
+                            process = 0;
+                    }
+                    else if (client->wakeup == NULL || *client->wakeup == 0)
+                    {
                         process = 0;
-                }
-                else if (client->wakeup && *client->wakeup)
-                {
-                    if (c & 1)
-                        process = 1; // enable this one to pass through
-                    else
-                        client->schedule_ms = worker->time_ms;
+                    }
                 }
 
                 if (process)
                 {
                     c++;
-                    if ((c & 31) == 0)
+                    if ((c & 511) == 0)
                     {
-                        // update these after so many to keep in sync
-                        worker->time_ms = timing_get_time();
+                        // update these periodically to keep in sync
+                        worker->time_ms = worker_check_time_ms (worker);
                         worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
                     }
                     ret = client->ops->process (client);
