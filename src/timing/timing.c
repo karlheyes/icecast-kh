@@ -48,6 +48,13 @@
  */
 uint64_t timing_get_time(void)
 {
+#ifdef _POSIX_MONOTONIC_CLOCK
+    struct timespec ts;
+    if (clock_gettime (CLOCK_MONOTONIC, &ts) == 0)
+    {
+        return (uint64_t)(ts.tv_sec * 1000) + (ts.tv_nsec/1000000);
+    }
+#endif
 #ifdef HAVE_GETTIMEOFDAY
     struct timeval mtv;
 
