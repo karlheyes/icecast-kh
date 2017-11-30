@@ -162,6 +162,7 @@ void stats_initialize(void)
 
     /* global currently active stats */
     stats_event_flags (NULL, "clients", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "listeners", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "connections", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "sources", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "stats", "0", STATS_COUNTERS);
@@ -483,7 +484,8 @@ static void modify_node_event (stats_node_t *node, stats_event_t *event)
         free (node->value);
         node->value = strdup (event->value);
     }
-    DEBUG3 ("update \"%s\" %s (%s)", event->source?event->source:"global", node->name, node->value);
+    if ((node->flags & STATS_REGULAR) == 0)
+        DEBUG3 ("update \"%s\" %s (%s)", event->source?event->source:"global", node->name, node->value);
 }
 
 
@@ -1369,7 +1371,10 @@ void stats_global_calc (void)
         stats_node_t *node = (stats_node_t *)anode->key;
 
         if (node->flags & STATS_REGULAR)
+        {
             stats_listener_send (node->flags, "EVENT global %s %s\n", node->name, node->value);
+            DEBUG2 ("update global %s (%s)", node->name, node->value);
+        }
         anode = avl_get_next (anode);
     }
     avl_tree_unlock (_stats.global_tree);
