@@ -50,7 +50,7 @@ typedef struct source_tag
     long limit_rate;
     time_t wait_time;
 
-    unsigned long termination_count;
+    long termination_count;
     unsigned long peak_listeners;
     unsigned long listeners;
     unsigned long prev_listeners;

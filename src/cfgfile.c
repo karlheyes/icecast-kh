@@ -1049,6 +1049,8 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         mount->ogg_passthrough = 0;
     if (mount->min_queue_size < 0)
         mount->min_queue_size = mount->burst_size;
+    if (mount->queue_block_size < 100)
+        mount->queue_block_size = 1400;
     if (mount->ban_client < 0)
         mount->no_mount = 0;
     if (mount->fallback_mount && mount->fallback_mount[0] != '/')

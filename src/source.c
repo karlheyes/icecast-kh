@@ -435,7 +435,7 @@ int source_read (source_t *source)
         client->schedule_ms = client->worker->time_ms;
         if (source->flags & SOURCE_LISTENERS_SYNC)
         {
-            if (source->termination_count)
+            if (source->termination_count > 0)
             {
                 if (client->timer_start + 1000 < client->worker->time_ms)
                 {
@@ -679,14 +679,14 @@ static int source_client_read (client_t *client)
         }
     }
 
-    if (source->termination_count && source->termination_count <= source->listeners)
+    if (source->termination_count && source->termination_count <= (long)source->listeners)
     {
         if (client->timer_start + 1000 < client->worker->time_ms)
         {
             WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
             if (source->listeners != source->clients->length)
             {
-                WARN3 ("source %s has inconsist listeners (%ld, %u)", source->mount, source->listeners, source->clients->length);
+                WARN3 ("source %s has inconsistent listeners (%ld, %u)", source->mount, source->listeners, source->clients->length);
                 source->listeners = source->clients->length;
             }
             source->flags &= ~SOURCE_TERMINATING;
@@ -738,7 +738,7 @@ static int source_queue_advance (client_t *client)
     int ret;
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
-    long lag;
+    uint64_t lag;
 
     if (client->refbuf == NULL && locate_start_on_queue (source, client) < 0)
         return -1;

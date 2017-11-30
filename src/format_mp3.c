@@ -822,6 +822,8 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     if (mpeg_has_changed (mpeg_sync))
     {
         format_plugin_t *plugin = source->format;
+        char buf [30];
+
         source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
         if (mpeg_sync->samplerate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
         {
@@ -829,9 +831,12 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
             plugin->contenttype = strdup ("video/MP2T");
         }
         stats_lock (source->stats, NULL);
-        stats_set_args (source->stats, "audio_codecid", "%d", (mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2));
-        stats_set_args (source->stats, "mpeg_samplerate", "%d", mpeg_sync->samplerate);
-        stats_set_args (source->stats, "mpeg_channels", "%d", mpeg_get_channels (mpeg_sync));
+        snprintf (buf, sizeof buf, "%d", mpeg_get_layer (mpeg_sync) == MPEG_AAC ? 10 : 2);
+        stats_set_flags (source->stats, "audio_codecid", buf, STATS_HIDDEN);
+        snprintf (buf, sizeof buf, "%d", mpeg_sync->samplerate);
+        stats_set_flags (source->stats, "mpeg_samplerate", buf, STATS_HIDDEN);
+        snprintf (buf, sizeof buf, "%d", mpeg_get_channels (mpeg_sync));
+        stats_set_flags (source->stats, "mpeg_channels", buf, STATS_HIDDEN);
         stats_release (source->stats);
     }
     if (unprocessed > 0)
