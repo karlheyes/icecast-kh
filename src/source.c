@@ -2566,26 +2566,29 @@ static int source_change_worker (source_t *source, client_t *client)
     worker_t *this_worker = client->worker, *worker;
     int ret = 0;
 
-    if (this_worker->move_allocations == 0 || worker_count < 2)
-        return 0;
     thread_rwlock_rlock (&workers_lock);
-    worker = worker_selected ();
-    if (worker && worker != client->worker)
+    if (this_worker->move_allocations)
     {
-        long diff = this_worker->count - worker->count;
-        if (diff > 50 || (diff > (source->listeners>>1) + 3))
+        worker = worker_selected ();
+        if (worker && worker != client->worker)
         {
-            this_worker->move_allocations--;
-            thread_rwlock_unlock (&source->lock);
-            ret = client_change_worker (client, worker);
-            if (ret)
-                DEBUG2 ("moving source from %p to %p", this_worker, worker);
-            else
-                thread_rwlock_wlock (&source->lock);
+            long diff = (this_worker->move_allocations < 1000000) ? this_worker->count - worker->count : 1000000;
+            if (diff > 50 || (diff > (source->listeners>>1) + 3))
+            {
+                this_worker->move_allocations--;
+                thread_rwlock_unlock (&source->lock);
+                ret = client_change_worker (client, worker);
+                thread_rwlock_unlock (&workers_lock);
+                if (ret)
+                    DEBUG2 ("moving source from %p to %p", this_worker, worker);
+                else
+                    thread_rwlock_wlock (&source->lock);
+                return ret;
+            }
         }
     }
     thread_rwlock_unlock (&workers_lock);
-    return ret;
+    return 0;
 }
 
 
@@ -2598,14 +2601,14 @@ int listener_change_worker (client_t *client, source_t *source)
     long diff;
     int ret = 0;
 
-    if (this_worker->move_allocations == 0 || worker_count < 2)
+    if (this_worker->move_allocations == 0)
         return 0;
     thread_rwlock_rlock (&workers_lock);
     dest_worker = source->client->worker;
 
     if (this_worker != dest_worker)
     {
-        diff = dest_worker->count - this_worker->count;
+        diff = (this_worker->move_allocations < 1000000) ? dest_worker->count - this_worker->count : 1;
         // do not move listener if source client worker has sufficiently more clients
         if (diff > 100)
             dest_worker = NULL;

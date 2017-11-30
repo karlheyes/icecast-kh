@@ -1209,7 +1209,7 @@ static int http_client_request (client_t *client)
         {
             if (connection_peek (&client->connection) < 0)
             {
-                client->schedule_ms = client->worker->time_ms + (not_ssl_connection (&client->connection) ? 30 : 55);
+                client->schedule_ms = client->worker->time_ms + (not_ssl_connection (&client->connection) ? 90 : 133);
                 return 0;
             }
         }
@@ -1381,8 +1381,8 @@ static void *connection_thread (void *arg)
             client->counter = client->schedule_ms = timing_get_time();
             client->connection.con_time = client->schedule_ms/1000;
             client->connection.discon.time = client->connection.con_time + header_timeout;
-            client->schedule_ms += 6;
-            client_add_worker (client);
+            client->schedule_ms += 30;
+            client_add_incoming (client);
             stats_event_inc (NULL, "connections");
         }
         if (global.new_connections_slowdown)

@@ -688,13 +688,13 @@ static int fserve_change_worker (client_t *client)
     worker_t *this_worker = client->worker, *worker;
     int ret = 0;
 
-    if (this_worker->move_allocations == 0 || worker_count < 2)
+    if (this_worker->move_allocations == 0)
         return 0;
     thread_rwlock_rlock (&workers_lock);
     worker = worker_selected ();
     if (worker && worker != client->worker)
     {
-        long diff = this_worker->count - worker->count;
+        long diff = this_worker->move_allocations < 1000000 ? this_worker->count - worker->count : 1000;
         if (diff > 15)
         {
             this_worker->move_allocations--;
@@ -784,9 +784,10 @@ static int file_send (client_t *client)
     worker_t *worker = client->worker;
     time_t now;
 
+#if 0
     if (fserve_change_worker (client)) // allow for balancing
         return 1;
-
+#endif
     client->schedule_ms = worker->time_ms;
     now = worker->current_time.tv_sec;
     /* slowdown if max bandwidth is exceeded, but allow for short-lived connections to avoid 
