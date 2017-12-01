@@ -97,28 +97,42 @@ static int _log_open (int id, time_t now)
         {
             FILE *f = NULL;
             struct stat st;
+            int exists = 0, archive = 1;
 
+            if (stat (loglist [id] . filename, &st) == 0)
+            {
+                exists = 1;
+                if ((loglist [id] . trigger_level && loglist [id] . size > loglist [id] . trigger_level) &&
+                        st.st_size < loglist [id] . trigger_level)
+                {  // log changed from under us, but less than trigger size, better reopen this and not archive for now.
+                   archive = 0;
+                }
+            }
             if (loglist [id].logfile && loglist [id].logfile != stderr)
             {
                 char new_name [4096];
                 fclose (loglist [id] . logfile);
                 loglist [id] . logfile = NULL;
-                /* simple rename, but could use time providing locking were used */
-                if (loglist[id].archive_timestamp)
+                if (archive)
                 {
-                    char timestamp [128];
+                    if (loglist[id].archive_timestamp)
+                    {
+                        char timestamp [128];
 
-                    strftime (timestamp, sizeof (timestamp), "%Y%m%d_%H%M%S", localtime (&now));
-                    snprintf (new_name,  sizeof(new_name), "%s.%s", loglist[id].filename, timestamp);
-                }
-                else {
-                    snprintf (new_name,  sizeof(new_name), "%s.old", loglist [id] . filename);
-                }
+                        strftime (timestamp, sizeof (timestamp), "%Y%m%d_%H%M%S", localtime (&now));
+                        snprintf (new_name,  sizeof(new_name), "%s.%s", loglist[id].filename, timestamp);
+                    }
+                    else {
+                        snprintf (new_name,  sizeof(new_name), "%s.old", loglist [id] . filename);
+                    }
+                    if (exists)
+                    {
 #ifdef _WIN32
-                if (stat (new_name, &st) == 0)
-                    remove (new_name);
+                        remove (new_name);
 #endif
-                rename (loglist [id] . filename, new_name);
+                        rename (loglist [id] . filename, new_name);
+                    }
+                }
             }
             f = fopen (loglist [id] . filename, "a");
             if (f == NULL)
@@ -339,9 +353,10 @@ void log_reopen(int log_id)
         if (loglist [log_id]. archive_timestamp < 0)
         {
             struct stat st;
-            if (stat (loglist [log_id] . filename, &st) == 0)
+            fflush (loglist [log_id] . logfile);
+            if (stat (loglist [log_id] . filename, &st) == 0 && st.st_size == loglist [log_id].size)
                 break;
-            // a missing log indicates an external move so trigger a reopen
+            // a missing or different sized log indicates an external move so trigger a reopen
         }
         loglist [log_id].size = loglist [log_id].trigger_level + 1;
     } while (0);
