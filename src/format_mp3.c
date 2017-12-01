@@ -947,17 +947,11 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
     /* fill the buffer with the read data */
     bytes = source_mp3->read_count;
     refbuf->len = 0;
-    long offset_limit = (source_mp3->inline_metadata_interval<<5);
 
     while (bytes > 0)
     {
         unsigned int metadata_remaining;
 
-        if (source_mp3->offset < -offset_limit || source_mp3->offset > offset_limit)
-        {
-            ERROR3 ("bad interval vals on %s, %d, %ld", source->mount, source_mp3->offset, offset_limit);
-            abort();
-        }
         mp3_block = source_mp3->inline_metadata_interval - source_mp3->offset;
 
         /* is there only enough to account for mp3 data */
