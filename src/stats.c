@@ -64,6 +64,7 @@ typedef struct _stats_node_tag
 {
     char *name;
     char *value;
+    time_t  last_reported;
     int  flags;
 } stats_node_t;
 
@@ -166,8 +167,7 @@ void stats_initialize(void)
     stats_event_flags (NULL, "connections", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "sources", "0", STATS_COUNTERS);
     stats_event_flags (NULL, "stats", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "banned_IPs", "0", STATS_COUNTERS);
-    stats_event (NULL, "listeners", "0");
+    stats_event_flags (NULL, "banned_IPs", "0", STATS_COUNTERS|STATS_REGULAR);
 #ifdef GIT_VERSION
     stats_event (NULL, "build", GIT_VERSION);
 #endif
@@ -456,7 +456,15 @@ static void modify_node_event (stats_node_t *node, stats_event_t *event)
         if (event->value == NULL)
             return;
     }
-    if (event->action != STATS_EVENT_SET)
+    if (event->action == STATS_EVENT_SET)
+    {
+        if (node->flags & STATS_REGULAR)
+        {
+            if (node->value && strcmp (node->value, event->value) == 0)
+                return;  // no change, lets get out
+        }
+    }
+    else
     {
         int64_t value = 0;
 
@@ -480,11 +488,12 @@ static void modify_node_event (stats_node_t *node, stats_event_t *event)
         snprintf (event->value, VAL_BUFSIZE, "%" PRId64, value);
     }
     if (node->value)
-    {
         free (node->value);
-        node->value = strdup (event->value);
-    }
-    if ((node->flags & STATS_REGULAR) == 0)
+    node->value = strdup (event->value);
+
+    if (node->flags & STATS_REGULAR)
+        node->last_reported = 0;
+    else
         DEBUG3 ("update \"%s\" %s (%s)", event->source?event->source:"global", node->name, node->value);
 }
 
@@ -511,8 +520,6 @@ static void process_global_event (stats_event_t *event)
     if (node)
     {
         modify_node_event (node, event);
-        if ((node->flags & STATS_REGULAR) == 0)
-            stats_listener_send (node->flags, "EVENT global %s %s\n", node->name, node->value);
     }
     else
     {
@@ -523,8 +530,9 @@ static void process_global_event (stats_event_t *event)
         node->flags = event->flags;
 
         avl_insert(_stats.global_tree, (void *)node);
-        stats_listener_send (node->flags, "EVENT global %s %s\n", event->name, event->value);
     }
+    if ((node->flags & STATS_REGULAR) == 0)
+        stats_listener_send (node->flags, "EVENT global %s %s\n", node->name, node->value);
     avl_tree_unlock (_stats.global_tree);
 }
 
@@ -1351,7 +1359,7 @@ void stats_purge (time_t mark)
 }
 
 
-void stats_global_calc (void)
+void stats_global_calc (time_t now)
 {
     stats_event_t event;
     avl_node *anode;
@@ -1372,8 +1380,12 @@ void stats_global_calc (void)
 
         if (node->flags & STATS_REGULAR)
         {
-            stats_listener_send (node->flags, "EVENT global %s %s\n", node->name, node->value);
-            DEBUG2 ("update global %s (%s)", node->name, node->value);
+            if (node->last_reported + 9 < now)
+            {
+                stats_listener_send (node->flags, "EVENT global %s %s\n", node->name, node->value);
+                DEBUG2 ("update global %s (%s)", node->name, node->value);
+                node->last_reported = now;
+            }
         }
         anode = avl_get_next (anode);
     }

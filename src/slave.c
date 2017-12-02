@@ -1180,7 +1180,7 @@ static void _slave_thread(void)
                 restart_connection_thread = 0;
             }
         }
-        stats_global_calc();
+        stats_global_calc (current.tv_sec);
         fserve_scan (current.tv_sec);
 
         /* allow for terminating icecast if no streams running */

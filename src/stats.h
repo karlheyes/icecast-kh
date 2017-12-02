@@ -53,7 +53,7 @@ void stats_event_time (const char *mount, const char *name, int flags);
 
 void *stats_connection(void *arg);
 void stats_add_listener (client_t *client, int hidden_level);
-void stats_global_calc(void);
+void stats_global_calc (time_t now);
 
 int  stats_transform_xslt(client_t *client, const char *uri);
 void stats_sendxml(client_t *client);
