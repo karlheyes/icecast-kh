@@ -768,41 +768,36 @@ static int source_queue_advance (client_t *client)
         client->connection.error = 1;
         return -1;
     }
-    else
+    if ((lag+source->incoming_rate) > source->queue_size_limit && client->connection.error == 0)
     {
-        //static unsigned int i = 0;
-        //if (((++i) & 7) == 7)
-            //DEBUG1 ("lag is %ld", lag);
-        if ((lag+source->incoming_rate) > source->queue_size_limit && client->connection.error == 0)
+        // if the listener is really lagging but has been received a decent
+        // amount of data then allow a requeue, else allow the drop
+        if (client->counter > (source->queue_size_limit << 1))
         {
-            // if the listener is really lagging but has been received a decent
-            // amount of data then allow a requeue, else allow the drop
-            if (client->counter > (source->queue_size_limit << 1))
+            const char *p = httpp_get_query_param (client->parser, "norequeue");
+            if (p == NULL)
             {
-                const char *p = httpp_get_query_param (client->parser, "norequeue");
-                if (p == NULL)
+                // we may need to copy the complete frame for private use
+                if (client->pos < client->refbuf->len)
                 {
-                    // we may need to copy the complete frame for private use
-                    if (client->pos < client->refbuf->len)
-                    {
-                        refbuf_t *copy = refbuf_copy (client->refbuf);
-                        client->refbuf = copy;
-                        client->flags |= CLIENT_HAS_INTRO_CONTENT;
-                        DEBUG2 ("client %s requeued copy on %s", client->connection.ip, source->mount);
-                    }
-                    else
-                    {
-                        client->refbuf = NULL;
-                        client->pos = 0;
-                    }
-                    client->check_buffer = http_source_introfile;
-                    // do not be too eager to refill socket buffer
-                    client->schedule_ms += source->incoming_rate < 16000 ? source->incoming_rate/16 : 800;
-                    return -1;
+                    refbuf_t *copy = refbuf_copy (client->refbuf);
+                    client->refbuf = copy;
+                    client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                    DEBUG2 ("client %s requeued copy on %s", client->connection.ip, source->mount);
                 }
+                else
+                {
+                    client->refbuf = NULL;
+                    client->pos = 0;
+                }
+                client->check_buffer = http_source_introfile;
+                // do not be too eager to refill socket buffer
+                client->schedule_ms += source->incoming_rate < 16000 ? source->incoming_rate/16 : 800;
+                return -1;
             }
         }
     }
+
     refbuf = client->refbuf;
     if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 66000)  abort();
 
@@ -2323,6 +2318,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     }
     source_setup_listener (source, client);
     source->listeners++;
+
     if ((client->flags & CLIENT_ACTIVE) && (source->flags & SOURCE_RUNNING))
         do_process = 1;
     else
