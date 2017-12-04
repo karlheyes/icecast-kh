@@ -16,6 +16,37 @@ Feature differences from SVN trunk
 
 any extra tags are show in the conf/icecast.xml.dist file
 
+2.4.0-kh8
+
+. Logging. An issue was reported on log cycling triggers, should be the last now. This time it
+seems to stem from a cycle triggered externally where a new log is created for appending before
+doing the reopen.  This is now fixed.
+
+. Expand the worker limiter when processing lots of clients in one pass. This was leading to
+some seeing sources not getting cleaned up as the listeners were not getting serviced.  There
+is still a cap but is extermely large and can be bypassed on cleanup cases.
+
+. Incoming worker thread added. Normally incoming clients, after passing the initial IP checks
+get passed on to worker threads for subsequent pocessing.   This can lead to a lot of wakeup
+for the usual worker threads to process these especially if they are short (eg playlist) or
+involve filtering or kicking off auth. The extreme case being a DoS type of thing, where the
+wakeup often causes the worker to do a big list traversal slowing things down as it gets busy.
+This new worker thread deals with the initial aspects, http parsing, initial request handling
+and is only moved to the normal workers for sources, listeners and some static content.
+
+. Add "headers" and "header_prefix" options onto auth url. To bring into line with the Xiph
+build.  It is possible that some sites would want to inspect certain headers passed by
+clients to authenticate. We do not want to pass all of them as that can be large and for such
+situations, particular headers are limited, the prime example of these is cookies.  To avoid
+POST tag name clashes with existing established tags passed in aurl auth, these headers are
+supplied with a prefix, defaulting to "ClientHeader-"
+
+. Stats. A number of global stats are now reported every 10 seconds or the next second if
+they have changed.  This reduces load on a stats link and can save on logging if you have
+that level enabled.
+
+. A small set of code cleanups
+
 2.4.0-kh7
 . fix up recent ssl update to build against openssl 1.1
 . drop range requests on streams, was breaking iOS 11.
