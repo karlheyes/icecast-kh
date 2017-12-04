@@ -164,21 +164,21 @@ void stats_initialize(void)
     /* global currently active stats */
     stats_event_flags (NULL, "clients", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "listeners", "0", STATS_COUNTERS|STATS_REGULAR);
-    stats_event_flags (NULL, "connections", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "sources", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "stats", "0", STATS_COUNTERS);
+    stats_event_flags (NULL, "connections", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "sources", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "stats", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "banned_IPs", "0", STATS_COUNTERS|STATS_REGULAR);
 #ifdef GIT_VERSION
     stats_event (NULL, "build", GIT_VERSION);
 #endif
 
     /* global accumulating stats */
-    stats_event_flags (NULL, "client_connections", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "source_client_connections", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "source_relay_connections", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "source_total_connections", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "stats_connections", "0", STATS_COUNTERS);
-    stats_event_flags (NULL, "listener_connections", "0", STATS_COUNTERS);
+    stats_event_flags (NULL, "client_connections", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "source_client_connections", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "source_relay_connections", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "source_total_connections", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "stats_connections", "0", STATS_COUNTERS|STATS_REGULAR);
+    stats_event_flags (NULL, "listener_connections", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "stream_kbytes_sent", "0", STATS_COUNTERS|STATS_REGULAR);
     stats_event_flags (NULL, "stream_kbytes_read", "0", STATS_COUNTERS|STATS_REGULAR);
