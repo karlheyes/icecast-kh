@@ -79,6 +79,7 @@
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif
+#include <ctype.h>
 
 #include <curl/curl.h>
 
