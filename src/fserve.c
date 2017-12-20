@@ -1128,6 +1128,7 @@ void fserve_recheck_mime_types (ice_config_t *config)
         { "pls",            "audio/x-scpls" },
         { "xspf",           "application/xspf+xml" },
         { "ogg",            "application/ogg" },
+        { "xml",            "text/xml" },
         { "mp3",            "audio/mpeg" },
         { "aac",            "audio/aac" },
         { "aacp",           "audio/aacp" },
