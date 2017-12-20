@@ -1921,21 +1921,14 @@ static void source_run_script (char *command, char *mountpoint)
 #endif
 
 
-static int is_mount_template (const char *mount)
-{
-    int len = strcspn (mount, "*?[$");
-    return (mount[len]) ? 1 : 0;
-}
-
-
 /* rescan the mount list, so that xsl files are updated to show
  * unconnected but active fallback mountpoints
  */
 void source_recheck_mounts (int update_all)
 {
     ice_config_t *config = config_get_config();
-    mount_proxy *mount = config->mounts;
     time_t mark = time (NULL);
+    long count = 0;
 
     avl_tree_rlock (global.source_tree);
 
@@ -1954,15 +1947,21 @@ void source_recheck_mounts (int update_all)
         }
     }
 
-    while (mount)
+    avl_node *node = avl_get_first (config->mounts_tree);
+    while (node)
     {
         source_t *source;
+        mount_proxy *mount = (mount_proxy*)node->key;
 
-        if (is_mount_template (mount->mountname))
+        node = avl_get_next (node);
+
+        ++count;
+        if ((count & 63) == 0)  // lets give others access to this every so often
         {
-            mount = mount->next;
-            continue;
+            avl_tree_unlock (global.source_tree);
+            avl_tree_rlock (global.source_tree);
         }
+
         source = source_find_mount_raw (mount->mountname);
         if ((source == NULL || source_available (source) == 0) && mount->fallback_mount)
         {
@@ -1991,7 +1990,6 @@ void source_recheck_mounts (int update_all)
                 stats_release (stats);
             }
         }
-        mount = mount->next;
     }
     stats_purge (mark);
     avl_tree_unlock (global.source_tree);

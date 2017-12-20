@@ -297,6 +297,13 @@ relay_server *config_clear_relay (relay_server *relay)
 }
 
 
+int config_mount_template (const char *mount)
+{
+    int len = strcspn (mount, "*?[$");
+    return (mount[len]) ? 1 : 0;
+}
+
+
 static void config_clear_mount (mount_proxy *mount)
 {
     config_options_t *option;
@@ -340,6 +347,13 @@ static void config_clear_mount (mount_proxy *mount)
     xmlFree (mount->access_log.exclude_ext);
     xmlFree (mount->mountname);
     free (mount);
+}
+
+// helper routine for avl/cleanup
+static int config_clear_mount_from_tree (void *arg)
+{
+    config_clear_mount ((mount_proxy *)arg);
+    return 1;
 }
 
 listener_t *config_clear_listener (listener_t *listener)
@@ -419,6 +433,7 @@ void config_clear(ice_config_t *c)
     while (c->redirect_hosts)
         c->redirect_hosts = config_clear_redirect (c->redirect_hosts);
 
+    avl_tree_free (c->mounts_tree, config_clear_mount_from_tree);
     while (c->mounts)
     {
         mount_proxy *to_go = c->mounts;
@@ -538,6 +553,16 @@ ice_config_t *config_get_config_unlocked(void)
     return &_current_configuration;
 }
 
+
+static int compare_mounts (void *arg, void *a, void *b)
+{
+    mount_proxy *m1 = (mount_proxy *)a;
+    mount_proxy *m2 = (mount_proxy *)b;
+
+    return strcmp (m1->mountname, m2->mountname);
+}
+
+
 static void _set_defaults(ice_config_t *configuration)
 {
     configuration->location = (char *)xmlCharStrdup (CONFIG_DEFAULT_LOCATION);
@@ -589,6 +614,7 @@ static void _set_defaults(ice_config_t *configuration)
     /* default to a typical prebuffer size used by clients */
     configuration->min_queue_size = 0;
     configuration->burst_size = CONFIG_DEFAULT_BURST_SIZE;
+    configuration->mounts_tree = avl_tree_new (compare_mounts, NULL);
 }
 
 
@@ -1060,8 +1086,14 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         mount->fallback_mount = NULL;
     }
 
-    mount->next = config->mounts;
-    config->mounts = mount;
+    if (config_mount_template (mount->mountname))
+    {
+        // may need some priority order imposed at some point
+        mount->next = config->mounts;
+        config->mounts = mount;
+    }
+    else
+        avl_insert (config->mounts_tree, mount);
 
     return 0;
 }
@@ -1394,21 +1426,31 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
 /* return the mount details that match the supplied mountpoint */
 mount_proxy *config_find_mount (ice_config_t *config, const char *mount)
 {
-    mount_proxy *mountinfo = config->mounts, *to_return = NULL;
-
     if (mount == NULL)
     {
         WARN0 ("no mount name provided");
         return NULL;
     }
-    while (mountinfo)
+    void *result;
+    mount_proxy findit, *mountinfo = NULL;
+    findit.mountname = (char *)mount;
+
+    int missing = avl_get_by_key (config->mounts_tree, &findit, &result);
+    if (missing)
     {
-        if (fnmatch (mountinfo->mountname, mount, 0) == 0)
-            to_return = mountinfo;
-        mountinfo = mountinfo->next;
+        mount_proxy *to_return = NULL;
+        mountinfo = config->mounts;
+        while (mountinfo)
+        {
+            if (fnmatch (mountinfo->mountname, mount, 0) == 0)
+                to_return = mountinfo;
+            mountinfo = mountinfo->next;
+        }
+        if (mountinfo == NULL)
+            mountinfo = to_return;
     }
-    if (mountinfo == NULL)
-        mountinfo = to_return;
+    else
+        mountinfo = result;
     return mountinfo;
 }
 

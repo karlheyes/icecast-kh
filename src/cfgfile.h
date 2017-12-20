@@ -299,6 +299,7 @@ typedef struct ice_config_tag
     relay_server *relays;
 
     mount_proxy *mounts;
+    avl_tree *mounts_tree;
 
     char *server_id;
     char *base_dir;
