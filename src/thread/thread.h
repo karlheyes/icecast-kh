@@ -136,6 +136,7 @@ int thread_mtx_lock_callback(void**m, int lock);
 #define thread_rwlock_rlock(x) thread_rwlock_rlock_c(x,__LINE__,__FILE__)
 #define thread_rwlock_tryrlock(x) thread_rwlock_tryrlock_c(x,__LINE__,__FILE__)
 #define thread_rwlock_wlock(x) thread_rwlock_wlock_c(x,__LINE__,__FILE__)
+#define thread_rwlock_trywlock(x) thread_rwlock_trywlock_c(x,__LINE__,__FILE__)
 #define thread_rwlock_unlock(x) thread_rwlock_unlock_c(x,__LINE__,__FILE__)
 #define thread_exit(x) thread_exit_c(x,__LINE__,__FILE__)
 
@@ -196,6 +197,7 @@ void thread_rwlock_create_c(const char *name, rwlock_t *rwlock, int line, const 
 void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file);
 int  thread_rwlock_tryrlock_c(rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file);
+int  thread_rwlock_trywlock_c(rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_unlock_c(rwlock_t *rwlock, int line, const char *file);
 void thread_rwlock_destroy(rwlock_t *rwlock);
 void thread_exit_c(long val, int line, char *file);

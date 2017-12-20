@@ -74,7 +74,7 @@ typedef int (*avl_key_printer_fun_type)    (char *, void *);
 # define avl_iterate_index_range _mangle(avl_iterate_index_range)
 # define avl_tree_rlock _mangle(avl_tree_rlock)
 # define avl_tree_wlock _mangle(avl_tree_wlock)
-# define avl_tree_wlock _mangle(avl_tree_wlock)
+# define avl_tree_trywlock _mangle(avl_tree_trywlock)
 # define avl_tree_unlock _mangle(avl_tree_unlock)
 # define avl_node_rlock _mangle(avl_node_rlock)
 # define avl_node_wlock _mangle(avl_node_wlock)
@@ -196,6 +196,7 @@ int avl_get_item_by_key_least (
 /* optional locking stuff */
 void avl_tree_rlock_c(avl_tree *tree, int line, const char *file);
 void avl_tree_wlock_c(avl_tree *tree, int line, const char *file);
+int  avl_tree_trywlock(avl_tree *tree);
 void avl_tree_unlock_c(avl_tree *tree, int line, const char *file);
 void avl_node_rlock(avl_node *node);
 void avl_node_wlock(avl_node *node);

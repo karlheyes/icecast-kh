@@ -327,9 +327,7 @@ thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
         start->arg = arg;
         start->thread = thread;
 
-#ifndef WIN32
-        pthread_attr_setstacksize (&attr, 2048*1024);
-#endif
+        pthread_attr_setstacksize (&attr, 1024*1024);
         pthread_attr_setinheritsched (&attr, PTHREAD_INHERIT_SCHED);
         if (detached)
         {
@@ -592,6 +590,27 @@ void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
     LOG_DEBUG3("wLock on %s acquired at %s:%d", rwlock->name, file, line);
 #endif
 }
+
+
+int thread_rwlock_trywlock_c(rwlock_t *rwlock, int line, const char *file)
+{
+    int ret = pthread_rwlock_trywrlock (&rwlock->sys_rwlock);
+#ifdef THREAD_DEBUG
+    LOG_DEBUG3("trywLock on %s requested at %s:%d", rwlock->name, file, line);
+#endif
+    switch (ret)
+    {
+        default:
+            log_write (thread_log, 1, "thread/", "rwlock", "try wlock error triggered at %p, %s:%d (%d)", rwlock, file, line, ret);
+            abort();
+        case 0:
+            return 0;
+        case EBUSY:
+        case EAGAIN:
+            return -1;
+    }
+}
+
 
 void thread_rwlock_unlock_c(rwlock_t *rwlock, int line, const char *file)
 {
