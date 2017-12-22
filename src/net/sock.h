@@ -148,7 +148,7 @@ int sock_read_pending(sock_t sock, unsigned timeout);
 
 /* server socket functions */
 sock_server_t sock_get_server_sockets (int port, const char *sinterface);
-sock_t sock_get_next_server_socket (sock_server_t);
+int sock_get_next_server_socket (sock_server_t, sock_t *socket);
 void sock_free_server_sockets (sock_server_t);
 
 sock_t sock_get_server_socket(int port, const char *sinterface);

@@ -1806,7 +1806,7 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
 int connection_setup_sockets (ice_config_t *config)
 {
     static int sockets_setup = 2;
-    int count = 0, socket_count = 0, arr_size;
+    int count = 0, socket_count = 0, socket_attempt = 0, arr_size;
     listener_t *listener, **prev;
 
     global_lock();
@@ -1814,31 +1814,34 @@ int connection_setup_sockets (ice_config_t *config)
     listener = config->listen_sock;
     prev = &config->listen_sock;
     arr_size = count = global.server_sockets;
-    if (config->chuid && sockets_setup)
+    if (sockets_setup == 1)
     {
         // in case of changowner, run through the first time as root, but reject the second run through as that will 
-        // be as a user. after that it's fine.
+        // be as a user (initial startup of listening thread). after that it's fine.
         sockets_setup--;
-        if (sockets_setup == 0)
-        {
-            global_unlock();
-            return 0;
-        }
+        global_unlock();
+        return 0;
     }
+    if (sockets_setup > 0)
+        sockets_setup--;
     get_ssl_certificate (config);
     if (count)
         INFO1 ("%d listening sockets already open", count);
     while (listener)
     {
         socket_count = 0;
+        socket_attempt = 0;
 
         sock_server_t sockets = sock_get_server_sockets (listener->port, listener->bind_address);
 
         do
         {
-            sock_t sock = sock_get_next_server_socket (sockets);
+            sock_t sock = SOCK_ERROR;
+            if (sock_get_next_server_socket (sockets, &sock) < 0)
+                break;   // end of any available sockets
+            socket_attempt++;
             if (sock == SOCK_ERROR)
-                break;
+                continue;
             /* some win32 setups do not do TCP win scaling well, so allow an override */
             if (listener->so_sndbuf)
                 sock_set_send_buffer (sock, listener->so_sndbuf);
@@ -1847,7 +1850,7 @@ int connection_setup_sockets (ice_config_t *config)
             if (sock_listen (sock, listener->qlen) == SOCK_ERROR)
             {
                 sock_close (sock);
-                break;
+                continue;
             }
             if (count >= arr_size) // need to resize arrays?
             {
@@ -1869,13 +1872,22 @@ int connection_setup_sockets (ice_config_t *config)
         } while(1);
 
         sock_free_server_sockets (sockets);
-        if (socket_count == 0)
+        if (socket_count != socket_attempt)
         {
-            if (listener->bind_address)
-                ERROR2 ("Could not create listener socket on port %d bind %s",
-                        listener->port, listener->bind_address);
-            else
-                ERROR1 ("Could not create listener socket on port %d", listener->port);
+            if (socket_count == 0)
+            {
+                if (listener->bind_address)
+                    ERROR2 ("Could not create listener socket on port %d bind %s",
+                            listener->port, listener->bind_address);
+                else
+                    ERROR1 ("Could not create listener socket on port %d", listener->port);
+            }
+            if (sockets_setup)
+            {
+                global_unlock();
+                ERROR0 ("unable to setup all listening sockets");
+                return 0;
+            }
             /* remove failed connection */
             *prev = config_clear_listener (listener);
             listener = *prev;
