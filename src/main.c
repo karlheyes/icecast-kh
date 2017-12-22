@@ -199,7 +199,7 @@ static int server_proc_init(void)
 
     INFO2 ("%s server reading configuration from %s", ICECAST_VERSION_STRING, config->config_filename);
 
-    if (config->chuid && connection_setup_sockets (config) == 0)
+    if (connection_setup_sockets (config) == 0)
         return 0;
 
     _ch_root_uid_setup(); /* Change user id and root if requested/possible */
