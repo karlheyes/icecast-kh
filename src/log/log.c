@@ -309,15 +309,6 @@ void log_set_lines_kept (int log_id, unsigned int count)
 
     _lock_logger ();
     loglist[log_id].keep_entries = count;
-    while (loglist[log_id].entries > count)
-    {
-        log_entry_t *to_go = loglist [log_id].log_head;
-        loglist [log_id].log_head = to_go->next;
-        loglist [log_id].buffer_bytes -= to_go->len;
-        free (to_go->line);
-        free (to_go);
-        loglist [log_id].entries--;
-    }
     _unlock_logger ();
 }
 
@@ -449,7 +440,7 @@ static int do_log_run (int log_id)
         next = loglist [log_id].written_entry->next;
 
     // fprintf (stderr, "in log run, id %d\n", log_id);
-    while (next && ++loop < 100)
+    while (next && ++loop < 300)
     {
         if (_log_open (log_id, now) == 0)
             break;
@@ -463,7 +454,6 @@ static int do_log_run (int log_id)
 
         _lock_logger ();
         next = next->next;
-        // loglist [log_id].last_entry--;
     }
     return loop;
 }
@@ -481,7 +471,7 @@ void log_commit_entries ()
             if (loglist [log_id].in_use)
                 c = do_log_run (log_id);
             if (c == 0) break;      // skip to next log
-        } while ((count += c) < 400);
+        } while ((count += c) < 1000);
     }
     _unlock_logger ();
 }
