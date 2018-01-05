@@ -1011,7 +1011,7 @@ void source_listener_detach (source_t *source, client_t *client)
         refbuf_t *ref = client->refbuf;
         int lag = source->client->queue_pos - client->queue_pos;
 
-        if (lag >= source->queue_size) // off the queue
+        if (lag && lag >= source->queue_size) // off the queue
         {
             client->connection.error = 1;
             client->pos = 0;
@@ -1033,6 +1033,8 @@ void source_listener_detach (source_t *source, client_t *client)
             else
                 client->refbuf = NULL;
         }
+        else
+            client->check_buffer = source->format->write_buf_to_client;
     }
     else
         client->check_buffer = NULL;
