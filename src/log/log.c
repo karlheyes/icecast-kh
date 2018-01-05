@@ -138,6 +138,8 @@ static int _log_open (int id, time_t now)
             if (f == NULL)
             {
                 loglist [id] . logfile = stderr;
+                loglist [id] . trigger_level = 0;
+                loglist [id] . duration = 0;
                 do_log_run (id);
                 return 0;
             }
