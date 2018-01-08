@@ -1225,7 +1225,8 @@ static int send_listener (source_t *source, client_t *client)
                 client->schedule_ms += 100 + (source->incoming_adj * 6);
         }
     }
-    client->throttle = source->incoming_adj ? source->incoming_adj : 1;
+    // set between 1 and 40
+    client->throttle = source->incoming_adj > 40 ? 40 : (source->incoming_adj > 0 ? source->incoming_adj : 1);
     while (1)
     {
         /* jump out if client connection has died */

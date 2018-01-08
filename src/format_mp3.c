@@ -581,7 +581,7 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
             client->flags |= CLIENT_IN_METADATA;
             client_mp3->metadata_offset += ret;
         }
-        client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 15 : 6));
+        client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
     }
     return ret;
 }
@@ -640,14 +640,16 @@ static int format_mp3_write_buf_to_client (client_t *client)
         else
             ret = client_send_bytes (client, buf, len);
 
-        if (ret < len)
-            client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 15 : 6));
         if (ret > 0)
         {
             client_mp3->since_meta_block += ret;
             client->pos += ret;
             client->queue_pos += ret;
             client->counter += ret;
+        }
+        if (ret < len)
+        {
+            client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
         }
     }
     return ret;
@@ -698,7 +700,9 @@ static int send_iceblock_to_client (client_t *client)
         client_mpg->metadata_offset = 0;
     }
     if (ret < len)
-        client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 15 : 6));
+    {
+        client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
+    }
     return ret;
 }
 
