@@ -188,7 +188,7 @@ static int send_flv_buffer (client_t *client, struct flv *flv)
     {
         ret = connection_bufs_send (&client->connection, &flv->bufs, flv->block_pos);
         if (ret < (int)len)
-            client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 15 : 6));
+            client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
         if (ret > 0)
             flv->block_pos += ret;
     }
