@@ -100,7 +100,8 @@ struct tm *gmtime_r(const time_t *timep, struct tm *result);
 char *util_conv_string (const char *string, const char *in_charset, const char *out_charset);
 
 struct rate_calc *rate_setup (unsigned int samples, unsigned int ssec);
-void rate_add (struct rate_calc *calc, long value, uint64_t t);
+void rate_add_sum (struct rate_calc *calc, long value, uint64_t t, uint64_t *sum);
+#define rate_add(A,B,C)   rate_add_sum((A),(B),(C), NULL);
 long rate_avg (struct rate_calc *calc);
 void rate_free (struct rate_calc *calc);
 void rate_reduce (struct rate_calc *calc, unsigned int range);

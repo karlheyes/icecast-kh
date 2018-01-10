@@ -799,7 +799,7 @@ static void rate_purge_entries (struct rate_calc *calc, uint64_t cutoff)
 /* add a value to sampled data, t is used to determine which sample
  * block the sample goes into.
  */
-void rate_add (struct rate_calc *calc, long value, uint64_t sid) 
+void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *sum)
 {
     uint64_t cutoff;
 
@@ -811,6 +811,8 @@ void rate_add (struct rate_calc *calc, long value, uint64_t sid)
         rate_purge_entries (calc, cutoff);
         return;
     }
+    if (sum)
+        *sum += value;
     while (1)
     {
         struct rate_calc_node *next = NULL, *node;
