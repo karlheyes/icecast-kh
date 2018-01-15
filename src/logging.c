@@ -192,10 +192,23 @@ static int recheck_log_file (ice_config_t *config, int *id, const char *file)
 }
 
 
+static int recheck_access_log (ice_config_t *config, struct access_log *access)
+{
+    if (recheck_log_file (config, &access->logid, access->name) < 0)
+        return -1;
+    log_set_trigger (access->logid, access->size);
+    log_set_reopen_after (access->logid, access->duration);
+    if (access->display > 0)
+        log_set_lines_kept (access->logid, access->display);
+    log_set_archive_timestamp (access->logid, access->archive);
+    log_set_level (access->logid, 4);
+    return 0;
+}
+
+
 int restart_logging (ice_config_t *config)
 {
     ice_config_t *current = config_get_config_unlocked();
-    mount_proxy *m;
     int ret = 0;
 
     config->error_log.logid = current->error_log.logid;
@@ -216,17 +229,8 @@ int restart_logging (ice_config_t *config)
     thread_use_log_id (config->error_log.logid);
     errorlog = config->error_log.logid; /* value stays static so avoid taking the config lock */
 
-    if (recheck_log_file (config, &config->access_log.logid, config->access_log.name) < 0)
-        ret = -1;
-    else
-    {
-        log_set_trigger (config->access_log.logid, config->access_log.size);
-        log_set_reopen_after (config->access_log.logid, config->access_log.duration);
-        if (config->access_log.display > 0)
-            log_set_lines_kept (config->access_log.logid, config->access_log.display);
-        log_set_archive_timestamp (config->access_log.logid, config->access_log.archive);
-        log_set_level (config->access_log.logid, 4);
-    }
+    if (recheck_access_log (config, &config->access_log) < 0)
+       ret = -1;
 
     if (recheck_log_file (config, &config->playlist_log.logid, config->playlist_log.name) < 0)
         ret = -1;
@@ -240,21 +244,30 @@ int restart_logging (ice_config_t *config)
         log_set_level (config->playlist_log.logid, 4);
     }
     playlistlog = config->playlist_log.logid;
-    m = config->mounts;
-    while (m)
+
+    // any logs for template based mounts
+    while (config->mounts)
     {
-        if (recheck_log_file (config, &m->access_log.logid, m->access_log.name) < 0)
-            ret = -1;
-        else
+        mount_proxy *m = config->mounts;
+        while (m)
         {
-            log_set_trigger (m->access_log.logid, m->access_log.size);
-            log_set_reopen_after (m->access_log.logid, m->access_log.duration);
-            if (m->access_log.display > 0)
-                log_set_lines_kept (m->access_log.logid, m->access_log.display);
-            log_set_archive_timestamp (m->access_log.logid, m->access_log.archive);
-            log_set_level (m->access_log.logid, 4);
+            if (recheck_access_log (config, &m->access_log) < 0)
+                ret = -1;
+            m = m->next;
         }
-        m = m->next;
+    }
+    // any logs for specifically named munts
+    if (config->mounts_tree)
+    {
+        avl_node *node = avl_get_first (config->mounts_tree);
+        while (node)
+        {
+            mount_proxy *m = (mount_proxy *)node->key;
+            node = avl_get_next (node);
+
+            if (recheck_access_log (config, &m->access_log) < 0)
+                ret = -1;
+        }
     }
     return ret;
 }
