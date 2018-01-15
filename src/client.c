@@ -132,7 +132,8 @@ void client_destroy(client_t *client)
     client->respcode = 0;
     client->free_client_data = NULL;
 
-    sock_set_cork (client->connection.sock, 0); // ensure any corked data is actually sent.
+    if (not_ssl_connection (&client->connection))
+        sock_set_cork (client->connection.sock, 0); // ensure any corked data is actually sent.
 
     global_lock ();
     if (global.running != ICE_RUNNING || client->connection.error ||
@@ -147,17 +148,18 @@ void client_destroy(client_t *client)
         return;
     }
     global_unlock ();
-    DEBUG0 ("keepalive detected, placing back onto worker");
-    sock_set_cork (client->connection.sock, 1);    // reenable cork for the next go around
+    DEBUG1 ("keepalive detected on %s, placing back onto worker", client->connection.ip);
+    if (not_ssl_connection (&client->connection))
+        sock_set_cork (client->connection.sock, 1);    // reenable cork for the next go around
     client->counter = client->schedule_ms = timing_get_time();
-    client->connection.con_time = client->schedule_ms/1000;
-    client->connection.discon.time = client->connection.con_time + 7;
+    connection_reset (&client->connection, client->schedule_ms);
+
     client->ops = &http_request_ops;
     client->flags = CLIENT_ACTIVE;
     client->shared_data = NULL;
     client->refbuf = NULL;
     client->pos = 0;
-    client->intro_offset = client->connection.sent_bytes = 0;
+    client->intro_offset = 0;
     client_add_incoming (client);
 }
 

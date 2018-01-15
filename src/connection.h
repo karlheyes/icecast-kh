@@ -83,6 +83,7 @@ void connection_shutdown(void);
 void connection_thread_startup();
 void connection_thread_shutdown();
 int  connection_setup_sockets (struct ice_config_tag *config);
+void connection_reset (connection_t *con, uint64_t time_ms);
 void connection_close(connection_t *con);
 int  connection_init (connection_t *con, sock_t sock, const char *addr);
 void connection_uses_ssl (connection_t *con);

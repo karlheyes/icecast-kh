@@ -115,7 +115,9 @@ static mutex_t *ssl_mutexes = NULL;
 #if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
 static unsigned long ssl_id_function (void);
 #endif
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 static void ssl_locking_function (int mode, int n, const char *file, int line);
+#endif
 #endif
 
 int header_timeout;
@@ -310,6 +312,7 @@ static unsigned long ssl_id_function (void)
 }
 #endif
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 static void ssl_locking_function (int mode, int n, const char *file, int line)
 {
     if (mode & CRYPTO_LOCK)
@@ -317,6 +320,7 @@ static void ssl_locking_function (int mode, int n, const char *file, int line)
     else
         thread_mutex_unlock_c (&ssl_mutexes[n], line, file);
 }
+#endif
 
 
 static void get_ssl_certificate (ice_config_t *config)
@@ -1000,8 +1004,8 @@ static sock_t wait_for_serversock (void)
 
 static client_t *accept_client (void)
 {
-    client_t *client = NULL;
     sock_t sock, serversock = wait_for_serversock ();
+    listener_t *server_conn = NULL;
     char addr [200];
 
     if (serversock == SOCK_ERROR)
@@ -1028,37 +1032,66 @@ static client_t *accept_client (void)
             WARN0 ("failed to set tcp options on client connection, dropping");
             break;
         }
-        client = calloc (1, sizeof (client_t));
-        if (client == NULL || connection_init (&client->connection, sock, addr) < 0)
-            break;
-
-        client->shared_data = r = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-        r->len = 0; // for building up the request coming in
-
         global_lock ();
-        client_register (client);
-
         for (i=0; i < global.server_sockets; i++)
         {
             if (global.serversock[i] == serversock)
             {
-                client->server_conn = global.server_conn[i];
-                client->server_conn->refcount++;
-                if (client->server_conn->ssl && ssl_ok)
-                    connection_uses_ssl (&client->connection);
-                if (client->server_conn->shoutcast_compat)
-                    client->ops = &shoutcast_source_ops;
-                else
-                    client->ops = &http_request_ops;
+                server_conn = global.server_conn[i];
+                server_conn->refcount++;
                 break;
             }
         }
         global_unlock ();
-        client->flags |= CLIENT_ACTIVE;
-        return client;
+        if (server_conn)
+        {
+            client_t *client = NULL;
+            int not_using_ssl = 1;
+
+            if (ssl_ok && server_conn->ssl)
+                not_using_ssl = 0;
+            if (not_using_ssl)
+            {
+                if (sock_set_blocking (sock, 0) || (sock_set_cork (sock, 1) < 0 && sock_set_nodelay (sock)))
+                {
+                    WARN1 ("failed to set tcp options on incoming client connection %s, dropping", addr);
+                    break;
+                }
+            }
+            client = calloc (1, sizeof (client_t));
+            if (client == NULL || connection_init (&client->connection, sock, addr) < 0)
+            {
+                free (client);
+                break;
+            }
+
+            client->shared_data = r = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+            r->len = 0; // for building up the request coming in
+
+            global_lock ();
+            client_register (client);
+            global_unlock ();
+
+            if (not_using_ssl == 0)
+                connection_uses_ssl (&client->connection);
+
+            if (server_conn->shoutcast_compat)
+                client->ops = &shoutcast_source_ops;
+            else
+                client->ops = &http_request_ops;
+            client->server_conn = server_conn;
+            client->flags |= CLIENT_ACTIVE;
+
+            return client;
+        }
     } while (0);
 
-    free (client);
+    if (server_conn)
+    {
+        global_lock ();
+        server_conn->refcount--;
+        global_unlock ();
+    }
     sock_close (sock);
     return NULL;
 }
@@ -1911,6 +1944,16 @@ int connection_setup_sockets (ice_config_t *config)
     return count;
 }
 
+
+void connection_reset (connection_t *con, uint64_t time_ms)
+{
+    con->con_time = time_ms/1000;
+    con->discon.time = con->con_time + 7;
+    con->sent_bytes = 0;
+#ifdef HAVE_OPENSSL
+    if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); con->ssl = NULL; }
+#endif
+}
 
 void connection_close(connection_t *con)
 {
