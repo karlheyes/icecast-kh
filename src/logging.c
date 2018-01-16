@@ -246,7 +246,7 @@ int restart_logging (ice_config_t *config)
     playlistlog = config->playlist_log.logid;
 
     // any logs for template based mounts
-    while (config->mounts)
+    if (config->mounts)
     {
         mount_proxy *m = config->mounts;
         while (m)
