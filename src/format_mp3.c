@@ -505,7 +505,7 @@ static void mp3_set_title (source_t *source)
  */
 static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
 {
-    int ret = 0;
+    int ret = 0, len;
     char *metadata = NULL;
     int meta_len, block_len;
     refbuf_t *associated = refbuf->associated;
@@ -552,13 +552,13 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         block_len = client_mp3->interval; // handle small intervals
 
     connection_bufs_init (&bufs, 2);
-    ret = connection_bufs_append (&bufs, metadata, meta_len);
-    if (block_len && ret < client_mp3->max_send_size)
+    len = connection_bufs_append (&bufs, metadata, meta_len);
+    if (block_len && len < client_mp3->max_send_size)
     {
-        int len = client_mp3->max_send_size - ret;
+        len = client_mp3->max_send_size - len;
         if (block_len < len)
             len = block_len;
-        connection_bufs_append (&bufs, refbuf->data + client->pos, len);
+        len = connection_bufs_append (&bufs, refbuf->data + client->pos, len);
     }
     ret = connection_bufs_send (&client->connection, &bufs, 0);
     connection_bufs_release (&bufs);
@@ -573,6 +573,8 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         client->flags &= ~CLIENT_IN_METADATA;
         client_mp3->metadata_offset = 0;
         client_mp3->associated = associated; // change prev meta block
+        if (ret < len)
+            client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
     }
     else
     {

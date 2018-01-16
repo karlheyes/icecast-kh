@@ -379,10 +379,9 @@ client_t *source_find_client(source_t *source, uint64_t id)
 static void update_source_stats (source_t *source)
 {
     unsigned long incoming_rate = (long)rate_avg (source->in_bitrate);
-    unsigned long kbytes_sent = source->bytes_sent_since_update/1024;
+    unsigned long kbytes_sent = (source->format->sent_bytes - source->bytes_sent_at_update)/1024;
     unsigned long kbytes_read = source->bytes_read_since_update/1024;
 
-    source->format->sent_bytes += kbytes_sent*1024;
     stats_lock (source->stats, source->mount);
     stats_set_args (source->stats, "outgoing_kbitrate", "%ld",
             (long)(8 * rate_avg (source->out_bitrate))/1024);
@@ -402,7 +401,7 @@ static void update_source_stats (source_t *source)
     stats_event_add (NULL, "stream_kbytes_sent", kbytes_sent);
     stats_event_add (NULL, "stream_kbytes_read", kbytes_read);
 
-    source->bytes_sent_since_update %= 1024;
+    source->bytes_sent_at_update = source->format->sent_bytes;
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 8000 : (8000 + (incoming_rate>>4));
     source->incoming_rate = incoming_rate;
@@ -735,10 +734,17 @@ static int source_client_read (client_t *client)
 }
 
 
+void source_add_bytes_sent (struct rate_calc *out_bitrate, unsigned long written, uint64_t milli, uint64_t *sent_bytes)
+{
+    rate_add_sum (out_bitrate, written, milli, sent_bytes);
+    global_add_bitrates (global.out_bitrate, written, milli);
+}
+
+
 static int source_queue_advance (client_t *client)
 {
     static unsigned char offset = 0;
-    int ret;
+    unsigned long written = 0;
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
     uint64_t lag;
@@ -753,7 +759,7 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
-        ret = (offset & 31);
+        int ret = (offset & 31);
         offset++;
         client->schedule_ms += (source->incoming_adj + ret);
         client->wakeup = &source->wakeup; // allow for quick wakeup
@@ -800,21 +806,32 @@ static int source_queue_advance (client_t *client)
             }
         }
     }
-
-    refbuf = client->refbuf;
-    if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 66000)  abort();
-
-    if (client->pos < refbuf->len)
-        ret = source->format->write_buf_to_client (client);
-    else
-        ret = 0;
-    /* move to the next buffer if we have finished with the current one */
-    if (client->pos >= refbuf->len && refbuf->next)
+    int loop = 50;
+    while (--loop)
     {
-        client->refbuf = refbuf->next;
-        client->pos = 0;
+        refbuf = client->refbuf;
+        if ((refbuf->flags & SOURCE_QUEUE_BLOCK) == 0 || refbuf->len > 66000)  abort();
+
+        int ret = 0;
+
+        if (client->pos < refbuf->len)
+            ret = source->format->write_buf_to_client (client);
+        if (ret > 0)
+            written += ret;
+        if (client->pos >= refbuf->len)
+        {
+            if (refbuf->next)
+            {
+                client->refbuf = refbuf->next;
+                client->pos = 0;
+            }
+            continue;
+        }
+        break;
     }
-    return ret;
+    if (written)
+        source_add_bytes_sent (source->out_bitrate, written, client->worker->time_ms, &source->format->sent_bytes);
+    return -1;
 }
 
 
@@ -1266,7 +1283,7 @@ static int send_listener (source_t *source, client_t *client)
     }
     if (total_written)
     {
-        rate_add_sum (source->out_bitrate, total_written, worker->time_ms, &source->bytes_sent_since_update);
+        rate_add_sum (source->out_bitrate, total_written, worker->time_ms, &source->format->sent_bytes);
         global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     }
 
@@ -1326,7 +1343,7 @@ void source_init (source_t *source)
 
     source->last_read = time(NULL);
     source->prev_listeners = -1;
-    source->bytes_sent_since_update = 0;
+    source->bytes_sent_at_update = 0;
     source->stats_interval = 5;
     /* so the first set of average stats after 3 seconds */
     source->client_stats_update = source->last_read + 3;
