@@ -472,7 +472,10 @@ int source_read (source_t *source)
         if (current >= source->client_stats_update)
         {
             update_source_stats (source);
-            source->client_stats_update = current + source->stats_interval;
+            if (current - client->connection.con_time < source->stats_interval)
+                source->client_stats_update = current + 1;
+            else
+                source->client_stats_update = current + source->stats_interval;
             if (source_change_worker (source, client))
                 return 1;
         }
@@ -880,6 +883,7 @@ static int http_source_introfile (client_t *client)
 {
     source_t *source = client->shared_data;
     long duration, rate = source->incoming_rate, incoming_rate;
+    int assumed = 0;
 
     //DEBUG2 ("client intro_pos is %ld, sent bytes is %ld", client->intro_offset, client->connection.sent_bytes);
     if (format_file_read (client, source->format, source->intro_file) < 0)
@@ -896,23 +900,30 @@ static int http_source_introfile (client_t *client)
         return -1;
     }
 
+    if (rate == 0) // stream must of just started, make an assumption, re-evaluate next time
+    {
+        rate = 32000;
+        assumed = 1;
+    }
     if (client->timer_start == 0)
     {
         long to_send = 0;
-        if (rate == 0) // stream must of just started
-            rate = 32000;
         if (client->connection.sent_bytes < source->default_burst_size)
             to_send = source->default_burst_size - client->connection.sent_bytes;
-        duration = (long)((float)to_send / source->incoming_rate);
-        client->timer_start = client->worker->current_time.tv_sec - (duration + 4);
-        client->counter = 4 * source->incoming_rate;
+        duration = (long)((float)to_send / rate);
+        client->aux_data = duration + 16;
+        client->timer_start = client->worker->current_time.tv_sec - client->aux_data;
+        client->counter = 16 * rate;
     }
+    incoming_rate = rate;
     duration = (client->worker->current_time.tv_sec - client->timer_start);
     if (duration)
         rate = (long)((float)client->counter / duration);
-    incoming_rate = (long)(source->incoming_rate);
-
     // DEBUG4 ("duration %lu, counter %ld, rate %ld, bytes %ld", duration, client->counter, rate, client->connection.sent_bytes);
+
+    if (assumed)
+        client->timer_start = 0;  // force a reset for next time around, ignore rate checks this time
+
     if (rate > incoming_rate)
     {
         //DEBUG1 ("rate too high %lu, delaying", rate);
@@ -920,7 +931,9 @@ static int http_source_introfile (client_t *client)
         rate_add (source->in_bitrate, 0, client->worker->current_time.tv_sec);
         return -1;
     }
-    if (duration > 30 && rate < incoming_rate/4)
+    if (source->format->sent_bytes > (incoming_rate << 5) && // allow at least 30+ seconds on the stream
+            (duration - client->aux_data) > 15 &&
+            rate < (incoming_rate/4))
     {
         INFO2 ("Dropped listener %s, running too slow on %s", &client->connection.ip[0], source->mount);
         client->connection.error = 1;

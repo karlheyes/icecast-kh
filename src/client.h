@@ -115,6 +115,7 @@ struct _client_tag
 
     uint64_t timer_start;
     uint64_t counter;
+    uint64_t aux_data;
 
     /* function to call to release format specific resources */
     void (*free_client_data)(struct _client_tag *client);
