@@ -37,6 +37,7 @@ typedef struct ice_global_tag
     int new_connections_slowdown;
     int sources;
     int clients;
+    int listeners;
     int schedule_config_reread;
 
     avl_tree *source_tree;

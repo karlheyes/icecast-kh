@@ -1241,6 +1241,7 @@ static int _parse_limits (xmlNodePtr node, void *arg)
     struct cfg_tag icecast_tags[] =
     {
         { "max-bandwidth",  config_get_bitrate,&config->max_bandwidth },
+        { "max-listeners",  config_get_int,    &config->max_listeners },
         { "clients",        config_get_int,    &config->client_limit },
         { "sources",        config_get_int,    &config->source_limit },
         { "queue-size",     config_get_int,    &config->queue_size_limit },

@@ -260,6 +260,7 @@ typedef struct ice_config_tag
     int source_timeout;
     int ice_login;
     int64_t max_bandwidth;
+    int max_listeners;
     int fileserve;
     int on_demand; /* global setting for all relays */
 

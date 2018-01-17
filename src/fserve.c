@@ -594,7 +594,13 @@ static void file_release (client_t *client)
     int ret = -1;
 
     if (fh->finfo.limit && (client->flags & CLIENT_AUTHENTICATED))
+    {
+        // reduce from global count
         stats_event_dec (NULL, "listeners");
+        global_lock();
+        global.listeners--;
+        global_unlock();
+    }
 
     client_set_queue (client, NULL);
 

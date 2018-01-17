@@ -2126,6 +2126,10 @@ static int source_listener_release (source_t *source, client_t *client)
     /* change of listener numbers, so reduce scope of global sampling */
     global_reduce_bitrate_sampling (global.out_bitrate);
     DEBUG2 ("Listener %" PRIu64 " leaving %s", client->connection.id, source->mount);
+    // reduce from global count
+    global_lock();
+    global.listeners--;
+    global_unlock();
 
     config = config_get_config ();
     mountinfo = config_find_mount (config, source->mount);
@@ -2333,6 +2337,19 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         client->refbuf->len = PER_CLIENT_REFBUF_SIZE;
         memset (client->refbuf->data, 0, PER_CLIENT_REFBUF_SIZE);
     }
+
+    global_lock();
+    if (config->max_listeners)
+    {
+        if (config->max_listeners <= global.listeners)
+        {
+            global_unlock();
+            thread_rwlock_unlock (&source->lock);
+            return client_send_403redirect (client, passed_mount, "max listeners reached");
+        }
+    }
+    global.listeners++;
+    global_unlock();
 
     httpp_deletevar (client->parser, "range");
     if (client->flags & CLIENT_RANGE_END)
