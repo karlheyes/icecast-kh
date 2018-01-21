@@ -335,7 +335,11 @@ static void get_ssl_certificate (ice_config_t *config)
         if (config->cert_file == NULL)
             break;
 
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+        new_ssl_ctx = SSL_CTX_new (TLS_server_method());
+#else
         new_ssl_ctx = SSL_CTX_new (SSLv23_server_method());
+#endif
         ssl_opts = SSL_CTX_get_options (new_ssl_ctx);
         SSL_CTX_set_options (new_ssl_ctx, ssl_opts|SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_COMPRESSION|SSL_OP_CIPHER_SERVER_PREFERENCE|SSL_OP_ALL);
 
