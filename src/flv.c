@@ -83,7 +83,7 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
 {
     struct flv *flv = mp->callback_key;
 
-    if (mp->raw_offset + 16 > mp->raw->len)
+    if (mp->container.raw_offset + 16 > mp->raw->len)
         return -1;
 
     flv_hdr (flv, len + 1);
@@ -99,13 +99,13 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
         if (mpeg_get_channels (mp) == 2)
             flv->tag[15] |= 0x1;
     }
-    memcpy (mp->raw->data + mp->raw_offset, &flv->tag[0], 16);
-    connection_bufs_append (&flv->bufs, mp->raw->data + mp->raw_offset, 16);
+    memcpy (mp->raw->data + mp->container.raw_offset, &flv->tag[0], 16);
+    connection_bufs_append (&flv->bufs, mp->raw->data + mp->container.raw_offset, 16);
     flv->samples += mp->sample_count;
     flv->prev_ms = (int64_t)((double)flv->samples / (mp->samplerate/1000.0));
     // The extra byte is for the flv audio id, usually 0x2F 
     flv->prev_tagsize = (len + FLVHEADER + 1);
-    mp->raw_offset += 16;
+    mp->container.raw_offset += 16;
     connection_bufs_append (&flv->bufs, frame, len);
     return 0;
 }
@@ -117,7 +117,7 @@ static int flv_aac_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
 {
     struct flv *flv = mp->callback_key;
 
-    if (mp->raw_offset + 17 > mp->raw->len)
+    if (mp->container.raw_offset + 17 > mp->raw->len)
         return -1;
 
     // we do not put adts aac headers in FLV frames
@@ -126,13 +126,13 @@ static int flv_aac_hdr (struct mpeg_sync *mp, unsigned char *frame, unsigned int
 
     flv_hdr (flv, len + 2);
     // a single frame (headerless) follows this
-    memcpy (mp->raw->data + mp->raw_offset, &flv->tag[0], 17);
-    connection_bufs_append (&flv->bufs, mp->raw->data + mp->raw_offset, 17);
+    memcpy (mp->raw->data + mp->container.raw_offset, &flv->tag[0], 17);
+    connection_bufs_append (&flv->bufs, mp->raw->data + mp->container.raw_offset, 17);
     flv->samples += mp->sample_count;
     flv->prev_ms = (int64_t)((double)flv->samples / (mp->samplerate/1000.0));
     // frame length + FLVHEADER + AVHEADER
     flv->prev_tagsize = (len + 11 + 2);
-    mp->raw_offset += 17;
+    mp->container.raw_offset += 17;
     connection_bufs_append (&flv->bufs, frame, len);
     return 0;
 }
@@ -169,7 +169,7 @@ static int flv_aac_firsthdr (struct mpeg_sync *mp, unsigned char *frame, unsigne
     flv->tag[16] = 0x0;
     memcpy (mp->raw->data, &flv->tag[0], 11+4+2+c);
     connection_bufs_append (&flv->bufs, mp->raw->data, 11+4+2+c);
-    mp->raw_offset = 11+4+2+c;
+    mp->container.raw_offset = 11+4+2+c;
     flv->prev_tagsize = 11 + 2 + c;
     flv->tag[16] = 0x01;   // as per spec. headerless frame follows this
     flv->mpeg_sync.frame_callback = flv_aac_hdr;
@@ -194,7 +194,7 @@ static int send_flv_buffer (client_t *client, struct flv *flv)
     }
     if (flv->block_pos == flv->bufs.total)
     {
-        flv->block_pos = flv->mpeg_sync.raw_offset = 0;
+        flv->block_pos = flv->mpeg_sync.container.raw_offset = 0;
         connection_bufs_flush (&flv->bufs);
     }
     return ret;
@@ -210,7 +210,7 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
     refbuf_t *flvmeta = NULL;
     int meta_copied = 0;
     refbuf_t *raw = flv->mpeg_sync.raw;
-    char *src, *dst = raw->data + flv->mpeg_sync.raw_offset;
+    char *src, *dst = raw->data + flv->mpeg_sync.container.raw_offset;
 
     if (scmeta)
         flvmeta = scmeta->associated;
@@ -260,14 +260,14 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
         flv_meta_append_string (flvmeta, NULL, NULL);
         flvm = (struct flvmeta *)flvmeta->data;
         meta_copied  = flvm->meta_pos - sizeof (*flvm);
-        if (meta_copied + 15 + flv->mpeg_sync.raw_offset > raw->len)
+        if (meta_copied + 15 + flv->mpeg_sync.container.raw_offset > raw->len)
         {
-            int newlen = meta_copied + flv->mpeg_sync.raw_offset + 1024;
+            int newlen = meta_copied + flv->mpeg_sync.container.raw_offset + 1024;
             void *p = realloc (raw->data, newlen);
             if (p == NULL) return -1;
             raw->data = p;
             raw->len = newlen;
-            flv->block_pos = flv->mpeg_sync.raw_offset = 0;
+            flv->block_pos = flv->mpeg_sync.container.raw_offset = 0;
             connection_bufs_flush (&flv->bufs);
             return -1;
         }
@@ -281,13 +281,13 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
     flv_hdr (flv, len);
     memcpy (dst, &flv->tag[0], 15);
     connection_bufs_append (&flv->bufs, dst, 15);
-    flv->mpeg_sync.raw_offset += 15;
+    flv->mpeg_sync.container.raw_offset += 15;
     dst += 15;
     if (meta_copied)
     {
         memcpy (dst, src, len);
         connection_bufs_append (&flv->bufs, dst, len);
-        flv->mpeg_sync.raw_offset += len;
+        flv->mpeg_sync.container.raw_offset += len;
         refbuf_release (flvmeta);
     }
     else
@@ -320,7 +320,7 @@ int write_flv_buf_to_client (client_t *client)
         return -1;
 
     /* check for metadata updates and insert if needed */
-    if (flv->mpeg_sync.raw_offset == 0)
+    if (flv->mpeg_sync.container.raw_offset == 0)
         repack = 1;
     else if (flv->bufs.count > 0) // if ref has changed then references are now invalid
     {
@@ -329,7 +329,7 @@ int write_flv_buf_to_client (client_t *client)
         if (diff > ref->len) // original buffer must of been copied, need to repack to keep valid
         {
             repack = 1;
-            flv->mpeg_sync.raw_offset = 0;
+            flv->mpeg_sync.container.raw_offset = 0;
             connection_bufs_flush (&flv->bufs);
             flv->samples -= flv->samples_in_buffer; // role back the sample count;
         }
@@ -349,7 +349,7 @@ int write_flv_buf_to_client (client_t *client)
         flv->samples_in_buffer = (unsigned)(flv->samples - prev_samples);
     }
     ret = send_flv_buffer (client, flv);
-    if (flv->mpeg_sync.raw_offset == 0)
+    if (flv->mpeg_sync.container.raw_offset == 0)
     {
         int queue_bytes = client->refbuf->len;
         client->pos = ref->len;
@@ -494,7 +494,7 @@ void flv_create_client_data (format_plugin_t *plugin, client_t *client)
     char *ptr = client->refbuf->data;
 
     mpeg_setup (&flv->mpeg_sync, client->connection.ip);
-    mpeg_check_numframes (&flv->mpeg_sync, 1); 
+    mpeg_check_numframes (&flv->mpeg_sync, 1);
     client->format_data = flv;
     client->free_client_data = free_flv_client_data;
     client->refbuf->flags |= WRITE_BLOCK_GENERIC;
