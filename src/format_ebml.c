@@ -161,7 +161,7 @@ static int ebml_write_buf_to_client (client_t *client)
 
     ebml_client_data_t *ebml_client_data = client->format_data;
 
-    if (ebml_client_data->header_pos != ebml_client_data->header->len)
+    if (ebml_client_data->header && ebml_client_data->header_pos != ebml_client_data->header->len)
     {
         return send_ebml_header (client);
     }
@@ -234,16 +234,16 @@ static int ebml_create_client_data (format_plugin_t *format, client_t *client)
     ebml_client_data_t *ebml_client_data = calloc(1, sizeof(ebml_client_data_t));
     ebml_source_state_t *ebml_source_state = format->_state;
 
-    int ret = -1;
+    int ret = 0;
 
     if ((ebml_client_data) && (ebml_source_state->header))
     {
         ebml_client_data->header = ebml_source_state->header;
-        refbuf_addref (ebml_client_data->header);
-        client->format_data = ebml_client_data;
-        client->free_client_data = ebml_free_client_data;
-        ret = 0;
+        refbuf_addref (ebml_client_data->header);   // broken, assumes too much currently
     }
+    client->format_data = ebml_client_data;
+    client->free_client_data = ebml_free_client_data;
+
     if (client->refbuf == NULL)
         client->refbuf = refbuf_new (4096);
     client->refbuf->len = 0;
