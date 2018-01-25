@@ -145,6 +145,36 @@ int format_get_plugin (format_plugin_t *plugin)
 }
 
 
+format_type_t format_check_frames (icefile_handle f, long *file_start)
+{
+    refbuf_t *r = refbuf_new (8192);
+    mpeg_sync sync;
+    mpeg_setup (&sync, "file checking");
+
+    do
+    {
+        int bytes = pread (f, r->data, 8192, 0);
+        if (bytes <= 0)
+            break;
+
+        r->len = bytes;
+        int unprocessed = mpeg_complete_frames (&sync, r, 0);
+        if (r->len == 0)
+        {
+            break;
+        }
+        *file_start = bytes - (r->len + unprocessed);
+        format_type_t type = mpeg_get_type (&sync);
+        mpeg_cleanup (&sync);
+        return type;
+    } while (0);
+    refbuf_release (r);
+    mpeg_cleanup (&sync);
+
+    return FORMAT_TYPE_UNDEFINED;
+}
+
+
 int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f)
 {
     refbuf_t *refbuf = client->refbuf;

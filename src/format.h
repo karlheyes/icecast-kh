@@ -20,18 +20,12 @@
 
 #include "client.h"
 #include "refbuf.h"
+#include "mpeg.h"
 
 struct source_tag;
 struct _mount_proxy;
 
-typedef enum _format_type_tag
-{
-    FORMAT_TYPE_UNDEFINED, /* No format determined */
-    FORMAT_TYPE_OGG,
-    FORMAT_TYPE_AAC,
-    FORMAT_TYPE_MPEG,
-    FORMAT_TYPE_EBML
-} format_type_t;
+typedef frame_type_t format_type_t;
 
 #include "fserve.h"
 
@@ -75,6 +69,7 @@ format_type_t format_get_type(const char *contenttype);
 int format_get_plugin (format_plugin_t *plugin);
 int format_generic_write_to_client (client_t *client);
 
+format_type_t format_check_frames (icefile_handle f, long *file_start);
 int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f);
 int format_general_headers (format_plugin_t *plugin, client_t *client);
 
