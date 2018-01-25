@@ -33,14 +33,34 @@ typedef struct mpeg_sync
     void *callback_key;
     int (*frame_callback)(struct mpeg_sync *mp, unsigned char *p, unsigned int len, unsigned int offset);
     refbuf_t *raw;
-    int raw_offset;
+    union
+    {
+        int raw_offset;
+        int skipped_type;
+    } container;
     const char *mount;
 } mpeg_sync;
+
+typedef enum _frame_type_tag
+{
+    FORMAT_TYPE_UNDEFINED, /* No format determined */
+    FORMAT_TYPE_OGG,
+    FORMAT_TYPE_AAC,    // for AAC/ADTS style content
+    FORMAT_TYPE_MPEG,   // for MPEG1/2/ADTS type content
+    FORMAT_TYPE_MP4,
+    FORMAT_TYPE_EBML
+} frame_type_t;
+
+
+#define MPEG_LOG_MESSAGES   (1<<14)
+#define MPEG_SKIP_SYNC      (1<<15)
+#define MPEG_KEEP_EOF_TAGS  (1<<8)
 
 void mpeg_setup (mpeg_sync *mpsync, const char *mount);
 void mpeg_cleanup (mpeg_sync *mpsync);
 void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count);
 void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags);
+frame_type_t mpeg_get_type (mpeg_sync *mp);
 
 int  mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset);
 void mpeg_data_insert (mpeg_sync *mp, refbuf_t *inserted);

@@ -43,6 +43,7 @@ int mpeg_samplerates [4][4] = {
 
 //  settings is a bitmask
 //  bit 15         skip processing
+//  bit 14         log messages
 //  bit 8          allow trailing tags, eg from file
 //  bit 7          settings changed
 //  bit 6, 5, 4    channels
@@ -96,7 +97,8 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
     samplerate = aacp_sample_freq [samplerate_idx];
     if (samplerate != mp->samplerate)
     {
-        WARN3 ("detected samplerate change from %d to %d on %s", mp->samplerate, samplerate, mp->mount);
+        if (mp->settings & MPEG_LOG_MESSAGES)
+            WARN3 ("detected samplerate change from %d to %d on %s", mp->samplerate, samplerate, mp->mount);
         mp->samplerate = samplerate;
     }
 
@@ -199,11 +201,13 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remain
             int samplerate = get_mpegframe_samplerate (p);
             if (samplerate)
             {
-                WARN2 ("detected samplerate change to %d on %s", samplerate, mp->mount);
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    WARN2 ("detected samplerate change to %d on %s", samplerate, mp->mount);
                 mp->samplerate = samplerate;
                 return handle_mpeg_frame (mp, p, remaining);
             }
-            INFO1 ("detected invalid frame on %s, skipping", mp->mount);
+            if (mp->settings & MPEG_LOG_MESSAGES)
+                INFO1 ("detected invalid frame on %s, skipping", mp->mount);
         }
         return -1;
     }
@@ -218,12 +222,13 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remain
 
 static int handle_ts_frame (struct mpeg_sync *mp, unsigned char *p, int remaining)
 {
-    int frame_len = mp->raw_offset;
+    int frame_len = mp->container.raw_offset;
 
     if (remaining - frame_len < 0)
         return 0;
     if (frame_len < remaining && p[frame_len] != 0x47)
-        INFO1 ("missing frame marker from %s", mp->mount);
+        if (mp->settings & MPEG_LOG_MESSAGES)
+            INFO1 ("missing frame marker from %s", mp->mount);
     return frame_len;
 }
 
@@ -260,14 +265,16 @@ static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         channels = aacp_num_channels [channels_idx];
         if (mp->samplerate == 0 || channels == 0)
         {
-            DEBUG0 ("ADTS samplerate/channel setting invalid");
+            if (mp->settings & MPEG_LOG_MESSAGES)
+                DEBUG0 ("ADTS samplerate/channel setting invalid");
             return -1;
         }
         mp->marker = 0xFF;
         mp->mask = 0xFFFEFDC0; // match these bits from the marker
         mp->settings |= (channels << 4);
         if (mp->check_numframes > 1)
-            INFO4 ("detected AAC MPEG-%s, rate %d, channels %d on %s", id ? "2" : "4", mp->samplerate, channels, mp->mount);
+            if (mp->settings & MPEG_LOG_MESSAGES)
+                INFO4 ("detected AAC MPEG-%s, rate %d, channels %d on %s", id ? "2" : "4", mp->samplerate, channels, mp->mount);
         mp->process_frame = handle_aac_frame;
         mp->settings |= 0x80;
         return 1;
@@ -326,8 +333,8 @@ static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
             mp->marker = 0xFF;
             mp->mask = 0xFFFE0000;
             snprintf (stream_type, sizeof (stream_type), "%s %s", version [ver_id], layer_names[layer]);
-            if (mp->check_numframes > 1)
-                INFO4 ("%s detected (%d, %d) on %s", stream_type, mp->samplerate, channels, mp->mount);
+            if (mp->settings & MPEG_LOG_MESSAGES)
+                INFO4 ("%s Detected (%d, %d) on %s", stream_type, mp->samplerate, channels, mp->mount);
             mp->settings |= 0x80;
             mp->process_frame = handle_mpeg_frame;
             return 1;
@@ -360,11 +367,12 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
             checking--;
         }
     } while (checking);
-    INFO2 ("detected TS (%d) on %s", pkt_len, mp->mount);
+    if (mp->settings & MPEG_LOG_MESSAGES)
+        INFO2 ("Detected TS (%d) on %s", pkt_len, mp->mount);
     mp->process_frame = handle_ts_frame;
     mp->mask = 0xFF000000;
     mp->marker = 0x47;
-    mp->raw_offset = pkt_len;
+    mp->container.raw_offset = pkt_len;
     mp->settings |= 0x80;
     return 1;
 }
@@ -374,7 +382,7 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
 //
 static int handle_id3_frame (struct mpeg_sync *mp, unsigned char *p, int remaining)
 {
-    int frame_len = mp->raw_offset;
+    int frame_len = mp->container.raw_offset;
 
     if (remaining - frame_len < 0)
         return 0;
@@ -412,12 +420,14 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x41;  // match the 'A'
-                mp->raw_offset = len;
-                DEBUG2 ("Detected APETAG v%u, length %u", ver, len);
+                mp->container.raw_offset = len;
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    DEBUG2 ("Detected APETAG v%u, length %u", ver, len);
             }
             else
             {
-                DEBUG2 ("Detected APETAG v%u, skipping %u bytes", ver, len);
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    DEBUG2 ("Detected APETAG v%u, skipping %u bytes", ver, len);
                 memset (p, 0, len);
             }
             break;
@@ -426,17 +436,19 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         {
             if (remaining < 128)
                 return 0;
-            if (mp->settings & (1<<8))
+            if (mp->settings & MPEG_KEEP_EOF_TAGS)
             {
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x54;  // match the 'T'
-                mp->raw_offset = 128;
-                DEBUG0 ("Detected ID3v1, keeping");
+                mp->container.raw_offset = 128;
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    INFO0 ("Detected ID3v1, keeping");
             }
             else
             {
-                DEBUG0 ("Detected ID3v1, skipping 128 bytes");
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    INFO0 ("Detected ID3v1, skipping 128 bytes");
                 memset (p, 0, 128);
             }
             break;
@@ -451,11 +463,12 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 size = (size << 7) + (p[8] & 0x7f);
                 size = (size << 7) + (p[9] & 0x7f);
 
-                DEBUG3 ("Detected ID3v2 (%d.%d), tag size %" PRIu64, ver, rev, (uint64_t)size);
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    INFO3 ("Detected ID3v2 (%d.%d), tag size %" PRIu64, ver, rev, (uint64_t)size);
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x49;      // match the 'I'
-                mp->raw_offset = size + 10;
+                mp->container.raw_offset = size + 10;
                 break;
             }
         }
@@ -484,14 +497,30 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
 {
     int ret = -1;
 
-    if (mp->settings & 0x8000)
+    if (mp->settings & MPEG_SKIP_SYNC)
         return 2; // we should skip processing
 
     // reset all but external options
-    mp->settings = mp->settings & (1<<8);
+    mp->settings = mp->settings & 0xff00;
 
     if (p[0] == 'I' || p[0] == 'T' || p[0] == 'A')
        ret = check_for_id3 (mp, p, remaining);
+    if (memcmp (p, "\x1A\x45\xDF\xA3", 4) == 0)
+    {
+        if (mp->settings & MPEG_LOG_MESSAGES)
+            INFO0 ("Detected Matroska, skipping");
+        mp->settings |= MPEG_SKIP_SYNC;
+        mp->container.skipped_type = FORMAT_TYPE_EBML;
+        return -1;
+    }
+    if (memcmp (p, "OggS", 4) == 0)
+    {
+        if (mp->settings & MPEG_LOG_MESSAGES)
+            INFO0 ("Detected Ogg, skipping");
+        mp->settings |= MPEG_SKIP_SYNC;
+        mp->container.skipped_type = FORMAT_TYPE_OGG;
+        return -1;
+    }
     if (ret < 0 && p[0] == 0x47)
         ret = check_for_ts (mp, p, remaining);
     if (ret < 0)
@@ -539,8 +568,9 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
             if (r < 9) break;
             if (memcmp (s, "TAG", 3) == 0 || memcmp (s, "ID3", 3) == 0 || memcmp (s, "APETAGEX", 8) == 0)
             {
-               DEBUG1 ("Detected \"%.3s\" midstream", s);
-               break;
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    INFO1 ("Detected \"%.3s\" midstream", s);
+                break;
             }
             p = start;
             while (r && (p = memchr (s, mp->marker, r)))
@@ -564,7 +594,14 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
         p = start;
         if (remaining >= 8 && memcmp (p+4, "ftyp", 4) == 0)
         {
-            mp->settings |= 0x8000; // mp4 looks to be here, lets skip parsing
+            mp->settings |= MPEG_SKIP_SYNC; // mp4 looks to be here, lets skip parsing
+            mp->container.skipped_type = FORMAT_TYPE_MP4;
+            return 0;
+        }
+        if (remaining >= 4 && memcmp (p, "\x1A\x45\xDF\xA3", 4) == 0)
+        {
+            mp->settings |= MPEG_SKIP_SYNC; // matroska looks to be here, lets skip parsing
+            mp->container.skipped_type = FORMAT_TYPE_EBML;
             return 0;
         }
         else
@@ -575,6 +612,8 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
                 if (*p == 0x47) break;
                 if (*p == 0xFF)
                     if (p[1] != 0xFF || p[2] <= 0xFB) break;
+                if (offset > 3 && memcmp (p, "OggS", 4) == 0)
+                    break;
                 if (memcmp (p, "ID3", 3) == 0 || memcmp (p, "TAG", 3) == 0)
                     break;
                 if (offset > 7 && memcmp (p, "APETAGEX", 8) == 0)
@@ -602,7 +641,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
     unsigned char *start, *end;
     int remaining, frame_len = 0, ret, loop = 50;
 
-    if (mp == NULL || (mp->settings & 0x8000))
+    if (mp == NULL || (mp->settings & MPEG_SKIP_SYNC))
         return 0;  /* leave as-is */
     
     mp->sample_count = 0;
@@ -671,13 +710,16 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
                mp->mask = 0;
             if (mp->resync_count > 20000)
             {
-                INFO1 ("no frame sync after 20k on %s", mp->mount);
-                mp->settings |= 0x8000; // lets skip parsing
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    INFO1 ("no frame sync after 20k on %s", mp->mount);
+                mp->settings |= MPEG_SKIP_SYNC; // lets skip parsing
+                mp->container.skipped_type = FORMAT_TYPE_UNDEFINED;
                 return 0;
             }
             if ((new_block->flags & REFBUF_SHARED) == 0)
             {
-                DEBUG3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
+                if (mp->settings & MPEG_LOG_MESSAGES)
+                    DEBUG3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
                 new_block->len -= ret;
             }
             continue;
@@ -706,7 +748,8 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
     }
     if (remaining < 0 || remaining > new_block->len)
     {
-        ERROR2 ("block inconsistency (%d, %d)", remaining, new_block->len);
+        if (mp->settings & MPEG_LOG_MESSAGES)
+            ERROR2 ("block inconsistency (%d, %d)", remaining, new_block->len);
         abort();
     }
     if (remaining && (new_block->flags & REFBUF_SHARED) == 0)
@@ -725,13 +768,29 @@ void mpeg_setup (mpeg_sync *mpsync, const char *mount)
 {
     memset (mpsync, 0, sizeof (mpeg_sync));
     mpsync->check_numframes = 4;
+    mpsync->settings = MPEG_LOG_MESSAGES;
     mpsync->mount = mount;
+}
+
+frame_type_t mpeg_get_type (struct mpeg_sync *mp)
+{
+    if (mp->settings & MPEG_SKIP_SYNC)
+        return mp->container.skipped_type;
+    if (mp->process_frame == handle_mpeg_frame)
+        return FORMAT_TYPE_MPEG;
+    if (mp->process_frame == handle_ts_frame)
+        return FORMAT_TYPE_MPEG;
+    if (mp->process_frame == handle_aac_frame)
+        return FORMAT_TYPE_AAC;
+    return FORMAT_TYPE_UNDEFINED;
 }
 
 void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count)
 {
     if (count && count < 100)
         mpsync->check_numframes = count;
+    if (count == 1)  // client processing, reduce heavy logging
+        mpsync->settings &= ~MPEG_LOG_MESSAGES;
 }
 
 void mpeg_cleanup (mpeg_sync *mpsync)
