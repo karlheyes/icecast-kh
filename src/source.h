@@ -39,6 +39,7 @@ typedef struct source_tag
 
     /* name of a file, whose contents are sent at listener connection */
     icefile_handle intro_file;
+    long intro_start;
 
     char *dumpfilename; /* Name of a file to dump incoming stream to */
     FILE *dumpfile;

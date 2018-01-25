@@ -102,6 +102,7 @@ typedef struct {
     icefile_handle f;
     time_t stats_update;
     time_t expire;
+    long frame_start_pos;
     stats_handle_t stats;
     format_plugin_t *format;
     struct rate_calc *out_bitrate;
@@ -414,6 +415,8 @@ static fh_node *open_fh (fbinfo *finfo)
                 free (fh);
                 return NULL;
             }
+            if (format_check_frames (fh->f, &fh->frame_start_pos) != fh->finfo.type)
+                WARN1 ("different type detected for %s", finfo->mount);
         }
         if (fh->finfo.limit)
             fh->out_bitrate = rate_setup (10000, 1000);
@@ -742,6 +745,7 @@ static int prefile_send (client_t *client)
                     refbuf_release (client->refbuf);
                     client->refbuf = NULL;
                     client->pos = 0;
+                    client->intro_offset = fh->frame_start_pos;
                     if (fh->finfo.limit)
                     {
                         client->ops = &throttled_file_content_ops;
@@ -989,6 +993,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     if (ret < 0)
     {
         thread_mutex_unlock (&fh->lock);
+        client->mount = NULL;
         return client_send_416 (client);
     }
     fh_add_client (fh, client);

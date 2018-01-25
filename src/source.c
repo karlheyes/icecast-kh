@@ -913,7 +913,7 @@ static int http_source_introfile (client_t *client)
             return source_queue_advance (client);
         }
         client->schedule_ms += 100;
-        client->intro_offset = 0;  /* replay intro file */
+        client->intro_offset = source->intro_start;  /* replay intro file */
         return -1;
     }
 
@@ -971,6 +971,8 @@ static int http_source_intro (client_t *client)
         client->check_buffer = source_queue_advance;
         return source_queue_advance (client);
     }
+    source_t *source = client->shared_data;
+    client->intro_offset = source->intro_start;
     client->check_buffer = http_source_introfile;
     return http_source_introfile (client);
 }
@@ -1756,9 +1758,31 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
             len -= ret;
             if (util_expand_pattern (source->mount, mountinfo->intro_filename, buffer + ret, &len) == 0)
             {
-                DEBUG2 ("intro file is %s (%s)", mountinfo->intro_filename, buffer);
-                if (file_open (&source->intro_file, buffer) < 0)
-                    WARN2 ("Cannot open intro file \"%s\": %s", buffer, strerror(errno));
+                icefile_handle intro_file;
+                if (file_open (&intro_file, buffer) < 0)
+                    WARN3 ("Cannot open intro for %s \"%s\": %s", source->mount, buffer, strerror(errno));
+                else
+                {
+                    format_type_t type = format_check_frames (intro_file, &source->intro_start);
+                    if (type != FORMAT_TYPE_UNDEFINED)
+                    {
+                        if (type == source->format->type)
+                        {
+                            INFO4 ("intro file for %s is %s (%ld, %s)", source->mount, mountinfo->intro_filename, source->intro_start, buffer);
+                            source->intro_file = intro_file;
+                        }
+                        else
+                        {
+                            WARN2 ("intro format seems to be different to %s (%s)", source->mount, buffer);
+                            file_close (&intro_file);
+                        }
+                    }
+                    else
+                    {
+                        WARN2 ("Failed to read intro for %s (%s)", source->mount, buffer);
+                        file_close (&intro_file);
+                    }
+                }
             }
         }
     }
