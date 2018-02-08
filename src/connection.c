@@ -1689,7 +1689,8 @@ static void check_for_filtering (ice_config_t *config, client_t *client, char *u
         (type && (strcmp (type, ".flv") == 0 || strcmp (type, ".fla") == 0)))
     {
         client->flags |= CLIENT_WANTS_FLV;
-        DEBUG0 ("listener has requested FLV");
+        client->flags &= ~CLIENT_KEEPALIVE;
+        DEBUG1 ("listener at %s has requested FLV", &client->connection.ip[0]);
     }
     if (extension == NULL || uri == NULL)
         return;

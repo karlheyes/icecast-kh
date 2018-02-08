@@ -22,9 +22,13 @@ struct flv
     int prev_tagsize;
     int block_pos;
     unsigned int samples_in_buffer;
+    int raw_offset;
+    refbuf_t *raw;
+    client_t *client;
     uint64_t prev_ms;
     int64_t samples;
     refbuf_t *seen_metadata;
+    sync_callback_t cb;
     mpeg_sync mpeg_sync;
     struct connection_bufs bufs;
     unsigned char tag[30];

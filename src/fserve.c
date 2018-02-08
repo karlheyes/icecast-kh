@@ -415,8 +415,20 @@ static fh_node *open_fh (fbinfo *finfo)
                 free (fh);
                 return NULL;
             }
-            if (format_check_frames (fh->f, &fh->frame_start_pos) != fh->finfo.type)
+            format_check_t fcheck;
+            fcheck.fd = fh->f;
+            fcheck.desc = finfo->mount;
+            if (format_check_frames (&fcheck) < 0 || fcheck.type == FORMAT_TYPE_UNDEFINED)
                 WARN1 ("different type detected for %s", finfo->mount);
+            else
+            {
+                if (fh->finfo.limit)
+                {
+                    float ratio = (float)fh->finfo.limit / (fcheck.bitrate/8);
+                    if (ratio < 0.9 || ratio > 1.1)
+                        WARN3 ("bitrate from %s (%d), was expecting %d", finfo->mount, (fcheck.bitrate/1000), (fh->finfo.limit/1000*8));
+                }
+            }
         }
         if (fh->finfo.limit)
             fh->out_bitrate = rate_setup (10000, 1000);

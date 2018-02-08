@@ -41,38 +41,110 @@ int mpeg_samplerates [4][4] = {
     {  8000, 0, 16000, 32000 },
     { 0,0,0 } };
 
-//  settings is a bitmask
-//  bit 15         skip processing
-//  bit 14         log messages
-//  bit 8          allow trailing tags, eg from file
-//  bit 7          settings changed
-//  bit 6, 5, 4    channels
-//  bit 3, 2       version
-//  bit 1, 0       layer
+// settings is a bitmask 64
+// codec specific
+// MP/2/3
+//  bit 59, 58      version
+//  bit 57, 56      layer
+// AAC
+//  bit 57, 56      layer
+//
+// bits 52-55 (4)   number of frames to check on autodetect
+// bits 32-51 (20)  samplerate, may use 5 bits later by use of lookup table
+// bits 24-31 (8)   channels
+// bits 8-23 (16)   bitrate
+//
+// bit 4            allow trailing tags, eg from file
+// bit 2            skip processing
+// bit 1            change detected
+// bit 0            log messages
+
+#define SYNC_CHANGED                    (1<<1)
+
+#define SYNC_BITRATE_OFF                8
+#define SYNC_CHANNELS_OFF               24
+#define SYNC_SAMPLERATE_OFF             32
+#define SYNC_CHKFRAMES_OFF              52
+
+#define SYNC_BITRATE_MASK               ((uint64_t)0xFFFF << SYNC_BITRATE_OFF)
+#define SYNC_CHAN_MASK                  ((uint64_t)0xFF << SYNC_CHANNELS_OFF)
+#define SYNC_RATE_MASK                  ((uint64_t)0xFFFFF << SYNC_SAMPLERATE_OFF)
+#define SYNC_CHKFRAME_MASK              ((uint64_t)0xF << SYNC_CHKFRAMES_OFF)
+
+#define syncframe_set_samplerate(x,v)   do {x->settings&=~SYNC_RATE_MASK; x->settings|=((uint64_t)(v)<<SYNC_SAMPLERATE_OFF); } while(0)
+#define syncframe_set_channels(x,v)     do {x->settings&=~SYNC_CHAN_MASK; x->settings|=((uint64_t)(v)<<SYNC_CHANNELS_OFF); } while(0)
+#define syncframe_set_framecheck(x,v)   do {x->settings&=~SYNC_CHKFRAME_MASK; x->settings|=((uint64_t)(v)<<SYNC_CHKFRAMES_OFF); } while(0)
+#define syncframe_set_bitrate(x,v)      do {x->settings&=~SYNC_BITRATE_MASK; x->settings|=((uint64_t)(v)<<SYNC_BITRATE_OFF); } while(0)
+
+// mp/2/3/aac specific things
+#define SYNC_MPEG_LAYER_OFF     56
+#define SYNC_MPEG_VER_OFF       58
+
+#define MPEG_AAC                0
+#define MPEG_LAYER_3            0x1
+#define MPEG_LAYER_2            0x2
+#define MPEG_LAYER_1            0x3
+
+#define MPEG_VER_1              0x3
+#define MPEG_VER_2              0x2
+#define MPEG_VER_25             0
+
+#define get_mpegframe_layer(p)          ((p[1] & 0x6) >> 1)
+#define get_mpegframe_version(p)        ((p[1] & 0x18) >> 3)
+
+
+int syncframe_bitrate (mpeg_sync *mp)
+{
+    return (int)((mp->settings&SYNC_BITRATE_MASK) >> SYNC_BITRATE_OFF);
+}
+
+int syncframe_channels (mpeg_sync *mp)
+{
+    return (int)((mp->settings&SYNC_CHAN_MASK) >> SYNC_CHANNELS_OFF);
+}
+
+int syncframe_samplerate (mpeg_sync *mp)
+{
+    return (int)((mp->settings&SYNC_RATE_MASK) >> SYNC_SAMPLERATE_OFF);
+}
+
+static int syncframe_chkframes (mpeg_sync *mp)
+{
+    return (int)((mp->settings&SYNC_CHKFRAME_MASK) >> SYNC_CHKFRAMES_OFF);
+}
 
 
 int mpeg_has_changed (struct mpeg_sync *mp)
 {
-    int v = mp->settings & 0x80;
-    if (v) mp->settings &= ~0x80; // reset
+    int v = mp->settings & SYNC_CHANGED;
+    if (v) mp->settings &= ~SYNC_CHANGED; // reset
     return v ? 1 : 0;
 }
 
 int mpeg_get_channels (struct mpeg_sync *mp)
 {
-    return (mp->settings & 0x70) >> 4;
+    return syncframe_channels (mp); // this could go
 }
 
+int mpeg_get_samplerate (struct mpeg_sync *mp)
+{
+    return syncframe_samplerate (mp); // could go
+}
+
+int mpeg_get_bitrate (struct mpeg_sync *mp)
+{
+    return syncframe_bitrate (mp) * 1000; // could go
+}
 
 int mpeg_get_version (struct mpeg_sync *mp)
 {
-    return (mp->settings & 0xC) >> 2;
+    return (mp->settings >> SYNC_MPEG_VER_OFF) & 0x3;
 }
 
 
 int mpeg_get_layer (struct mpeg_sync *mp)
 {
-    return (mp->settings & 0x3);
+    return (mp->settings >> SYNC_MPEG_LAYER_OFF) & 0x3;
 }
 
 void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags)
@@ -86,7 +158,7 @@ static int get_aac_frame_len (unsigned char *p)
     return ((p[3] & 0x3) << 11) + (p[4] << 3) + ((p[5] & 0xE0) >> 5);
 }
 
-static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
+static int handle_aac_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int len)
 {
     int frame_len = get_aac_frame_len (p);
     int blocks, header_len = 9;
@@ -95,11 +167,12 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
         return 0;
 
     samplerate = aacp_sample_freq [samplerate_idx];
-    if (samplerate != mp->samplerate)
+    int cur_rate = syncframe_samplerate (mp);
+    if (samplerate != cur_rate)
     {
         if (mp->settings & MPEG_LOG_MESSAGES)
-            WARN3 ("detected samplerate change from %d to %d on %s", mp->samplerate, samplerate, mp->mount);
-        mp->samplerate = samplerate;
+            WARN3 ("detected samplerate change from %d to %d on %s", cur_rate, samplerate, mp->reference);
+        syncframe_set_samplerate (mp, cur_rate);
     }
 
     blocks = (p[6] & 0x3) + 1;
@@ -107,8 +180,8 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
         header_len -= 2;
     mp->sample_count = (blocks * 1024);
 
-    if (mp->frame_callback)
-        if (mp->frame_callback (mp, p, frame_len, header_len) < 0)
+    if (cb && cb->frame_callback)
+        if (cb->frame_callback (mp, cb, p, frame_len, header_len) < 0)
             return -1;
 
     return frame_len;
@@ -116,7 +189,7 @@ static int handle_aac_frame (struct mpeg_sync *mp, unsigned char *p, int len)
 
 static int get_mpegframe_samplerate (unsigned char *p)
 {
-    int ver = (p[1] & 0x18) >> 3;
+    int ver = get_mpegframe_version (p);
     return mpeg_samplerates [(p[2]&0xC) >> 2][ver];
 }
 
@@ -124,9 +197,9 @@ static int get_mpeg_bitrate (struct mpeg_sync *mp, unsigned char *p)
 {
     int bitrate = -1;
     int bitrate_code = (p[2] & 0xF0) >> 4;
-    int layer = mpeg_get_layer (mp);
+    int layer = get_mpegframe_layer (p);
 
-    if (mpeg_get_version (mp) == 0x3) // MPEG1
+    if (get_mpegframe_version (p) == MPEG_VER_1)
     {
         static int bitrates [3][16] = {
             { 0, 32, 40, 48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, -1 },
@@ -135,7 +208,7 @@ static int get_mpeg_bitrate (struct mpeg_sync *mp, unsigned char *p)
         if (layer != MPEG_AAC)
             bitrate = bitrates [layer-1][bitrate_code];
     }
-    else // MPEG2/2.5
+    else // MPEG v2/2.5
     {
         static int bitrates [2][16] = { 
             { 0,  8, 16, 24, 32, 40, 48,  56,  64,  80,  96, 112, 128, 144, 160, -1 },
@@ -167,15 +240,18 @@ static int get_mpeg_frame_length (struct mpeg_sync *mp, unsigned char *p)
     int frame_len = 0;
 
     int64_t bitrate = get_mpeg_bitrate (mp, p);
-    int layer = mpeg_get_layer (mp);
-    int samples = get_samples_per_mpegframe (mpeg_get_version (mp), layer);
+    int layer = get_mpegframe_layer (p);
+    int samples = get_samples_per_mpegframe (get_mpegframe_version (p), layer);
     int samplerate = get_mpegframe_samplerate (p);
 
-    if (samplerate == 0 || (mp->mask && mp->samplerate != samplerate))
+    if (samplerate == 0 || (mp->mask && syncframe_samplerate (mp) != samplerate))
         return -1;
     mp->sample_count = samples;
     if (bitrate > 0 && samples > 0)
     {
+        if (mp->type != FORMAT_TYPE_MPEG)  // detection phase
+            syncframe_set_bitrate (mp, bitrate);
+
         bitrate *= 1000;
         if (layer == MPEG_LAYER_1)
         {
@@ -190,7 +266,7 @@ static int get_mpeg_frame_length (struct mpeg_sync *mp, unsigned char *p)
 }
 
 
-static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remaining)
+static int handle_mpeg_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int remaining)
 {
     int frame_len = get_mpeg_frame_length (mp, p);
 
@@ -202,34 +278,49 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, unsigned char *p, int remain
             if (samplerate)
             {
                 if (mp->settings & MPEG_LOG_MESSAGES)
-                    WARN2 ("detected samplerate change to %d on %s", samplerate, mp->mount);
-                mp->samplerate = samplerate;
-                return handle_mpeg_frame (mp, p, remaining);
+                    WARN2 ("detected samplerate change to %d on %s", samplerate, mp->reference);
+                syncframe_set_samplerate (mp, samplerate);
+                return handle_mpeg_frame (mp, cb, p, remaining);
             }
             if (mp->settings & MPEG_LOG_MESSAGES)
-                INFO1 ("detected invalid frame on %s, skipping", mp->mount);
+                INFO1 ("detected invalid frame on %s, skipping", mp->reference);
         }
         return -1;
     }
     if (remaining - frame_len < 0)
         return 0;
-    if (mp->frame_callback)
-        if (mp->frame_callback (mp, p, frame_len, (p[1] & 0x1) ? 4 : 6) < 0)
+    if (cb && cb->frame_callback)
+        if (cb->frame_callback (mp, cb, p, frame_len, (p[1] & 0x1) ? 4 : 6) < 0)
             return -1;
     return frame_len;
 }
 
 
-static int handle_ts_frame (struct mpeg_sync *mp, unsigned char *p, int remaining)
+static int handle_ts_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int remaining)
 {
-    int frame_len = mp->container.raw_offset;
+    int frame_len = mp->sample_count;
 
     if (remaining - frame_len < 0)
         return 0;
     if (frame_len < remaining && p[frame_len] != 0x47)
         if (mp->settings & MPEG_LOG_MESSAGES)
-            INFO1 ("missing frame marker from %s", mp->mount);
+            INFO1 ("missing frame marker from %s", mp->reference);
     return frame_len;
+}
+
+static unsigned long getMSB4 (unsigned long v)
+{
+    unsigned long m = v;
+    int c = 0;
+
+    for (; m > 15; c++, m >>= 1)
+        ;
+    //DEBUG1 ("bitrate estimate mark %lu", m);
+    if (m == 0xF)  // binary 1111 is not a normal bit pattern, adjust to 1000
+        m = 0x10;
+    if (m == 0xB)  // binary 1011 is not a normal bit pattern, adjust to 1100
+        m = 0xC;
+    return c ? m << c : m;
 }
 
 
@@ -237,33 +328,40 @@ static int handle_ts_frame (struct mpeg_sync *mp, unsigned char *p, int remainin
 static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
     //nocrc = p[1] & 0x1;
-    if (mpeg_get_layer (mp) == 0 && (p[1] >= 0xF0) && (p[1] <= 0xF9))
+    if (get_mpegframe_layer (p) == MPEG_AAC && (p[1] >= 0xF0) && (p[1] <= 0xF9))
     {
         int samplerate_idx = (p[2] & 0x3C) >> 2,
             channels_idx = (((p[2] << 8) + p[3]) & 0x1C0) >> 6;
         int id =  p[1] & 0x8;
-        int checking = mp->check_numframes, channels;
+        int checking = syncframe_chkframes (mp), channels, samplerate, aac_frames = 0;
         unsigned char *fh = p;
+        long aac_bytes = 0;
 
-        while (checking)
+        while (1) // check as many frames in the block
         {
-            //DEBUG1 ("checking frame %d", 5-checking);
+            //DEBUG1 ("checking aac frames %d", aac_frames);
             int frame_len = get_aac_frame_len (fh);
             if (frame_len <= 0 || frame_len > 8192)
                 return -1;
             if (frame_len+5 >= remaining)
-                return 0;
+            {
+                if (checking > 0) return 0;
+                break;
+            }
             if (fh[frame_len] != 255 || fh[frame_len+1] != p[1] || fh[frame_len+2] != p[2]
                     || (fh[frame_len+3]&0xF0) != (p[3]&0xF0))
                 return -1;
+            int blocks = (fh[6] & 0x3) + 1;
+            aac_frames += blocks;
+            aac_bytes += (frame_len - 7);
             remaining -= frame_len;
             fh += frame_len;
             checking--;
         }
         // profile = p[1] & 0xC0;
-        mp->samplerate = aacp_sample_freq [samplerate_idx];
+        samplerate = aacp_sample_freq [samplerate_idx];
         channels = aacp_num_channels [channels_idx];
-        if (mp->samplerate == 0 || channels == 0)
+        if (samplerate == 0 || channels == 0)
         {
             if (mp->settings & MPEG_LOG_MESSAGES)
                 DEBUG0 ("ADTS samplerate/channel setting invalid");
@@ -271,12 +369,22 @@ static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         }
         mp->marker = 0xFF;
         mp->mask = 0xFFFEFDC0; // match these bits from the marker
-        mp->settings |= (channels << 4);
-        if (mp->check_numframes > 1)
-            if (mp->settings & MPEG_LOG_MESSAGES)
-                INFO4 ("detected AAC MPEG-%s, rate %d, channels %d on %s", id ? "2" : "4", mp->samplerate, channels, mp->mount);
+        syncframe_set_samplerate (mp, samplerate);
+        syncframe_set_channels (mp, channels);
+
+        // get 4 most significant bits for nearest common bitrates.
+        long avg_bitrate = getMSB4 ((long)((aac_bytes * 1.028 / aac_frames) * (samplerate/1000.0)) * 8/1024);
+        syncframe_set_bitrate (mp, avg_bitrate);
+
+        if (mp->settings & MPEG_LOG_MESSAGES)
+        {
+            char attrib[40];
+            snprintf (attrib, sizeof attrib, "%dHz %d channel(s) %ld kbps", samplerate, channels, avg_bitrate);
+            INFO3 ("Detected AAC MPEG-%s, %s on %s", id ? "2" : "4", attrib, mp->reference);
+        }
         mp->process_frame = handle_aac_frame;
-        mp->settings |= 0x80;
+        mp->type = FORMAT_TYPE_AAC;
+        mp->settings |= SYNC_CHANGED;
         return 1;
     }
     return -1;
@@ -284,24 +392,24 @@ static int check_for_aac (struct mpeg_sync *mp, unsigned char *p, unsigned remai
 
 static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
-    int layer = mpeg_get_layer (mp);
+    int layer = get_mpegframe_layer (p);
     if (layer != MPEG_AAC && (p[1] >= 0xE0))
     {
         const char *version[] = { "MPEG 2.5", NULL, "MPEG 2", "MPEG 1" };
         const char *layer_names[] = { NULL, "Layer 3", "Layer 2", "Layer 1" };
-        int ver_id = (p[1] & 0x18) >> 3;
+        int ver_id = get_mpegframe_version (p);
         if (version [ver_id] && layer_names [layer])
         {
-            int checking = mp->check_numframes, samplerate, channels = 2;
+            int checking = syncframe_chkframes (mp), samplerate, channels = 2, frames = 0;
             unsigned char *fh = p;
-            char stream_type[20];
+            unsigned long bitrate_acc = 0;
 
             // au.crc = (p[1] & 0x1) == 0;
-            mp->settings |= (ver_id << 2);
+            mp->settings |= ((uint64_t)ver_id << SYNC_MPEG_VER_OFF);
             samplerate = get_mpegframe_samplerate (p);
             if (samplerate == 0)
                 return -1;
-            mp->samplerate = samplerate;
+            syncframe_set_samplerate (mp, samplerate);
             do
             {
                 int frame_len;
@@ -324,19 +432,29 @@ static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 if (samplerate != get_mpegframe_samplerate (fh))
                     return -1;
                 //DEBUG4 ("frame %d checked, next header codes are %x %x %x", 5-checking, fh[frame_len], fh[frame_len+1], fh[frame_len+2]);
+                frames++;
+                bitrate_acc += syncframe_bitrate (mp);
                 remaining -= frame_len;
                 fh += frame_len;
             } while (--checking);
             if  (((p[3] & 0xC0) >> 6) == 3)
                 channels = 1;
-            mp->settings |= (channels << 4);
             mp->marker = 0xFF;
             mp->mask = 0xFFFE0000;
-            snprintf (stream_type, sizeof (stream_type), "%s %s", version [ver_id], layer_names[layer]);
+
+            long avg_bitrate = bitrate_acc / frames;
+            syncframe_set_bitrate (mp, avg_bitrate);
             if (mp->settings & MPEG_LOG_MESSAGES)
-                INFO4 ("%s Detected (%d, %d) on %s", stream_type, mp->samplerate, channels, mp->mount);
-            mp->settings |= 0x80;
+            {
+                char stream_attrib[30];
+                snprintf (stream_attrib, sizeof (stream_attrib), "%d %d %ld kbps", samplerate, channels, avg_bitrate);
+
+                INFO4 ("%s %s Detected (%s) on %s", version [ver_id], layer_names[layer], stream_attrib, mp->reference);
+            }
+            syncframe_set_channels (mp, channels);
+            mp->type = FORMAT_TYPE_MPEG;
             mp->process_frame = handle_mpeg_frame;
+            mp->settings |= SYNC_CHANGED;
             return 1;
         }
     }
@@ -368,21 +486,21 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
         }
     } while (checking);
     if (mp->settings & MPEG_LOG_MESSAGES)
-        INFO2 ("Detected TS (%d) on %s", pkt_len, mp->mount);
+        INFO2 ("Detected TS (%d) on %s", pkt_len, mp->reference);
     mp->process_frame = handle_ts_frame;
     mp->mask = 0xFF000000;
     mp->marker = 0x47;
-    mp->container.raw_offset = pkt_len;
-    mp->settings |= 0x80;
+    mp->sample_count = pkt_len;
+    mp->settings |= MPEG_SKIP_SYNC | SYNC_CHANGED;
     return 1;
 }
 
 
 // this is only really called once, we need to return a length but reset for frame check
 //
-static int handle_id3_frame (struct mpeg_sync *mp, unsigned char *p, int remaining)
+static int handle_id3_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int remaining)
 {
-    int frame_len = mp->container.raw_offset;
+    int frame_len = mp->sample_count;
 
     if (remaining - frame_len < 0)
         return 0;
@@ -420,7 +538,7 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x41;  // match the 'A'
-                mp->container.raw_offset = len;
+                mp->sample_count = len;
                 if (mp->settings & MPEG_LOG_MESSAGES)
                     DEBUG2 ("Detected APETAG v%u, length %u", ver, len);
             }
@@ -441,7 +559,7 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x54;  // match the 'T'
-                mp->container.raw_offset = 128;
+                mp->sample_count = 128;
                 if (mp->settings & MPEG_LOG_MESSAGES)
                     INFO0 ("Detected ID3v1, keeping");
             }
@@ -468,7 +586,7 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x49;      // match the 'I'
-                mp->container.raw_offset = size + 10;
+                mp->sample_count = size + 10;
                 break;
             }
         }
@@ -501,7 +619,9 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
         return 2; // we should skip processing
 
     // reset all but external options
-    mp->settings = mp->settings & 0xff00;
+    mp->settings &= (0x9|SYNC_CHKFRAME_MASK);
+
+    mp->type = FORMAT_TYPE_UNDEFINED;
 
     if (p[0] == 'I' || p[0] == 'T' || p[0] == 'A')
        ret = check_for_id3 (mp, p, remaining);
@@ -510,7 +630,7 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
         if (mp->settings & MPEG_LOG_MESSAGES)
             INFO0 ("Detected Matroska, skipping");
         mp->settings |= MPEG_SKIP_SYNC;
-        mp->container.skipped_type = FORMAT_TYPE_EBML;
+        mp->type = FORMAT_TYPE_EBML;
         return -1;
     }
     if (memcmp (p, "OggS", 4) == 0)
@@ -518,7 +638,7 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
         if (mp->settings & MPEG_LOG_MESSAGES)
             INFO0 ("Detected Ogg, skipping");
         mp->settings |= MPEG_SKIP_SYNC;
-        mp->container.skipped_type = FORMAT_TYPE_OGG;
+        mp->type = FORMAT_TYPE_OGG;
         return -1;
     }
     if (ret < 0 && p[0] == 0x47)
@@ -527,7 +647,7 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
     {
         if (p[1] < 0xE0)
             return -1;
-        mp->settings |= ((p[1] & 0x6) >> 1);
+        mp->settings |= ((uint64_t)get_mpegframe_layer (p) << SYNC_MPEG_LAYER_OFF); // layer setting
         ret = check_for_aac (mp, p, remaining);
         if (ret < 0)
             ret = check_for_mp3 (mp, p, remaining);
@@ -595,13 +715,13 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
         if (remaining >= 8 && memcmp (p+4, "ftyp", 4) == 0)
         {
             mp->settings |= MPEG_SKIP_SYNC; // mp4 looks to be here, lets skip parsing
-            mp->container.skipped_type = FORMAT_TYPE_MP4;
+            mp->type = FORMAT_TYPE_MP4;
             return 0;
         }
         if (remaining >= 4 && memcmp (p, "\x1A\x45\xDF\xA3", 4) == 0)
         {
             mp->settings |= MPEG_SKIP_SYNC; // matroska looks to be here, lets skip parsing
-            mp->container.skipped_type = FORMAT_TYPE_EBML;
+            mp->type = FORMAT_TYPE_EBML;
             return 0;
         }
         else
@@ -636,7 +756,7 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
 }
 
 
-int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
+int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_block, unsigned offset)
 {
     unsigned char *start, *end;
     int remaining, frame_len = 0, ret, loop = 50;
@@ -649,12 +769,12 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
     {
         if (new_block->flags&REFBUF_SHARED)
         {
-            if (mp->check_numframes > 1)
-                mp->check_numframes = 1;
+            if (syncframe_chkframes (mp) > 1)
+                syncframe_set_framecheck (mp, 1);
         }
         else
-            if (mp->check_numframes == 1)
-                mp->check_numframes = 4;
+            if (syncframe_chkframes (mp) == 1)
+                syncframe_set_framecheck (mp, 4);
     }
     if (mp->surplus)
     {
@@ -683,7 +803,7 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             break;
         if (mp->mask && match_syncbits (mp, start) == 0) 
         {
-            frame_len = mp->process_frame (mp, start, remaining);
+            frame_len = mp->process_frame (mp, cb, start, remaining);
             if (frame_len == 0)
                 break;
             if (frame_len > 0)
@@ -711,15 +831,15 @@ int mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset)
             if (mp->resync_count > 20000)
             {
                 if (mp->settings & MPEG_LOG_MESSAGES)
-                    INFO1 ("no frame sync after 20k on %s", mp->mount);
+                    INFO1 ("no frame sync after 20k on %s", mp->reference);
                 mp->settings |= MPEG_SKIP_SYNC; // lets skip parsing
-                mp->container.skipped_type = FORMAT_TYPE_UNDEFINED;
+                mp->type = FORMAT_TYPE_UNDEFINED;
                 return 0;
             }
             if ((new_block->flags & REFBUF_SHARED) == 0)
             {
                 if (mp->settings & MPEG_LOG_MESSAGES)
-                    DEBUG3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->mount, ret, new_block->len);
+                    DEBUG3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->reference, ret, new_block->len);
                 new_block->len -= ret;
             }
             continue;
@@ -764,31 +884,23 @@ void mpeg_data_insert (mpeg_sync *mp, refbuf_t *inserted)
         mp->surplus = inserted;
 }
 
-void mpeg_setup (mpeg_sync *mpsync, const char *mount)
+void mpeg_setup (mpeg_sync *mpsync, const char *reference)
 {
     memset (mpsync, 0, sizeof (mpeg_sync));
-    mpsync->check_numframes = 4;
-    mpsync->settings = MPEG_LOG_MESSAGES;
-    mpsync->mount = mount;
+    syncframe_set_framecheck (mpsync, 4);
+    mpsync->settings |= MPEG_LOG_MESSAGES;
+    mpsync->reference = reference;
 }
 
 frame_type_t mpeg_get_type (struct mpeg_sync *mp)
 {
-    if (mp->settings & MPEG_SKIP_SYNC)
-        return mp->container.skipped_type;
-    if (mp->process_frame == handle_mpeg_frame)
-        return FORMAT_TYPE_MPEG;
-    if (mp->process_frame == handle_ts_frame)
-        return FORMAT_TYPE_MPEG;
-    if (mp->process_frame == handle_aac_frame)
-        return FORMAT_TYPE_AAC;
-    return FORMAT_TYPE_UNDEFINED;
+    return mp->type;
 }
 
 void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count)
 {
     if (count && count < 100)
-        mpsync->check_numframes = count;
+        syncframe_set_framecheck (mpsync, count);
     if (count == 1)  // client processing, reduce heavy logging
         mpsync->settings &= ~MPEG_LOG_MESSAGES;
 }
@@ -798,7 +910,6 @@ void mpeg_cleanup (mpeg_sync *mpsync)
     if (mpsync)
     {
         refbuf_release (mpsync->surplus);
-        refbuf_release (mpsync->raw);
-        mpsync->mount = NULL;
+        mpsync->reference = NULL;
     }
 }

@@ -4,6 +4,7 @@
  * A copy of this license is included with this source.
  *
  * Copyright 2009-2010,  Karl Heyes <karl@xiph.org>
+ * Copyright 2009-2018,  Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* mpeg.c
@@ -16,45 +17,47 @@
 
 #include "refbuf.h"
 
+struct mpeg_sync;
+
+typedef uint8_t frame_type_t;
+
+#define FORMAT_TYPE_UNDEFINED       0   /* No format determined */
+#define FORMAT_TYPE_OGG             1
+#define FORMAT_TYPE_AAC             2   // for AAC/ADTS style content
+#define FORMAT_TYPE_MPEG            3   // for MPEG1/2/ADTS type content
+#define FORMAT_TYPE_MP4             4
+#define FORMAT_TYPE_EBML            5
+
+
+typedef struct sync_callback_t
+{
+    void *callback_key;
+    int (*frame_callback)(struct mpeg_sync *mp, struct sync_callback_t *cb, unsigned char *p, unsigned int len, unsigned int offset);
+} sync_callback_t;
+
 typedef struct mpeg_sync
 {
-    int (*process_frame) (struct mpeg_sync *mp, unsigned char *p, int len);
+    uint64_t settings;
+
     uint32_t mask;
     uint32_t match;
 
-    unsigned short samplerate;
-    unsigned char marker;
-    unsigned char check_numframes;
-    unsigned short settings;
     unsigned short resync_count;
+    unsigned char marker;
+    frame_type_t type;
+
+    unsigned int sample_count;
+
+    int (*process_frame) (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int len);
 
     refbuf_t *surplus;
-    long sample_count;
-    void *callback_key;
-    int (*frame_callback)(struct mpeg_sync *mp, unsigned char *p, unsigned int len, unsigned int offset);
-    refbuf_t *raw;
-    union
-    {
-        int raw_offset;
-        int skipped_type;
-    } container;
-    const char *mount;
+    const char *reference;
 } mpeg_sync;
 
-typedef enum _frame_type_tag
-{
-    FORMAT_TYPE_UNDEFINED, /* No format determined */
-    FORMAT_TYPE_OGG,
-    FORMAT_TYPE_AAC,    // for AAC/ADTS style content
-    FORMAT_TYPE_MPEG,   // for MPEG1/2/ADTS type content
-    FORMAT_TYPE_MP4,
-    FORMAT_TYPE_EBML
-} frame_type_t;
 
-
-#define MPEG_LOG_MESSAGES   (1<<14)
-#define MPEG_SKIP_SYNC      (1<<15)
-#define MPEG_KEEP_EOF_TAGS  (1<<8)
+#define MPEG_LOG_MESSAGES   (1)
+#define MPEG_SKIP_SYNC      (1<<2)
+#define MPEG_KEEP_EOF_TAGS  (1<<3)
 
 void mpeg_setup (mpeg_sync *mpsync, const char *mount);
 void mpeg_cleanup (mpeg_sync *mpsync);
@@ -62,19 +65,18 @@ void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count);
 void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags);
 frame_type_t mpeg_get_type (mpeg_sync *mp);
 
-int  mpeg_complete_frames (mpeg_sync *mp, refbuf_t *new_block, unsigned offset);
+int  mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_block, unsigned offset);
+#define mpeg_complete_frames(A,B,C)         mpeg_complete_frames_cb(A,NULL,B,C)
+
 void mpeg_data_insert (mpeg_sync *mp, refbuf_t *inserted);
 
-int  mpeg_get_layer (struct mpeg_sync *mp);
-int  mpeg_get_version (struct mpeg_sync *mp);
+int  mpeg_get_bitrate (struct mpeg_sync *mp);
 int  mpeg_get_channels (struct mpeg_sync *mp);
+int  mpeg_get_samplerate (struct mpeg_sync *mp);
 int  mpeg_has_changed (struct mpeg_sync *mp);
 
-
-#define MPEG_AAC         0
-#define MPEG_LAYER_3     0x1
-#define MPEG_LAYER_2     0x2
-#define MPEG_LAYER_1     0x3
-
+int syncframe_bitrate (mpeg_sync *mp);
+int syncframe_channels (mpeg_sync *mp);
+int syncframe_samplerate (mpeg_sync *mp);
 
 #endif /* __MPEG_SYNC_H */

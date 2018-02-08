@@ -35,6 +35,18 @@ typedef struct _format_plugin_tag format_plugin_t;
 #define FORMAT_FL_ALLOW_HTTPCHUNKED             1
 
 
+typedef struct format_check_t
+{
+    icefile_handle fd;
+    frame_type_t type;
+    unsigned short channels;
+    const char *desc;
+    long offset;
+    unsigned int bitrate; // detected Kbit/s
+    unsigned int srate; // detected samplerate
+} format_check_t;
+
+
 struct _format_plugin_tag
 {
     format_type_t type;
@@ -69,7 +81,7 @@ format_type_t format_get_type(const char *contenttype);
 int format_get_plugin (format_plugin_t *plugin);
 int format_generic_write_to_client (client_t *client);
 
-format_type_t format_check_frames (icefile_handle f, long *file_start);
+int format_check_frames (struct format_check_t *c);
 int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f);
 int format_general_headers (format_plugin_t *plugin, client_t *client);
 

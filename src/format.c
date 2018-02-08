@@ -145,15 +145,17 @@ int format_get_plugin (format_plugin_t *plugin)
 }
 
 
-format_type_t format_check_frames (icefile_handle f, long *file_start)
+int format_check_frames (struct format_check_t *c)
 {
-    refbuf_t *r = refbuf_new (8192);
+    int ret = -1;
+    refbuf_t *r = refbuf_new (16384);
     mpeg_sync sync;
-    mpeg_setup (&sync, "file checking");
+    mpeg_setup (&sync, c->desc);
+    mpeg_check_numframes (&sync, 20);
 
     do
     {
-        int bytes = pread (f, r->data, 8192, 0);
+        int bytes = pread (c->fd, r->data, 16384, 0);
         if (bytes <= 0)
             break;
 
@@ -163,15 +165,17 @@ format_type_t format_check_frames (icefile_handle f, long *file_start)
         {
             break;
         }
-        *file_start = bytes - (r->len + unprocessed);
-        format_type_t type = mpeg_get_type (&sync);
-        mpeg_cleanup (&sync);
-        return type;
+        c->offset = bytes - (r->len + unprocessed);
+        c->type = mpeg_get_type (&sync);
+        c->srate = mpeg_get_samplerate (&sync);
+        c->channels = mpeg_get_channels (&sync);
+        c->bitrate = mpeg_get_bitrate (&sync);
+        ret = 0;
     } while (0);
     refbuf_release (r);
     mpeg_cleanup (&sync);
 
-    return FORMAT_TYPE_UNDEFINED;
+    return ret;
 }
 
 
@@ -222,9 +226,12 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
                 DEBUG1 ("End of requested range (%" PRId64 ")", client->connection.discon.offset);
                 return -1;
             }
-            range = client->connection.discon.offset - client->intro_offset + 1;
-            if (range < len)
-                len = range;
+            if (client->connection.discon.offset < (uint64_t)-1)
+            {
+                range = client->connection.discon.offset - client->intro_offset + 1;
+                if (range && range < len)
+                    len = range;
+            }
         }
         else
             if (client->connection.discon.time && client->worker->current_time.tv_sec >= client->connection.discon.time)

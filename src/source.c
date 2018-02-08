@@ -1488,7 +1488,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 
     connected = client->worker->current_time.tv_sec - client->connection.con_time;
     if (connected > 40)
-        rate = (int)rate_avg (source->in_bitrate);
+        rate = (int)(((int)rate_avg (source->in_bitrate) / 1000) + 0.5) * 1000;
     if (rate == 0 && source->limit_rate)
         rate = source->limit_rate;
 
@@ -1763,12 +1763,19 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
                     WARN3 ("Cannot open intro for %s \"%s\": %s", source->mount, buffer, strerror(errno));
                 else
                 {
-                    format_type_t type = format_check_frames (intro_file, &source->intro_start);
-                    if (type != FORMAT_TYPE_UNDEFINED)
+                    format_check_t intro;
+                    intro.fd = intro_file;
+                    intro.desc = buffer;
+                    if (format_check_frames (&intro) < 0 || intro.type == FORMAT_TYPE_UNDEFINED)
                     {
-                        if (type == source->format->type)
+                        WARN2 ("Failed to read intro for %s (%s)", source->mount, buffer);
+                        file_close (&intro_file);
+                    }
+                    else
+                    {
+                        if (intro.type == source->format->type)
                         {
-                            INFO4 ("intro file for %s is %s (%ld, %s)", source->mount, mountinfo->intro_filename, source->intro_start, buffer);
+                            INFO3 ("intro file for %s is %s (%s)", source->mount, mountinfo->intro_filename, buffer);
                             source->intro_file = intro_file;
                         }
                         else
@@ -1776,11 +1783,6 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
                             WARN2 ("intro format seems to be different to %s (%s)", source->mount, buffer);
                             file_close (&intro_file);
                         }
-                    }
-                    else
-                    {
-                        WARN2 ("Failed to read intro for %s (%s)", source->mount, buffer);
-                        file_close (&intro_file);
                     }
                 }
             }
