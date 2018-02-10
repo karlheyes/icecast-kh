@@ -950,7 +950,7 @@ static int command_fallback (client_t *client, source_t *source, int response)
 
 static int command_metadata (client_t *client, source_t *source, int response)
 {
-    const char *song, *title, *artist, *artwork, *charset, *url;
+    const char *song, *title, *artist, *artwork, *charset, *url, *intro;
     format_plugin_t *plugin;
     xmlDocPtr doc;
     xmlNodePtr node;
@@ -968,6 +968,9 @@ static int command_metadata (client_t *client, source_t *source, int response)
     COMMAND_OPTIONAL(client, "url", url);
     COMMAND_OPTIONAL(client, "artwork", artwork);
     COMMAND_OPTIONAL(client, "charset", charset);
+    COMMAND_OPTIONAL(client, "intro", intro);
+    if (intro == NULL)
+        COMMAND_OPTIONAL(client, "preroll", intro);
 
     plugin = source->format;
     if (source_running (source))
@@ -981,6 +984,10 @@ static int command_metadata (client_t *client, source_t *source, int response)
             break;
         if (artwork)
             stats_event (source->mount, "artwork", artwork);
+        if (intro)
+        {
+            source_set_intro (source, intro);
+        }
         if (plugin->set_tag)
         {
             if (url)

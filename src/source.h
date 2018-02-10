@@ -38,6 +38,7 @@ typedef struct source_tag
     avl_tree *clients;
 
     /* name of a file, whose contents are sent at listener connection */
+    char *intro_filename;
     icefile_handle intro_file;
     long intro_start;
 
@@ -120,6 +121,7 @@ void source_setup_listener (source_t *source, client_t *client);
 void source_init (source_t *source);
 void source_shutdown (source_t *source, int with_fallback);
 void source_set_fallback (source_t *source, const char *dest_mount);
+int source_set_intro (source_t *source, const char *file_pattern);
 int  source_format_init (source_t *source);
 void source_listeners_wakeup (source_t *source);
 

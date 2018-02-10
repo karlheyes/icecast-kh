@@ -295,6 +295,8 @@ void source_clear_source (source_t *source)
     free(source->dumpfilename);
     source->dumpfilename = NULL;
 
+    free (source->intro_filename);
+    source->intro_filename = NULL;
     file_close (&source->intro_file);
 }
 
@@ -526,7 +528,10 @@ int source_read (source_t *source)
                 {
                     mount_proxy *mountinfo = config_find_mount (config_get_config(), source->mount);
                     if (mountinfo)
+                    {
+                        source_set_intro (source, mountinfo->intro_filename);
                         source_set_override (mountinfo, source, source->format->type);
+                    }
                     config_release_config();
 
                     source->stream_data = refbuf;
@@ -1502,6 +1507,54 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 }
 
 
+int source_set_intro (source_t *source, const char *file_pattern)
+{
+    ice_config_t *config = config_get_config_unlocked ();
+    char buffer[4096];
+    unsigned int len = sizeof buffer;
+    int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->webroot_dir);
+
+    do
+    {
+        if (ret < 1 && ret >= len)
+            break;
+        len -= ret;
+        if (util_expand_pattern (source->mount, file_pattern, buffer + ret, &len) < 0)
+            break;
+
+        icefile_handle intro_file;
+        if (file_open (&intro_file, buffer) < 0)
+        {
+            WARN3 ("Cannot open intro for %s \"%s\": %s", source->mount, buffer, strerror(errno));
+            break;
+        }
+        format_check_t intro;
+        intro.fd = intro_file;
+        intro.desc = buffer;
+        if (format_check_frames (&intro) < 0 || intro.type == FORMAT_TYPE_UNDEFINED)
+        {
+            WARN2 ("Failed to read intro for %s (%s)", source->mount, buffer);
+            file_close (&intro_file);
+            break;
+        }
+        if (intro.type != source->format->type)
+        {
+            WARN2 ("intro file seems to be a different format to %s (%s)", source->mount, buffer);
+            file_close (&intro_file);
+            break;
+        }
+        // maybe a bitrate check later.
+        INFO3 ("intro file for %s is %s (%s)", source->mount, file_pattern, buffer);
+        file_close (&source->intro_file);
+        source->intro_file = intro_file;
+        free (source->intro_filename);
+        source->intro_filename = strdup (buffer + ret);
+        return 0;
+    } while (0);
+    return -1;
+}
+
+
 void source_shutdown (source_t *source, int with_fallback)
 {
     mount_proxy *mountinfo;
@@ -1746,47 +1799,13 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
     }
     /* handle changes in intro file setting */
     file_close (&source->intro_file);
+    free (source->intro_filename);
+    source->intro_filename = NULL;
     if (mountinfo && mountinfo->intro_filename)
     {
-        ice_config_t *config = config_get_config_unlocked ();
-        char buffer[4096];
-        unsigned int len = sizeof buffer;
-        int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->webroot_dir);
-
-        if (ret > 0 && ret < len)
-        {
-            len -= ret;
-            if (util_expand_pattern (source->mount, mountinfo->intro_filename, buffer + ret, &len) == 0)
-            {
-                icefile_handle intro_file;
-                if (file_open (&intro_file, buffer) < 0)
-                    WARN3 ("Cannot open intro for %s \"%s\": %s", source->mount, buffer, strerror(errno));
-                else
-                {
-                    format_check_t intro;
-                    intro.fd = intro_file;
-                    intro.desc = buffer;
-                    if (format_check_frames (&intro) < 0 || intro.type == FORMAT_TYPE_UNDEFINED)
-                    {
-                        WARN2 ("Failed to read intro for %s (%s)", source->mount, buffer);
-                        file_close (&intro_file);
-                    }
-                    else
-                    {
-                        if (intro.type == source->format->type)
-                        {
-                            INFO3 ("intro file for %s is %s (%s)", source->mount, mountinfo->intro_filename, buffer);
-                            source->intro_file = intro_file;
-                        }
-                        else
-                        {
-                            WARN2 ("intro format seems to be different to %s (%s)", source->mount, buffer);
-                            file_close (&intro_file);
-                        }
-                    }
-                }
-            }
-        }
+        // only set here if there is data present, for type verification
+        if (source->stream_data)
+           source_set_intro (source, mountinfo->intro_filename);
     }
     if (mountinfo && mountinfo->queue_size_limit)
         source->queue_size_limit = mountinfo->queue_size_limit;
