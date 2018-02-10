@@ -422,7 +422,7 @@ static fh_node *open_fh (fbinfo *finfo)
                 WARN1 ("different type detected for %s", finfo->mount);
             else
             {
-                if (fh->finfo.limit)
+                if (fh->finfo.limit && fcheck.bitrate > 0)
                 {
                     float ratio = (float)fh->finfo.limit / (fcheck.bitrate/8);
                     if (ratio < 0.9 || ratio > 1.1)
