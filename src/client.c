@@ -873,12 +873,6 @@ void workers_adjust (int new_count)
         else if (worker_count > new_count)
             worker_stop ();
     }
-    if (worker_count == 0)
-    {
-        logger_commits(0);
-        sock_close (logger_fd[1]);
-        sock_close (logger_fd[0]);
-    }
 }
 
 
@@ -915,13 +909,13 @@ static void *log_commit_thread (void *arg)
            continue;
        int err = sock_error();
        sock_close (logger_fd[0]);
-       sock_close (logger_fd[1]);
        if (worker_count)
        {
            worker_control_create (logger_fd);
            ERROR1 ("logger received code %d", err);
            continue;
        }
+       log_commit_entries ();
        // fprintf (stderr, "logger closed with zero workers\n");
        break;
    }
@@ -935,8 +929,16 @@ void worker_logger_init (void)
     log_set_commit_callback (logger_commits);
 }
 
-void worker_logger (void)
+void worker_logger (int stop)
 {
+    if (stop)
+    {
+       logger_commits(0);
+       sock_close (logger_fd[1]);
+       sock_close (logger_fd[0]);
+       logger_fd[1] = logger_fd[0] = -1;
+       return;
+    }
     thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
 }
 

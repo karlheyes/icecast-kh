@@ -398,8 +398,9 @@ void log_close(int log_id)
 
 void log_shutdown(void)
 {
-    log_commit_entries ();
-    log_close (0);
+    int log_id;
+    for (log_id = 0; log_id < logs_allocated ; log_id++)
+        log_close (log_id);
     free (loglist);
     /* destroy mutexes */
     if (log_mutex_alloc)

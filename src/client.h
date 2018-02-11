@@ -152,7 +152,7 @@ void worker_balance_trigger (time_t now);
 void workers_adjust (int new_count);
 void worker_wakeup (worker_t *worker);
 void worker_logger_init (void);
-void worker_logger (void);
+void worker_logger (int stop);
 
 
 /* client flags bitmask */

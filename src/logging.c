@@ -287,16 +287,13 @@ int init_logging (ice_config_t *config)
 
 int start_logging (ice_config_t *config)
 {
-    worker_logger ();
+    worker_logger (0);
     return 0;
 }
 
 
 void stop_logging(void)
 {
-    ice_config_t *config = config_get_config_unlocked();
-    log_close (config->error_log.logid);
-    log_close (config->access_log.logid);
-    log_close (config->playlist_log.logid);
+    worker_logger (1);
 }
 
