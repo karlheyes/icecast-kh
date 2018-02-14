@@ -246,8 +246,14 @@ void slave_initialize(void)
 
 void slave_shutdown(void)
 {
+    DEBUG0 ("shutting down slave");
     if (slave_running == 0)
         return;
+    // stall until workers have shut down
+    thread_rwlock_wlock (&global.workers_rw);
+    thread_rwlock_unlock (&global.workers_rw);
+
+    INFO0 ("all workers shut down");
     avl_tree_free (global.relays, NULL);
     thread_rwlock_destroy (&slaves_lock);
     thread_rwlock_destroy (&workers_lock);

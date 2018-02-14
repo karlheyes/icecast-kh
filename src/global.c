@@ -41,11 +41,13 @@ void global_initialize(void)
     global.alloc_tree = avl_tree_new(compare_allocs, NULL);
 #endif
     thread_mutex_create(&_global_mutex);
+    thread_rwlock_create(&global.workers_rw);
     global.out_bitrate = rate_setup (20000, 1000);
 }
 
 void global_shutdown(void)
 {
+    thread_rwlock_destroy(&global.workers_rw);
     thread_mutex_destroy(&_global_mutex);
     avl_tree_free(global.source_tree, NULL);
     rate_free (global.out_bitrate);

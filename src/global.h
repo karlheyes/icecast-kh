@@ -56,7 +56,7 @@ typedef struct ice_global_tag
 
     struct rate_calc *out_bitrate;
 
-    cond_t shutdown_cond;
+    rwlock_t workers_rw;
 } ice_global_t;
 
 extern unsigned int throttle_sends;

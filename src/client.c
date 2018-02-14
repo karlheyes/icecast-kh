@@ -807,6 +807,7 @@ static void worker_start (void)
     {
         worker_incoming = handler;
         handler->thread = thread_create ("worker", worker, handler, THREAD_ATTACHED);
+        thread_rwlock_rlock (&global.workers_rw);
         thread_rwlock_unlock (&workers_lock);
         INFO0 ("starting incoming worker thread");
         worker_start();  // single level recursion, just get a special worker thread set up
@@ -818,6 +819,7 @@ static void worker_start (void)
     worker_least_used = worker_balance_to_check = workers;
     thread_rwlock_unlock (&workers_lock);
 
+    thread_rwlock_rlock (&global.workers_rw);
     handler->thread = thread_create ("worker", worker, handler, THREAD_ATTACHED);
 }
 
@@ -844,11 +846,12 @@ static void worker_stop (void)
             worker_incoming = NULL;
             INFO0 ("stopping incoming worker thread");
         }
-        thread_rwlock_unlock (&workers_lock);
 
         if (handler)
         {
             handler->running = 0;
+            thread_rwlock_unlock (&workers_lock);
+
             worker_wakeup (handler);
 
             thread_join (handler->thread);
@@ -857,9 +860,11 @@ static void worker_stop (void)
             sock_close (handler->wakeup_fd[1]);
             sock_close (handler->wakeup_fd[0]);
             free (handler);
+            thread_rwlock_unlock (&global.workers_rw);
+            thread_rwlock_wlock (&workers_lock);
         }
-        thread_rwlock_wlock (&workers_lock);
     } while (workers == NULL && worker_incoming);
+    thread_rwlock_unlock (&workers_lock);
 }
 
 
@@ -889,37 +894,38 @@ static void logger_commits (int id)
 
 static void *log_commit_thread (void *arg)
 {
-   INFO0 ("started");
-   while (1)
-   {
-       int ret = util_timed_wait_for_fd (logger_fd[0], 5000);
-       if (ret == 0) continue;
-       if (ret > 0)
-       {
-           char cm[80];
-           ret = pipe_read (logger_fd[0], cm, sizeof cm);
-           if (ret > 0)
-           {
-               // fprintf (stderr, "logger woken with %d\n", ret);
-               log_commit_entries ();
-               continue;
-           }
-       }
-       if (ret < 0 && sock_recoverable (sock_error()))
-           continue;
-       int err = sock_error();
-       sock_close (logger_fd[0]);
-       if (worker_count)
-       {
-           worker_control_create (logger_fd);
-           ERROR1 ("logger received code %d", err);
-           continue;
-       }
-       log_commit_entries ();
-       // fprintf (stderr, "logger closed with zero workers\n");
-       break;
-   }
-   return NULL;
+    INFO0 ("started");
+    while (1)
+    {
+        int ret = util_timed_wait_for_fd (logger_fd[0], 5000);
+        if (ret == 0) continue;
+        if (ret > 0)
+        {
+            char cm[80];
+            ret = pipe_read (logger_fd[0], cm, sizeof cm);
+            if (ret > 0)
+            {
+                // fprintf (stderr, "logger woken with %d\n", ret);
+                log_commit_entries ();
+                continue;
+            }
+        }
+        if (ret < 0 && sock_recoverable (sock_error()))
+            continue;
+        int err = sock_error();
+        sock_close (logger_fd[0]);
+        if (worker_count)
+        {
+            worker_control_create (logger_fd);
+            ERROR1 ("logger received code %d", err);
+            continue;
+        }
+        log_commit_entries ();
+        // fprintf (stderr, "logger closed with zero workers\n");
+        break;
+    }
+    thread_rwlock_unlock (&global.workers_rw);
+    return NULL;
 }
 
 
@@ -935,10 +941,10 @@ void worker_logger (int stop)
     {
        logger_commits(0);
        sock_close (logger_fd[1]);
-       sock_close (logger_fd[0]);
-       logger_fd[1] = logger_fd[0] = -1;
+       logger_fd[1] = -1;
        return;
     }
+    thread_rwlock_rlock (&global.workers_rw);
     thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
 }
 

@@ -117,11 +117,11 @@ void initialize_subsystems(void)
 void shutdown_subsystems(void)
 {
     connection_shutdown();
+    stop_logging();
     slave_shutdown();
     fserve_shutdown();
     stats_shutdown();
     xslt_shutdown();
-    stop_logging();
 
     config_shutdown();
     refbuf_shutdown();
@@ -134,8 +134,8 @@ void shutdown_subsystems(void)
 
     /* Now that these are done, we can stop the loggers. */
     log_shutdown();
-    thread_shutdown();
     global_shutdown();
+    thread_shutdown();
 }
 
 static int _parse_config_opts(int argc, char **argv, char *filename, int size)
