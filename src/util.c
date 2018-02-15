@@ -991,7 +991,7 @@ int cached_treenode_free (void*x)
 }
 
 
-void cachefile_prune (cache_file_contents *cache)
+void cached_prune (cache_file_contents *cache)
 {
     if (cache == NULL)
         return;
@@ -1032,7 +1032,7 @@ void cached_file_recheck (cache_file_contents *cache, time_t now)
 
         if (cache->filename == NULL)
         {
-            cachefile_prune (cache);
+            cached_prune (cache);
             break;
         }
         if (stat (cache->filename, &file_stat) < 0)
@@ -1052,7 +1052,7 @@ void cached_file_recheck (cache_file_contents *cache, time_t now)
             break;
         }
 
-        cachefile_prune (cache);
+        cached_prune (cache);
         cache->contents = avl_tree_new (cache->compare, &cache->file_recheck);
         while (get_line (file, line, MAX_LINE_LEN))
         {
@@ -1107,7 +1107,7 @@ void cached_file_clear (cache_file_contents *cache)
 {
     if (cache == NULL)
         return;
-    cachefile_prune (cache);
+    cached_prune (cache);
     free (cache->filename);
     memset (cache, 0, sizeof (*cache));
 }

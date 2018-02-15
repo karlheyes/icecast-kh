@@ -117,6 +117,7 @@ int cached_pattern_compare (const char *value, const char *pattern);
 void cached_file_clear (cache_file_contents *cache);
 int cached_pattern_search (cache_file_contents *cache, const char *line, time_t now);
 void cached_file_recheck (cache_file_contents *cache, time_t now);
+void cached_prune (cache_file_contents *cache);
 
 
 #endif  /* __UTIL_H__ */
