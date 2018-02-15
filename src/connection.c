@@ -1641,6 +1641,7 @@ static int _handle_source_request (client_t *client)
     config = config_get_config();
     _check_for_x_forwarded_for(config, client);
     config_release_config();
+    client->flags &= ~CLIENT_KEEPALIVE;
     
     if (uri[0] != '/')
     {
