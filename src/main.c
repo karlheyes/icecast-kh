@@ -117,10 +117,7 @@ void initialize_subsystems(void)
 void shutdown_subsystems(void)
 {
     connection_shutdown();
-    stop_logging();
     slave_shutdown();
-    fserve_shutdown();
-    stats_shutdown();
     xslt_shutdown();
 
     config_shutdown();
