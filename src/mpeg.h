@@ -27,6 +27,7 @@ typedef uint8_t frame_type_t;
 #define FORMAT_TYPE_MPEG            3   // for MPEG1/2/ADTS type content
 #define FORMAT_TYPE_MP4             4
 #define FORMAT_TYPE_EBML            5
+#define FORMAT_TYPE_USAC            6   // USAC/LOAS framed aac
 
 
 typedef struct sync_callback_t

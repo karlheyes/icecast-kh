@@ -461,6 +461,44 @@ static int check_for_mp3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
     return -1;
 }
 
+
+static int handle_usac_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int remaining)
+{
+    int frame_len = 3 + (((p[1]&0x1F) << 8) | p[2]);
+
+    if (remaining - frame_len < 0)
+        return 0;
+    if (frame_len < remaining && p[frame_len] != 0x56)
+        INFO1 ("missing frame marker from %s", mp->reference);
+    return frame_len;
+}
+
+
+static int check_for_usac (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
+{
+    int checking = syncframe_chkframes (mp), offset = 0;
+    while (checking)
+    {
+        checking--;
+        if (offset+2 > remaining) return 0;
+        if (p[offset] == 0x56 && (p[offset+1] & 0xE0) == 0xE0)
+        {
+            int len = ((p[offset+1]&0x1F) << 8) | p[offset+2];
+            offset += (len + 3);
+            continue;
+        }
+        return -1;
+    }
+    INFO1 ("Detected USAC/LOAS on %s", mp->reference);
+    mp->process_frame = handle_usac_frame;
+    mp->type = FORMAT_TYPE_USAC;
+    mp->mask = 0xFFE00000;
+    mp->marker = 0x56;
+    mp->settings |= SYNC_CHANGED;
+    return 1;
+}
+
+
 static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
     int pkt_len = 188, checking;
@@ -643,15 +681,15 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
     }
     if (ret < 0 && p[0] == 0x47)
         ret = check_for_ts (mp, p, remaining);
-    if (ret < 0)
+    if (ret < 0 && p[1] >= 0xE0)
     {
-        if (p[1] < 0xE0)
-            return -1;
         mp->settings |= ((uint64_t)get_mpegframe_layer (p) << SYNC_MPEG_LAYER_OFF); // layer setting
         ret = check_for_aac (mp, p, remaining);
         if (ret < 0)
             ret = check_for_mp3 (mp, p, remaining);
     }
+    if (ret < 0 && p[0] == 0x56 && (p[1]&0xE0) == 0xE0)
+        ret = check_for_usac(mp, p, remaining);
     if (ret > 0)
     {
         mp->resync_count = 0;
@@ -729,7 +767,9 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
             int offset = remaining;
             do {
                 if (offset < 3) break;
-                if (*p == 0x47) break;
+                if (*p == 0x47) break;   // MPEG TS
+                if (*p == 0x56)
+                    if ((p[1] & 0xE0) == 0xE0) break; // USAC
                 if (*p == 0xFF)
                     if (p[1] != 0xFF || p[2] <= 0xFB) break;
                 if (offset > 3 && memcmp (p, "OggS", 4) == 0)
