@@ -41,6 +41,7 @@ typedef struct source_tag
     char *intro_filename;
     icefile_handle intro_file;
     long intro_start;
+    icefile_handle preroll_log_id;
 
     char *dumpfilename; /* Name of a file to dump incoming stream to */
     FILE *dumpfile;
@@ -78,6 +79,8 @@ typedef struct source_tag
     unsigned timeout;  /* source timeout in seconds */
     uint64_t bytes_sent_at_update;
     uint64_t bytes_read_since_update;
+
+    int intro_skip_replay;
     int stats_interval;
     long stats;
 
@@ -88,6 +91,7 @@ typedef struct source_tag
 
     util_dict *audio_info;
 
+    cache_file_contents *intro_ipcache;
 } source_t;
 
 #define SOURCE_RUNNING              1

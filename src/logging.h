@@ -88,6 +88,7 @@ extern int errorlog;
 void logging_access_id (struct access_log *accesslog, client_t *client);
 void logging_access(client_t *client);
 void logging_playlist(const char *mount, const char *metadata, long listeners);
+void logging_preroll (int log_id, const char *intro_name, client_t *client);
 int  restart_logging (ice_config_t *config);
 int init_logging (ice_config_t *config);
 int  start_logging(ice_config_t *config);

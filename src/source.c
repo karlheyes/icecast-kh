@@ -160,6 +160,7 @@ source_t *source_reserve (const char *mount, int flags)
         src->format = calloc (1, sizeof(format_plugin_t));
         src->clients = avl_tree_new (client_compare, NULL);
         src->intro_file = -1;
+        src->preroll_log_id = -1;
 
         thread_rwlock_create (&src->lock);
         thread_spin_create (&src->shrink_lock);
@@ -298,6 +299,7 @@ void source_clear_source (source_t *source)
     free (source->intro_filename);
     source->intro_filename = NULL;
     file_close (&source->intro_file);
+    file_close (&source->preroll_log_id);
 }
 
 
@@ -322,6 +324,11 @@ static int _free_source (void *p)
 
     INFO1 ("freeing source \"%s\"", source->mount);
     format_plugin_clear (source->format, source->client);
+
+    cached_prune (source->intro_ipcache);
+    free (source->intro_ipcache);
+    source->intro_ipcache = NULL;
+
     free (source->format);
     free (source->mount);
     free (source);
@@ -372,6 +379,55 @@ client_t *source_find_client(source_t *source, uint64_t id)
 
     avl_get_by_key (source->clients, &fakeclient, &result);
     return result;
+}
+
+static void listener_skips_intro (cache_file_contents *cache, client_t *client, int allow)
+{
+    struct node_IP_time *result = calloc (1, sizeof (struct node_IP_time));
+
+    snprintf (result->ip, sizeof (result->ip), "%s", client->connection.ip);
+    result->a.timeout = client->worker->current_time.tv_sec + allow;
+    avl_insert (cache->contents, result);
+    DEBUG1 ("Added intro skip entry for %s", &result->ip[0]);
+}
+
+
+static int listener_check_intro (cache_file_contents *cache, client_t *client, int allow)
+{
+    int i, ret = 0;
+
+    if (cache == NULL || cache->contents == NULL)
+        return 0;
+    cache->deletions_count = 0;
+    do
+    {
+        struct node_IP_time *result;
+        const char *ip = client->connection.ip;
+        time_t now = client->worker->current_time.tv_sec;
+
+        cache->file_recheck = now;
+        if (avl_get_by_key (cache->contents, (char*)ip, (void*)&result) == 0)
+        {
+            ret = 1;
+            if (result->a.timeout > now)
+            {
+                DEBUG1 ("skipping intro for %s", result->ip);
+                client->intro_offset = -1;
+                break;
+            }
+            DEBUG1 ("found intro skip entry for %s, refreshing", result->ip);
+            result->a.timeout = now + allow;
+        }
+    } while (0);
+
+    for (i = 0; i < cache->deletions_count; ++i)
+    {
+        struct node_IP_time *to_go = cache->deletions[i];
+
+        INFO1 ("removing %s from intro list", &(to_go->ip[0]));
+        avl_delete (cache->contents, &(to_go->ip[0]), cached_treenode_free);
+    }
+    return ret;
 }
 
 
@@ -900,6 +956,19 @@ static int locate_start_on_queue (source_t *source, client_t *client)
     return -1;
 }
 
+static void source_preroll_logging (source_t *source, client_t *client)
+{
+    if (source->preroll_log_id < 0)
+    {
+        ice_config_t *config = config_get_config();
+        if (config->preroll_log.logid >= 0)
+            logging_preroll (config->preroll_log.logid, source->intro_filename, client);
+        config_release_config();
+    }
+    else
+        logging_preroll (source->preroll_log_id, source->intro_filename, client);
+}
+
 
 static int http_source_introfile (client_t *client)
 {
@@ -910,11 +979,15 @@ static int http_source_introfile (client_t *client)
     //DEBUG2 ("client intro_pos is %ld, sent bytes is %ld", client->intro_offset, client->connection.sent_bytes);
     if (format_file_read (client, source->format, source->intro_file) < 0)
     {
+        source_preroll_logging (source, client);
         if (source->stream_data_tail)
         {
+            if (source->intro_skip_replay)
+                listener_skips_intro (source->intro_ipcache, client, source->intro_skip_replay);
             /* better find the right place in queue for this client */
             client_set_queue (client, NULL);
             client->check_buffer = source_queue_advance;
+            client->intro_offset = -1;
             return source_queue_advance (client);
         }
         client->schedule_ms += 100;
@@ -958,19 +1031,23 @@ static int http_source_introfile (client_t *client)
             rate < (incoming_rate/4))
     {
         INFO2 ("Dropped listener %s, running too slow on %s", &client->connection.ip[0], source->mount);
+        source_preroll_logging (source, client);
         client->connection.error = 1;
         client_set_queue (client, NULL);
         return -1; // assume a slow/stalled connection so drop
     }
 
-    return source->format->write_buf_to_client (client);
+    int ret = source->format->write_buf_to_client (client);
+    if (client->connection.error)
+        source_preroll_logging (source, client);
+    return ret;
 }
 
 
 static int http_source_intro (client_t *client)
 {
     /* we only need to send the intro if nothing else has been sent */
-    if (client->connection.sent_bytes > 0)
+    if (client->intro_offset < 0)
     {
         client_set_queue (client, NULL);
         client->check_buffer = source_queue_advance;
@@ -1621,6 +1698,27 @@ static void _parse_audio_info (source_t *source, const char *s)
 }
 
 
+static int compare_intro_ipcache (void *arg, void *a, void *b)
+{
+    struct node_IP_time *this = (struct node_IP_time *)a;
+    struct node_IP_time *that = (struct node_IP_time *)b;
+    int ret = strcmp (&this->ip[0], &that->ip[0]);
+
+    if (ret && that->a.timeout)
+    {
+        cache_file_contents *c = arg;
+        time_t threshold = c->file_recheck;
+
+        if (c->deletions_count < 9 && that->a.timeout < threshold)
+        {
+            c->deletions [c->deletions_count] = that;
+            c->deletions_count++;
+        }
+    }
+    return ret;
+}
+
+
 /* Apply the mountinfo details to the source */
 static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
 {
@@ -1797,15 +1895,60 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
         strftime (buffer, sizeof (buffer), mountinfo->dumpfile, &local);
         source->dumpfilename = strdup (buffer);
     }
+    // check for pre-roll log file
+    if (mountinfo && mountinfo->preroll_log.name)
+    {
+        ice_config_t *config = config_get_config_unlocked ();
+        char buffer[4096];
+        unsigned int len = sizeof buffer;
+        int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->log_dir);
+
+        if (ret > 0 && ret < len)
+        {
+            len -= ret;
+            if (source->preroll_log_id < 0)
+            {
+                source->preroll_log_id = log_open (buffer);
+            }
+            if (source->preroll_log_id >= 0 && util_expand_pattern (source->mount, mountinfo->preroll_log.name, buffer + ret, &len) == 0)
+            {
+                INFO3 ("using pre-roll log file %s (%s) for %s", mountinfo->preroll_log.name, buffer, source->mount);
+                log_set_filename (source->preroll_log_id, buffer);
+                log_set_trigger (source->preroll_log_id, mountinfo->preroll_log.size);
+                log_set_reopen_after (source->preroll_log_id, mountinfo->preroll_log.duration);
+                log_set_lines_kept (source->preroll_log_id, mountinfo->preroll_log.display);
+                log_set_archive_timestamp (source->preroll_log_id, mountinfo->preroll_log.archive);
+            }
+        }
+    }
+    else
+    {
+        log_close (source->preroll_log_id);
+        source->preroll_log_id = -1;
+    }
+
     /* handle changes in intro file setting */
     file_close (&source->intro_file);
     free (source->intro_filename);
     source->intro_filename = NULL;
+    cached_prune (source->intro_ipcache);
+    free (source->intro_ipcache);
+    source->intro_ipcache = NULL;
+    source->intro_skip_replay = 0;
     if (mountinfo && mountinfo->intro_filename)
     {
         // only set here if there is data present, for type verification
         if (source->stream_data)
            source_set_intro (source, mountinfo->intro_filename);
+
+        if (mountinfo->intro_skip_replay)
+        {
+            cache_file_contents *c = calloc (1, sizeof (cache_file_contents));
+
+            source->intro_ipcache = c;
+            c->contents = avl_tree_new (compare_intro_ipcache, c);
+            source->intro_skip_replay = mountinfo->intro_skip_replay;
+        }
     }
     if (mountinfo && mountinfo->queue_size_limit)
         source->queue_size_limit = mountinfo->queue_size_limit;
@@ -2316,6 +2459,9 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
 
         if (mountinfo == NULL)
             break; /* allow adding listeners, no mount limits imposed */
+
+        if (mountinfo->intro_skip_replay)
+            listener_check_intro (source->intro_ipcache, client, mountinfo->intro_skip_replay);
 
         if (check_duplicate_logins (source->mount, source->clients, client, mountinfo->auth) == 0)
         {

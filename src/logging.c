@@ -31,6 +31,8 @@
 #include "errno.h"
 #include "global.h"
 
+#define CATMODULE "logging"
+
 void fatal_error (const char *perr);
 
 /* the global log descriptors */
@@ -147,6 +149,18 @@ void logging_playlist(const char *mount, const char *metadata, long listeners)
 }
 
 
+void logging_preroll (int log_id, const char *intro_name, client_t *client)
+{
+    char datebuf[128];
+
+    util_get_clf_time (datebuf, sizeof(datebuf), client->worker->current_time.tv_sec);
+
+    log_write_direct (log_id, "%s|%s|%ld|%ld|%s",
+             datebuf, client->mount,
+             client->connection.id, client->intro_offset, intro_name);
+}
+
+
 void log_parse_failure (void *ctx, const char *fmt, ...)
 {
     char line [200];
@@ -184,6 +198,7 @@ static int recheck_log_file (ice_config_t *config, int *id, const char *file)
             fatal_error (buf);
             return -1;
         }
+        INFO1 ("Using global log file %s", fn);
         return 0;
     }
     log_set_filename (*id, fn);
@@ -214,6 +229,7 @@ int restart_logging (ice_config_t *config)
     config->error_log.logid = current->error_log.logid;
     config->access_log.logid = current->access_log.logid;
     config->playlist_log.logid = current->playlist_log.logid;
+    config->preroll_log.logid = current->preroll_log.logid;
 
     if (recheck_log_file (config, &config->error_log.logid, config->error_log.name) < 0)
         ret = -1;
@@ -228,6 +244,18 @@ int restart_logging (ice_config_t *config)
     }
     thread_use_log_id (config->error_log.logid);
     errorlog = config->error_log.logid; /* value stays static so avoid taking the config lock */
+
+    if (recheck_log_file (config, &config->preroll_log.logid, config->preroll_log.name) < 0)
+        ret = -1;
+    else
+    {
+        log_set_trigger (config->preroll_log.logid, config->preroll_log.size);
+        log_set_reopen_after (config->preroll_log.logid, config->preroll_log.duration);
+        if (config->preroll_log.display > 0)
+            log_set_lines_kept (config->preroll_log.logid, config->preroll_log.display);
+        log_set_archive_timestamp (config->preroll_log.logid, config->preroll_log.archive);
+        log_set_level (config->preroll_log.logid, 4);
+    }
 
     if (recheck_access_log (config, &config->access_log) < 0)
        ret = -1;

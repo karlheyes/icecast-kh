@@ -341,6 +341,7 @@ static void config_clear_mount (mount_proxy *mount)
         thread_mutex_lock (&mount->auth->lock);
         auth_release (mount->auth);
     }
+    xmlFree (mount->preroll_log.name);
     if (mount->access_log.logid >= 0)
         log_close (mount->access_log.logid);
     xmlFree (mount->access_log.name);
@@ -401,6 +402,7 @@ void config_clear(ice_config_t *c)
     if (c->banfile) xmlFree(c->banfile);
     if (c->allowfile) xmlFree (c->allowfile);
     if (c->agentfile) xmlFree (c->agentfile);
+    if (c->preroll_log.name) xmlFree(c->preroll_log.name);
     if (c->playlist_log.name) xmlFree(c->playlist_log.name);
     if (c->access_log.name) xmlFree(c->access_log.name);
     if (c->error_log.name) xmlFree(c->error_log.name);
@@ -770,6 +772,7 @@ static int _parse_logging (xmlNodePtr node, void *arg)
     int old_archive = -1;
     struct cfg_tag icecast_tags[] =
     {
+        { "preroll-log",    _parse_errorlog,    &config->preroll_log },
         { "accesslog",      _parse_accesslog,   &config->access_log },
         { "playlistlog",    _parse_playlistlog, &config->playlist_log },
         { "accesslog",      config_get_str,     &config->access_log.name },
@@ -790,6 +793,9 @@ static int _parse_logging (xmlNodePtr node, void *arg)
         { NULL, NULL, NULL }
     };
 
+    config->preroll_log.logid = -1;
+    config->preroll_log.display = 50;
+    config->preroll_log.archive = -1;
     config->access_log.type = LOG_ACCESS_CLF;
     config->access_log.logid = -1;
     config->access_log.display = 100;
@@ -1010,6 +1016,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
                                 config_get_bool,    &mount->url_ogg_meta },
         { "no-mount",           config_get_bool,    &mount->no_mount },
         { "ban-client",         config_get_int,     &mount->ban_client },
+        { "intro-skip-replay",  config_get_int,     &mount->intro_skip_replay },
         { "so-sndbuf",          config_get_int,     &mount->so_sndbuf },
         { "hidden",             config_get_bool,    &mount->hidden },
         { "authentication",     auth_get_authenticator, &mount->auth },
@@ -1019,6 +1026,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
                                 config_get_int,     &mount->max_stream_duration },
         { "max-listener-duration",
                                 config_get_int,     &mount->max_listener_duration },
+        { "preroll-log",        _parse_errorlog,    &mount->preroll_log },
         { "accesslog",          _parse_accesslog,   &mount->access_log },
         /* YP settings */
         { "cluster-password",   config_get_str,     &mount->cluster_password },
