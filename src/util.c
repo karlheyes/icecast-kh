@@ -862,9 +862,9 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
 
 
 /* return the average sample value over all the blocks except the 
- * current one, as that may be incomplete
+ * current one, as that may be incomplete. t to reduce the duration
  */
-long rate_avg (struct rate_calc *calc)
+long rate_avg_shorten (struct rate_calc *calc, unsigned int t)
 {
     long total = 0, ssec = 1;
     float range = 1.0;
@@ -878,12 +878,17 @@ long rate_avg (struct rate_calc *calc)
         if (range < 1)
             range = 1;
         total = calc->total;
-        ssec = calc->ssec;
+        if (t < calc->ssec)
+            ssec = calc->ssec - t;
     }
     thread_spin_unlock (&calc->lock);
     return (long)(total / range * ssec);
 }
 
+long rate_avg (struct rate_calc *calc)
+{
+    return rate_avg_shorten (calc, 0);
+}
 
 /* reduce the samples used to calculate average */
 void rate_reduce (struct rate_calc *calc, unsigned int range)

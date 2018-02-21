@@ -103,6 +103,7 @@ struct rate_calc *rate_setup (unsigned int samples, unsigned int ssec);
 void rate_add_sum (struct rate_calc *calc, long value, uint64_t t, uint64_t *sum);
 #define rate_add(A,B,C)   rate_add_sum((A),(B),(C), NULL);
 long rate_avg (struct rate_calc *calc);
+long rate_avg_shorten (struct rate_calc *calc, unsigned int t);
 void rate_free (struct rate_calc *calc);
 void rate_reduce (struct rate_calc *calc, unsigned int range);
 

@@ -1570,7 +1570,13 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 
     connected = client->worker->current_time.tv_sec - client->connection.con_time;
     if (connected > 40)
-        rate = (int)(((int)rate_avg (source->in_bitrate) / 1000) + 0.5) * 1000;
+    {
+        if (source->flags & SOURCE_TIMEOUT)
+            rate = (int)rate_avg_shorten (source->in_bitrate, source->timeout);
+        else
+            rate = (int)rate_avg (source->in_bitrate);
+        rate = (int)((rate / 1000) + 0.5) * 1000;
+    }
     if (rate == 0 && source->limit_rate)
         rate = source->limit_rate;
 
@@ -1639,7 +1645,7 @@ void source_shutdown (source_t *source, int with_fallback)
 
     INFO1("Source \"%s\" exiting", source->mount);
 
-    source->flags &= ~(SOURCE_ON_DEMAND|SOURCE_TIMEOUT);
+    source->flags &= ~(SOURCE_ON_DEMAND);
     source->termination_count = source->listeners;
     source->client->timer_start = source->client->worker->time_ms;
     source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
@@ -1659,6 +1665,7 @@ void source_shutdown (source_t *source, int with_fallback)
     }
     if (mountinfo && with_fallback && global.running == ICE_RUNNING)
         source_set_fallback (source, mountinfo->fallback_mount);
+    source->flags &= ~(SOURCE_TIMEOUT);
     config_release_config();
 }
 
