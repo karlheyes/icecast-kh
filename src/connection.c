@@ -954,8 +954,9 @@ static sock_t wait_for_serversock (void)
                 if (ufds[i].revents & (POLLHUP|POLLERR))
                 {
                     sock_close (global.serversock[i]);
-                    WARN0("Had to close a listening socket");
                 }
+                listener_t *l = global.server_conn[i];
+                WARN2("Had to remove a listening socket on port %d (%s)", l->port, l->bind_address ? l->bind_address : "default");
                 global.serversock[i] = SOCK_ERROR;
             }
         }
