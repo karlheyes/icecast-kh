@@ -201,7 +201,7 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
     bytes = con_read (&client->connection, buf, len);
 
     if (bytes == -1 && client->connection.error)
-        DEBUG0 ("reading from connection has failed");
+        DEBUG2 ("reading from connection %ld from %s has failed", client->connection.id, &client->connection.ip[0]);
 
     return bytes;
 }

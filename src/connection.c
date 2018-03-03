@@ -421,6 +421,8 @@ int connection_read_ssl (connection_t *con, void *buf, size_t len)
         case SSL_ERROR_NONE:
         case SSL_ERROR_ZERO_RETURN:
             break;
+        case SSL_ERROR_SYSCALL:
+            con->error = 1;
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             return -1;
