@@ -716,7 +716,7 @@ static int fserve_change_worker (client_t *client)
     if (worker && worker != client->worker)
     {
         long diff = this_worker->move_allocations < 1000000 ? this_worker->count - worker->count : 1000;
-        if (diff > 15)
+        if (diff > 10)
         {
             this_worker->move_allocations--;
             ret = client_change_worker (client, worker);

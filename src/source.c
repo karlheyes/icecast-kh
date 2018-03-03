@@ -2553,7 +2553,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     if (client->flags & CLIENT_RANGE_END)
     {
         // range given on a stream, impose a length limit
-        if (client->connection.discon.offset < client->intro_offset)
+        if ((off_t)client->connection.discon.offset < client->intro_offset)
            client->connection.discon.offset = 4096;
         else
         {
@@ -2810,18 +2810,23 @@ static int source_change_worker (source_t *source, client_t *client)
     thread_rwlock_rlock (&workers_lock);
     if (this_worker->move_allocations)
     {
+        int bypass = is_worker_incoming (this_worker) ? 1 : 0;
+
         worker = worker_selected ();
-        if (worker && worker != client->worker)
+        if (worker && worker != client->worker && (bypass || worker->count > 100))
         {
-            long diff = (this_worker->move_allocations < 1000000) ? this_worker->count - worker->count : 1000000;
-            if (diff > 50 || (diff > (source->listeners>>1) + 3))
+            long diff = bypass ? 2000000 : this_worker->count - worker->count;
+            if (diff - (long)source->listeners < 10)
+                diff = 0;   // lets not move the source in this case.
+            int base = (client->connection.id & 7) << 5;
+            if ((diff > 2000 && worker->count > 200) || (diff > (source->listeners>>4) + base))
             {
                 this_worker->move_allocations--;
                 thread_rwlock_unlock (&source->lock);
                 ret = client_change_worker (client, worker);
                 thread_rwlock_unlock (&workers_lock);
                 if (ret)
-                    DEBUG2 ("moving source from %p to %p", this_worker, worker);
+                    DEBUG3 ("moving source %s from %p to %p", source->mount, this_worker, worker);
                 else
                     thread_rwlock_wlock (&source->lock);
                 return ret;
@@ -2847,11 +2852,13 @@ int listener_change_worker (client_t *client, source_t *source)
     thread_rwlock_rlock (&workers_lock);
     dest_worker = source->client->worker;
 
+    int adj = source->client->connection.id & 7;
+
     if (this_worker != dest_worker)
     {
         diff = (this_worker->move_allocations < 1000000) ? dest_worker->count - this_worker->count : 1;
-        // do not move listener if source client worker has sufficiently more clients
-        if (diff > 100)
+        // only move listener if source client worker not too full, make limiter varied on source id
+        if (diff > (100 + (adj<<6)))
             dest_worker = NULL;
     }
     else
@@ -2859,7 +2866,7 @@ int listener_change_worker (client_t *client, source_t *source)
         dest_worker = worker_selected ();
         // do not move if least busy worker is significantly less than ours
         diff = this_worker->count - dest_worker->count;
-        if (diff < 150)
+        if (diff < 150 + (adj<<6))
             dest_worker = NULL;
     }
     if (dest_worker)
@@ -2870,7 +2877,7 @@ int listener_change_worker (client_t *client, source_t *source)
         thread_rwlock_unlock (&source->lock);
         ret = client_change_worker (client, dest_worker);
         if (ret)
-            DEBUG3 ("moving listener %" PRIu64 " from %p to %p", client->connection.id, this_worker, dest_worker);
+            DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", client->connection.id, source->mount, this_worker, dest_worker);
         else
             thread_rwlock_rlock (&source->lock);
     }

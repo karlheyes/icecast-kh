@@ -440,6 +440,11 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
     client->pos = 0;
 }
 
+int is_worker_incoming (worker_t *w)
+{
+    return (w == worker_incoming) ? 1 : 0;
+}
+
 static uint64_t worker_check_time_ms (worker_t *worker)
 {
     uint64_t tm = timing_get_time();

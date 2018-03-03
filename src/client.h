@@ -93,7 +93,7 @@ struct _client_tag
     listener_t *server_conn;
 
     /* is client getting intro data */
-    long intro_offset;
+    off_t intro_offset;
 
     /* where in the queue the client is */
     refbuf_t *refbuf;
@@ -153,6 +153,7 @@ void workers_adjust (int new_count);
 void worker_wakeup (worker_t *worker);
 void worker_logger_init (void);
 void worker_logger (int stop);
+int  is_worker_incoming (worker_t *w);
 
 
 /* client flags bitmask */
