@@ -944,6 +944,7 @@ static sock_t wait_for_serversock (void)
         {
             ERROR0 ("signalfd descriptor became invalid, doing thread restart");
             slave_restart(); // something odd happened
+            thread_sleep (250000);
         }
 #endif
         for(i=0; i < global.server_sockets; i++) {

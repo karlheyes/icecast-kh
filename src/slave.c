@@ -1185,6 +1185,7 @@ static void _slave_thread(void)
             }
             if (restart_connection_thread)
             {
+                connection_thread_shutdown();
                 connection_thread_startup();
                 restart_connection_thread = 0;
             }
