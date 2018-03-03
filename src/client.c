@@ -378,7 +378,7 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
     ret = con_send (&client->connection, buf, len);
 
     if (client->connection.error)
-        DEBUG0 ("Client connection died");
+        DEBUG3 ("Client %ld connection on %s from %s died", client->connection.id, (client->mount ? client->mount:"unknown"), &client->connection.ip[0]);
 
     return ret;
 }
@@ -779,7 +779,7 @@ void worker_balance_trigger (time_t now)
         worker_least_used = find_least_busy_handler (log_counts);
         if (worker_balance_to_check)
         {
-            worker_balance_to_check->move_allocations = 50;
+            worker_balance_to_check->move_allocations = 500;
             worker_balance_to_check = worker_balance_to_check->next;
         }
         if (worker_balance_to_check == NULL)
@@ -837,7 +837,7 @@ static void worker_stop (void)
             workers = handler->next;
             worker_least_used = worker_balance_to_check = workers;
             if (workers)
-                workers->move_allocations = 100;
+                workers->move_allocations = 1000;
             worker_count--;
         }
         else
