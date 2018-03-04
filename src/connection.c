@@ -376,6 +376,13 @@ static void get_ssl_certificate (ice_config_t *config)
             WARN2 ("Invalid private key file %s (%s)", config->key_file, ERR_reason_error_string (ERR_peek_last_error()));
             break;
         }
+        if (config->ca_file && SSL_CTX_load_verify_locations (new_ssl_ctx, config->ca_file, NULL) != 0)
+        {
+            WARN2 ("Invalid CA file %s (%s)", config->ca_file, ERR_reason_error_string (ERR_peek_last_error()));
+            break;
+        }
+        SSL_CTX_set_verify_depth (new_ssl_ctx,1);
+
         if (!SSL_CTX_check_private_key (new_ssl_ctx))
         {
             ERROR2 ("Invalid %s - Private key does not match cert public key (%s)", config->key_file, ERR_reason_error_string (ERR_peek_last_error()));

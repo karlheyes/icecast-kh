@@ -315,6 +315,7 @@ typedef struct ice_config_tag
     char *agentfile;
     char *cert_file;
     char *key_file;
+    char *ca_file;
     char *cipher_list;
     char *webroot_dir;
     char *adminroot_dir;

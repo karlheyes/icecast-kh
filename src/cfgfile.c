@@ -925,6 +925,7 @@ static int _parse_paths (xmlNodePtr node, void *arg)
         { "deny-agents",    config_get_str, &config->agentfile },
         { "ssl-private-key",        config_get_str, &config->key_file },
         { "ssl-certificate",        config_get_str, &config->cert_file },
+        { "ssl-capath",             config_get_str, &config->ca_file },
         { "ssl_certificate",        config_get_str, &config->cert_file },
         { "ssl-allowed-ciphers",    config_get_str, &config->cipher_list },
         { "webroot",        config_get_str, &config->webroot_dir },
