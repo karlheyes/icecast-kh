@@ -945,16 +945,10 @@ int sock_try_connection (sock_t sock, const char *hostname, unsigned int port)
     memset(&server, 0, sizeof(struct sockaddr_in));
 
     if (!resolver_getip(hostname, ip, MAX_ADDR_LEN))
-    {
-        sock_close (sock);
         return -1;
-    }
 
     if (inet_aton(ip, (struct in_addr *)&sin.sin_addr) == 0)
-    {
-        sock_close(sock);
         return -1;
-    }
 
     memcpy(&server.sin_addr, &sin.sin_addr, sizeof(struct sockaddr_in));
 
@@ -973,8 +967,11 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
         return SOCK_ERROR;
 
     sock_set_blocking (sock, 0);
-    sock_try_connection (sock, hostname, port);
-    
+    if (sock_try_connection (sock, hostname, port) < 0)
+    {
+        sock_close (sock);
+        sock = SOCK_ERROR;
+    }
     return sock;
 }
 
