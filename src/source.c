@@ -860,6 +860,7 @@ static int source_queue_advance (client_t *client)
                     client->refbuf = NULL;
                     client->pos = 0;
                 }
+                client->timer_start = 0;
                 client->check_buffer = http_source_introfile;
                 // do not be too eager to refill socket buffer
                 client->schedule_ms += source->incoming_rate < 16000 ? source->incoming_rate/16 : 800;
@@ -958,6 +959,8 @@ static int locate_start_on_queue (source_t *source, client_t *client)
 
 static void source_preroll_logging (source_t *source, client_t *client)
 {
+    if (client->intro_offset < 0 || (client->flags & CLIENT_HAS_INTRO_CONTENT))
+        return; // content provided separately, auth or queue block copy
     if (source->preroll_log_id < 0)
     {
         ice_config_t *config = config_get_config();
@@ -1006,9 +1009,9 @@ static int http_source_introfile (client_t *client)
         if (client->connection.sent_bytes < source->default_burst_size)
             to_send = source->default_burst_size - client->connection.sent_bytes;
         duration = (long)((float)to_send / rate);
-        client->aux_data = duration + 16;
+        client->aux_data = duration + 8;
         client->timer_start = client->worker->current_time.tv_sec - client->aux_data;
-        client->counter = 16 * rate;
+        client->counter = 8 * rate;
     }
     incoming_rate = rate;
     duration = (client->worker->current_time.tv_sec - client->timer_start);
@@ -1028,9 +1031,9 @@ static int http_source_introfile (client_t *client)
     }
     if (source->format->sent_bytes > (incoming_rate << 5) && // allow at least 30+ seconds on the stream
             (duration - client->aux_data) > 15 &&
-            rate < (incoming_rate/4))
+            rate < (incoming_rate>>1))
     {
-        INFO2 ("Dropped listener %s, running too slow on %s", &client->connection.ip[0], source->mount);
+        INFO3 ("Dropped listener %s (%ld), running too slow on %s", &client->connection.ip[0], client->connection.id, source->mount);
         source_preroll_logging (source, client);
         client->connection.error = 1;
         client_set_queue (client, NULL);

@@ -239,8 +239,10 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
         bytes = pread (f, refbuf->data, len, client->intro_offset);
         if (bytes <= 0)
+        {
+            client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
             return bytes < 0 ? -2 : -1;
-
+        }
         refbuf->len = bytes;
         client->pos = 0;
         if (plugin && plugin->align_buffer)
