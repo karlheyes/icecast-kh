@@ -299,7 +299,7 @@ int client_send_404 (client_t *client, const char *message)
         return 0;
     }
     client_set_queue (client, NULL);
-    if (client->respcode)
+    if (client->respcode || client->connection.error)
     {
         worker_t *worker = client->worker;
         if (client->respcode >= 300)
