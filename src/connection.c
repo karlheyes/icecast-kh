@@ -453,6 +453,10 @@ int connection_send_ssl (connection_t *con, const void *buf, size_t len)
         case SSL_ERROR_NONE:
         case SSL_ERROR_ZERO_RETURN:
             break;
+        case SSL_ERROR_SYSCALL:
+            con->error = 1;
+            DEBUG3("syscall error %d, on %s (%ld)", sock_error(), &con->ip[0], con->id);
+            // fallthru
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             return -1;
