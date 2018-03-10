@@ -74,7 +74,7 @@ void global_add_bitrates (struct rate_calc *rate, unsigned long value, uint64_t 
 
 void global_reduce_bitrate_sampling (struct rate_calc *rate)
 {
-    rate_reduce (rate, 500);
+    rate_reduce (rate, 2000);
 }
 
 unsigned long global_getrate_avg (struct rate_calc *rate)

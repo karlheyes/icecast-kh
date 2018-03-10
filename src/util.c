@@ -63,6 +63,7 @@ struct rate_calc_node
 struct rate_calc
 {
     int64_t total;
+    uint64_t cycle_till;
     struct rate_calc_node *current;
     spin_t lock;
     unsigned int samples;
@@ -805,6 +806,16 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
 
     thread_spin_lock (&calc->lock);
     cutoff = sid - calc->samples;
+    if (calc->cycle_till)
+    {
+        struct rate_calc_node *next = calc->current->next;
+        if (next->index < calc->cycle_till)
+            cutoff = next->index + 1;
+        else
+        {
+            calc->cycle_till = 0;
+        }
+    }
     if (value == 0 && calc->current && calc->current->value == 0)
     {
         calc->current->index = sid; /* update the timestamp if 0 already present */
@@ -853,7 +864,13 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
             calc->current = node;
             calc->blocks++;
         }
-        calc->current->value += value;
+        else
+        {
+            calc->current = next;
+            calc->total -= next->value;
+            next->index = sid;
+        }
+        calc->current->value = value;
         break;
     }
     calc->total += value;
@@ -897,7 +914,10 @@ void rate_reduce (struct rate_calc *calc, unsigned int range)
         return;
     thread_spin_lock (&calc->lock);
     if (range && calc->blocks > 1)
+    {
+        calc->cycle_till = calc->current->index;
         rate_purge_entries (calc, calc->current->index - range);
+    }
     else
         thread_spin_unlock (&calc->lock);
 }
