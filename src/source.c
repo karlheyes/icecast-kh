@@ -1929,6 +1929,7 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
                 log_set_lines_kept (source->preroll_log_id, mountinfo->preroll_log.display);
                 log_set_archive_timestamp (source->preroll_log_id, mountinfo->preroll_log.archive);
             }
+            log_reopen (source->preroll_log_id);
         }
     }
     else
