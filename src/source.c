@@ -510,8 +510,8 @@ int source_read (source_t *source)
             }
             source->flags &= ~SOURCE_LISTENERS_SYNC;
         }
-        if (source->listeners == 0)
-            rate_add (source->out_bitrate, 0, client->worker->time_ms);
+        rate_add (source->out_bitrate, 0, client->worker->time_ms);
+        global_add_bitrates (global.out_bitrate, 0, client->worker->time_ms);
 
         if (source->prev_listeners != source->listeners)
         {
@@ -2317,7 +2317,7 @@ static int source_listener_release (source_t *source, client_t *client)
         client->shared_data = NULL;
         client_set_queue (client, NULL);
         if (source->listeners == 0)
-            rate_reduce (source->out_bitrate, 500);
+            rate_reduce (source->out_bitrate, 1000);
     }
 
     stats_event_dec (NULL, "listeners");
