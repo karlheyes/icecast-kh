@@ -155,9 +155,9 @@ void logging_preroll (int log_id, const char *intro_name, client_t *client)
 
     util_get_clf_time (datebuf, sizeof(datebuf), client->worker->current_time.tv_sec);
 
-    log_write_direct (log_id, "%s|%s|%ld|%s|%ld|%s",
+    log_write_direct (log_id, "%s|%s|%" PRIu64 "|%s|%ld|%s",
              datebuf, client->mount, client->connection.id,
-             &client->connection.ip[0], client->intro_offset, intro_name);
+             &client->connection.ip[0], (long)client->intro_offset, intro_name);
 }
 
 

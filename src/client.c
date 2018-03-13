@@ -201,7 +201,7 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
     bytes = con_read (&client->connection, buf, len);
 
     if (bytes == -1 && client->connection.error)
-        DEBUG2 ("reading from connection %ld from %s has failed", client->connection.id, &client->connection.ip[0]);
+        DEBUG2 ("reading from connection %"PRIu64 " from %s has failed", client->connection.id, &client->connection.ip[0]);
 
     return bytes;
 }
@@ -378,7 +378,7 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
     ret = con_send (&client->connection, buf, len);
 
     if (client->connection.error)
-        DEBUG3 ("Client %ld connection on %s from %s died", client->connection.id, (client->mount ? client->mount:"unknown"), &client->connection.ip[0]);
+        DEBUG3 ("Client %"PRIu64 " connection on %s from %s died", client->connection.id, (client->mount ? client->mount:"unknown"), &client->connection.ip[0]);
 
     return ret;
 }

@@ -1033,7 +1033,7 @@ static int http_source_introfile (client_t *client)
             (duration - client->aux_data) > 15 &&
             rate < (incoming_rate>>1))
     {
-        INFO3 ("Dropped listener %s (%ld), running too slow on %s", &client->connection.ip[0], client->connection.id, source->mount);
+        INFO3 ("Dropped listener %s (%" PRIu64 "), running too slow on %s", &client->connection.ip[0], client->connection.id, source->mount);
         source_preroll_logging (source, client);
         client->connection.error = 1;
         client_set_queue (client, NULL);

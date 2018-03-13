@@ -388,7 +388,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 
             if (client->intro_offset > client->connection.discon.offset)
             {
-                DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", client->intro_offset, client->connection.discon.offset);
+                DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", (long)client->intro_offset, client->connection.discon.offset);
                 return -1;
             }
             uint64_t len = client->connection.discon.offset - client->intro_offset + 1;
@@ -443,7 +443,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 if (strftime (datebuf, sizeof(datebuf), "Date: %a, %d %b %Y %X GMT\r\n", &result) == 0)
                 {
                     datebuf[0] = '\0';
-                    errno = 0;
+                    sock_set_error (0);
                 }
             }
 
