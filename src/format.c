@@ -439,7 +439,13 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             struct tm result;
 
             if (gmtime_r (&client->worker->current_time.tv_sec, &result))
-                strftime (datebuf, sizeof(datebuf), "Date: %a, %d %b %Y %X GMT\r\n", &result);
+            {
+                if (strftime (datebuf, sizeof(datebuf), "Date: %a, %d %b %Y %X GMT\r\n", &result) == 0)
+                {
+                    datebuf[0] = '\0';
+                    errno = 0;
+                }
+            }
 
             if (contenttype == NULL)
                 contenttype = "application/octet-stream";

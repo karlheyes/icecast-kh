@@ -730,6 +730,7 @@ void *worker (void *arg)
                         worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
                     }
                     c++;
+                    errno = 0;
                     ret = client->ops->process (client);
                     if (ret < 0)
                     {
@@ -915,9 +916,9 @@ static void *log_commit_thread (void *arg)
                 continue;
             }
         }
-        if (ret < 0 && sock_recoverable (sock_error()))
+        int err = 0;
+        if (ret < 0 && sock_recoverable ((err = sock_error())))
             continue;
-        int err = sock_error();
         sock_close (logger_fd[0]);
         if (worker_count)
         {

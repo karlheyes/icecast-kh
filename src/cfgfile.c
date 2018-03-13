@@ -116,6 +116,7 @@ int config_get_bool (xmlNodePtr node, void *x)
                 *(int*)x = 1;
             else
                 *(int*)x = (strtol (str, NULL, 0)==0) ? 0 : 1;
+        errno = 0;
         xmlFree (str);
     }
     return 0;
@@ -144,6 +145,7 @@ int config_get_int (xmlNodePtr node, void *x)
         if (str == NULL)
             return 1;
         *(int*)x = (int)strtol ((char*)str, NULL, 0);
+        errno = 0;
         xmlFree (str);
     }
     return 0;
@@ -158,6 +160,7 @@ int config_get_long (xmlNodePtr node, void *x)
         if (str == NULL)
             return 1;
         *(long*)x = strtol ((char*)str, NULL, 0);
+        errno = 0;
         xmlFree (str);
     }
     return 0;

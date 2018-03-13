@@ -1902,8 +1902,13 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
         char buffer[PATH_MAX];
 
         localtime_r (&now, &local);
-        strftime (buffer, sizeof (buffer), mountinfo->dumpfile, &local);
-        source->dumpfilename = strdup (buffer);
+        if (strftime (buffer, sizeof (buffer), mountinfo->dumpfile, &local) == 0)
+        {
+            WARN3 ("had problem on %s expanding dumpfile %s (%s)", source->mount, mountinfo->dumpfile, strerror(errno));
+            errno = 0;
+        }
+        else
+            source->dumpfilename = strdup (buffer);
     }
     // check for pre-roll log file
     if (mountinfo && mountinfo->preroll_log.name)

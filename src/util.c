@@ -1211,7 +1211,9 @@ int util_get_clf_time (char *buffer, unsigned len, time_t now)
     snprintf (timezone_string, sizeof (timezone_string),
             "%%d/%%b/%%Y:%%H:%%M:%%S %c%.2d%.2d", sign, time_tz / 60, time_tz % 60);
 
-    return strftime (buffer, len, timezone_string, &thetime);
+    int r = strftime (buffer, len, timezone_string, &thetime);
+    if (r) errno = 0;
+    return r;
 }
 #else
 
@@ -1219,7 +1221,9 @@ int util_get_clf_time (char *buffer, unsigned len, time_t now)
 {
     struct tm thetime;
     localtime_r (&now, &thetime);
-    return strftime (buffer, len, "%d/%b/%Y:%H:%M:%S %z", &thetime);
+    int r = strftime (buffer, len, "%d/%b/%Y:%H:%M:%S %z", &thetime);
+    if (r) errno = 0;
+    return r;
 }
 
 #endif
