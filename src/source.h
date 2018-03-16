@@ -41,7 +41,7 @@ typedef struct source_tag
     char *intro_filename;
     icefile_handle intro_file;
     long intro_start;
-    icefile_handle preroll_log_id;
+    int preroll_log_id;
 
     char *dumpfilename; /* Name of a file to dump incoming stream to */
     FILE *dumpfile;

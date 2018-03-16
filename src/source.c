@@ -299,7 +299,8 @@ void source_clear_source (source_t *source)
     free (source->intro_filename);
     source->intro_filename = NULL;
     file_close (&source->intro_file);
-    file_close (&source->preroll_log_id);
+    log_close (source->preroll_log_id);
+    source->preroll_log_id = -1;
 }
 
 
