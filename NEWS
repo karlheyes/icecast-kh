@@ -14,7 +14,32 @@ Feature differences from SVN trunk
   of a theora+vorbis stream to have a vorbis only stream from the same source.
 . handlers setting for URL authenticator, for N requests at a time.
 
-any extra tags are show in the conf/icecast.xml.dist file
+any extra tags are shown in the conf/icecast.xml.dist file
+
+2.4.0-kh9
+. pre-roll logging options. like access log but report client details of intros played. Can be
+  per-mount or global. Also allow for IP recording to prevent intro play if reconnected within
+  N seconds.
+. add tag ssl-cafile to refer to a CA bundle other than the default. This way the cert is not
+  required to include it.
+. allow /admin/metadata to include parm intro or preroll to change the intro file used on a source.
+. split explicit mounts from list into a tree for quicj lookup. speeds up updating with many mount
+  definitions.
+. max-listeners setting in limits for server wide limitations.
+. worker balancing updates. avoid a lot of bouncing between workers for sources and allow more
+  listeners to be attracted to their source worker.
+. clean up shutdown procedure for race handling.
+. smaller SSL handling cleanup.
+. log messaging update.
+. mpeg parsing updates. Allows for better detection and reporting, identifies mismatches better,
+  and detects a few more frame types. The sync structure is also reduced so should help in caching.
+. rate averaging update.
+. minor tuning for intro drops, fix for 0- range requests and intros.
+. delay opening intro file until stream has started up, allows for format matching.
+. lessen write lock scope when reading xml.
+. failing to bind a socket at startup should be a termination event, although not on a reload.
+
+
 
 2.4.0-kh8
 
