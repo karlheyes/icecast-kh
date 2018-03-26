@@ -76,6 +76,7 @@ typedef struct source_tag
     uint64_t shrink_pos;
     uint64_t shrink_time;
 
+    unsigned buffer_count;
     unsigned timeout;  /* source timeout in seconds */
     uint64_t bytes_sent_at_update;
     uint64_t bytes_read_since_update;

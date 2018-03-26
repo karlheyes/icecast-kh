@@ -463,7 +463,6 @@ static void update_source_stats (source_t *source)
     source->bytes_sent_at_update = source->format->sent_bytes;
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 8000 : (8000 + (incoming_rate>>4));
-    source->incoming_rate = incoming_rate;
     if (incoming_rate)
         source->incoming_adj = 2000000/incoming_rate;
     else
@@ -597,6 +596,7 @@ int source_read (source_t *source)
                 }
                 if (source->stream_data_tail)
                     source->stream_data_tail->next = refbuf;
+                source->buffer_count++;
 
                 source->stream_data_tail = refbuf;
                 source->queue_size += refbuf->len;
@@ -619,14 +619,12 @@ int source_read (source_t *source)
                 /* save stream to file */
                 if (source->dumpfile && source->format->write_buf_to_file)
                     source->format->write_buf_to_file (source, refbuf);
-                skip = 0;
-                if (source->shrink_time == 0)
+                if (source->shrink_time == 0 && (source->buffer_count & 7) == 7)
                 {
                     // kick off timed response to find oldest buffer.
                     source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
                     source->shrink_time = client->worker->time_ms + 500;
-                    client->schedule_ms += 15;
-                    return 0;
+                    break;
                 }
             }
             else
@@ -642,6 +640,8 @@ int source_read (source_t *source)
             loop--;
         } while (loop);
 
+        if (source->shrink_time)  // skip queue purging until checked.
+            break;
         /* lets see if we have too much data in the queue */
         loop = 40 + (source->incoming_rate >> 15); // scale max on high bitrates
         if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
@@ -713,6 +713,8 @@ static int source_client_read (client_t *client)
     }
     if (source_running (source))
     {
+        if ((source->buffer_count & 3) == 3)
+            source->incoming_rate = (long)rate_avg (source->in_bitrate);
         if (source->limit_rate)
         {
             if (source->limit_rate < (8 * source->incoming_rate) && global.running == ICE_RUNNING)
@@ -1436,6 +1438,7 @@ void source_init (source_t *source)
     /* so the first set of average stats after 3 seconds */
     source->client_stats_update = source->last_read + 3;
     source->skip_duration = 40;
+    source->buffer_count = 0;
 
     util_dict_free (source->audio_info);
     source->audio_info = util_dict_new();
