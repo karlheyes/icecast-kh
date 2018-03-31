@@ -621,7 +621,7 @@ int source_read (source_t *source)
                     source->format->write_buf_to_file (source, refbuf);
                 if (source->shrink_time == 0 && (source->buffer_count & 7) == 7)
                 {
-                    // kick off timed response to find oldest buffer.
+                    // kick off timed response to find oldest buffer. Every so many buffers
                     source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
                     source->shrink_time = client->worker->time_ms + 500;
                     break;
@@ -640,20 +640,19 @@ int source_read (source_t *source)
             loop--;
         } while (loop);
 
-        if (source->shrink_time)  // skip queue purging until checked.
-            break;
-        /* lets see if we have too much data in the queue */
-        loop = 40 + (source->incoming_rate >> 15); // scale max on high bitrates
-        if (source->shrink_time && source->shrink_time <= client->worker->time_ms)
+        if (source->shrink_time)
         {
+            if (source->shrink_time > client->worker->time_ms)
+                break;      // not time yet to consider the purging point
             queue_size_target = 4000 + (source->client->queue_pos - source->shrink_pos);
             source->shrink_pos = 0;
             source->shrink_time = 0;
         }
-        else if (source->listeners)
-            queue_size_target = source->queue_size_limit;
-        else
-            queue_size_target = source->min_queue_size;
+        /* lets see if we have too much data in the queue */
+        if (queue_size_target == 0)
+            queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_size;
+
+        loop = 40 + (source->incoming_rate >> 15); // scale max on high bitrates
         while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
