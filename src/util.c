@@ -808,13 +808,18 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
     cutoff = sid - calc->samples;
     if (calc->cycle_till)
     {
-        struct rate_calc_node *next = calc->current->next;
-        if (next->index < calc->cycle_till)
-            cutoff = next->index + 1;
-        else
-        {
+        do {
+            if (calc->current)
+            {
+                struct rate_calc_node *next = calc->current->next;
+                if (next->index < calc->cycle_till)
+                {
+                    cutoff = next->index + 1;
+                    break;
+                }
+            }
             calc->cycle_till = 0;
-        }
+        } while (0);
     }
     if (value == 0 && calc->current && calc->current->value == 0)
     {
