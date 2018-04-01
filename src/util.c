@@ -896,7 +896,7 @@ long rate_avg_shorten (struct rate_calc *calc, unsigned int t)
     thread_spin_lock (&calc->lock);
     if (calc && calc->blocks > 1)
     {
-        range = (float)(calc->current->index - calc->current->next->index) + 1;
+        range = (float)(calc->current->index - calc->current->next->index);
         if (range < 1)
             range = 1;
         total = calc->total;
