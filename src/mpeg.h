@@ -58,7 +58,7 @@ typedef struct mpeg_sync
 
 #define MPEG_LOG_MESSAGES   (1)
 #define MPEG_SKIP_SYNC      (1<<2)
-#define MPEG_KEEP_EOF_TAGS  (1<<3)
+#define MPEG_KEEP_META      (1<<3)
 
 void mpeg_setup (mpeg_sync *mpsync, const char *mount);
 void mpeg_cleanup (mpeg_sync *mpsync);

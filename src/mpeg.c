@@ -182,7 +182,10 @@ static int handle_aac_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned
 
     if (cb && cb->frame_callback)
         if (cb->frame_callback (mp, cb, p, frame_len, header_len) < 0)
+        {
+            mp->sample_count = 0;
             return -1;
+        }
 
     return frame_len;
 }
@@ -285,13 +288,17 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigne
             if (mp->settings & MPEG_LOG_MESSAGES)
                 INFO1 ("detected invalid frame on %s, skipping", mp->reference);
         }
+        mp->sample_count = 0;
         return -1;
     }
     if (remaining - frame_len < 0)
         return 0;
     if (cb && cb->frame_callback)
         if (cb->frame_callback (mp, cb, p, frame_len, (p[1] & 0x1) ? 4 : 6) < 0)
+        {
+            mp->sample_count = 0;
             return -1;
+        }
     return frame_len;
 }
 
@@ -303,8 +310,12 @@ static int handle_ts_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned 
     if (remaining - frame_len < 0)
         return 0;
     if (frame_len < remaining && p[frame_len] != 0x47)
+    {
         if (mp->settings & MPEG_LOG_MESSAGES)
             INFO1 ("missing frame marker from %s", mp->reference);
+        mp->sample_count = 0;
+        frame_len = -1;
+    }
     return frame_len;
 }
 
@@ -469,7 +480,11 @@ static int handle_usac_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigne
     if (remaining - frame_len < 0)
         return 0;
     if (frame_len < remaining && p[frame_len] != 0x56)
+    {
         INFO1 ("missing frame marker from %s", mp->reference);
+        mp->sample_count = 0;
+        frame_len = -1;
+    }
     return frame_len;
 }
 
@@ -542,8 +557,12 @@ static int handle_id3_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned
 
     if (remaining - frame_len < 0)
         return 0;
-    mp->mask = 0;
-    return frame_len;
+    if (mp->settings & MPEG_KEEP_META)
+    {
+        mp->mask = 0;
+        return frame_len;
+    }
+    return -1;
 }
 
 static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remaining)
@@ -592,7 +611,7 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         {
             if (remaining < 128)
                 return 0;
-            if (mp->settings & MPEG_KEEP_EOF_TAGS)
+            if (mp->settings & MPEG_KEEP_META)
             {
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
@@ -852,13 +871,17 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
                 mp->resync_count = 0;
                 continue;
             }
+            if (mp->sample_count == 0 || remaining < mp->sample_count)
+               mp->sample_count = 1;
             if ((new_block->flags & REFBUF_SHARED) == 0)
             {
-                memmove (start, start+1, remaining-1);
-                new_block->len--;
+                memmove (start, start+mp->sample_count, remaining-mp->sample_count);
+                new_block->len -= mp->sample_count;
             }
             else
-                start++;
+                start += mp->sample_count;
+            mp->sample_count = 0;
+            mp->mask = 0;
             continue;
         }
 
