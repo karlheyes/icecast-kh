@@ -481,7 +481,7 @@ int source_read (source_t *source)
     refbuf_t *refbuf = NULL;
     int skip = 1, loop = 1;
     time_t current = client->worker->current_time.tv_sec;
-    long queue_size_target;
+    long queue_size_target = 0;
     int fds = 0;
 
     if (global.running != ICE_RUNNING)

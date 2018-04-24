@@ -22,7 +22,7 @@
 #if HAVE_GLOB_H
 #include <glob.h>
 #endif
-
+#include <errno.h>
 #include <fnmatch.h>
 #include "thread/thread.h"
 #include "cfgfile.h"
