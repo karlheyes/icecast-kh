@@ -474,7 +474,7 @@ void log_commit_entries ()
             if (loglist [log_id].in_use)
                 c = do_log_run (log_id);
             if (c == 0) break;      // skip to next log
-        } while ((count += c) < 1000);
+        } while ((count += c) < 10000);
     }
     _unlock_logger ();
 }
