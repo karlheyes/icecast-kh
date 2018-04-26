@@ -371,7 +371,7 @@ void log_close(int log_id)
     int loop = 0;
     while (++loop < 10 && do_log_run (log_id) > 0)
         ;
-    loglist[log_id].level = 2;
+    //loglist[log_id].level = 2;
     free (loglist[log_id].filename);
     loglist[log_id].filename = NULL;
     if (loglist[log_id].buffer) free(loglist[log_id].buffer);
@@ -533,7 +533,8 @@ static int create_log_entry (int log_id, const char *line)
         log_callback (log_id);
     else
         do_log_run (log_id);
-    do_purge (log_id);
+    if (loglist [log_id].entries > 1)
+        do_purge (log_id);
     return len;
 }
 

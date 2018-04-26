@@ -1060,6 +1060,9 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     mount->access_log.log_ip = 1;
     mount->fallback_override = 1;
     mount->max_send_size = 0;
+    mount->preroll_log.logid = -1;
+    mount->preroll_log.display = 50;
+    mount->preroll_log.archive = -1;
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
