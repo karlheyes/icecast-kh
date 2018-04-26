@@ -1100,7 +1100,6 @@ static int http_source_listener (client_t *client)
             ERROR1 ("internal problem, dropping client %" PRIu64, client->connection.id);
             return -1;
         }
-        client->flags |= CLIENT_HAS_INTRO_CONTENT;
         stats_lock (source->stats, source->mount);
         stats_set_inc (source->stats, "listener_connections");
         stats_release (source->stats);

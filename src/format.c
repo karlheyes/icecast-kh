@@ -193,7 +193,6 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
             if (file_in_use (f) == 0)
                 return -2;
             refbuf = client->refbuf = refbuf_new (len);
-            client->flags |= CLIENT_HAS_INTRO_CONTENT;
             client->pos = refbuf->len;
             client->queue_pos = 0;
             refbuf->flags |= BUFFER_LOCAL_USE;
