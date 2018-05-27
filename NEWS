@@ -16,6 +16,12 @@ Feature differences from SVN trunk
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0-kh10
+. stop ID3 in streams for now, some browsers can have playback problems.
+. fix memory leak case in the queue from previous release.
+. fix crash bug on source timeout
+. various internal changes for building, rate calculations
+
 2.4.0-kh9
 . pre-roll logging options. like access log but report client details of intros played. Can be
   per-mount or global. Also allow for IP recording to prevent intro play if reconnected within
