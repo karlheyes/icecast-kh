@@ -4,6 +4,7 @@
  * A copy of this license is included with this source.
  *
  * Copyright 2009-2012,  Karl Heyes <karl@xiph.org>
+ * Copyright 2012-2018,  Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* mpeg.c
@@ -54,11 +55,13 @@ int mpeg_samplerates [4][4] = {
 // bits 24-31 (8)   channels
 // bits 8-23 (16)   bitrate
 //
-// bit 4            allow trailing tags, eg from file
+// bit 4            resize block to sample_count size
+// bit 3            allow trailing tags, eg from file
 // bit 2            skip processing
 // bit 1            change detected
 // bit 0            log messages
 
+#define SYNC_RESIZE                     (1<<4)
 #define SYNC_CHANGED                    (1<<1)
 
 #define SYNC_BITRATE_OFF                8
@@ -149,7 +152,7 @@ int mpeg_get_layer (struct mpeg_sync *mp)
 
 void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags)
 {
-    mpsync->settings |= flags;
+    mpsync->settings = flags;
 }
 
 
@@ -555,7 +558,7 @@ static int handle_id3_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned
 {
     int frame_len = mp->sample_count;
 
-    if (remaining - frame_len < 0)
+    if (remaining < frame_len)
         return 0;
     if (mp->settings & MPEG_KEEP_META)
     {
@@ -610,7 +613,7 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         if (memcmp (p, "TAG", 3) == 0)
         {
             if (remaining < 128)
-                return 0;
+                return 0;       // placed at the end of files.
             if (mp->settings & MPEG_KEEP_META)
             {
                 mp->process_frame = handle_id3_frame;
@@ -638,12 +641,17 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                 size = (size << 7) + (p[8] & 0x7f);
                 size = (size << 7) + (p[9] & 0x7f);
 
+                mp->sample_count = size + 10;
+                if (size > remaining)
+                {
+                    mp->settings |= SYNC_RESIZE;
+                    break;      // trigger a recheck
+                }
                 if (mp->settings & MPEG_LOG_MESSAGES)
                     INFO3 ("Detected ID3v2 (%d.%d), tag size %" PRIu64, ver, rev, (uint64_t)size);
                 mp->process_frame = handle_id3_frame;
                 mp->mask = 0xFF000000;
                 mp->marker = 0x49;      // match the 'I'
-                mp->sample_count = size + 10;
                 break;
             }
         }
@@ -688,12 +696,12 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
             INFO0 ("Detected Matroska, skipping");
         mp->settings |= MPEG_SKIP_SYNC;
         mp->type = FORMAT_TYPE_EBML;
-        return -1;
+        return 1;
     }
     if (memcmp (p, "OggS", 4) == 0)
     {
         if (mp->settings & MPEG_LOG_MESSAGES)
-            INFO0 ("Detected Ogg, skipping");
+            INFO0 ("Detected possible Ogg page, skipping");
         mp->settings |= MPEG_SKIP_SYNC;
         mp->type = FORMAT_TYPE_OGG;
         return -1;
@@ -819,6 +827,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
 {
     unsigned char *start, *end;
     int remaining, frame_len = 0, ret, loop = 50;
+    unsigned long samples = 0;
 
     if (mp == NULL || (mp->settings & MPEG_SKIP_SYNC))
         return 0;  /* leave as-is */
@@ -832,7 +841,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
                 syncframe_set_framecheck (mp, 1);
         }
         else
-            if (syncframe_chkframes (mp) == 1)
+            if (syncframe_chkframes (mp) <= 1)
                 syncframe_set_framecheck (mp, 4);
     }
     if (mp->surplus)
@@ -867,6 +876,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
                 break;
             if (frame_len > 0)
             {
+                samples += mp->sample_count;
                 start += frame_len;
                 mp->resync_count = 0;
                 continue;
@@ -905,6 +915,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
                     DEBUG3 ("no frame sync on %s, re-checking after skipping %d (%d)", mp->reference, ret, new_block->len);
                 new_block->len -= ret;
             }
+            samples = 0;
             continue;
         }
         if (mp->mask == 0)
@@ -914,6 +925,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
             {
                 // failed to detect a complete frame, try another search
                 *start = 0;
+                mp->settings &= ~MPEG_SKIP_SYNC;
                 continue;
             }
             if (ret == 0)
@@ -921,11 +933,29 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
                 if (remaining > 20000)
                     return -1;
                 if ((new_block->flags & REFBUF_SHARED) == 0)
-                    new_block->len = offset;
+                {
+                    unsigned new_len = new_block->len + 5000;
+                    unsigned char *p = realloc (new_block->data, new_len);
+                    new_block->data = (void*)p;
+                    new_block->len = new_len;
+                }
                 return remaining;
             }
             if (ret > 1) // detected case but avoid parsing
                 return 0;
+            if ((new_block->flags & REFBUF_SHARED) == 0)
+            {
+                if ((mp->settings & SYNC_RESIZE) && mp->sample_count < 2000000)
+                {
+                    unsigned new_len = mp->sample_count;
+                    unsigned char *p = realloc (new_block->data, new_len);
+
+                    new_block->data = (void*)p;
+                    new_block->len = new_len;
+                    mp->settings &= ~SYNC_RESIZE;
+                    return remaining;
+                }
+            }
         }
         loop--;
     }
@@ -937,6 +967,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
     }
     if (remaining && (new_block->flags & REFBUF_SHARED) == 0)
         new_block->len -= remaining;
+    mp->sample_count = samples;
     return remaining;
 }
 

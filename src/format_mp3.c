@@ -159,8 +159,11 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
         mpeg_setup (client->format_data, client->connection.ip);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
-    source_mp3->read_data = refbuf_new (8000);
-    source_mp3->read_count = 0;
+    if (source_mp3->read_data == NULL)
+    {
+        source_mp3->read_data = refbuf_new (8000);
+        source_mp3->read_count = 0;
+    }
 }
 
 
@@ -531,13 +534,9 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
 
     connection_bufs_init (&bufs, 2);
     len = connection_bufs_append (&bufs, metadata, meta_len);
-    if (block_len && len < client_mp3->max_send_size)
-    {
-        len = client_mp3->max_send_size - len;
-        if (block_len < len)
-            len = block_len;
-        len = connection_bufs_append (&bufs, refbuf->data + client->pos, len);
-    }
+    if (block_len)
+        len = connection_bufs_append (&bufs, refbuf->data + client->pos, block_len);
+
     ret = connection_bufs_send (&client->connection, &bufs, 0);
     connection_bufs_release (&bufs);
 
@@ -582,8 +581,8 @@ static int format_mp3_write_buf_to_client (client_t *client)
     len = refbuf->len - client->pos;
     if (client_mp3->interval && len > client_mp3->interval - client_mp3->since_meta_block)
         len = client_mp3->interval - client_mp3->since_meta_block;
-    if (len > client_mp3->max_send_size)
-        len = client_mp3->max_send_size; // do not send a huge amount out in one go
+    if (len > 100000)
+        len = 100000; // do not send a huge amount out in one go
 
     if (len)
     {
@@ -793,6 +792,7 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     mp3_state *source_mp3 = source->format->_state;
     mpeg_sync *mpeg_sync = client->format_data;
 
+    int orig_len = refbuf->len;
     int unprocessed = mpeg_complete_frames (mpeg_sync, refbuf, 0);
 
     if (unprocessed < 0 || unprocessed > 20000) /* too much unprocessed really, may not be parsing */
@@ -829,6 +829,17 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         size_t len;
         refbuf_t *leftover;
 
+        if (orig_len < refbuf->len)
+        {
+            source_mp3->read_data = refbuf_new (0);
+            source_mp3->read_data->data = refbuf->data;
+            source_mp3->read_data->len = refbuf->len;
+            source_mp3->read_count = unprocessed;
+            refbuf->data = NULL;
+            client->pos = unprocessed;
+            return -1;
+        }
+
         if (source_mp3->inline_metadata_interval > 0)
         {
             if (source_mp3->inline_metadata_interval <= source_mp3->offset)
@@ -843,29 +854,12 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
             // not reached the metadata block so save and rewind for completing the read
             source_mp3->offset -= unprocessed;
         }
-        // subtle adjustments to the qblock_sz to limit subsequent memory copies
-        if (source_mp3->req_qblock_sz)
-        {
-            if (refbuf->len)
-            {
-                if (unprocessed < source_mp3->qblock_sz && source_mp3->qblock_sz > source_mp3->req_qblock_sz)
-                    len = (source_mp3->qblock_sz -= (unprocessed - 10));
-                else
-                    len = (source_mp3->qblock_sz += 400);
-            }
-            else
-            {
-                len = unprocessed + (source_mp3->req_qblock_sz < unprocessed ? 400 : 200);
-                source_mp3->qblock_sz = len;
-            }
-        }
-        else
-        {
-            int multi = 6;
-            if (source->incoming_rate)
-                multi = (source->incoming_rate/140000) + 1;
-            len = source_mp3->qblock_sz = 1400 * (multi < 16 ? multi : 16);
-        }
+
+        int multi = 6;
+        if (source->incoming_rate)
+            multi = (source->incoming_rate/140000) + 1;
+        len = source_mp3->qblock_sz = 1400 * (multi < 17 ? multi : 17);
+
         if (len < unprocessed + 40) // avoid extreme block shrinkage
         {
             WARN3 ("source %s, len %ld, unprocessed %d", source->mount, (long)len, unprocessed);
