@@ -1877,7 +1877,15 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
 
     /* handle MIME-type */
     if (mountinfo && mountinfo->type)
+    {
+        if (source->format)
+        {
+            source->format->type = format_get_type(mountinfo->type);
+            free (source->format->contenttype);
+            source->format->contenttype = strdup (mountinfo->type);
+        }
         stats_set (source->stats, "server_type", mountinfo->type);
+    }
     else
         if (source->format && source->format->contenttype)
             stats_set (source->stats, "server_type", source->format->contenttype);
