@@ -130,6 +130,7 @@ td {
     padding: 0px;
     margin: 0px;
     border-collapse: collapse;
+		border-radius: 20px;
 }
 .roundcont table{
     border: none;
@@ -264,12 +265,15 @@ h3 {
     text-align: center;
     border: none;
 }
-.roundtop { 
-	background: url(images/corner_topright.jpg) no-repeat top right; 
+
+div.roundtop {
+	min-height: 15px;
+	min-width: 15px;
 }
 
-.roundbottom {
-	background: url(images/corner_bottomright.jpg) no-repeat top right; 
+div.roundbottom {
+	min-height: 15px;
+	min-width: 15px;
 }
 
 .banner td {
@@ -277,22 +281,18 @@ h3 {
     vertical-align: top;
 }
 td.topleft {
-    background: url("images/corner_topleft.jpg") no-repeat top left;
     height: 15px;
     width: 15px;
 }
 td.topright {
-    background: url("images/corner_topright.jpg") no-repeat top right;
     height: 15px;
     width: 15px;
 }
 td.bottomleft {
-    background: url("images/corner_bottomleft.jpg") no-repeat bottom left;
     height: 15px;
     width: 15px;
 }
 td.bottomright {
-    background: url("images/corner_bottomright.jpg") no-repeat bottom right;
     height: 15px;
     width: 15px;
 }
