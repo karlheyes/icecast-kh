@@ -300,6 +300,7 @@ typedef struct ice_config_tag
     int max_redirects;
     struct _redirect_host *redirect_hosts;
     struct xforward_entry *xforward;
+    int allow_all_xforward;
 
     relay_server *relays;
 

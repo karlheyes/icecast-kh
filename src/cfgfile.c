@@ -919,6 +919,7 @@ static int _parse_paths (xmlNodePtr node, void *arg)
         { "basedir",        config_get_str, &config->base_dir },
         { "logdir",         config_get_str, &config->log_dir },
         { "x-forwarded-for",parse_xforward, &config->xforward },
+        { "all-x-forwarded-for",    config_get_int, &config->allow_all_xforward },
         { "mime-types",     config_get_str, &config->mimetypes_fn },
         { "pidfile",        config_get_str, &config->pidfile },
         { "banfile",        config_get_str, &config->banfile },

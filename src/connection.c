@@ -1628,7 +1628,8 @@ static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
         if (hdr == NULL) break;
         while (xforward)
         {
-            if (strcmp (xforward->ip, client->connection.ip) == 0)
+            if (config->allow_all_xforward == 1 ||
+                strcmp (xforward->ip, client->connection.ip) == 0)
             {
                 int len = strcspn (hdr, ",") + 1;
                 char *ip = malloc (len);
