@@ -1626,7 +1626,7 @@ static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
         const char *hdr = httpp_getvar (client->parser, "x-forwarded-for");
         struct xforward_entry *xforward = config->xforward;
         if (hdr == NULL) break;
-        while (xforward)
+        while (xforward || config->allow_all_xforward == 1)
         {
             if (config->allow_all_xforward == 1 ||
                 strcmp (xforward->ip, client->connection.ip) == 0)
