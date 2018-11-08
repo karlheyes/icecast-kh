@@ -513,6 +513,11 @@ static auth_result url_add_listener (auth_client *auth_user)
         free (username);
         free (password);
         free (ipaddr);
+        if (poffset < 0 || poffset >= sizeof (post))
+        {
+            WARN2 ("client from %s (on %s), rejected with headers problem", &client->connection.ip[0], auth_user->mount);
+            return AUTH_FAILED;
+        }
     } while (0);
 
     if (url->header_chk_list)
@@ -528,14 +533,15 @@ static auth_result url_add_listener (auth_client *auth_user)
             if (val)
             {
                 char *valesc = util_url_escape (val);
-                int r = snprintf (post+poffset, remaining, "&%s%s=%s", prefix, cur_header, valesc);
+                int r = remaining > 0 ? snprintf (post+poffset, remaining, "&%s%s=%s", prefix, cur_header, valesc) : -1;
                 free (valesc);
-                if (ret < 0 || ret > remaining)
+                if (r < 0 || r > remaining)
                 {
-                    WARN2 ("client from %s (on %s), with long POST", &client->connection.ip[0], auth_user->mount);
+                    WARN2 ("client from %s (on %s), rejected with too much in headers", &client->connection.ip[0], auth_user->mount);
                     return AUTH_FAILED;
                 }
                 poffset += r;
+                remaining -= r;
             }
             cur_header += (len + 1); // get past next nul
         }
