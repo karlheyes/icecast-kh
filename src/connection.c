@@ -1153,14 +1153,40 @@ static int shoutcast_source_client (client_t *client)
                 return 0;
 
             refbuf->data [len] = '\0';
-            snprintf (header, sizeof(header), "source:%s", refbuf->data);
-            esc_header = util_base64_encode (header);
-
             len += 1 + strspn (refbuf->data+len+1, "\r\n");
+
+            char *login_end = refbuf->data + strlen(refbuf->data);
+            char *login_pass = strchr(refbuf->data, ':');
+            char *login_mount = strchr(refbuf->data, '@');
+
+            if(login_pass) *login_pass++ = '\0';
+            if(login_mount) *login_mount++ = '\0';
+
+            snprintf (header, sizeof(header), "%s:%s",
+                login_pass && (!login_mount || (login_mount && login_mount > refbuf->data +1)) ? refbuf->data : "source",
+                login_pass && login_pass < login_end ? login_pass : refbuf->data
+            );
+
+            if(login_mount && login_mount < login_end)
+            {
+              if(*login_mount != '/')
+                *--login_mount = '/';
+
+              // Reject mounts with "unsafe" characters. Behavior is unpredictable/undesirable
+              if (!util_url_safe(login_mount +1)) {
+                INFO1("rejected mount '%s'", login_mount);
+                break;
+              }
+            } else {
+                login_mount = client->server_conn->shoutcast_mount;
+            }
+
             r = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+            esc_header = util_base64_encode (header);
             snprintf (r->data, PER_CLIENT_REFBUF_SIZE,
-                    "SOURCE %s HTTP/1.0\r\n" "Authorization: Basic %s\r\n%s",
-                    client->server_conn->shoutcast_mount, esc_header, refbuf->data+len);
+                "SOURCE %s HTTP/1.0\r\n" "Authorization: Basic %s\r\n%s",
+                    login_mount, esc_header, refbuf->data+len);
+
             r->len = strlen (r->data);
             free (esc_header);
             client->respcode = 200;
@@ -1171,7 +1197,7 @@ static int shoutcast_source_client (client_t *client)
             client->refbuf = resp;
             refbuf_release (refbuf);
             client->shared_data = NULL;
-            INFO1 ("emulation on %s", client->server_conn->shoutcast_mount);
+            INFO1 ("emulation on %s", login_mount);
         }
         format_generic_write_to_client (client);
         if (client->pos == client->refbuf->len)

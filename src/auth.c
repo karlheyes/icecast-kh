@@ -964,7 +964,7 @@ int auth_check_source (client_t *client, const char *mount)
             ret = -1;
             if (mountinfo->password)
                 pass = mountinfo->password;
-            if (mountinfo->username && client->server_conn->shoutcast_compat == 0)
+            if (mountinfo->username)
                 user = mountinfo->username;
         }
         if (connection_check_pass (client->parser, user, pass) > 0)

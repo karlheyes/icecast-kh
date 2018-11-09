@@ -326,17 +326,36 @@ int admin_handle_request (client_t *client, const char *uri)
         if (pass == NULL)
             return client_send_400 (client, "missing pass parameter");
         uri++;
+
+        char *pass_copy = strdup(pass);
+        char *login_end = pass_copy + strlen(pass_copy);
+        char *login_pass = strchr(pass_copy, ':');
+        char *login_mount = strchr(pass_copy, '@');
+
+        if(login_pass) *login_pass++ = '\0';
+        if(login_mount) *login_mount++ = '\0';
+
+        client->username = strdup(login_pass && (!login_mount || (login_mount && login_mount > pass_copy +1)) ? pass_copy : "source");
+        client->password = strdup(login_pass && login_pass < login_end ? login_pass : pass_copy);
+
         if (mount == NULL)
         {
-            if (client->server_conn && client->server_conn->shoutcast_mount)
-                httpp_set_query_param (client->parser, "mount",
+            if (login_mount && login_mount < login_end)
+            {
+              if(*login_mount != '/')
+                *--login_mount = '/';
+              httpp_set_query_param (client->parser, "mount", login_mount);
+            }
+            else if (client->server_conn && client->server_conn->shoutcast_mount)
+            {
+              httpp_set_query_param (client->parser, "mount",
                         client->server_conn->shoutcast_mount);
+            }
             mount = httpp_get_query_param (client->parser, "mount");
         }
+        free(pass_copy);
         httpp_setvar (client->parser, HTTPP_VAR_PROTOCOL, "ICY");
-        httpp_setvar (client->parser, HTTPP_VAR_ICYPASSWORD, pass);
-        client->username = strdup ("source");
-        client->password = strdup (pass);
+        httpp_setvar (client->parser, HTTPP_VAR_ICYPASSWORD, client->password);
     }
     else
         uri += 7;

@@ -34,6 +34,7 @@ char *util_base64_encode(const char *data);
 char *util_base64_decode(const char *input);
 char *util_bin_to_hex(unsigned char *data, int len);
 
+_Bool util_url_safe (const char *src);
 char *util_url_unescape(const char *src);
 char *util_url_escape(const char *src);
 
