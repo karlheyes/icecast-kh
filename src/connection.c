@@ -1163,20 +1163,21 @@ static int shoutcast_source_client (client_t *client)
             if(login_mount) *login_mount++ = '\0';
 
             snprintf (header, sizeof(header), "%s:%s",
-                login_pass && (!login_mount || (login_mount && login_mount > refbuf->data +1)) ? refbuf->data : "source",
+                login_pass && (!login_mount || (login_mount && login_mount > refbuf->data +1))
+                    ? refbuf->data : "source",
                 login_pass && login_pass < login_end ? login_pass : refbuf->data
             );
 
             if(login_mount && login_mount < login_end)
             {
-              if(*login_mount != '/')
-                *--login_mount = '/';
+                if(*login_mount != '/') *--login_mount = '/';
 
-              // Reject mounts with "unsafe" characters. Behavior is unpredictable/undesirable
-              if (!util_url_safe(login_mount +1)) {
-                INFO1("rejected mount '%s'", login_mount);
-                break;
-              }
+                // Reject mounts with "unsafe" characters. Behavior is unpredictable/undesirable
+                if (!util_url_safe(login_mount +1)) 
+                {
+                    INFO1("rejected mount '%s'", login_mount);
+                    break;
+                }
             } else {
                 login_mount = client->server_conn->shoutcast_mount;
             }
