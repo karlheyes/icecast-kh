@@ -55,14 +55,17 @@ int mpeg_samplerates [4][4] = {
 // bits 24-31 (8)   channels
 // bits 8-23 (16)   bitrate
 //
-// bit 4            resize block to sample_count size
+// bit 6            check for TAG frame next, avoid format resync
+// bit 5            resize block to sample_count size
+// bit 4            last ID3 frame cached
 // bit 3            allow trailing tags, eg from file
 // bit 2            skip processing
 // bit 1            change detected
 // bit 0            log messages
 
-#define SYNC_RESIZE                     (1<<4)
 #define SYNC_CHANGED                    (1<<1)
+#define SYNC_RESIZE                     (1<<5)
+#define SYNC_CHK_TAG                    (1<<6)
 
 #define SYNC_BITRATE_OFF                8
 #define SYNC_CHANNELS_OFF               24
@@ -150,9 +153,9 @@ int mpeg_get_layer (struct mpeg_sync *mp)
     return (mp->settings >> SYNC_MPEG_LAYER_OFF) & 0x3;
 }
 
-void mpeg_set_flags (mpeg_sync *mpsync, unsigned flags)
+void mpeg_set_flags (mpeg_sync *mpsync, uint64_t flags)
 {
-    mpsync->settings = flags;
+    mpsync->settings |= flags;
 }
 
 
@@ -560,6 +563,15 @@ static int handle_id3_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigned
 
     if (remaining < frame_len)
         return 0;
+    if (mp->settings & MPEG_COPY_META)
+    {
+        DEBUG2 ("caching ID3 frame of %d on %s", frame_len, mp->reference);
+        free (mp->tag_data);
+        mp->tag_data = malloc (frame_len);
+        mp->tag_len = frame_len;
+        memcpy (mp->tag_data, p, frame_len);
+        mp->settings |= SYNC_CHANGED;
+    }
     if (mp->settings & MPEG_KEEP_META)
     {
         mp->mask = 0;
@@ -577,6 +589,8 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
         if (remaining < 16) break;
 
         ret = 1;
+        int set_callback = (mp->mask) ? 0 : 1;
+
         if (memcmp (p, "APETAGEX", 8) == 0)
         {
             unsigned int ver = p[8], len = p[12];
@@ -593,11 +607,14 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
 
             if (len > remaining)
                 return 0;
-            if (mp->settings & (1<<8))
+            if (mp->settings & MPEG_KEEP_META)
             {
-                mp->process_frame = handle_id3_frame;
-                mp->mask = 0xFF000000;
-                mp->marker = 0x41;  // match the 'A'
+                if (set_callback)
+                {
+                    mp->process_frame = handle_id3_frame;
+                    mp->mask = 0xFF000000;
+                    mp->marker = 0x41;  // match the 'A'
+                }
                 mp->sample_count = len;
                 if (mp->settings & MPEG_LOG_MESSAGES)
                     DEBUG2 ("Detected APETAG v%u, length %u", ver, len);
@@ -648,10 +665,13 @@ static int check_for_id3 (struct mpeg_sync *mp, unsigned char *p, unsigned remai
                     break;      // trigger a recheck
                 }
                 if (mp->settings & MPEG_LOG_MESSAGES)
-                    INFO3 ("Detected ID3v2 (%d.%d), tag size %" PRIu64, ver, rev, (uint64_t)size);
-                mp->process_frame = handle_id3_frame;
-                mp->mask = 0xFF000000;
-                mp->marker = 0x49;      // match the 'I'
+                    INFO4 ("Detected ID3v2 (%d.%d), tag size %" PRIu64 " on %s", ver, rev, (uint64_t)size, mp->reference);
+                if (set_callback)
+                {
+                    mp->process_frame = handle_id3_frame;
+                    mp->mask = 0xFF000000;
+                    mp->marker = 0x49;      // match the 'I'
+                }
                 break;
             }
         }
@@ -684,7 +704,7 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
         return 2; // we should skip processing
 
     // reset all but external options
-    mp->settings &= (0x9|SYNC_CHKFRAME_MASK);
+    mp->settings &= (MPEG_LOG_MESSAGES|MPEG_KEEP_META|MPEG_COPY_META|SYNC_CHKFRAME_MASK);
 
     mp->type = FORMAT_TYPE_UNDEFINED;
 
@@ -727,12 +747,17 @@ static int get_initial_frame (struct mpeg_sync *mp, unsigned char *p, unsigned r
 
 
 
-static int match_syncbits (mpeg_sync *mp, unsigned char *p)
+static int match_syncbits (mpeg_sync *mp, unsigned char *p, unsigned remaining)
 {
     unsigned long v = make_val32 (p);
 
     if ((v & mp->mask) != mp->match)
-        return -1;
+    {
+        int ret = check_for_id3 (mp, p, remaining);
+        if (ret < 0)
+            return -1;
+        mp->settings |= SYNC_CHK_TAG;
+    }
     return 0;
 }
 
@@ -765,7 +790,7 @@ static int find_align_sync (mpeg_sync *mp, unsigned char *start, int remaining, 
                 r = remaining - (p - start);
                 if (r < 4)
                     break;
-                if (match_syncbits (mp, p) == 0)
+                if (match_syncbits (mp, p, remaining) == 0)
                     break;
                 s = p+1;
                 r--;
@@ -832,6 +857,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
     if (mp == NULL || (mp->settings & MPEG_SKIP_SYNC))
         return 0;  /* leave as-is */
     
+    mp->settings &= ~SYNC_RESIZE;
     mp->sample_count = 0;
     if (offset == 0)
     {
@@ -869,9 +895,26 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
         //DEBUG2 ("block size %d, remaining now %d", new_block->len, remaining);
         if (remaining < 10) /* make sure we have some bytes to check */
             break;
-        if (mp->mask && match_syncbits (mp, start) == 0) 
+        if (mp->mask && match_syncbits (mp, start, remaining) == 0)
         {
-            frame_len = mp->process_frame (mp, cb, start, remaining);
+            if (mp->settings & SYNC_CHK_TAG)
+            {
+                // tags can be injected midstream, so avoid a full resync as they would be only a frame, but handle
+                // the possible resizing of the block.
+                if (mp->settings & SYNC_RESIZE)
+                {
+                    unsigned old_len = new_block->len;
+                    unsigned new_len = old_len - remaining + (mp->sample_count ? mp->sample_count : 5000);
+                    unsigned char *p = realloc (new_block->data, new_len);
+                    new_block->data = (void*)p;
+                    new_block->len = new_len;
+                    mp->settings &= ~SYNC_CHK_TAG;
+                    return old_len;
+                }
+                frame_len = handle_id3_frame (mp, cb, start, remaining);
+            }
+            else
+                frame_len = mp->process_frame (mp, cb, start, remaining);
             if (frame_len == 0)
                 break;
             if (frame_len > 0)
@@ -879,10 +922,15 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
                 samples += mp->sample_count;
                 start += frame_len;
                 mp->resync_count = 0;
+                mp->settings &= ~SYNC_CHK_TAG;
                 continue;
             }
-            if (mp->sample_count == 0 || remaining < mp->sample_count)
-               mp->sample_count = 1;
+            if ((mp->settings & SYNC_CHK_TAG) == 0)
+            {
+                if (mp->sample_count == 0 || remaining < mp->sample_count)
+                    mp->sample_count = 1;
+                mp->mask = 0;
+            }
             if ((new_block->flags & REFBUF_SHARED) == 0)
             {
                 memmove (start, start+mp->sample_count, remaining-mp->sample_count);
@@ -891,7 +939,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
             else
                 start += mp->sample_count;
             mp->sample_count = 0;
-            mp->mask = 0;
+            mp->settings &= ~SYNC_CHK_TAG;
             continue;
         }
 
@@ -901,10 +949,10 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
         {
             if (ret == remaining && ret > 800)
                mp->mask = 0;
-            if (mp->resync_count > 20000)
+            if (mp->resync_count > 100000)
             {
                 if (mp->settings & MPEG_LOG_MESSAGES)
-                    INFO1 ("no frame sync after 20k on %s", mp->reference);
+                    INFO1 ("no frame sync after 100k on %s", mp->reference);
                 mp->settings |= MPEG_SKIP_SYNC; // lets skip parsing
                 mp->type = FORMAT_TYPE_UNDEFINED;
                 return 0;
@@ -930,15 +978,17 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
             }
             if (ret == 0)
             {
-                if (remaining > 20000)
+                if (remaining > 100000)
                     return -1;
-                if ((new_block->flags & REFBUF_SHARED) == 0)
+                if ((new_block->flags & REFBUF_SHARED) == 0 && (mp->settings & SYNC_RESIZE))
                 {
-                    unsigned new_len = new_block->len + 5000;
+                    unsigned new_len = mp->sample_count ? mp->sample_count : new_block->len + 5000;
                     unsigned char *p = realloc (new_block->data, new_len);
                     new_block->data = (void*)p;
                     new_block->len = new_len;
                 }
+                else
+                    new_block->len = offset;
                 return remaining;
             }
             if (ret > 1) // detected case but avoid parsing
@@ -947,12 +997,11 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
             {
                 if ((mp->settings & SYNC_RESIZE) && mp->sample_count < 2000000)
                 {
-                    unsigned new_len = mp->sample_count;
+                    unsigned new_len = mp->sample_count + (new_block->len - remaining);
                     unsigned char *p = realloc (new_block->data, new_len);
 
                     new_block->data = (void*)p;
                     new_block->len = new_len;
-                    mp->settings &= ~SYNC_RESIZE;
                     return remaining;
                 }
             }
@@ -971,6 +1020,24 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
     return remaining;
 }
 
+
+int mpeg_tag_found (mpeg_sync *mp, const unsigned char **p, unsigned int *l)
+{
+    int r = -1;
+    if (p && l)
+    {
+       *p = mp->tag_data;
+       *l = mp->tag_len;
+       r = 0;
+    }
+    return r;
+}
+
+
+int mpeg_block_expanded (mpeg_sync *mp)
+{
+    return (mp && (mp->settings & SYNC_RESIZE)) ? 1 : 0;
+}
 
 void mpeg_data_insert (mpeg_sync *mp, refbuf_t *inserted)
 {
@@ -1003,6 +1070,7 @@ void mpeg_cleanup (mpeg_sync *mpsync)
 {
     if (mpsync)
     {
+        free (mpsync->tag_data);
         refbuf_release (mpsync->surplus);
         mpsync->reference = NULL;
     }

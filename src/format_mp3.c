@@ -792,7 +792,6 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     mp3_state *source_mp3 = source->format->_state;
     mpeg_sync *mpeg_sync = client->format_data;
 
-    int orig_len = refbuf->len;
     int unprocessed = mpeg_complete_frames (mpeg_sync, refbuf, 0);
 
     if (unprocessed < 0 || unprocessed > 20000) /* too much unprocessed really, may not be parsing */
@@ -829,7 +828,7 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         size_t len;
         refbuf_t *leftover;
 
-        if (orig_len < refbuf->len)
+        if (mpeg_block_expanded (mpeg_sync))
         {
             source_mp3->read_data = refbuf_new (0);
             source_mp3->read_data->data = refbuf->data;
