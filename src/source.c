@@ -273,6 +273,8 @@ void source_clear_source (source_t *source)
         refbuf_t *to_go = source->stream_data;
         source->stream_data = to_go->next;
         to_go->next = NULL;
+        if (source->format->detach_queue_block)
+            source->format->detach_queue_block (source, to_go);
         refbuf_release (to_go);
     }
     source->min_queue_point = NULL;
@@ -667,6 +669,8 @@ int source_read (source_t *source)
                 source->min_queue_point = to_go->next;
             }
             to_go->next = NULL;
+            if (source->format->detach_queue_block)
+                source->format->detach_queue_block (source, to_go);
             refbuf_release (to_go);
             loop--;
         }

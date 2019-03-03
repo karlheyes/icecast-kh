@@ -107,7 +107,7 @@ void format_ogg_attach_header (ogg_codec_t *codec, ogg_page *page)
             ogg_info->header_pages_tail = refbuf;
         refbuf->associated = *ogg_info->bos_end;
         *ogg_info->bos_end = refbuf;
-        ogg_info->bos_end = &refbuf->associated;
+        ogg_info->bos_end = (refbuf_t**)&refbuf->associated;
         return;
     }
     DEBUG0 ("attaching header page");

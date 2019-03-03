@@ -4,7 +4,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2010-2016, Karl Heyes <karl@kheyes.plus.com>,
+ * Copyright 2010-2019, Karl Heyes <karl@kheyes.plus.com>,
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -72,7 +72,57 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client);
 #define CLIENT_IN_METADATA              (CLIENT_INTERNAL_FORMAT)
 #define CLIENT_USING_BLANK_META         (CLIENT_INTERNAL_FORMAT<<1)
 
-static refbuf_t blank_meta = { 0, 1, NULL, NULL, "\001StreamTitle='';", 17 };
+static refbuf_t blank_icy = { 0 , 1, NULL, NULL, "\001StreamTitle='';", 17 };
+static struct metadata_block blank_meta = { 1, 1, &blank_icy, NULL, NULL, NULL };
+
+
+static void metadata_blk_release (struct metadata_block *mb)
+{
+    if (mb)
+    {
+        if (mb->count > 0)
+            mb->count--;
+        if (mb->count == 0)
+        {
+            refbuf_release (mb->icy);
+            refbuf_release (mb->iceblock);
+            refbuf_release (mb->flv);
+            refbuf_release (mb->id3);
+            free (mb);
+        }
+    }
+}
+
+
+static void metadata_blk_ref_inc (struct metadata_block *mb)
+{
+    if (mb)
+        mb->count++;
+}
+
+
+static struct metadata_block * metadata_blk_copy (struct metadata_block *mb)
+{
+    struct metadata_block *r = calloc (1, sizeof (*r));
+    if (mb)
+    {
+        r->icy = refbuf_copy (mb->icy);
+        r->iceblock = refbuf_copy (mb->iceblock);
+        r->flv = refbuf_copy (mb->flv);
+        r->id3 = refbuf_copy (mb->id3);
+    }
+    r->count = 1;
+    return r;
+}
+
+
+void format_mpeg_detach_qb (source_t *source, refbuf_t *block)
+{
+    struct metadata_block *meta = block->associated;
+    block->associated = NULL;
+    metadata_blk_release (meta);
+}
+
 
 
 int format_mp3_get_plugin (format_plugin_t *plugin)
@@ -89,6 +139,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin)
     plugin->set_tag = mp3_set_tag;
     plugin->apply_settings = format_mp3_apply_settings;
     plugin->apply_client = mpeg_apply_client;
+    plugin->detach_queue_block = format_mpeg_detach_qb;
     plugin->_state = state;
     state->max_send_size = 0;
     state->interval = -1;
@@ -108,7 +159,7 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
     source_mp3->offset = 0;
     source_mp3->build_metadata_len = 0;
 
-    refbuf_release (source_mp3->metadata);
+    metadata_blk_release (source_mp3->metadata);
     source_mp3->metadata = NULL;
     refbuf_release (source_mp3->read_data);
     source_mp3->read_data = NULL;
@@ -131,7 +182,8 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
 
     meta = refbuf_new (17);
     memcpy (meta->data, "\001StreamTitle='';", 17);
-    source_mp3->metadata = meta;
+    source_mp3->metadata = metadata_blk_copy (NULL);
+    source_mp3->metadata->icy = meta;
     source_mp3->interval = -1;
 
     mpeg_cleanup (client->format_data);
@@ -215,8 +267,12 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3)
     char *extra = NULL;
     char *metadata = source_mp3->build_metadata;
 
-    if (meta_len <= 1 || memcmp (metadata, source_mp3->metadata->data, meta_len) == 0)
-        return 0;
+    if (meta_len <= 1 || source_mp3->metadata == NULL)
+        return 0;       // nothing to compare
+
+    refbuf_t *icy = source_mp3->metadata->icy;
+    if (meta_len == icy->len && memcmp (metadata, icy->data, meta_len) == 0)
+        return 0;       // no change
 
     if (metadata == NULL || meta_len < 16 || meta_len > 4081)
         return -1;
@@ -340,11 +396,15 @@ static void mp3_set_title (source_t *source)
     const char streamurl[] = "StreamUrl='";
     size_t size;
     unsigned char len_byte;
-    refbuf_t *p;
     unsigned int len = sizeof(streamtitle) + 2; /* the StreamTitle, quotes, ; and null */
     mp3_state *source_mp3 = source->format->_state;
     char *charset = NULL;
 
+    if (source_mp3->metadata && (source_mp3->metadata->on_queue) == 0 && source->queue_size)
+    {
+         WARN1 ("ignoring this update to metadata on %s, as previous update has not had chance", source->mount);
+         return;
+    }
     /* work out message length */
     if (source_mp3->url_artist)
         len += strlen (source_mp3->url_artist);
@@ -373,8 +433,8 @@ static void mp3_set_title (source_t *source)
     /* now we know how much space to allocate, +1 for the len byte */
     size = len_byte * 16 + 1;
 
-    p = refbuf_new (size);
-    if (p)
+    refbuf_t *icy = refbuf_new (size);
+    if (icy)
     {
         refbuf_t *flvmeta = flv_meta_allocate (4000);
         refbuf_t *iceblock = refbuf_new (4096);
@@ -384,9 +444,7 @@ static void mp3_set_title (source_t *source)
         int r, n, ib_len = iceblock->len - 2;
 
         xmlSetStructuredErrorFunc (source->mount, config_xml_parse_failure);
-        memset (p->data, '\0', size);
-        p->associated = flvmeta;
-        flvmeta->associated = iceblock;
+        memset (icy->data, '\0', size);
         stats_lock (source->stats, source->mount);
 
         n = snprintf (ibp, ib_len, "%cmode=updinfo\n", 0);
@@ -412,11 +470,12 @@ static void mp3_set_title (source_t *source)
             flv_meta_append_number (flvmeta, "audiocodecid",
                             (double)(mpeg_get_type (mpeg_sync) == FORMAT_TYPE_AAC ? 10 : 2));
         }
+        const char *title;
         if (source_mp3->url_artist && source_mp3->url_title)
         {
             stats_set_conv (source->stats, "artist", source_mp3->url_artist, charset);
             stats_set_conv (source->stats, "title", source_mp3->url_title, charset);
-            r = snprintf (p->data, size, "%c%s%s - %s", len_byte, streamtitle,
+            r = snprintf (icy->data, size, "%c%s%s - %s", len_byte, streamtitle,
                     source_mp3->url_artist, source_mp3->url_title);
             flv_meta_append_string (flvmeta, "artist", source_mp3->url_artist);
 
@@ -425,15 +484,16 @@ static void mp3_set_title (source_t *source)
         }
         else
         {
-            r = snprintf (p->data, size, "%c%s%s", len_byte, streamtitle, source_mp3->url_title ? source_mp3->url_title : "");
-            stats_set_conv (source->stats, "title", p->data+14, charset);
+            title = source_mp3->url_title ? source_mp3->url_title : "";
+            r = snprintf (icy->data, size, "%c%s%s", len_byte, streamtitle, title);
+            stats_set_conv (source->stats, "title", icy->data+14, charset);
             stats_set (source->stats, "artist", NULL);
         }
-        logging_playlist (source->mount, p->data+14, source->listeners);
-        strcat (p->data+14, "';");
-        flv_meta_append_string (flvmeta, "title", source_mp3->url_title);
+        logging_playlist (source->mount, icy->data+14, source->listeners);
+        strcat (icy->data+14, "';");
+        flv_meta_append_string (flvmeta, "title", title);
 
-        n = snprintf (ibp, ib_len, "title=%s\n", source_mp3->url_title);
+        n = snprintf (ibp, ib_len, "title=%s\n", title);
         if (n > 0 || n < ib_len) { ibp += n; ib_len -= n; }
 
         if (r > 0)
@@ -441,7 +501,7 @@ static void mp3_set_title (source_t *source)
             r += 2;
             if (source_mp3->inline_url && size-r > strlen (source_mp3->inline_url)+13)
             {
-                r += snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->inline_url);
+                r += snprintf (icy->data+r, size-r, "StreamUrl='%s';", source_mp3->inline_url);
                 flv_meta_append_string (flvmeta, "URL", source_mp3->inline_url);
                 stats_set (source->stats, "metadata_url", source_mp3->inline_url);
 
@@ -450,7 +510,7 @@ static void mp3_set_title (source_t *source)
             }
             else if (source_mp3->url)
             {
-                r += snprintf (p->data+r, size-r, "StreamUrl='%s';", source_mp3->url);
+                r += snprintf (icy->data+r, size-r, "StreamUrl='%s';", source_mp3->url);
                 flv_meta_append_string (flvmeta, "URL", source_mp3->url);
                 stats_set (source->stats, "metadata_url", source_mp3->url);
                 n = snprintf (ibp, ib_len, "URL=%s\n", source_mp3->url);
@@ -458,10 +518,10 @@ static void mp3_set_title (source_t *source)
             }
             if (source_mp3->extra_icy_meta)
             {
-                r += snprintf (p->data+r, size-r, "%s", source_mp3->extra_icy_meta);
+                r += snprintf (icy->data+r, size-r, "%s", source_mp3->extra_icy_meta);
             }
         }
-        DEBUG1 ("icy metadata as %.80s...", p->data+1);
+        DEBUG1 ("icy metadata as %.80s...", icy->data+1);
         yp_touch (source->mount, source->stats);
 
         flv_meta_append_string (flvmeta, NULL, NULL);
@@ -472,8 +532,13 @@ static void mp3_set_title (source_t *source)
         iceblock->data[0] = ((iceblock->len >> 8) & 0x7F) | 0x80;
         iceblock->data[1] = iceblock->len & 0xFF;
 
-        refbuf_release (source_mp3->metadata);
-        source_mp3->metadata = p;
+        metadata_blk_release (source_mp3->metadata);
+        struct metadata_block *mb = metadata_blk_copy (NULL);
+        mb->icy = icy;
+        mb->flv = flvmeta;
+        mb->iceblock = iceblock;
+
+        source_mp3->metadata = mb;
         stats_set_time (source->stats, "metadata_updated", STATS_GENERAL, source->client->worker->current_time.tv_sec);
         stats_release (source->stats);
     }
@@ -489,21 +554,23 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
     int ret = 0, len;
     char *metadata = NULL;
     int meta_len, block_len;
-    refbuf_t *associated = refbuf->associated;
+    struct metadata_block *mb = refbuf->associated;
+    refbuf_t *icy = mb ? mb->icy : NULL;
     mp3_client_data *client_mp3 = client->format_data;
     struct connection_bufs bufs;
 
-    if (associated)
+    if (mb)
     {
-        if (associated != client_mp3->associated)
+        if (mb != client_mp3->associated)
         {
-            if (client->flags & CLIENT_IN_METADATA && client_mp3->metadata_offset >= associated->len)
+            if (client->flags & CLIENT_IN_METADATA && client_mp3->metadata_offset >= icy->len)
             {
                 ERROR3 ("mismatch in meta block (%s,%d, %d)", client->mount,
-                        client_mp3->metadata_offset, associated->len);
+                        client_mp3->metadata_offset, icy->len);
                 client->connection.error = 1;
                 return 0;
             }
+            client_mp3->associated = mb; // change prev meta block
         }
         else if ((client->flags & CLIENT_IN_METADATA) == 0)
         {
@@ -520,12 +587,22 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
             metadata = "\0";
             meta_len = 1;
         }
-        associated = client_mp3->associated = &blank_meta;
+        client_mp3->associated = &blank_meta;
+        icy = blank_meta.icy;
     }
     if (metadata == NULL)
     {
-        metadata = associated->data + client_mp3->metadata_offset;
-        meta_len = associated->len - client_mp3->metadata_offset;
+        if (0)
+        {
+            metadata = "\0";
+            meta_len = 1;
+        }
+        else
+        {
+            metadata = icy->data + client_mp3->metadata_offset;
+            meta_len = icy->len - client_mp3->metadata_offset;
+        }
+
     }
     block_len = refbuf->len - client->pos;
 
@@ -549,7 +626,6 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         client->pos += queue_bytes;
         client->flags &= ~CLIENT_IN_METADATA;
         client_mp3->metadata_offset = 0;
-        client_mp3->associated = associated; // change prev meta block
         if (ret < len)
             client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
     }
@@ -646,12 +722,12 @@ static int send_iceblock_to_client (client_t *client)
     connection_bufs_init (&v, 3);
     if (refbuf->associated != client_mpg->associated)
     {
-        refbuf_t *meta = refbuf->associated;
-        if (meta && meta->associated && meta->associated->associated)
+        struct metadata_block *mb = refbuf->associated;
+        if (mb && mb->iceblock)
         {
+            refbuf_t *meta = mb->iceblock;
             // may need to skip the single byte identifier for this client
             int off = (client->flags & CLIENT_WANTS_META1) ? 1 : 0;
-            meta = meta->associated->associated;
             connection_bufs_append (&v, meta->data+off, meta->len-off);
         }
     }
@@ -714,7 +790,7 @@ static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *client)
     free (format_mp3->inline_url);
     free (format_mp3->url);
     free (format_mp3->extra_icy_meta);
-    refbuf_release (format_mp3->metadata);
+    metadata_blk_release (format_mp3->metadata);
     refbuf_release (format_mp3->read_data);
     free (format_mp3);
 }
@@ -896,7 +972,8 @@ static refbuf_t *mp3_get_no_meta (source_t *source)
     }
     source->client->queue_pos += refbuf->len;
     refbuf->associated = source_mp3->metadata;
-    refbuf_addref (source_mp3->metadata);
+    metadata_blk_ref_inc (source_mp3->metadata);
+    source_mp3->metadata->on_queue = 1;
     refbuf->flags |= SOURCE_BLOCK_SYNC;
     return refbuf;
 }
@@ -1000,7 +1077,8 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
     }
     source->client->queue_pos += refbuf->len;
     refbuf->associated = source_mp3->metadata;
-    refbuf_addref (source_mp3->metadata);
+    metadata_blk_ref_inc (source_mp3->metadata);
+    source_mp3->metadata->on_queue = 1;
     refbuf->flags |= SOURCE_BLOCK_SYNC;
 
     return refbuf;

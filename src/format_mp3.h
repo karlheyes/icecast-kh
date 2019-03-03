@@ -25,14 +25,28 @@
 #define CLIENT_WANTS_META           (CLIENT_FORMAT_BIT<<2)
 #define CLIENT_WANTS_META1          (CLIENT_FORMAT_BIT<<3)
 
+
+
 typedef struct {
-    refbuf_t *associated;
+    void *associated;
     unsigned short interval;
     short metadata_offset;
     unsigned short since_meta_block;
     unsigned short max_send_size;
     void         *specific;
 } mp3_client_data;
+
+
+// block attached to queue blocks for metadata updates in different protocols
+struct metadata_block
+{
+    unsigned int count;
+    char on_queue;
+    refbuf_t *icy;
+    refbuf_t *iceblock;
+    refbuf_t *flv;
+    refbuf_t *id3;
+};
 
 
 typedef struct {
@@ -48,7 +62,7 @@ typedef struct {
     char *inline_url;
     char *extra_icy_meta;
 
-    refbuf_t *metadata;
+    struct metadata_block *metadata;
     refbuf_t *read_data;
     int read_count;
     unsigned short req_qblock_sz;

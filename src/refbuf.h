@@ -25,7 +25,7 @@ typedef struct _refbuf_tag
     unsigned int flags;
     unsigned int _count;
     struct _refbuf_tag *next;
-    struct _refbuf_tag *associated;
+    void *associated;
     char *data;
     unsigned int len;
 
