@@ -267,10 +267,25 @@ static struct admin_command *find_admin_command (struct admin_command *list, con
 }
 
 
-int admin_mount_request (client_t *client, const char *uri)
+// wrapper to free up memory allocated for moved client.
+static void admin_client_destroy (client_t *client)
+{
+    free ((void*)client->aux_data);
+    client_destroy (client);
+}
+
+struct _client_functions admin_mount_ops =
+{
+    admin_mount_request,
+    admin_client_destroy
+};
+
+
+int admin_mount_request (client_t *client)
 {
     source_t *source;
-    const char *mount = httpp_get_query_param (client->parser, "mount");
+    const char *mount = client->mount;
+    char *uri = (void*)client->aux_data;
 
     struct admin_command *cmd = find_admin_command (admin_mount, uri);
 
@@ -296,11 +311,23 @@ int admin_mount_request (client_t *client, const char *uri)
         if (strncmp (cmd->request, "killclient", 10) == 0)
             return fserve_kill_client (client, mount, cmd->response);
         WARN1("Admin command on non-existent source %s", mount);
+        free (uri);
         return client_send_400 (client, "Source does not exist");
     }
     else
     {
         int ret = 0;
+
+        // see if we should move workers. avoid excessive write lock bubbles in worker run queue
+        worker_t *src_worker = source->client->worker;
+        if (src_worker != client->worker)
+        {
+            client->ops = &admin_mount_ops;
+            avl_tree_unlock (global.source_tree);
+            // DEBUG0 (" moving admin request to alternate worker");
+            return client_change_worker (client, src_worker);
+        }
+        free (uri);
         thread_rwlock_wlock (&source->lock);
         if (source_available (source) == 0)
         {
@@ -309,8 +336,8 @@ int admin_mount_request (client_t *client, const char *uri)
             INFO1("Received admin command on unavailable mount \"%s\"", mount);
             return client_send_400 (client, "Source is not available");
         }
-        ret = cmd->handle.source (client, source, cmd->response);
         avl_tree_unlock(global.source_tree);
+        ret = cmd->handle.source (client, source, cmd->response);
         return ret;
     }
 }
@@ -356,6 +383,9 @@ int admin_handle_request (client_t *client, const char *uri)
     if (mount)
     {
         xmlSetStructuredErrorFunc ((char*)mount, config_xml_parse_failure);
+        client->mount = mount;
+        client->aux_data = (int64_t)strdup (uri);
+
         /* no auth/stream required for this */
         if (strcmp (uri, "buildm3u") == 0)
             return command_buildm3u (client, mount);
@@ -380,7 +410,7 @@ int admin_handle_request (client_t *client, const char *uri)
         }
         if (strcmp (uri, "streams") == 0)
             return auth_add_listener ("/admin/streams", client);
-        return admin_mount_request (client, uri);
+        return admin_mount_request (client);
     }
 
     return admin_handle_general_request (client, uri);
