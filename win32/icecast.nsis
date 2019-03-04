@@ -13,7 +13,7 @@
 # installer containing your program.
 
 Name "Icecast KH"
-OutFile "icecast-2.4.0-kh10_win32_setup.exe"
+OutFile "icecast-2.4.0-kh11_win32_setup.exe"
 
 InstallDir "$ProgramFiles\Icecast KH"
 InstallDirRegKey HKLM SOFTWARE\Icecast "Install_Dir"
@@ -34,9 +34,9 @@ XPStyle on
 VIProductVersion "2.4.0.10"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "Icecast KH"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "2.4.0"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Karl Heyes @2000-2017"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Karl Heyes @2000-2019"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "Icecast KH streaming media server installer"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "2.4.0-KH10"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "2.4.0-KH11"
 
 Page components
 Page directory
@@ -90,12 +90,14 @@ SectionEnd
 
 Section "Start Menu Shortcuts"
   CreateDirectory "$SMPROGRAMS\Icecast KH"
+  SetOutPath "$INSTDIR"
   CreateShortCut "$SMPROGRAMS\Icecast KH\Edit Configuration.lnk" "notepad.exe" "$INSTDIR\icecast.xml"
   CreateShortCut "$SMPROGRAMS\Icecast KH\Uninstall Icecast.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Uninstall.exe" 0
   CreateShortCut "$SMPROGRAMS\Icecast KH\Run Icecast.lnk" "$INSTDIR\icecast.exe" '-c "$INSTDIR\icecast.xml"'
 SectionEnd
 
 Section "Desktop Icons"
+  SetOutPath "$INSTDIR"
   CreateShortCut "$DESKTOP\Icecast.lnk" "$INSTDIR\icecast.exe" '-c "$INSTDIR\icecast.xml"'
 SectionEnd
 

@@ -16,6 +16,14 @@ Feature differences from SVN trunk
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0-kh11
+. fix issue with timelimited listeners and html5 players with range requests
+. security fix for auth url when allowing certain headers to be passed.
+. fix for mpeg block expansion handling, led to cases of parsing failures
+. block scaling changes for mpeg based streams.
+. internal restructure for metadata on non-ogg streams. For code maintainability.
+. bounce admin mount request clients to worker with the source, reduces lock contention with lots of sources
+
 2.4.0-kh10
 . stop ID3 in streams for now, some browsers can have playback problems.
 . fix memory leak case in the queue from previous release.
