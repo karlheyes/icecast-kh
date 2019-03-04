@@ -39,7 +39,7 @@ struct connection_tag
     uint64_t id;
 
     time_t con_time;
-    union {
+    struct {
         time_t      time;
         uint64_t    offset;
     } discon;
