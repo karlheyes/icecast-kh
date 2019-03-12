@@ -856,7 +856,7 @@ static int source_queue_advance (client_t *client)
                 // we may need to copy the complete frame for private use
                 if (client->pos < client->refbuf->len)
                 {
-                    refbuf_t *copy = refbuf_copy (client->refbuf);
+                    refbuf_t *copy = source->format->qblock_copy (client->refbuf);
                     client->refbuf = copy;
                     client->flags |= CLIENT_HAS_INTRO_CONTENT;
                     DEBUG2 ("client %s requeued copy on %s", client->connection.ip, source->mount);
@@ -994,6 +994,7 @@ static int http_source_introfile (client_t *client)
             if (source->intro_skip_replay)
                 listener_skips_intro (source->intro_ipcache, client, source->intro_skip_replay);
             /* better find the right place in queue for this client */
+            source->format->detach_queue_block (source, client->refbuf); // in case of private queue
             client_set_queue (client, NULL);
             client->check_buffer = source_queue_advance;
             client->intro_offset = -1;
@@ -1131,32 +1132,29 @@ void source_listener_detach (source_t *source, client_t *client)
     if (client->check_buffer != http_source_listener) // not in http headers
     {
         refbuf_t *ref = client->refbuf;
-        int lag = source->client->queue_pos - client->queue_pos;
 
-        if (lag && lag >= source->queue_size) // off the queue
+        if (ref)
         {
-            client->connection.error = 1;
-            client->pos = 0;
-            if ((client->flags & CLIENT_HAS_INTRO_CONTENT) == 0)
-                client->refbuf = NULL; // must of dropped off the end
-        }
-        else if (ref && (ref->flags & REFBUF_SHARED))
-        {
-            client->check_buffer = source->format->write_buf_to_client;
-
-            if (client->connection.error == 0 && client->pos < ref->len && source->fallback.mount)
+            if (ref->flags & REFBUF_SHARED)  // on the queue
             {
-                /* make a private copy so that a write can complete */
-                refbuf_t *copy = refbuf_copy (client->refbuf);
+                if (client->connection.error == 0 && client->pos < ref->len && source->fallback.mount)
+                {
+                    /* make a private copy so that a write can complete later */
+                    refbuf_t *copy = source->format->qblock_copy (client->refbuf);
 
-                client->refbuf = copy;
-                client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                    client->refbuf = copy;
+                    client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                }
+                else
+                    client->refbuf = NULL;
             }
-            else
-                client->refbuf = NULL;
+            else // we have a private copy, probably intro or queue block copy
+            {
+                source->format->detach_queue_block (source, client->refbuf);
+                refbuf_release (client->refbuf);
+            }
         }
-        else
-            client->check_buffer = source->format->write_buf_to_client;
+        client->check_buffer = source->format->write_buf_to_client;
     }
     else
         client->check_buffer = NULL;

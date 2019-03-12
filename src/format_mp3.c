@@ -124,6 +124,15 @@ void format_mpeg_detach_qb (source_t *source, refbuf_t *block)
 }
 
 
+refbuf_t *format_mpeg_qblock_copy (refbuf_t *orig)
+{
+    refbuf_t *ret = refbuf_copy (orig);
+
+    if (orig->associated)
+        ret->associated = metadata_blk_copy (orig->associated);
+    return ret;
+}
+
 
 int format_mp3_get_plugin (format_plugin_t *plugin)
 {
@@ -140,6 +149,7 @@ int format_mp3_get_plugin (format_plugin_t *plugin)
     plugin->apply_settings = format_mp3_apply_settings;
     plugin->apply_client = mpeg_apply_client;
     plugin->detach_queue_block = format_mpeg_detach_qb;
+    plugin->qblock_copy = format_mpeg_qblock_copy;
     plugin->_state = state;
     state->max_send_size = 0;
     state->interval = -1;

@@ -93,16 +93,23 @@ void refbuf_addref(refbuf_t *self)
     self->_count++;
 }
 
-refbuf_t *refbuf_copy(refbuf_t *orig)
+
+refbuf_t *refbuf_copy (refbuf_t *orig)
 {
     refbuf_t *ret = refbuf_new (orig->len), *ref = ret;
     memcpy (ref->data, orig->data, orig->len);
+    return ret;
+}
+
+refbuf_t *refbuf_copy_default (refbuf_t *orig)
+{
+    refbuf_t *ret = refbuf_copy (orig), *ref = ret;
+    // assume the associated links are also refbuf
     orig = orig->associated;
     while (orig)
     {
-        ref->associated = refbuf_new (orig->len);
+        ref->associated = refbuf_copy (orig->associated);
         ref = ref->associated;
-        memcpy (ref->data, orig->data, orig->len);
         orig = orig->associated;
     }
     return ret;

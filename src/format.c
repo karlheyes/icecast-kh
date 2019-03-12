@@ -124,6 +124,7 @@ int format_get_plugin (format_plugin_t *plugin)
         INFO1 ("internal format details already created for %s", plugin->mount);
         return 0;
     }
+    plugin->qblock_copy = refbuf_copy_default;
     switch (plugin->type)
     {
         case FORMAT_TYPE_OGG:
