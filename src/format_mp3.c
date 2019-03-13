@@ -118,9 +118,12 @@ static struct metadata_block * metadata_blk_copy (struct metadata_block *mb)
 
 void format_mpeg_detach_qb (source_t *source, refbuf_t *block)
 {
-    struct metadata_block *meta = block->associated;
-    block->associated = NULL;
-    metadata_blk_release (meta);
+    if (block)
+    {
+        struct metadata_block *meta = block->associated;
+        block->associated = NULL;
+        metadata_blk_release (meta);
+    }
 }
 
 
