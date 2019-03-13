@@ -409,8 +409,9 @@ void log_close(int log_id)
 
 void log_shutdown(void)
 {
+    int log_id;
     log_commit_entries ();
-    for (int log_id = 0; log_id < logs_allocated ; log_id++)
+    for (log_id = 0; log_id < logs_allocated ; log_id++)
         log_close (log_id);
     logs_allocated = 0;
     free (loglist);
