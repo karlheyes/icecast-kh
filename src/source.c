@@ -1153,6 +1153,7 @@ void source_listener_detach (source_t *source, client_t *client)
             {
                 source->format->detach_queue_block (source, client->refbuf);
                 refbuf_release (client->refbuf);
+                client->refbuf = NULL;
             }
         }
         client->check_buffer = source->format->write_buf_to_client;
