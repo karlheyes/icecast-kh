@@ -37,7 +37,7 @@
 
 #define CATMODULE "flv"
 
-int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount);
+int flv_write_metadata (struct flv *flv, struct metadata_block *meta, const char *mount);
 
 struct flvmeta
 {
@@ -90,9 +90,10 @@ static int flv_mpX_hdr (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char
 
     if (flv->raw_offset == 0)
     {
-        refbuf_t *ref = flv->client->refbuf, *scmeta = ref->associated;
-        if (flv->seen_metadata != scmeta)
-            flv_write_metadata (flv, scmeta, flv->client->mount);
+        refbuf_t *ref = flv->client->refbuf;
+        struct metadata_block *meta = ref->associated;
+        if (flv->seen_metadata != meta)
+            flv_write_metadata (flv, meta, flv->client->mount);
     }
 
     flv_hdr (flv, len + 1);
@@ -212,7 +213,7 @@ static int send_flv_buffer (client_t *client, struct flv *flv)
 }
 
 
-int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
+int flv_write_metadata (struct flv *flv, struct metadata_block *meta, const char *mount)
 {
     /* the first assoc block is shoutcast meta, second is flv meta */
     int len;
@@ -223,8 +224,8 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
     refbuf_t *raw = flv->raw;
     char *src, *dst = raw->data + flv->raw_offset;
 
-    if (scmeta)
-        flvmeta = scmeta->associated;
+    if (meta)
+        flvmeta = meta->flv;
     if (flvmeta == NULL)
     {
         char *value = stats_get_value (mount, "server_name");
@@ -310,7 +311,8 @@ int flv_process_buffer (struct flv *flv, refbuf_t *refbuf)
 
 int write_flv_buf_to_client (client_t *client) 
 {
-    refbuf_t *ref = client->refbuf, *scmeta = ref->associated;
+    refbuf_t *ref = client->refbuf;
+    struct metadata_block *meta = ref->associated;
     struct flv *flv = client->format_data;
     int ret, repack = 0;
 
@@ -360,8 +362,8 @@ int write_flv_buf_to_client (client_t *client)
         client->queue_pos += queue_bytes;
         client->counter += queue_bytes;
         flv->samples_in_buffer = 0;
-        if (flv->seen_metadata != scmeta)
-            flv->seen_metadata = scmeta;
+        if (flv->seen_metadata != meta)
+            flv->seen_metadata = meta;
     }
     return ret;
 }

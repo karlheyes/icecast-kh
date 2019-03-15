@@ -577,7 +577,9 @@ void auth_postprocess_source (auth_client *auth_user)
     if (strcmp (req, "/admin.cgi") == 0 || strncmp ("/admin/metadata", req, 15) == 0)
     {
         DEBUG2 ("metadata request (%s, %s)", req, mount);
-        admin_mount_request (client, "metadata");
+        client->mount = mount;
+        client->aux_data = (int64_t)strdup("metadata");
+        admin_mount_request (client);
     }
     else
     {

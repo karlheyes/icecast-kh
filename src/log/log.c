@@ -138,8 +138,6 @@ static int _log_open (int id, time_t now)
             if (f == NULL)
             {
                 loglist [id] . logfile = stderr;
-                loglist [id] . trigger_level = 0;
-                loglist [id] . duration = 0;
                 do_log_run (id);
                 return 0;
             }
@@ -308,6 +306,7 @@ void log_set_lines_kept (int log_id, unsigned int count)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
     if (loglist[log_id].in_use == 0) return;
+    if (count > 1000000) return;
 
     _lock_logger ();
     loglist[log_id].keep_entries = count;
@@ -356,22 +355,16 @@ void log_reopen(int log_id)
     _unlock_logger();
 }
 
-void log_close(int log_id)
+
+
+static void _log_close_internal (int log_id)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
-
-    _lock_logger();
-
-    if (loglist[log_id].in_use == 0)
-    {
-        _unlock_logger();
-        return;
-    }
 
     int loop = 0;
     while (++loop < 10 && do_log_run (log_id) > 0)
         ;
-    //loglist[log_id].level = 2;
+    loglist[log_id].level = 2;
     free (loglist[log_id].filename);
     loglist[log_id].filename = NULL;
     if (loglist[log_id].buffer) free(loglist[log_id].buffer);
@@ -392,15 +385,35 @@ void log_close(int log_id)
     }
     loglist [log_id].written_entry = NULL;
     loglist [log_id].entries = 0;
-    loglist[log_id].in_use = 0;
+    loglist [log_id].in_use = 0;
+}
+
+
+void log_close(int log_id)
+{
+    if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
+
+    _lock_logger();
+
+    if (loglist[log_id].in_use != 1)
+    {
+        if (loglist[log_id].in_use == 3)
+            loglist[log_id].in_use = 1;
+        _unlock_logger();
+        return;
+    }
+    _log_close_internal (log_id);
     _unlock_logger();
 }
+
 
 void log_shutdown(void)
 {
     int log_id;
+    log_commit_entries ();
     for (log_id = 0; log_id < logs_allocated ; log_id++)
         log_close (log_id);
+    logs_allocated = 0;
     free (loglist);
     /* destroy mutexes */
     if (log_mutex_alloc)
@@ -436,6 +449,7 @@ static int do_log_run (int log_id)
     int loop = 0;
     time_t now;
 
+    loglist [log_id].in_use = 3;
     time (&now);
     if (loglist [log_id].written_entry == NULL)
         next = loglist [log_id].log_head;
@@ -458,6 +472,10 @@ static int do_log_run (int log_id)
         _lock_logger ();
         next = next->next;
     }
+    if (loglist [log_id].in_use == 3)
+        loglist [log_id].in_use = 1;    // normal route
+    else
+        _log_close_internal (log_id);   // log_close could of triggered
     return loop;
 }
 
@@ -474,7 +492,7 @@ void log_commit_entries ()
             if (loglist [log_id].in_use)
                 c = do_log_run (log_id);
             if (c == 0) break;      // skip to next log
-        } while ((count += c) < 10000);
+        } while ((count += c) < 1000);
     }
     _unlock_logger ();
 }
@@ -533,8 +551,7 @@ static int create_log_entry (int log_id, const char *line)
         log_callback (log_id);
     else
         do_log_run (log_id);
-    if (loglist [log_id].entries > 1)
-        do_purge (log_id);
+    do_purge (log_id);
     return len;
 }
 

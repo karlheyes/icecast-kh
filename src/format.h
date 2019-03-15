@@ -72,6 +72,8 @@ struct _format_plugin_tag
     int  (*align_buffer)(client_t *client, format_plugin_t *plugin);
     int  (*get_image)(client_t *client, struct _format_plugin_tag *format);
     void (*swap_client)(client_t *new_cient, client_t *old_client);
+    void (*detach_queue_block)(struct source_tag *source, refbuf_t *refbuf);
+    refbuf_t *(*qblock_copy)(refbuf_t *refbuf);
 
     /* for internal state management */
     void *_state;
