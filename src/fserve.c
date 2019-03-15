@@ -778,7 +778,7 @@ static int prefile_send (client_t *client)
                 refbuf_t *to_go = client->refbuf;
                 refbuf = client->refbuf = to_go->next;
                 to_go->next = NULL;
-                if (fh->format->detach_queue_block)
+                if (fh->format && fh->format->detach_queue_block)
                     fh->format->detach_queue_block (NULL, client->refbuf);
                 refbuf_release (to_go);
             }
