@@ -754,6 +754,8 @@ static int prefile_send (client_t *client)
                     return -1;
                 if (file_in_use (fh->f)) // is there a file to read from
                 {
+                    if (fh->format->detach_queue_block)
+                        fh->format->detach_queue_block (NULL, client->refbuf);
                     refbuf_release (client->refbuf);
                     client->refbuf = NULL;
                     client->pos = 0;
@@ -776,6 +778,8 @@ static int prefile_send (client_t *client)
                 refbuf_t *to_go = client->refbuf;
                 refbuf = client->refbuf = to_go->next;
                 to_go->next = NULL;
+                if (fh->format->detach_queue_block)
+                    fh->format->detach_queue_block (NULL, client->refbuf);
                 refbuf_release (to_go);
             }
             client->pos = 0;
