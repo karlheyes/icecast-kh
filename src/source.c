@@ -994,7 +994,8 @@ static int http_source_introfile (client_t *client)
             if (source->intro_skip_replay)
                 listener_skips_intro (source->intro_ipcache, client, source->intro_skip_replay);
             /* better find the right place in queue for this client */
-            source->format->detach_queue_block (source, client->refbuf); // in case of private queue
+            if (source->format->detach_queue_block)
+                source->format->detach_queue_block (source, client->refbuf); // in case of private queue
             client_set_queue (client, NULL);
             client->check_buffer = source_queue_advance;
             client->intro_offset = -1;
