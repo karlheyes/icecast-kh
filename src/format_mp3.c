@@ -109,7 +109,8 @@ static struct metadata_block * metadata_blk_copy (struct metadata_block *mb)
         r->icy = refbuf_copy (mb->icy);
         r->iceblock = refbuf_copy (mb->iceblock);
         r->flv = refbuf_copy (mb->flv);
-        r->id3 = refbuf_copy (mb->id3);
+        if (mb->id3)
+            r->id3 = refbuf_copy (mb->id3);
     }
     r->count = 1;
     return r;
