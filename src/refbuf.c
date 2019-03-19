@@ -96,6 +96,7 @@ void refbuf_addref(refbuf_t *self)
 
 refbuf_t *refbuf_copy (refbuf_t *orig)
 {
+    if (orig == NULL) return NULL;
     refbuf_t *ret = refbuf_new (orig->len), *ref = ret;
     memcpy (ref->data, orig->data, orig->len);
     return ret;
