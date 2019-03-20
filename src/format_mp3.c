@@ -394,7 +394,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
         }
     }
     if (format->charset == NULL)
-        format->charset = strdup ("ISO8859-1");
+        format->charset = strdup ("UTF-8");
 
     DEBUG1 ("sending metadata interval %d", source_mp3->interval);
     DEBUG1 ("charset %s", format->charset);
