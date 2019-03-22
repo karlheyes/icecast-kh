@@ -570,54 +570,31 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
     char *metadata = NULL;
     int meta_len, block_len;
     struct metadata_block *mb = refbuf->associated;
-    refbuf_t *icy = mb ? mb->icy : NULL;
+    refbuf_t *icy = NULL;
     mp3_client_data *client_mp3 = client->format_data;
     struct connection_bufs bufs;
 
-    if (mb)
+    if (mb == NULL || mb->icy == NULL)
+        mb = &blank_meta;       // the default block
+    if (mb == client_mp3->associated && (client->flags & CLIENT_IN_METADATA) == 0)
     {
-        if (mb != client_mp3->associated)
-        {
-            if (client->flags & CLIENT_IN_METADATA && client_mp3->metadata_offset >= icy->len)
-            {
-                ERROR3 ("mismatch in meta block (%s,%d, %d)", client->mount,
-                        client_mp3->metadata_offset, icy->len);
-                client->connection.error = 1;
-                return 0;
-            }
-            client_mp3->associated = mb; // change prev meta block
-        }
-        else if ((client->flags & CLIENT_IN_METADATA) == 0)
-        {
-            // metadata the same as before so sent nul btye
-            metadata = "\0";
-            meta_len = 1;
-        }
+        // metadata the same as before so send nul btye
+        metadata = "\0";
+        meta_len = 1;
     }
-    else
-    {
-        if (client_mp3->associated == &blank_meta && client_mp3->metadata_offset == 0)
-        {
-            // metadata the same and sent before
-            metadata = "\0";
-            meta_len = 1;
-        }
-        client_mp3->associated = &blank_meta;
-        icy = blank_meta.icy;
-    }
-    if (metadata == NULL)
-    {
-        if (0)
-        {
-            metadata = "\0";
-            meta_len = 1;
-        }
-        else
-        {
-            metadata = icy->data + client_mp3->metadata_offset;
-            meta_len = icy->len - client_mp3->metadata_offset;
-        }
+    icy = mb->icy;
 
+    if (metadata == NULL)  // in cases of short send
+    {
+        if (client->flags & CLIENT_IN_METADATA && client_mp3->metadata_offset >= icy->len)
+        {
+            ERROR3 ("mismatch in meta block (%s,%d, %d)", client->mount,
+                    client_mp3->metadata_offset, icy->len);
+            client->connection.error = 1;
+            return 0;
+        }
+        metadata = icy->data + client_mp3->metadata_offset;
+        meta_len = icy->len - client_mp3->metadata_offset;
     }
     block_len = refbuf->len - client->pos;
 
@@ -641,6 +618,7 @@ static int send_icy_metadata (client_t *client, refbuf_t *refbuf)
         client->pos += queue_bytes;
         client->flags &= ~CLIENT_IN_METADATA;
         client_mp3->metadata_offset = 0;
+        client_mp3->associated = mb; // change prev meta block
         if (ret < len)
             client->schedule_ms += 10 + (client->throttle * ((ret < 0) ? 10 : 6));
     }
