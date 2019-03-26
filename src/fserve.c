@@ -608,10 +608,9 @@ static void file_release (client_t *client)
     fh_node *fh = client->shared_data;
     int ret = -1;
 
-    if (fh->finfo.limit && (client->flags & CLIENT_AUTHENTICATED))
+    if ((fh->finfo.flags & FS_FALLBACK) && (client->flags & CLIENT_AUTHENTICATED))
     {
         // reduce from global count
-        stats_event_dec (NULL, "listeners");
         global_lock();
         global.listeners--;
         global_unlock();
@@ -1015,6 +1014,13 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     fh_add_client (fh, client);
     thread_mutex_unlock (&fh->lock);
     client->shared_data = fh;
+
+    if ((fh->finfo.flags & FS_FALLBACK) && (client->flags & CLIENT_AUTHENTICATED))
+    {
+        global_lock();
+        global.listeners++;     // do we want to ocmpare with max listeners?
+        global_unlock();
+    }
 
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;

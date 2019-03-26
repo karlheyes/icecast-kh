@@ -1372,6 +1372,11 @@ void stats_global_calc (time_t now)
     event.flags |= STATS_COUNTERS;
     process_event (&event);
 
+    snprintf (buffer, sizeof(buffer), "%" PRIu64, (int64_t)global.listeners);
+    build_event (&event, NULL, "listeners", buffer);
+    event.flags |= STATS_COUNTERS;
+    process_event (&event);
+
     avl_tree_wlock (_stats.global_tree);
     anode = avl_get_first(_stats.global_tree);
     while (anode)

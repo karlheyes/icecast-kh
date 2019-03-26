@@ -1257,6 +1257,10 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         if (ret <= 0)
         {
             source->listeners--;
+            global_lock();
+            global.listeners--;
+            global_unlock();
+
             return ret;
         }
         source_setup_listener (source, client);
@@ -2340,7 +2344,6 @@ static int source_listener_release (source_t *source, client_t *client)
             rate_reduce (source->out_bitrate, 1000);
     }
 
-    stats_event_dec (NULL, "listeners");
     /* change of listener numbers, so reduce scope of global sampling */
     global_reduce_bitrate_sampling (global.out_bitrate);
     DEBUG2 ("Listener %" PRIu64 " leaving %s", client->connection.id, source->mount);
@@ -2413,7 +2416,6 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     if (move_listener (client, &f) == 0)
                     {
                         /* source dead but fallback to file found */
-                        stats_event_inc (NULL, "listeners");
                         stats_event_inc (NULL, "listener_connections");
                         return 0;
                     }
@@ -2597,7 +2599,6 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     thread_rwlock_unlock (&source->lock);
     global_reduce_bitrate_sampling (global.out_bitrate);
 
-    stats_event_inc (NULL, "listeners");
     stats_event_inc (NULL, "listener_connections");
 
     if (do_process) // send something back quickly
