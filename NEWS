@@ -16,6 +16,16 @@ Feature differences from SVN trunk
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0-kh12
+. fix up some incorrect or stale block cases from previous release for non-ogg streams. Usually
+  cause by short write triggers or queue jumps.
+. change default charset for non-ogg streams to utf8 instead of latin1, you ca still use
+  latin1 either with <charset> mount setting or charset= query param to metadata
+. global listeners count could get messed up with fallback to files, also make it a regular
+  update stat in-line with other global stats.
+. avoid possible crash case on log re-opening, not so common.
+
+
 2.4.0-kh11
 . fix issue with timelimited listeners and html5 players with range requests
 . security fix for auth url when allowing certain headers to be passed.
