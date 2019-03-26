@@ -30,6 +30,7 @@
 #include "client.h"
 #include "logging.h" 
 #include "global.h"
+#include "git_hash.h"
 
 #define CATMODULE "cfgfile"
 #define CONFIG_DEFAULT_LOCATION "Earth"
@@ -570,6 +571,7 @@ static int compare_mounts (void *arg, void *a, void *b)
 
 static void _set_defaults(ice_config_t *configuration)
 {
+    configuration->gitversion = GIT_VERSION;
     configuration->location = (char *)xmlCharStrdup (CONFIG_DEFAULT_LOCATION);
     configuration->server_id = (char *)xmlCharStrdup (ICECAST_VERSION_STRING);
     configuration->admin = (char *)xmlCharStrdup (CONFIG_DEFAULT_ADMIN);

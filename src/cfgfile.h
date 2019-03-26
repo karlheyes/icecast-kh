@@ -250,6 +250,7 @@ typedef struct ice_config_tag
 {
     char *config_filename;
 
+    char *gitversion;
     char *location;
     char *admin;
 
