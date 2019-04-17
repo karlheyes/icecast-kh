@@ -621,11 +621,11 @@ int source_read (source_t *source)
                 /* save stream to file */
                 if (source->dumpfile && source->format->write_buf_to_file)
                     source->format->write_buf_to_file (source, refbuf);
-                if (source->shrink_time == 0 && (source->buffer_count & 7) == 7)
+                if (source->shrink_time == 0 && (source->buffer_count & 31) == 31)
                 {
                     // kick off timed response to find oldest buffer. Every so many buffers
                     source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
-                    source->shrink_time = client->worker->time_ms + 500;
+                    source->shrink_time = client->worker->time_ms + 600;
                     break;
                 }
             }
@@ -654,7 +654,7 @@ int source_read (source_t *source)
         if (queue_size_target == 0)
             queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_size;
 
-        loop = 40 + (source->incoming_rate >> 15); // scale max on high bitrates
+        loop = 48 + (source->incoming_rate >> 15); // scale max on high bitrates
         while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
@@ -1334,25 +1334,25 @@ static int send_listener (source_t *source, client_t *client)
     /* progessive slowdown if nearing max bandwidth.  */
     if (global.max_rate)
     {
-        if (throttle_sends > 2) /* exceeded limit, skip 30ms */
+        if (throttle_sends > 2) /* exceeded limit, skip */
         {
-            client->schedule_ms += (source->incoming_adj * 4);
+            client->schedule_ms += 40 + (client->throttle * 3);
             return 0;
         }
         if (throttle_sends > 1) /* slow down any multiple sends */
         {
-            loop = 4;
-            client->schedule_ms += (source->incoming_adj * 6);
+            loop = 3;
+            client->schedule_ms += (client->throttle * 4);
         }
         if (throttle_sends > 0)
         {
             /* make lagging listeners, lag further on high server bandwidth use */
             if (lag > (source->incoming_rate*2))
-                client->schedule_ms += 100 + (source->incoming_adj * 6);
+                client->schedule_ms += 100 + (client->throttle * 3);
         }
     }
     // set between 1 and 40
-    client->throttle = source->incoming_adj > 40 ? 40 : (source->incoming_adj > 0 ? source->incoming_adj : 1);
+    client->throttle = source->incoming_adj > 25 ? 25 : (source->incoming_adj > 0 ? source->incoming_adj : 1);
     while (1)
     {
         /* jump out if client connection has died */
