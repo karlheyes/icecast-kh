@@ -639,6 +639,8 @@ int source_read (source_t *source)
                 }
                 break;
             }
+            if ((source->buffer_count & 3) == 3)
+                source->incoming_rate = (long)rate_avg (source->in_bitrate);
             loop--;
         } while (loop);
 
@@ -716,8 +718,6 @@ static int source_client_read (client_t *client)
     }
     if (source_running (source))
     {
-        if ((source->buffer_count & 3) == 3)
-            source->incoming_rate = (long)rate_avg (source->in_bitrate);
         if (source->limit_rate)
         {
             if (source->limit_rate < (8 * source->incoming_rate) && global.running == ICE_RUNNING)
