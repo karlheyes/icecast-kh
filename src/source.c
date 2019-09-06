@@ -1371,6 +1371,12 @@ static int send_listener (source_t *source, client_t *client)
         bytes = client->check_buffer (client);
         if (bytes < 0)
         {
+            if (total_written == 0 && client->connection.error == 0 && connection_unreadable (&client->connection))
+            {
+                client->connection.error = 1;
+                ret = -1;
+            }
+            client->schedule_ms += 15;
             break;  /* can't write any more */
         }
 
