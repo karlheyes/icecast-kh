@@ -628,6 +628,7 @@ int source_read (source_t *source)
                     source->shrink_time = client->worker->time_ms + 600;
                     break;
                 }
+                skip = 0;
             }
             else
             {
@@ -1611,6 +1612,9 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 
 int source_set_intro (source_t *source, const char *file_pattern)
 {
+    if (file_pattern == NULL || source == NULL)
+        return;
+
     ice_config_t *config = config_get_config_unlocked ();
     char buffer[4096];
     unsigned int len = sizeof buffer;
