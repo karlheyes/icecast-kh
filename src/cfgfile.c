@@ -1194,30 +1194,40 @@ static int _parse_relay (xmlNodePtr node, void *arg)
     host->mount = (char*)xmlCharStrdup ("/");
     host->timeout = 4;
 
-    if (parse_xml_tags (node, icecast_tags))
-        return -1;
-
-    if (on_demand)      relay->flags |= RELAY_ON_DEMAND;
-    if (icy_metadata)   relay->flags |= RELAY_ICY_META;
-    if (running)        relay->flags |= RELAY_RUNNING;
-
-    /* check for unspecified entries */
-    if (relay->localmount == NULL)
-        relay->localmount = (char*)xmlCharStrdup (host->mount);
-
-    /* if master is set then remove the default entry at the head of the list */ 
-    if (relay->hosts->next)
+    do
     {
-        relay->hosts = relay->hosts->next;
-        if (host->mount)  xmlFree (host->mount);
-        if (host->ip)     xmlFree (host->ip);
-        if (host->bind)   xmlFree (host->bind);
-        free (host);
-    }
+        if (parse_xml_tags (node, icecast_tags))
+            return -1;
 
-    relay->new_details = config->relays;
-    config->relays = relay;
+        if (on_demand)      relay->flags |= RELAY_ON_DEMAND;
+        if (icy_metadata)   relay->flags |= RELAY_ICY_META;
+        if (running)        relay->flags |= RELAY_RUNNING;
 
+        /* check for unspecified entries */
+        if (relay->localmount == NULL)
+            relay->localmount = (char*)xmlCharStrdup (host->mount);
+        if (relay->localmount[0] != '/')
+        {
+            WARN1 ("relay \"%s\" must begin with /, skipping", relay->localmount);
+            break;
+        }
+
+        /* if master is set then remove the default entry at the head of the list */
+        if (relay->hosts->next)
+        {
+            relay->hosts = relay->hosts->next;
+            if (host->mount)  xmlFree (host->mount);
+            if (host->ip)     xmlFree (host->ip);
+            if (host->bind)   xmlFree (host->bind);
+            free (host);
+        }
+
+        relay->new_details = config->relays;
+        config->relays = relay;
+
+        return 0;
+    } while (0);
+    config_clear_relay (relay);
     return 0;
 }
 
