@@ -1613,7 +1613,7 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 int source_set_intro (source_t *source, const char *file_pattern)
 {
     if (file_pattern == NULL || source == NULL)
-        return;
+        return -1;
 
     ice_config_t *config = config_get_config_unlocked ();
     char buffer[4096];
