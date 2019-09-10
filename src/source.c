@@ -1898,7 +1898,11 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
     {
         if (source->format)
         {
-            source->format->type = format_get_type(mountinfo->type);
+            format_type_t type = format_get_type (mountinfo->type);
+            if (type == FORMAT_TYPE_UNDEFINED)
+                WARN2 ("type specified for %s is unrecognised (%s)", source->mount, mountinfo->type);
+            else
+                source->format->type = format_get_type (mountinfo->type);
             free (source->format->contenttype);
             source->format->contenttype = strdup (mountinfo->type);
         }
