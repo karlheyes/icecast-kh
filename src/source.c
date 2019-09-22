@@ -658,10 +658,11 @@ int source_read (source_t *source)
             queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_size;
 
         loop = 48 + (source->incoming_rate >> 13); // scale max on high bitrates
+        queue_size_target += 15000; // lets not be too tight to the limit
         while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
-            if (to_go->next == NULL) // always leave at least one on the queue
+            if (to_go == NULL || to_go->next == NULL) // always leave at least one on the queue
                 break;
             source->stream_data = to_go->next;
             source->queue_size -= to_go->len;
