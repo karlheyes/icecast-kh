@@ -1129,6 +1129,7 @@ static int http_source_listener (client_t *client)
 }
 
 
+// detach client from the source, enter with lock (probably read) and exit with write lock.
 void source_listener_detach (source_t *source, client_t *client)
 {
     client->wakeup = NULL;
@@ -1162,6 +1163,8 @@ void source_listener_detach (source_t *source, client_t *client)
     }
     else
         client->check_buffer = NULL;
+    thread_rwlock_unlock (&source->lock);   // read lock in use!
+    thread_rwlock_wlock (&source->lock);
     avl_delete (source->clients, client, NULL);
 }
 
@@ -1238,56 +1241,63 @@ static int send_to_listener (client_t *client)
 
 int listener_waiting_on_source (source_t *source, client_t *client)
 {
-    thread_rwlock_unlock (&source->lock);
-    thread_rwlock_wlock (&source->lock);
-    //DEBUG2 ("termination count on %s now %lu", source->mount, source->termination_count);
-    if (client->connection.error)
+    int read_lock = 1;
+    while (1)
     {
-        source->termination_count--;
-        return -1;
-    }
-    if (source->fallback.mount)
-    {
-        int ret;
-
-        source_listener_detach (source, client);
-        thread_rwlock_unlock (&source->lock);
-        client->shared_data = NULL;
-        ret = move_listener (client, &source->fallback);
-        thread_rwlock_wlock (&source->lock);
-        source->termination_count--;
-        if (ret <= 0)
+        if (client->connection.error)
         {
+            source_listener_detach (source, client);    // return with write lock
+            read_lock = 0;  // skip the possible reacquiring of the lock later.
             source->listeners--;
-            global_lock();
-            global.listeners--;
-            global_unlock();
-
-            return ret;
+            client->shared_data = NULL;
+            break;
         }
-        source_setup_listener (source, client);
-    }
-    else
-        source->termination_count--;
-    if (source->flags & SOURCE_TERMINATING)
-    {
-        if ((source->flags & SOURCE_PAUSE_LISTENERS) && global.running == ICE_RUNNING)
+        if (source->fallback.mount)
         {
-            if (client->refbuf && (client->refbuf->flags & SOURCE_QUEUE_BLOCK))
-                client->refbuf = NULL;
-            client->ops = &listener_pause_ops;
-            client->flags |= CLIENT_HAS_MOVED;
-            client->schedule_ms = client->worker->time_ms + 60;
-            client->timer_start = client->worker->current_time.tv_sec;
-            return 0;
+            source_listener_detach (source, client);
+            source->listeners--;
+            thread_rwlock_unlock (&source->lock);
+            client->shared_data = NULL;
+            int ret = move_listener (client, &source->fallback);
+            thread_rwlock_wlock (&source->lock);
+            if (ret <= 0)
+            {
+                source->termination_count--;
+                global_lock();
+                global.listeners--;
+                global_unlock();
+
+                return ret;
+            }
+            source->listeners++;
+            source_setup_listener (source, client);
         }
-        return -1;
+        if (source->flags & SOURCE_TERMINATING)
+        {
+            if ((source->flags & SOURCE_PAUSE_LISTENERS) && global.running == ICE_RUNNING)
+            {
+                if (client->refbuf && (client->refbuf->flags & SOURCE_QUEUE_BLOCK))
+                    client->refbuf = NULL;
+                client->ops = &listener_pause_ops;
+                client->flags |= CLIENT_HAS_MOVED;
+                client->schedule_ms = client->worker->time_ms + 60;
+                client->timer_start = client->worker->current_time.tv_sec;
+                break;
+            }
+            client->connection.error = 1;
+            continue;  // loop for exit, at beginning of loop
+        }
+        client->ops = &listener_wait_ops;
+        client->schedule_ms = client->worker->time_ms + 100;
+        break;
     }
-    /* wait for all source listeners to go through this */
-    // DEBUG1 ("listener now waiting for the other %d listeners", source->termination_count);
-    client->ops = &listener_wait_ops;
-    client->schedule_ms = client->worker->time_ms + 100;
-    return 0;
+    if (read_lock) // acquire write lock if still with read lock
+    {
+        thread_rwlock_unlock (&source->lock);
+        thread_rwlock_wlock (&source->lock);
+    }
+    source->termination_count--;
+    return (client->connection.error) ? -1 : 0;
 }
 
 
@@ -2347,9 +2357,6 @@ static int source_listener_release (source_t *source, client_t *client)
 
     if (client->shared_data == source) // still attached to source?
     {
-        thread_rwlock_unlock (&source->lock);
-        thread_rwlock_wlock (&source->lock);
-
         /* search through sources client list to find previous link in list */
         source_listener_detach (source, client);
         source->listeners--;
@@ -2860,14 +2867,16 @@ static int source_change_worker (source_t *source, client_t *client)
             int base = (client->connection.id & 7) << 5;
             if ((diff > 2000 && worker->count > 200) || (diff > (source->listeners>>4) + base))
             {
+                char *mount = strdup (source->mount);
                 this_worker->move_allocations--;
                 thread_rwlock_unlock (&source->lock);
                 ret = client_change_worker (client, worker);
                 thread_rwlock_unlock (&workers_lock);
                 if (ret)
-                    DEBUG3 ("moving source %s from %p to %p", source->mount, this_worker, worker);
+                    DEBUG3 ("moving source %s from %p to %p", mount, this_worker, worker);
                 else
                     thread_rwlock_wlock (&source->lock);
+                free (mount);
                 return ret;
             }
         }
@@ -2914,9 +2923,10 @@ int listener_change_worker (client_t *client, source_t *source)
         this_worker->move_allocations--;
 
         thread_rwlock_unlock (&source->lock);
+        uint64_t  id = client->connection.id;
         ret = client_change_worker (client, dest_worker);
         if (ret)
-            DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", client->connection.id, source->mount, this_worker, dest_worker);
+            DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", id, source->mount, this_worker, dest_worker);
         else
             thread_rwlock_rlock (&source->lock);
     }
