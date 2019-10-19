@@ -1305,6 +1305,7 @@ static int _parse_master (xmlNodePtr node, void *arg)
         { "retry-delay",        config_get_int,     &config->master_relay_retry },
         { "redirect",           config_get_bool,    &config->master_redirect },
         { "run-on",             config_get_int,     &config->master_run_on },
+        { "on-demand",          config_get_bool,    &config->on_demand },
         { NULL, NULL, NULL },
     };
 
