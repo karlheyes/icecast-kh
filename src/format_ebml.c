@@ -34,6 +34,7 @@
 #define CATMODULE "format-ebml"
 
 #include "logging.h"
+#include "global.h"
 
 #define EBML_DEBUG 0
 #define EBML_HEADER_MAX_SIZE 131072

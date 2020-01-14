@@ -318,6 +318,12 @@ static size_t handle_returned_data (void *ptr, size_t size, size_t nmemb, void *
             }
             if (unprocessed > 0)
             {
+                if (mpeg_block_expanded (&x->sync))
+                {
+                    n->len = unprocessed;
+                    mpeg_data_insert (&x->sync, n);
+                    return (int)(bytes);
+                }
                 refbuf_t *next = refbuf_new (unprocessed);
                 memcpy (next->data, n->data + n->len, unprocessed);
                 next->len = unprocessed;

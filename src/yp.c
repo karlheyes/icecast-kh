@@ -478,6 +478,7 @@ static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
     {
         INFO1 ("mount %s requires valid name", yp->mount);
         yp_schedule (yp, 600);
+        free (value);
         return 0;
     }
     add_yp_info (yp, value, YP_SERVER_NAME);

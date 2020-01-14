@@ -128,7 +128,7 @@ int util_read_header(sock_t sock, char *buff, unsigned long len, int entire)
 
         if (util_timed_wait_for_fd(sock, header_timeout*1000) > 0) {
 
-            if ((read_bytes = recv(sock, &c, 1, 0))) {
+            if ((read_bytes = recv(sock, &c, 1, 0)) > 0) {
                 if (c != '\r') buff[pos++] = c;
                 if (entire) {
                     if ((pos > 1) && (buff[pos - 1] == '\n' && 

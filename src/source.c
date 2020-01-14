@@ -658,7 +658,7 @@ int source_read (source_t *source)
             queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_size;
 
         loop = 48 + (source->incoming_rate >> 13); // scale max on high bitrates
-        queue_size_target += 15000; // lets not be too tight to the limit
+        queue_size_target += 8000; // lets not be too tight to the limit
         while (source->queue_size > queue_size_target && loop)
         {
             refbuf_t *to_go = source->stream_data;
@@ -1067,6 +1067,12 @@ static int http_source_intro (client_t *client)
         return source_queue_advance (client);
     }
     source_t *source = client->shared_data;
+    refbuf_t *n = client->refbuf ? client->refbuf->next : NULL;
+    if (n)
+        client->refbuf->next = NULL;
+    refbuf_release (client->refbuf);
+    client->refbuf = n;
+    client->pos = 0;
     client->intro_offset = source->intro_start;
     client->check_buffer = http_source_introfile;
     return http_source_introfile (client);
@@ -1151,12 +1157,6 @@ void source_listener_detach (source_t *source, client_t *client)
                 }
                 else
                     client->refbuf = NULL;
-            }
-            else // we have a private copy, probably intro or queue block copy
-            {
-                source->format->detach_queue_block (source, client->refbuf);
-                refbuf_release (client->refbuf);
-                client->refbuf = NULL;
             }
         }
         client->check_buffer = source->format->write_buf_to_client;
@@ -1315,9 +1315,6 @@ static int send_listener (source_t *source, client_t *client)
     if (source->flags & SOURCE_LISTENERS_SYNC)
         return listener_waiting_on_source (source, client);
 
-    if (client->connection.error)
-        return -1;
-
     /* check for limited listener time */
     if (client->flags & CLIENT_RANGE_END)
     {
@@ -1367,12 +1364,6 @@ static int send_listener (source_t *source, client_t *client)
     client->throttle = source->incoming_adj > 25 ? 25 : (source->incoming_adj > 0 ? source->incoming_adj : 1);
     while (1)
     {
-        /* jump out if client connection has died */
-        if (client->connection.error)
-        {
-            ret = -1;
-            break;
-        }
         /* lets not send too much to one client in one go, but don't
            sleep for too long if more data can be sent */
         if (loop == 0 || total_written > limiter)
@@ -1383,10 +1374,10 @@ static int send_listener (source_t *source, client_t *client)
         bytes = client->check_buffer (client);
         if (bytes < 0)
         {
-            if (total_written == 0 && client->connection.error == 0 && connection_unreadable (&client->connection))
+            if (client->connection.error || (total_written == 0 && connection_unreadable (&client->connection)))
             {
-                client->connection.error = 1;
                 ret = -1;
+                break;
             }
             client->schedule_ms += 15;
             break;  /* can't write any more */
@@ -1401,11 +1392,14 @@ static int send_listener (source_t *source, client_t *client)
         global_add_bitrates (global.out_bitrate, total_written, worker->time_ms);
     }
 
-    if (source->shrink_pos)
+    if (source->shrink_time && client->connection.error == 0)
     {
+        lag = source->client->queue_pos - client->queue_pos;
+        if (lag > source->queue_size_limit)
+            lag = source->queue_size_limit; // impose a higher lag value
         thread_spin_lock (&source->shrink_lock);
         if (client->queue_pos < source->shrink_pos)
-            source->shrink_pos = client->queue_pos;
+            source->shrink_pos = source->client->queue_pos - lag;
         thread_spin_unlock (&source->shrink_lock);
     }
     return ret;
@@ -2357,6 +2351,17 @@ static int source_listener_release (source_t *source, client_t *client)
 
     if (client->shared_data == source) // still attached to source?
     {
+        while (1)
+        {
+            refbuf_t *r = client->refbuf;
+            if (r == NULL || (r->flags & REFBUF_SHARED))
+                break;
+            client->refbuf = r->next;
+            r->next = NULL;
+            if (source->format->detach_queue_block)
+                source->format->detach_queue_block (source, r);
+            refbuf_release (r);
+        }
         /* search through sources client list to find previous link in list */
         source_listener_detach (source, client);
         source->listeners--;
