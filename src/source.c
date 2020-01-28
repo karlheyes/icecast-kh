@@ -434,6 +434,17 @@ static int listener_check_intro (cache_file_contents *cache, client_t *client, i
 }
 
 
+uint32_t source_convert_qvalue (source_t *source, uint32_t value)
+{
+    if (value & 0x80000000)
+    {   // so in secs;
+        value &= ~0x80000000;
+        return source->incoming_rate * value;
+    }
+    return value;
+}
+
+
 /* Update stats from source processing, this should be called regulary (every
  * few seconds) to keep totals up to date.
  */
@@ -461,6 +472,37 @@ static void update_source_stats (source_t *source)
     stats_release (source->stats);
     stats_event_add (NULL, "stream_kbytes_sent", kbytes_sent);
     stats_event_add (NULL, "stream_kbytes_read", kbytes_read);
+    if (incoming_rate)
+    {
+        int log = 0;
+        uint32_t qlen = (float)source_convert_qvalue (source, source->queue_len_value);
+        if (qlen)
+        {
+            float ratio = source->queue_size_limit / (float)qlen;
+            if (ratio < 0.85 || ratio > 1.15)
+                log = 1;    // sizeable change in result so log it
+        }
+        source->queue_size_limit = qlen;
+        source->min_queue_size = source_convert_qvalue (source, source->min_queue_len_value);
+        source->default_burst_size = source_convert_qvalue (source, source->default_burst_value);
+
+        // sanity checks
+        if (source->default_burst_size > 50000000)
+            source->default_burst_size = 100000;
+        if (source->queue_size_limit > 1000000000)
+            source->queue_size_limit = 1000000;
+        if (source->min_queue_size > 50000000 || source->min_queue_size < source->default_burst_size)
+            source->min_queue_size = source->default_burst_size;
+        if (source->min_queue_size + 40000 > source->queue_size_limit)
+            source->queue_size_limit = source->min_queue_size + 40000;
+
+        if (log)
+        {
+            DEBUG2 ("%s queue size set to %u", source->mount, source->queue_size_limit);
+            DEBUG2 ("%s min queue size set to %u", source->mount, source->min_queue_size);
+            DEBUG2 ("%s burst size set to %u", source->mount, source->default_burst_size);
+        }
+    }
 
     source->bytes_sent_at_update = source->format->sent_bytes;
     source->bytes_read_since_update %= 1024;
@@ -922,14 +964,25 @@ static int locate_start_on_queue (source_t *source, client_t *client)
     }
     else
     {
-        const char *header = httpp_getvar (client->parser, "initial-burst");
-        const char *arg = httpp_get_query_param (client->parser, "burst");
         size_t size = source->min_queue_size;
-        off_t v = source->default_burst_size;
-        if (arg)
-            v = atol (arg);
-        else if (header)
-            v = atol (header);
+        uint32_t v = -1;
+        const char *param = httpp_getvar (client->parser, "initial-burst");
+
+        if (param)
+            config_qsizing_conv_a2n (param, &v);
+        else
+        {
+            param = httpp_get_query_param (client->parser, "burst");
+            config_qsizing_conv_a2n (param, &v);
+        }
+        if (param)
+        {
+            v = source_convert_qvalue (source, (uint32_t)v);
+            DEBUG4 ("listener from %s (on %s) requested burst (%s, %u)", &client->connection.ip[0], source->mount, param, v);
+        }
+        else
+            v = source->default_burst_size;
+
         v -= client->connection.sent_bytes; /* have we sent data already */
         refbuf = source->min_queue_point;
         lag = source->min_queue_offset;
@@ -1453,10 +1506,11 @@ void source_init (source_t *source)
     source->prev_listeners = -1;
     source->bytes_sent_at_update = 0;
     source->stats_interval = 5;
-    /* so the first set of average stats after 3 seconds */
-    source->client_stats_update = source->last_read + 3;
+    /* so the first set of average stats after 4 seconds */
+    source->client_stats_update = source->last_read + 4;
     source->skip_duration = 40;
     source->buffer_count = 0;
+    source->queue_size_limit = 200000000; // initial sizing
 
     util_dict_free (source->audio_info);
     source->audio_info = util_dict_new();
@@ -2003,22 +2057,18 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
             source->intro_skip_replay = mountinfo->intro_skip_replay;
         }
     }
-    if (mountinfo && mountinfo->queue_size_limit)
-        source->queue_size_limit = mountinfo->queue_size_limit;
 
     if (mountinfo && mountinfo->source_timeout)
         source->timeout = mountinfo->source_timeout;
 
-    if (mountinfo && mountinfo->burst_size >= 0)
-        source->default_burst_size = (unsigned int)mountinfo->burst_size;
+    if (mountinfo && mountinfo->queue_size_limit)
+        source->queue_len_value = mountinfo->queue_size_limit;
 
-    if (mountinfo && mountinfo->min_queue_size >= 0)
-        source->min_queue_size = mountinfo->min_queue_size;
-    if (source->min_queue_size < source->default_burst_size)
-        source->min_queue_size = source->default_burst_size;
+    if (mountinfo && mountinfo->burst_size)
+        source->default_burst_value = (unsigned int)mountinfo->burst_size;
 
-    if (source->min_queue_size + 40000 > source->queue_size_limit)
-        source->queue_size_limit = source->min_queue_size + 40000;
+    if (mountinfo && mountinfo->min_queue_size)
+        source->min_queue_len_value = mountinfo->min_queue_size;
 
     source->wait_time = 0;
     if (mountinfo && mountinfo->wait_time)
@@ -2035,10 +2085,13 @@ void source_update_settings (ice_config_t *config, source_t *source, mount_proxy
     int len;
 
     /* set global settings first */
-    source->queue_size_limit = config->queue_size_limit;
-    source->min_queue_size = config->min_queue_size;
-    source->timeout = config->source_timeout;
-    source->default_burst_size = config->burst_size;
+    if (mountinfo == NULL)
+    {
+        source->queue_len_value = config->queue_size_limit;
+        source->min_queue_len_value = config->min_queue_size;
+        source->timeout = config->source_timeout;
+        source->default_burst_value = config->burst_size;
+    }
     stats_lock (source->stats, source->mount);
 
     len = strlen (config->hostname) + strlen(source->mount) + 16;
@@ -2087,9 +2140,6 @@ void source_update_settings (ice_config_t *config, source_t *source, mount_proxy
     }
     stats_release (source->stats);
     DEBUG1 ("public set to %d", source->yp_public);
-    DEBUG1 ("queue size to %u", source->queue_size_limit);
-    DEBUG1 ("min queue size to %u", source->min_queue_size);
-    DEBUG1 ("burst size to %u", source->default_burst_size);
     DEBUG1 ("source timeout to %u", source->timeout);
 }
 

@@ -122,10 +122,9 @@ typedef struct _mount_proxy {
     int no_mount; /* Do we permit direct requests of this mountpoint? (or only
                      indirect, through fallbacks) */
     int so_sndbuf;      /* TCP send buffer size for new clients */
-    int burst_size; /* amount to send to a new client if possible, -1 take
-                     * from global setting */
-    int min_queue_size;     /* minimum length of queue */
-    unsigned int queue_size_limit;
+    uint32_t burst_size;
+    uint32_t min_queue_size;     /* minimum length of queue */
+    uint32_t queue_size_limit;
     int hidden; /* Do we list this on the xsl pages */
     unsigned int source_timeout;  /* source timeout in seconds */
     char *charset;  /* character set if not utf8 */
@@ -259,7 +258,7 @@ typedef struct ice_config_tag
     unsigned int queue_size_limit;
     int min_queue_size;
     int workers_count;
-    unsigned int burst_size;
+    uint32_t burst_size;
     int client_timeout;
     int header_timeout;
     int source_timeout;
@@ -354,6 +353,7 @@ relay_server *config_clear_relay (relay_server *relay);
 void config_clear(ice_config_t *config);
 mount_proxy *config_find_mount (ice_config_t *config, const char *mount);
 void config_xml_parse_failure (void*x,  xmlErrorPtr error);
+int config_qsizing_conv_a2n (const char *str, uint32_t *p);
 
 int config_rehash(void);
 

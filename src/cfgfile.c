@@ -3,6 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
+ * Copyright 2010-2020, Karl Heyes <karl@kheyes.plus.net>
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -99,6 +100,51 @@ struct cfg_tag
     int (*retrieve) (xmlNodePtr node, void *x);
     void *storage;
 };
+
+
+int config_qsizing_conv_a2n (const char *str, uint32_t *p)
+{
+    unsigned int v = 0;
+    char metric = '\0';
+    *p = 0;
+    int r = sscanf ((char*)str, "%u%c", &v, &metric);
+    if (r == 2)
+    {
+        if (metric == 'k')
+            v *= 1000;
+        else if (metric == 'm')
+            v *= 1000000;
+        if (metric == 's')
+        {
+            if (v > 3600)
+                v = 3600;   // cap the seconds to something something like sane
+            *p = 1<<31; // for later conversion, when bitrate is known.
+        }
+    } else if (r != 1) // error converting
+        return 1;
+    if (v > (1<<31))  // enforce cap on largest number
+        v = (unsigned int) (1<<31) - 1;
+    *p += v;
+    return 0;
+}
+
+
+int config_get_qsizing (xmlNodePtr node, void *x)
+{
+    if (xmlIsBlankNode (node) == 0)
+    {
+        char *str = (char *)xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
+        if (str == NULL)
+            return 1;
+        uint32_t *p = (unsigned int *)x;
+        if (config_qsizing_conv_a2n (str, p) < 0)
+            return 1;
+
+        errno = 0;
+        xmlFree (str);
+    }
+    return 0;
+}
 
 
 /* Process xml node for boolean value, it may be true, yes, or 1
@@ -619,7 +665,7 @@ static void _set_defaults(ice_config_t *configuration)
     configuration->relay_username = (char *)xmlCharStrdup (CONFIG_DEFAULT_MASTER_USERNAME);
     configuration->relay_password = NULL;
     /* default to a typical prebuffer size used by clients */
-    configuration->min_queue_size = 0;
+    configuration->min_queue_size = CONFIG_DEFAULT_BURST_SIZE;
     configuration->burst_size = CONFIG_DEFAULT_BURST_SIZE;
     configuration->mounts_tree = avl_tree_new (compare_mounts, NULL);
 }
@@ -990,9 +1036,9 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     {
         { "mount-name",         config_get_str,     &mount->mountname },
         { "source-timeout",     config_get_int,     &mount->source_timeout },
-        { "queue-size",         config_get_int,     &mount->queue_size_limit },
-        { "burst-size",         config_get_int,     &mount->burst_size},
-        { "min-queue-size",     config_get_int,     &mount->min_queue_size},
+        { "queue-size",         config_get_qsizing, &mount->queue_size_limit },
+        { "burst-size",         config_get_qsizing, &mount->burst_size},
+        { "min-queue-size",     config_get_qsizing, &mount->min_queue_size},
         { "username",           config_get_str,     &mount->username },
         { "password",           config_get_str,     &mount->password },
         { "dump-file",          config_get_str,     &mount->dumpfile },
@@ -1050,8 +1096,9 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     /* default <mount> settings */
     mount->max_listeners = -1;
     mount->max_bandwidth = -1;
-    mount->burst_size = -1;
-    mount->min_queue_size = -1;
+    mount->burst_size = config->burst_size;
+    mount->queue_size_limit = config->queue_size_limit;
+    mount->min_queue_size = config->min_queue_size;;
     mount->mp3_meta_interval = -1;
     mount->yp_public = -1;
     mount->url_ogg_meta = 1;
@@ -1090,8 +1137,6 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         mount->url_ogg_meta = 1;
     if (mount->url_ogg_meta)
         mount->ogg_passthrough = 0;
-    if (mount->min_queue_size < 0)
-        mount->min_queue_size = mount->burst_size;
     if (mount->queue_block_size < 100)
         mount->queue_block_size = 1400;
     if (mount->ban_client < 0)
@@ -1268,17 +1313,17 @@ static int _parse_limits (xmlNodePtr node, void *arg)
     struct cfg_tag icecast_tags[] =
     {
         { "max-bandwidth",  config_get_bitrate,&config->max_bandwidth },
-        { "max-listeners",  config_get_int,    &config->max_listeners },
-        { "clients",        config_get_int,    &config->client_limit },
-        { "sources",        config_get_int,    &config->source_limit },
-        { "queue-size",     config_get_int,    &config->queue_size_limit },
-        { "min-queue-size", config_get_int,    &config->min_queue_size },
-        { "burst-size",     config_get_int,    &config->burst_size },
-        { "workers",        config_get_int,    &config->workers_count },
-        { "client-timeout", config_get_int,    &config->client_timeout },
-        { "header-timeout", config_get_int,    &config->header_timeout },
-        { "source-timeout", config_get_int,    &config->source_timeout },
-        { "inactivity-timeout", config_get_int,    &config->inactivity_timeout },
+        { "max-listeners",  config_get_int,     &config->max_listeners },
+        { "clients",        config_get_int,     &config->client_limit },
+        { "sources",        config_get_int,     &config->source_limit },
+        { "queue-size",     config_get_qsizing, &config->queue_size_limit },
+        { "min-queue-size", config_get_qsizing, &config->min_queue_size },
+        { "burst-size",     config_get_qsizing, &config->burst_size },
+        { "workers",        config_get_int,     &config->workers_count },
+        { "client-timeout", config_get_int,     &config->client_timeout },
+        { "header-timeout", config_get_int,     &config->header_timeout },
+        { "source-timeout", config_get_int,     &config->source_timeout },
+        { "inactivity-timeout", config_get_int, &config->inactivity_timeout },
         { NULL, NULL, NULL },
     };
     if (parse_xml_tags (node, icecast_tags))

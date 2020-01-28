@@ -64,6 +64,10 @@ typedef struct source_tag
     int yp_public;
 
     /* per source burst handling for connecting clients */
+    unsigned int default_burst_value;
+    unsigned int queue_len_value;
+    unsigned int min_queue_len_value;
+
     unsigned int default_burst_size;
 
     refbuf_t *min_queue_point;
