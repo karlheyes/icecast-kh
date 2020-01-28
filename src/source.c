@@ -973,7 +973,8 @@ static int locate_start_on_queue (source_t *source, client_t *client)
         else
         {
             param = httpp_get_query_param (client->parser, "burst");
-            config_qsizing_conv_a2n (param, &v);
+            if (param)
+                config_qsizing_conv_a2n (param, &v);
         }
         if (param)
         {
@@ -983,18 +984,23 @@ static int locate_start_on_queue (source_t *source, client_t *client)
         else
             v = source->default_burst_size;
 
-        v -= client->connection.sent_bytes; /* have we sent data already */
-        refbuf = source->min_queue_point;
-        lag = source->min_queue_offset;
-        // DEBUG3 ("size %lld, v %lld, lag %ld", size, v, lag);
-        while (size > v && refbuf && refbuf->next)
+        if (v > client->connection.sent_bytes)
         {
-            size -= refbuf->len;
-            lag -= refbuf->len;
-            refbuf = refbuf->next;
+            v -= client->connection.sent_bytes; /* have we sent data already */
+            refbuf = source->min_queue_point;
+            lag = source->min_queue_offset;
+            // DEBUG3 ("size %lld, v %lld, lag %ld", size, v, lag);
+            while (size > v && refbuf && refbuf->next)
+            {
+                size -= refbuf->len;
+                lag -= refbuf->len;
+                refbuf = refbuf->next;
+            }
+            if (lag < 0)
+                ERROR1 ("Odd, lag is negative %ld", lag);
         }
-        if (lag < 0)
-            ERROR1 ("Odd, lag is negative %ld", lag);
+        else
+            lag = refbuf->len;
     }
 
     while (refbuf)
