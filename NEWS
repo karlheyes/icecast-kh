@@ -19,7 +19,7 @@ any extra tags are shown in the conf/icecast.xml.dist file
 2.4.0-kh13
 . Fix an annoying race case. memory corruption in certain cases that are hard to trigger
   normally but typically involes a listener disconnecting in certain conditions.
-. tighened up use-after-free cases with regard to the queue pruning.
+. tightened up use-after-free cases with regard to the queue pruning.
 . leak fixes with intro via auth.
 . Allow seconds to be specified in burst and queue size fields. Just specify the number followed by s
   eg 30s  or 5s. Eventually we could make this the default so that is can apply to various
