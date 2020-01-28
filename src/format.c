@@ -551,7 +551,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     /* prevent proxy servers from caching */
     bytes = snprintf (ptr, remaining, "Cache-Control: no-cache, no-store\r\n"
             "Access-Control-Allow-Origin: *\r\n"
-            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
+            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
             "Access-Control-Allow-Methods: GET, OPTIONS, HEAD\r\n"
             "%s\r\n"
             "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n", client_keepalive_header (client));

@@ -359,7 +359,7 @@ int client_send_options(client_t *client)
             "HTTP/1.1 200 OK\r\n"
             "Connection: Keep-alive\r\n"
             "Access-Control-Allow-Origin: *\r\n"
-            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type\r\n"
+            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
             "Access-Control-Allow-Methods: GET, OPTIONS, HEAD, STATS\r\n\r\n");
     client->respcode = 200;
     client->refbuf->len = strlen (client->refbuf->data);
