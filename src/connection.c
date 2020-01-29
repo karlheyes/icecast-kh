@@ -253,7 +253,9 @@ void connection_initialize(void)
     connection_running = 0;
 #ifdef HAVE_OPENSSL
     ssl_ctx = NULL;
+#if OPENSSL_API_COMPAT < 0x10100000L
     SSL_load_error_strings();                /* readable error messages */
+#endif
     SSL_library_init();                      /* initialize library */
     ssl_mutexes = malloc(CRYPTO_num_locks() * sizeof(mutex_t));
     if (ssl_mutexes)
@@ -281,6 +283,9 @@ void connection_shutdown(void)
     CRYPTO_set_id_callback(NULL);
 #endif
     CRYPTO_set_locking_callback(NULL);
+#if OPENSSL_API_COMPAT < 0x10100000L
+    ERR_free_strings ();
+#endif
     if (ssl_mutexes)
     {
         int i;
