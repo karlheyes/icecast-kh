@@ -1026,7 +1026,7 @@ static int locate_start_on_queue (source_t *source, client_t *client)
 
 static void source_preroll_logging (source_t *source, client_t *client)
 {
-    if (client->intro_offset < 0 || (client->flags & CLIENT_HAS_INTRO_CONTENT))
+    if (source->intro_filename == NULL || client->intro_offset < 0 || (client->flags & CLIENT_HAS_INTRO_CONTENT))
         return; // content provided separately, auth or queue block copy
     if (source->preroll_log_id < 0)
     {
