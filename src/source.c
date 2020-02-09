@@ -1300,7 +1300,7 @@ static int send_to_listener (client_t *client)
 
 int listener_waiting_on_source (source_t *source, client_t *client)
 {
-    int read_lock = 1;
+    int read_lock = 1, ret = 0;
     while (1)
     {
         if (client->connection.error)
@@ -1309,6 +1309,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
             read_lock = 0;  // skip the possible reacquiring of the lock later.
             source->listeners--;
             client->shared_data = NULL;
+            ret = -1;
             break;
         }
         if (source->fallback.mount)
@@ -1317,7 +1318,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
             source->listeners--;
             thread_rwlock_unlock (&source->lock);
             client->shared_data = NULL;
-            int ret = move_listener (client, &source->fallback);
+            ret = move_listener (client, &source->fallback);
             thread_rwlock_wlock (&source->lock);
             if (ret <= 0)
             {
@@ -1330,6 +1331,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
             }
             source->listeners++;
             source_setup_listener (source, client);
+            ret = 0;
         }
         if (source->flags & SOURCE_TERMINATING)
         {
@@ -1343,8 +1345,8 @@ int listener_waiting_on_source (source_t *source, client_t *client)
                 client->timer_start = client->worker->current_time.tv_sec;
                 break;
             }
-            client->connection.error = 1;
-            continue;  // loop for exit, at beginning of loop
+            ret = -1;
+            break;
         }
         client->ops = &listener_wait_ops;
         client->schedule_ms = client->worker->time_ms + 100;
@@ -1356,7 +1358,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         thread_rwlock_wlock (&source->lock);
     }
     source->termination_count--;
-    return (client->connection.error) ? -1 : 0;
+    return ret;
 }
 
 
@@ -1517,6 +1519,8 @@ void source_init (source_t *source)
     source->skip_duration = 40;
     source->buffer_count = 0;
     source->queue_size_limit = 200000000; // initial sizing
+    source->default_burst_size = 300000;
+    source->min_queue_size = 600000;
 
     util_dict_free (source->audio_info);
     source->audio_info = util_dict_new();
