@@ -2182,26 +2182,43 @@ static int source_client_callback (client_t *client)
 static void source_run_script (char *command, char *mountpoint)
 {
     pid_t pid, external_pid;
+    char *p, *comm;
+
+    comm = p = strdup (command);
+#ifdef HAVE_STRSEP
+    strsep (&p, " \t");
+#else
+    if (strchr (command, ' '))  // possible misconfiguration, but unlikely to occur.
+        INFO1 ("arguments to command on %s not supported", mountpoint);
+#endif
+    if (access (comm, X_OK) != 0)
+    {
+        ERROR3 ("Unable to run command %s on %s (%s)", comm, mountpoint, strerror (errno));
+        free (comm);
+        return;
+    }
+    DEBUG2 ("Starting command %s on %s", comm, mountpoint);
 
     /* do a fork twice so that the command has init as parent */
     external_pid = fork();
     switch (external_pid)
     {
-        case 0:
+        case 0:     // child, don't log from here.
             switch (pid = fork ())
             {
                 case -1:
-                    ERROR2 ("Unable to fork %s (%s)", command, strerror (errno));
                     break;
                 case 0:  /* child */
-                    DEBUG1 ("Starting command %s", command);
 #ifdef HAVE_STRSEP
 #define MAX_SCRIPT_ARGS          20
                     {
-                        int i = 0;
+                        int i = 1;
                         char *p, *args [MAX_SCRIPT_ARGS+1];
 
-                        p = strdup (command);
+                        // default set unless overridden
+                        args[0] = comm;
+                        args[1] = mountpoint;
+                        args[2] = NULL;
                         while (i < MAX_SCRIPT_ARGS && (args[i] = strsep (&p, " \t")))
                         {
                             unsigned len = 4096;
@@ -2210,29 +2227,12 @@ static void source_run_script (char *command, char *mountpoint)
                                 args[i] = str;
                             i++;
                         }
-                        if (i == 1) // default is to supply mountpoint
-                        {
-                            args[1] = mountpoint;
-                            args[2] = NULL;
-                        }
-                        if (access (args[0], X_OK) != 0)
-                        {
-                            ERROR2 ("Unable to run command %s (%s)", args[0], strerror (errno));
-                            exit (0);
-                        }
                         close (0);
                         close (1);
                         close (2);
                         execvp ((const char *)args[0], args);
                     }
 #else
-                    if (access (command, X_OK) != 0)
-                    {
-                        ERROR2("Unable to run command %s (%s)", command, strerror (errno));
-                        exit (1);
-                    }
-                    if (strchr (command, ' '))
-                        WARN1 ("arguments to command on %s not supported", mountpoint);
                     close (0);
                     close (1);
                     close (2);
@@ -2243,13 +2243,14 @@ static void source_run_script (char *command, char *mountpoint)
                     break;
             }
             exit (0);
-        case -1:
+        case -1:    // ok, in parent context, no lock clash.
             ERROR1 ("Unable to fork %s", strerror (errno));
             break;
         default: /* parent */
             waitpid (external_pid, NULL, 0);
             break;
     }
+    free (comm);
 }
 #endif
 
