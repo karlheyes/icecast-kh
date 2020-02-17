@@ -3,6 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
+ * Copyright 2012-2020, Karl Heyes <karl@kheyes.plus.com>
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -297,7 +298,6 @@ static auth_result auth_cmd_client (auth_client *auth_user)
                 unsetenv ("LD_PRELOAD");
 #endif
             execl (cmd->listener_add, cmd->listener_add, NULL);
-            ERROR1 ("unable to exec command \"%s\"", cmd->listener_add);
             exit (-1);
         case -1:
             ERROR1 ("Failed to create child process for %s", cmd->listener_add);
@@ -331,14 +331,34 @@ static auth_result auth_cmd_client (auth_client *auth_user)
             close (outfd[1]);
             get_response (infd[0], auth_user, pid);
             close (infd[0]);
-            DEBUG1 ("Waiting on pid %ld", (long)pid);
-            if (waitpid (pid, &status, 0) < 0)
+            status = -1;
+            do
             {
-                ERROR1("waitpid error %s", strerror(errno));
-                break;
+                int wstatus = 0;
+                DEBUG1 ("Waiting on pid %ld", (long)pid);
+                if (waitpid (pid, &wstatus, 0) < 0)
+                {
+                    ERROR1("waitpid error %s", strerror(errno));
+                    break;
+                }
+                if (WIFEXITED(wstatus))
+                {
+                    status = WEXITSTATUS(wstatus);  // should be 8 LSB
+                    break;
+                }
+                else if (WIFSIGNALED(wstatus))
+                    break;
+            } while (1);
+
+            if (status == -1)
+            {
+                ERROR1 ("unable to exec command \"%s\"", cmd->listener_add);
+                return AUTH_FAILED;
             }
+
             if (client->flags & CLIENT_AUTHENTICATED)
                 return AUTH_OK;
+            break;
     }
     if (atd->errormsg[0])
     {

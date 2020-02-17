@@ -2183,6 +2183,7 @@ static void source_run_script (char *command, char *mountpoint)
 {
     pid_t pid, external_pid;
     char *p, *comm;
+    int wstatus;
 
     comm = p = strdup (command);
 #ifdef HAVE_STRSEP
@@ -2247,7 +2248,11 @@ static void source_run_script (char *command, char *mountpoint)
             ERROR1 ("Unable to fork %s", strerror (errno));
             break;
         default: /* parent */
-            waitpid (external_pid, NULL, 0);
+            do
+            {
+                if (waitpid (external_pid, &wstatus, 0) < 0)
+                    break;
+            } while (WIFEXITED(wstatus) == 0 && WIFSIGNALED(wstatus) == 0);
             break;
     }
     free (comm);
