@@ -490,18 +490,10 @@ void thread_cond_wait_c(cond_t *cond, mutex_t *mutex,int line, char *file)
 
 void thread_rwlock_create_c(const char *name, rwlock_t *rwlock, int line, const char *file)
 {
-#ifdef PTHREAD_RWLOCK_PREFER_WRITER_NP
-    pthread_rwlockattr_t attr;
-    pthread_rwlockattr_init (&attr);
-#ifdef PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP
+#if defined (PTHREAD_RWLOCK_WRITER_NONRECURSIVE_INITIALIZER_NP)
     // later glibc ignores PTHREAD_RWLOCK_PREFER_WRITER_NP for deadlock cases if recursive calls are used. we
-    // assume that is never done so should never be a problem.
-    pthread_rwlockattr_setkind_np (&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-#else
-    pthread_rwlockattr_setkind_np (&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
-#endif
-    pthread_rwlock_init(&rwlock->sys_rwlock, &attr);
-    pthread_rwlockattr_destroy (&attr);
+    // assume that is never done so should never be a problem.  these look to be enums not defines
+    rwlock->sys_rwlock = (pthread_rwlock_t) PTHREAD_RWLOCK_WRITER_NONRECURSIVE_INITIALIZER_NP;
 #else
     // win32 at least has issues if attributes are passed
     pthread_rwlock_init(&rwlock->sys_rwlock, NULL);
