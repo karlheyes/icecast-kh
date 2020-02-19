@@ -30,14 +30,12 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <signal.h>
 #ifndef WIN32
 #include <sys/wait.h>
 #endif
 #ifdef HAVE_POLL
 #include <poll.h>
-#endif
-#ifdef HAVE_SIGNAL_H
-#include <signal.h>
 #endif
 
 #include "auth.h"
