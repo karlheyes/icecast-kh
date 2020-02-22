@@ -2490,6 +2490,10 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 thread_rwlock_unlock (&source->lock);
             }
             avl_tree_unlock (global.source_tree);
+            if (minfo && minfo->relay_hook)
+            {
+                return relay_created_by_client (client, mount, minfo);
+            }
             if (minfo && minfo->limit_rate)
                 rate = minfo->limit_rate/8;
             if (minfo == NULL || minfo->fallback_mount == NULL)

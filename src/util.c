@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #endif
+#include <libgen.h>
 #ifdef HAVE_FNMATCH_H
 #include <fnmatch.h>
 #endif
@@ -1272,6 +1273,16 @@ int util_expand_pattern (const char *mount, const char *pattern, char *buf, unsi
               j += 8;
               i += len;
               continue;
+          }
+          if (strncmp (pattern+j, "${basename}", 11) == 0)
+          {
+             char *basec = strdup (mnt);
+             char *bname = basename (basec);
+             int blen = strlen(bname);
+             strncpy (buf+i, bname, blen);
+             j += 11;
+             i += blen;
+             free (basec);
           }
           // other tags to expand?
       }

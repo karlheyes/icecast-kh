@@ -97,6 +97,8 @@ typedef struct _config_options {
 typedef struct _mount_proxy {
     char *mountname; /* The mountpoint this proxy is used for */
 
+    struct ice_config_tag *conf;
+    struct _relay_server *relay_hook;
     char *username; /* Username and password for this mountpoint. If unset, */
     char *password; /* falls back to global source password */
 
@@ -207,6 +209,7 @@ struct _listener_t
 #define RELAY_FROM_MASTER               (1<<4)
 #define RELAY_SLAVE                     (1<<5)
 #define RELAY_IN_LIST                   (1<<6)
+#define RELAY_ONCE_ONLY                 (1<<7)
 
 typedef struct _relay_server_host
 {
@@ -227,8 +230,8 @@ typedef struct _relay_server
     time_t updated;
     int interval;
     int run_on;
+    unsigned int flags;
     unsigned char type;
-    unsigned char flags;
     char *localmount;
     relay_server_host *hosts, *in_use;
     char *username;

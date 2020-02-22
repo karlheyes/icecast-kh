@@ -252,6 +252,8 @@ void slave_shutdown(void)
     yp_shutdown();
     stats_shutdown();
     fserve_shutdown();
+    config_clear (config_get_config());
+    config_release_config();
     stop_logging();
     // stall until workers have shut down
     thread_rwlock_wlock (&global.workers_rw);
@@ -360,6 +362,7 @@ static http_parser_t *get_relay_response (connection_t *con, const char *mount,
             server,
             headers ? headers : "");
 
+    DEBUG1 ("requested GET %s", mount);
     free (server_id);
     memset (response, 0, sizeof(response));
     if (util_read_header (con->sock, response, 4096, READ_ENTIRE_HEADER) == 0)
@@ -402,7 +405,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     http_parser_t *parser = NULL;
     connection_t *con = &client->connection;
     char *server = strdup (host->ip);
-    char *mount = strdup (host->mount);
+    char *mount = NULL; //strdup (host->mount);
     int port = host->port, timeout = host->timeout, remain;
     char *p, headers[4096] = "";
 
@@ -418,6 +421,18 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     }
     while (1)
     {
+        if (redirects == 0)
+        {
+            unsigned int len;
+            char mount_x[4096] = "";
+            len = sizeof mount_x;
+            if (util_expand_pattern (relay->localmount, host->mount, mount_x, &len) != 0)
+            {
+                WARN2 ("problem expanding patten (%s) on %s", host->mount, relay->localmount);
+                break;
+            }
+            mount = strdup (mount_x);
+        }
         sock_t streamsock;
         char *bind = NULL;
 
@@ -798,6 +813,96 @@ static int add_master_relay (const char *mount, const char *type, struct master_
             INFO1 ("relay \"%s\" already in use, ignoring", mount);
     }
     return ret;
+}
+
+
+int relay_init_check (client_t *client)
+{
+    char *mount = (char *)client->aux_data;
+
+    if (client->worker->current_time.tv_sec < client->connection.discon.time && global.running)
+    {
+        avl_tree_rlock (global.source_tree);
+        source_t *source = source_find_mount_raw (mount);
+        if (source && source_available (source))
+        {
+            free (mount);
+            thread_rwlock_wlock (&source->lock);
+            client->mount = source->mount;
+            avl_tree_unlock (global.source_tree);
+
+            client->connection.discon.time = 0;
+            source_setup_listener (source, client);
+            source->listeners++;
+            thread_rwlock_unlock (&source->lock);
+            return 0;
+        }
+
+        client->schedule_ms += 100;
+        return 0;
+    }
+    DEBUG1 ("Timeout waiting for source %s to become available", mount);
+    free (mount);
+    return -1;
+}
+
+
+struct _client_functions listener_relay_init_ops =
+{
+    relay_init_check,
+    client_destroy
+};
+
+
+int relay_created_by_client (client_t *client, const char *mount, mount_proxy *mountinfo)
+{
+    relay_server *r = mountinfo->relay_hook;
+
+    // if source already presnt then listeners don't get here, but we need to get relay ready if not
+    relay_server *result = NULL, find;
+    find.localmount = (char *)mount;
+    avl_tree_wlock (global.relays);
+    int notfound = avl_get_by_key (global.relays, &find, (void*)&result);
+    if (notfound || (result->flags & RELAY_CLEANUP))
+    {
+        result = relay_copy (r);
+        xmlFree (result->localmount);
+        result->localmount = (char *)xmlCharStrdup (mount);
+
+        result->updated = time(NULL);
+
+        result->flags |= (RELAY_ONCE_ONLY|RELAY_IN_LIST);
+        avl_insert (global.relays, result);
+        avl_tree_unlock (global.relays);
+
+        client_t *rclient = calloc (1, sizeof (client_t));
+
+        connection_init (&rclient->connection, SOCK_ERROR, NULL);
+
+        global_lock();
+        client_register (client);
+        global_unlock();
+
+        rclient->shared_data = result;
+        rclient->ops = &relay_init_ops;
+        rclient->flags |= CLIENT_ACTIVE;
+        client_add_worker (rclient);
+        DEBUG2 ("adding relay for %s (from %s)", mount, mountinfo->mountname);
+    }
+    else
+        avl_tree_unlock (global.relays);
+
+    // listener ops to join relay source
+    client->connection.discon.time = time (NULL) + 2;
+    client->aux_data = (uint64_t)strdup (result->localmount);
+    client->ops = &listener_relay_init_ops;
+    client->schedule_ms += 50;
+
+    global_lock();
+    global.listeners++;
+    global_unlock();
+
+    return 0;
 }
 
 
@@ -1360,6 +1465,8 @@ static int relay_expired (relay_server *relay)
 {
     time_t t = (relay->flags & RELAY_FROM_MASTER) ? relay_barrier_master : relay_barrier_xml;
 
+    if (relay->flags & RELAY_ONCE_ONLY)
+        relay->updated = t;     // prevent an automatic drop on reload.
     return (relay->updated < t) ? 1 : 0;
 }
 
@@ -1457,6 +1564,8 @@ static int relay_read (client_t *client)
         /* don't pause listeners if relay shutting down */
         if ((relay->flags & RELAY_RUNNING) == 0)
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
+        if (relay->flags & RELAY_ONCE_ONLY)
+            relay->flags |= RELAY_CLEANUP;
         // fallback listeners unless relay is to be retried
         INFO2 ("fallback on %s %sattempted", source->mount, fallback ? "" : "not ");
         source_shutdown (source, fallback);

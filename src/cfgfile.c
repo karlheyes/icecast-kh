@@ -4,7 +4,7 @@
  * A copy of this license is included with this source.
  *
  * Copyright 2010-2020, Karl Heyes <karl@kheyes.plus.net>
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -82,6 +82,7 @@ static ice_config_locks _locks;
 
 static void _set_defaults(ice_config_t *c);
 static int  _parse_root (xmlNodePtr node, ice_config_t *config);
+static int _parse_relay_on_mount (xmlNodePtr node, void *arg);
 
 static void create_locks(void) {
     thread_rwlock_create(&_locks.config_lock);
@@ -301,9 +302,9 @@ void config_initialize(void) {
 }
 
 void config_shutdown(void) {
-    config_get_config();
-    config_clear(&_current_configuration);
-    config_release_config();
+    //config_get_config();
+    //config_clear(&_current_configuration);
+    //config_release_config();
     release_locks();
 }
 
@@ -329,6 +330,7 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 
 relay_server *config_clear_relay (relay_server *relay)
 {
+    if (relay == NULL) return NULL;
     relay_server *next = relay->new_details;
     while (relay->hosts)
     {
@@ -386,6 +388,7 @@ static void config_clear_mount (mount_proxy *mount)
         free (option);
         option = nextopt;
     }
+    config_clear_relay (mount->relay_hook);
     if (mount->auth)
     {
         thread_mutex_lock (&mount->auth->lock);
@@ -1090,10 +1093,12 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         { "public",             config_get_bool,    &mount->yp_public },
         { "type",               config_get_str,     &mount->type },
         { "subtype",            config_get_str,     &mount->subtype },
+        { "relay",              _parse_relay_on_mount,       mount },
         { NULL, NULL, NULL },
     };
 
     /* default <mount> settings */
+    mount->conf = config;
     mount->max_listeners = -1;
     mount->max_bandwidth = -1;
     mount->burst_size = config->burst_size;
@@ -1201,9 +1206,8 @@ static int _relay_host (xmlNodePtr node, void *arg)
 }
 
 
-static int _parse_relay (xmlNodePtr node, void *arg)
+static int _parse_relay_internal (xmlNodePtr node, ice_config_t *config, mount_proxy *mountinfo, relay_server **r)
 {
-    ice_config_t *config = arg;
     relay_server *relay = calloc(1, sizeof(relay_server));
     relay_server_host *host = calloc (1, sizeof (relay_server_host));
     int on_demand = config->on_demand, icy_metadata = 1, running = 1;
@@ -1236,8 +1240,9 @@ static int _parse_relay (xmlNodePtr node, void *arg)
     /* default settings */
     host->port = config->port;
     host->ip = (char *)xmlCharStrdup ("127.0.0.1");
-    host->mount = (char*)xmlCharStrdup ("/");
+    host->mount = (char*)xmlCharStrdup (mountinfo ? mountinfo->mountname : "/");
     host->timeout = 4;
+    *r = NULL;
 
     do
     {
@@ -1267,14 +1272,48 @@ static int _parse_relay (xmlNodePtr node, void *arg)
             free (host);
         }
 
-        relay->new_details = config->relays;
-        config->relays = relay;
+        *r = relay;
 
         return 0;
     } while (0);
     config_clear_relay (relay);
     return 0;
 }
+
+
+int _parse_relay (xmlNodePtr node, void *arg)
+{
+    ice_config_t *config = arg;
+    relay_server *relay = NULL;
+    int r = _parse_relay_internal (node, config, NULL, &relay);
+    if (r == 0 && relay)
+    {
+        relay->new_details = config->relays;
+        config->relays = relay;
+    }
+    return r;
+}
+
+
+int _parse_relay_on_mount (xmlNodePtr node, void *arg)
+{
+    mount_proxy *mountinfo = arg;
+    int r = 0;
+    if (mountinfo->relay_hook == NULL)
+    {
+        relay_server *relay = NULL;
+        r = _parse_relay_internal (node, mountinfo->conf, mountinfo, &relay);
+        if (relay)
+        {
+            mountinfo->relay_hook = relay;
+            relay->flags |= RELAY_ON_DEMAND;
+        }
+    }
+    else
+        WARN1 ("Only one relay per mount on %s", mountinfo->mountname);
+    return r;
+}
+
 
 
 static int _parse_redirect (xmlNodePtr node, void *arg)
