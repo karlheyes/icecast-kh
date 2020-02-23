@@ -54,6 +54,8 @@ int worker_count = 0, worker_min_count;
 worker_t *worker_balance_to_check, *worker_least_used, *worker_incoming = NULL;
 
 FD_t logger_fd[2];
+int log_thread_started = 0;
+thread_type *th = NULL;
 
 static void logger_commits (int id);
 
@@ -896,12 +898,14 @@ void worker_wakeup (worker_t *worker)
 
 static void logger_commits (int id)
 {
-    pipe_write (logger_fd[1], "L", 1);
+    if (log_thread_started)
+        pipe_write (logger_fd[1], "L", 1);
 }
 
 static void *log_commit_thread (void *arg)
 {
     INFO0 ("started");
+    log_thread_started = 1;
     while (1)
     {
         int ret = util_timed_wait_for_fd (logger_fd[0], 5000);
@@ -947,11 +951,13 @@ void worker_logger (int stop)
     if (stop)
     {
        logger_commits(0);
+       log_thread_started = 0;
        sock_close (logger_fd[1]);
        logger_fd[1] = -1;
+       thread_join (th);
        return;
     }
     thread_rwlock_rlock (&global.workers_rw);
-    thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
+    th = thread_create ("Log Thread", log_commit_thread, NULL, THREAD_ATTACHED);
 }
 

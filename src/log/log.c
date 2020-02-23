@@ -35,6 +35,7 @@
 
 static void *_logger_mutex;
 static int _initialized = 0;
+static int stall_logging = 1;
 
 static mx_create_func       log_mutex_alloc;
 static mx_lock_func         log_mutex_lock;
@@ -159,7 +160,7 @@ static int _log_open (int id, time_t now)
 static void log_init (log_t *log)
 {
     log->in_use = 0;
-    log->level = 2;
+    log->level = 4;
     log->size = 0;
     log->trigger_level = 50*1024*1024;
     log->duration = 0;
@@ -185,6 +186,7 @@ void log_initialize_lib (mx_create_func mxc, mx_lock_func mxl)
     if (log_mutex_alloc)
         log_mutex_alloc (&_logger_mutex, 1);
     log_callback = NULL;
+    stall_logging = 1;
     _initialized = 1;
 }
 
@@ -466,8 +468,9 @@ static int do_log_run (int log_id)
         _unlock_logger ();
 
         // fprintf (stderr, "in log run, line is %s\n", next->line);
-        if (fprintf (loglist [log_id].logfile, "%s\n", next->line) >= 0)
-            loglist [log_id].size += next->len;
+        int id = loglist [log_id].logfile ? log_id : 0;
+        if (fprintf (loglist [id].logfile, "%s\n", next->line) >= 0)
+            loglist [id].size += next->len;
 
         _lock_logger ();
         next = next->next;
@@ -487,6 +490,8 @@ void log_commit_entries ()
     _lock_logger ();
     for (log_id = 0; log_id < logs_allocated ; log_id++)
     {
+        if (stall_logging && log_id > 0)
+            break;
         do
         {
             if (loglist [log_id].in_use)
@@ -503,6 +508,7 @@ void log_commit_entries ()
 void log_set_commit_callback (log_commit_callback f)
 {
     log_callback = f;
+    stall_logging = 0;
 }
 
 
@@ -549,7 +555,7 @@ static int create_log_entry (int log_id, const char *line)
     loglist [log_id].entries++;
     if (log_callback)
         log_callback (log_id);
-    else
+    else if (stall_logging == 0 || log_id == 0)
         do_log_run (log_id);
     do_purge (log_id);
     return len;
@@ -609,8 +615,8 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
     va_list ap;
 
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return; /* Bad log number */
-    if (loglist[log_id].level < priority) return;
     if (priority > sizeof(prior)/sizeof(prior[0])) return; /* Bad priority */
+    if (loglist[log_id].level < priority) return;
 
     va_start(ap, fmt);
 
