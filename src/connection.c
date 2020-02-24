@@ -398,11 +398,6 @@ static void get_ssl_certificate (ice_config_t *config)
             WARN1 ("Invalid cipher list: %s", config->cipher_list);
         }
         ssl_ok = 1;
-        INFO1 ("SSL certificate found at %s", config->cert_file);
-        if (strcmp (config->cert_file, config->key_file) != 0)
-            INFO1 ("SSL private key found at %s", config->key_file);
-
-        INFO1 ("SSL using ciphers %s", config->cipher_list);
         if (ssl_ctx)
             SSL_CTX_free (ssl_ctx);
         ssl_ctx = new_ssl_ctx;
@@ -1872,6 +1867,14 @@ int connection_setup_sockets (ice_config_t *config)
     listener = config->listen_sock;
     prev = &config->listen_sock;
     arr_size = count = global.server_sockets;
+    if (sockets_setup < 2 && ssl_ok)
+    {
+        INFO1 ("SSL certificate found at %s", config->cert_file);
+        if (strcmp (config->cert_file, config->key_file) != 0)
+            INFO1 ("SSL private key found at %s", config->key_file);
+
+        INFO1 ("SSL using ciphers %s", config->cipher_list);
+    }
     if (sockets_setup == 1)
     {
         // in case of changowner, run through the first time as root, but reject the second run through as that will 
