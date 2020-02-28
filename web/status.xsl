@@ -17,7 +17,7 @@
 <xsl:for-each select="source">
 <div class="roundcont">
 <div class="roundtop">
-<img src="/images/corner_topleft.jpg" class="corner" style="display: none" alt=""/>
+
 </div>
 <div class="newscontent">
     <div class="streamheader">
@@ -94,7 +94,7 @@
 </table>
 </div>
 <div class="roundbottom">
-<img src="/images/corner_bottomleft.jpg" class="corner" style="display: none" alt="" />
+
 </div>
 </div>
 <br />
