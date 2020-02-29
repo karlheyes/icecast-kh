@@ -536,8 +536,8 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
         //DEBUG1 ("initial stream prebuffers checked, %d queued", mp->cb->cached_len);
         demux_block (mp->cb);
         DEBUG2 ("purged initial stream prebuffers on %s, %d queued", source->mount, mp->cb->cached_len);
-        INFO2 ("Video codec detected on %s as %s", source->mount,
-                avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
+        //INFO2 ("Video codec detected on %s as %s", source->mount,
+                //avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
         mp->cb->post_process = process_blocks;
         return remaining;
 
