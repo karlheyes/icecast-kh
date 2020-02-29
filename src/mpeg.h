@@ -17,6 +17,13 @@
 
 #include "refbuf.h"
 
+#ifdef HAVE_LIBAVCODEC_AVCODEC_H
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavformat/avio.h>
+#include <libavutil/file.h>
+#endif
+
 struct mpeg_sync;
 
 typedef uint8_t frame_type_t;
@@ -28,12 +35,29 @@ typedef uint8_t frame_type_t;
 #define FORMAT_TYPE_MP4             4
 #define FORMAT_TYPE_EBML            5
 #define FORMAT_TYPE_USAC            6   // USAC/LOAS framed aac
+#define FORMAT_TYPE_MPTS            7   // mpeg TS stream
 
 
 typedef struct sync_callback_t
 {
     void *callback_key;
-    int (*frame_callback)(struct mpeg_sync *mp, struct sync_callback_t *cb, unsigned char *p, unsigned int len, unsigned int offset);
+
+#ifdef HAVE_AV
+    refbuf_t *cached, **cached_p;
+    uint32_t cached_len;
+    uint32_t cached_count;
+    uint32_t video_stream_idx;
+    uint64_t stream_offset;
+    AVFormatContext *fmt_ctx;
+    AVIOContext *avio_ctx;
+    void *aux_1;
+
+    // final processing on incoming block.
+    int  (*post_process)(struct mpeg_sync *mp, struct sync_callback_t *cb, refbuf_t *block, int remaining);
+#endif
+    // used for FLV wrapping at the moment
+    int  (*frame_callback)(struct mpeg_sync *mp, struct sync_callback_t *cb, unsigned char *p, unsigned int len, unsigned int offset);
+
 } sync_callback_t;
 
 typedef struct mpeg_sync
@@ -55,6 +79,7 @@ typedef struct mpeg_sync
     int (*process_frame) (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int len);
 
     refbuf_t *surplus;
+    sync_callback_t *cb;
     const char *reference;
 } mpeg_sync;
 
@@ -64,7 +89,8 @@ typedef struct mpeg_sync
 #define MPEG_KEEP_META      (1<<3)
 #define MPEG_COPY_META      (1<<4)
 
-void mpeg_setup (mpeg_sync *mpsync, const char *mount);
+void mpeg_setup_key (mpeg_sync *mpsync, const char *mount, void *key);
+#define mpeg_setup(mpsync, mount) mpeg_setup_key(mpsync, mount, NULL)
 void mpeg_cleanup (mpeg_sync *mpsync);
 void mpeg_check_numframes (mpeg_sync *mpsync, unsigned count);
 void mpeg_set_flags (mpeg_sync *mpsync, uint64_t flags);

@@ -219,11 +219,11 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
             INFO2 ("icy metadata format expected on %s, interval %d", plugin->mount, source_mp3->interval);
         }
     }
-    if (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG)
+    if (plugin->type == FORMAT_TYPE_AAC || plugin->type == FORMAT_TYPE_MPEG || plugin->type == FORMAT_TYPE_MPTS)
     {
         if (client->format_data == NULL)
             client->format_data = malloc (sizeof (mpeg_sync));
-        mpeg_setup (client->format_data, client->connection.ip);
+        mpeg_setup_key (client->format_data, client->connection.ip, plugin->source);
         plugin->write_buf_to_client = write_mpeg_buf_to_client;
     }
     if (source_mp3->read_data == NULL)
@@ -889,22 +889,26 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
     {
         format_plugin_t *plugin = source->format;
         int rate = mpeg_get_samplerate (mpeg_sync);
+        format_type_t fmt = mpeg_get_type (mpeg_sync);
         char buf [30];
 
         source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
-        if (rate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
+        if (fmt == FORMAT_TYPE_MPTS && strcmp (plugin->contenttype, "video/MP2T") != 0)
         {
             free (plugin->contenttype);
             plugin->contenttype = strdup ("video/MP2T");
         }
-        stats_lock (source->stats, NULL);
-        snprintf (buf, sizeof buf, "%d", mpeg_get_type (mpeg_sync) == FORMAT_TYPE_AAC ? 10 : 2);
-        stats_set_flags (source->stats, "audio_codecid", buf, STATS_HIDDEN);
-        snprintf (buf, sizeof buf, "%d", rate);
-        stats_set_flags (source->stats, "mpeg_samplerate", buf, STATS_HIDDEN);
-        snprintf (buf, sizeof buf, "%d", mpeg_get_channels (mpeg_sync));
-        stats_set_flags (source->stats, "mpeg_channels", buf, STATS_HIDDEN);
-        stats_release (source->stats);
+        else
+        {
+            stats_lock (source->stats, NULL);
+            snprintf (buf, sizeof buf, "%d", mpeg_get_type (mpeg_sync) == FORMAT_TYPE_AAC ? 10 : 2);
+            stats_set_flags (source->stats, "audio_codecid", buf, STATS_HIDDEN);
+            snprintf (buf, sizeof buf, "%d", rate);
+            stats_set_flags (source->stats, "mpeg_samplerate", buf, STATS_HIDDEN);
+            snprintf (buf, sizeof buf, "%d", mpeg_get_channels (mpeg_sync));
+            stats_set_flags (source->stats, "mpeg_channels", buf, STATS_HIDDEN);
+            stats_release (source->stats);
+        }
     }
     if (unprocessed > 0)
     {
@@ -973,7 +977,6 @@ static refbuf_t *mp3_get_no_meta (source_t *source)
         refbuf_release (refbuf);
         return NULL;
     }
-    source->client->queue_pos += refbuf->len;
     refbuf->associated = source_mp3->metadata;
     metadata_blk_ref_inc (source_mp3->metadata);
     source_mp3->metadata->on_queue = 1;
@@ -1078,7 +1081,6 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
         refbuf_release (refbuf);
         return NULL;
     }
-    source->client->queue_pos += refbuf->len;
     refbuf->associated = source_mp3->metadata;
     metadata_blk_ref_inc (source_mp3->metadata);
     source_mp3->metadata->on_queue = 1;

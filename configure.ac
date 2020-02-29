@@ -38,6 +38,11 @@ fi
 dnl Checks for programs.
 
 dnl Checks for libraries.
+AC_SEARCH_LIBS([sqrt], [m], XIPH_VAR_APPEND([XIPH_LIBS],["-lm"]))
+PKG_CHECK_MODULES([LIBAV], [libavformat libavcodec libavutil],
+    [AC_DEFINE([HAVE_AV], [1], [Use AV])
+     XIPH_VAR_APPEND([XIPH_CPPFLAGS],[$LIBAV_CFLAGS])
+     XIPH_VAR_PREPEND([XIPH_LIBS],[$LIBAV_LIBS])])
 
 dnl Checks for header files.
 AC_HEADER_STDC
@@ -45,6 +50,11 @@ AC_HEADER_TIME
 
 AC_CHECK_HEADERS([fcntl.h fnmatch.h sys/timeb.h sys/wait.h alloca.h malloc.h glob.h winsock2.h windows.h stdbool.h])
 AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
+save_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$CPPFLAGS $LIBAV_CFLAGS"
+AC_CHECK_HEADERS([libavcodec/avcodec.h libavformat/avformat.h libavutil/file.h])
+CPPFLAGS="$save_CPPFLAGS"
+
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 XIPH_C__FUNC__

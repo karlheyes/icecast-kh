@@ -77,7 +77,7 @@ format_type_t format_get_type(const char *content_type)
     else if(strcmp(contenttype, "audio/mpeg") == 0)
         return FORMAT_TYPE_MPEG;
     else if(strcmp(contenttype, "video/MP2T") == 0)
-        return FORMAT_TYPE_MPEG;
+        return FORMAT_TYPE_MPTS;
     else
         return FORMAT_TYPE_UNDEFINED;
 }
@@ -132,6 +132,7 @@ int format_get_plugin (format_plugin_t *plugin)
             break;
         case FORMAT_TYPE_AAC:
         case FORMAT_TYPE_MPEG:
+        case FORMAT_TYPE_MPTS:
             ret = format_mp3_get_plugin (plugin);
             break;
         case FORMAT_TYPE_EBML:

@@ -55,6 +55,7 @@ struct _format_plugin_tag
     /* we need to know the mount to report statistics */
     char *mount;
 
+    void *source;
     char *contenttype;
     char *charset;
     http_parser_t *parser;

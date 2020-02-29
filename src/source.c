@@ -515,6 +515,55 @@ static void update_source_stats (source_t *source)
 }
 
 
+void source_add_queue_buffer (source_t *source, refbuf_t *r)
+{
+    source->bytes_read_since_update += r->len;
+
+    r->flags |= SOURCE_QUEUE_BLOCK;
+
+    /* append buffer to the in-flight data queue,  */
+    if (source->stream_data == NULL)
+    {
+        mount_proxy *mountinfo = config_find_mount (config_get_config(), source->mount);
+        if (mountinfo)
+        {
+            source_set_intro (source, mountinfo->intro_filename);
+            source_set_override (mountinfo, source, source->format->type);
+        }
+        config_release_config();
+
+        source->stream_data = r;
+        source->min_queue_point = r;
+        source->min_queue_offset = 0;
+    }
+    if (source->stream_data_tail)
+        source->stream_data_tail->next = r;
+    source->buffer_count++;
+
+    source->stream_data_tail = r;
+    source->queue_size += r->len;
+    source->client->queue_pos += r->len;
+    source->wakeup = 1;
+
+    /* move the starting point for new listeners */
+    source->min_queue_offset += r->len;
+
+    if ((source->buffer_count & 3) == 3)
+        source->incoming_rate = (long)rate_avg (source->in_bitrate);
+
+    /* save stream to file */
+    if (source->dumpfile && source->format->write_buf_to_file)
+        source->format->write_buf_to_file (source, r);
+
+    if (source->shrink_time == 0 && (source->buffer_count & 31) == 31)
+    {
+        // kick off timed response to find oldest buffer. Every so many buffers
+        source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
+        source->shrink_time = source->client->worker->time_ms + 600;
+    }
+}
+
+
 /* get some data from the source. The stream data is placed in a refbuf
  * and sent back, however NULL is also valid as in the case of a short
  * timeout and there's no data pending.
@@ -612,80 +661,39 @@ int source_read (source_t *source)
         }
 
         source->last_read = current;
+        unsigned int prev_qsize = source->queue_size;
         do
         {
             refbuf = source->format->get_buffer (source);
             if (refbuf)
+                source_add_queue_buffer (source, refbuf);
+
+            skip = 0;
+
+            if (client->connection.error)
             {
-                if (skip)
-                    source->skip_duration = (long)(source->skip_duration * 0.9);
-                source->bytes_read_since_update += refbuf->len;
-
-                refbuf->flags |= SOURCE_QUEUE_BLOCK;
-
-                /* append buffer to the in-flight data queue,  */
-                if (source->stream_data == NULL)
-                {
-                    mount_proxy *mountinfo = config_find_mount (config_get_config(), source->mount);
-                    if (mountinfo)
-                    {
-                        source_set_intro (source, mountinfo->intro_filename);
-                        source_set_override (mountinfo, source, source->format->type);
-                    }
-                    config_release_config();
-
-                    source->stream_data = refbuf;
-                    source->min_queue_point = refbuf;
-                    source->min_queue_offset = 0;
-                }
-                if (source->stream_data_tail)
-                    source->stream_data_tail->next = refbuf;
-                source->buffer_count++;
-
-                source->stream_data_tail = refbuf;
-                source->queue_size += refbuf->len;
-                source->wakeup = 1;
-
-                /* move the starting point for new listeners */
-                source->min_queue_offset += refbuf->len;
-                while (source->min_queue_offset > source->min_queue_size)
-                {
-                    refbuf_t *to_release = source->min_queue_point;
-                    if (to_release && to_release->next)
-                    {
-                        source->min_queue_offset -= to_release->len;
-                        source->min_queue_point = to_release->next;
-                        continue;
-                    }
-                    break;
-                }
-
-                /* save stream to file */
-                if (source->dumpfile && source->format->write_buf_to_file)
-                    source->format->write_buf_to_file (source, refbuf);
-                if (source->shrink_time == 0 && (source->buffer_count & 31) == 31)
-                {
-                    // kick off timed response to find oldest buffer. Every so many buffers
-                    source->shrink_pos = source->client->queue_pos - source->min_queue_offset;
-                    source->shrink_time = client->worker->time_ms + 600;
-                    break;
-                }
-                skip = 0;
+                INFO1 ("End of Stream %s", source->mount);
+                source->flags &= ~SOURCE_RUNNING;
+                return 0;
             }
-            else
+            loop--;
+        } while (loop);
+
+        if (source->queue_size != prev_qsize)
+        {
+            while (source->min_queue_offset > source->min_queue_size)
             {
-                if (client->connection.error)
+                refbuf_t *to_release = source->min_queue_point;
+                if (to_release && to_release->next)
                 {
-                    INFO1 ("End of Stream %s", source->mount);
-                    source->flags &= ~SOURCE_RUNNING;
-                    return 0;
+                    source->min_queue_offset -= to_release->len;
+                    source->min_queue_point = to_release->next;
+                    continue;
                 }
                 break;
             }
-            if ((source->buffer_count & 3) == 3)
-                source->incoming_rate = (long)rate_avg (source->in_bitrate);
-            loop--;
-        } while (loop);
+            source->skip_duration = (long)(source->skip_duration * 0.9);
+        }
 
         if (source->shrink_time)
         {
@@ -2808,6 +2816,7 @@ int source_format_init (source_t *source)
             WARN1 ("plugin format failed for \"%s\"", source->mount);
             return -1;
         }
+        format->source = source;
     }
     format_apply_client (format, client);
     return 0;

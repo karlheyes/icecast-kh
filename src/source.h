@@ -133,6 +133,7 @@ void source_set_fallback (source_t *source, const char *dest_mount);
 int source_set_intro (source_t *source, const char *file_pattern);
 int  source_format_init (source_t *source);
 void source_listeners_wakeup (source_t *source);
+void source_add_queue_buffer (source_t *source, refbuf_t *r);
 
 int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client, auth_t *auth);
 

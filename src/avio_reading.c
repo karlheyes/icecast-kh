@@ -48,8 +48,8 @@ long offset = 0;
 
 static int read_packet(void *opaque, uint8_t *buf, int buf_size)
 {
-    struct buffer_data *bd = (struct buffer_data *)opaque;
-    buf_size = FFMIN(buf_size, bd->size);
+    //struct buffer_data *bd = (struct buffer_data *)opaque;
+    //buf_size = FFMIN(buf_size, bd->size);
 
     if (!buf_size)
         return AVERROR_EOF;
@@ -109,8 +109,8 @@ int main(int argc, char *argv[])
     /* fill opaque structure used by the AVIOContext read callback */
     //bd.ptr  = buffer;
     //bd.size = buffer_size;
-    bd.ptr = av_malloc (8192);
-    bd.size = 8192;
+    //bd.ptr = av_malloc (8192);
+    //bd.size = 8192;
 
     if (!(fmt_ctx = avformat_alloc_context())) {
         ret = AVERROR(ENOMEM);
@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
         goto end;
     }
 
+    printf ("checking for packets\n");
     AVPacket pkt;
     /* initialize packet, set data to NULL, let the demuxer fill it */
     av_init_packet(&pkt);
@@ -199,19 +200,20 @@ int main(int argc, char *argv[])
            break;
        if (pkt.stream_index == video_stream_idx)
        {
-           sprintf (msg, "Video %s", pkt.flags & AV_PKT_FLAG_KEY ? ", Key" : "");
+           sprintf (msg, "Video%s", pkt.flags & AV_PKT_FLAG_KEY ? ", Key" : "");
        }
        else
            sprintf (msg, "Other, %d", pkt.stream_index);
 
-       printf ("demux pkt size %d (%s)\n", pkt.size, msg);
+       printf ("demux pkt size %d at %ld (%s)\n", pkt.size, pkt.pos, msg);
        av_packet_unref (&pkt);
    } while (1);
 
 end:
-    avformat_close_input(&fmt_ctx);
+    avformat_close_input (&fmt_ctx);
     /* note: the internal buffer could have changed, and be != avio_ctx_buffer */
-    if (avio_ctx) {
+    if (avio_ctx)
+    {
         av_freep(&avio_ctx->buffer);
         av_freep(&avio_ctx);
     }

@@ -394,7 +394,7 @@ static refbuf_t *complete_buffer (source_t *source, refbuf_t *refbuf)
      * marking starting points */
     if (ogg_info->codec_sync == NULL)
         refbuf->flags |= SOURCE_BLOCK_SYNC;
-    source->client->queue_pos += refbuf->len;
+    //source->client->queue_pos += refbuf->len;
     return refbuf;
 }
 
