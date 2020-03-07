@@ -41,6 +41,8 @@ dnl Checks for libraries.
 AC_SEARCH_LIBS([sqrt], [m], XIPH_VAR_APPEND([XIPH_LIBS],["-lm"]))
 PKG_CHECK_MODULES([LIBAV], [libavformat libavcodec libavutil],
     [AC_DEFINE([HAVE_AV], [1], [Use AV])
+     CFLAGS="$CFLAGS $LIBAV_CFLAGS"
+     AC_CHECK_MEMBERS([AVStream.codecpar],,,[#include <libavformat/avformat.h>])
      XIPH_VAR_APPEND([XIPH_CPPFLAGS],[$LIBAV_CFLAGS])
      XIPH_VAR_PREPEND([XIPH_LIBS],[$LIBAV_LIBS])])
 

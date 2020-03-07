@@ -321,6 +321,14 @@ static int handle_mpeg_frame (struct mpeg_sync *mp, sync_callback_t *cb, unsigne
 
 #ifdef HAVE_AV
 
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58,10,100)
+__attribute__((constructor)) void mpeg_av_init (void)
+{
+    av_register_all();
+}
+#endif
+
+
 struct demux_pos_info
 {
     refbuf_t *current;
@@ -458,13 +466,17 @@ static void demux_block (sync_callback_t *cb)
                         source_add_queue_buffer (source, r);
                     else
                         break;  // out of inner purge loop
-                }
+                } // while
                 cb->stream_offset = off;
             }
         }
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57,12,100)
+        av_free_packet (&pkt);
+#else
         av_packet_unref (&pkt);
+#endif
     } while (1);
-    av_packet_unref (&pkt);
+    //av_packet_unref (&pkt);
 }
 
 
@@ -492,7 +504,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
     if (add_cached_block (mp, cb, block, remaining) < 0)
         return remaining;
 
-    if ((mp->cb->cached_len < 400000) || (mp->cb->cached_count & 0x7))
+    if ((mp->cb->cached_len < 300000) || (mp->cb->cached_count & 0x1F))
         return remaining;   // skip
 
     //DEBUG2 ("checking with demux, total %u / %u", mp->cb->cached_len, cb->cached_count);
@@ -521,11 +533,11 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
                     0, info, &mpts_read_packet, NULL, NULL);
             if (avio_ctx == NULL) break;
             fmt_ctx->pb = avio_ctx;
-            fmt_ctx->probesize = 350000;
+            fmt_ctx->probesize = cb->cached_len - 50000;
             fmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO);
 
             call++;
-            ret = avformat_open_input (&fmt_ctx, NULL, NULL, NULL);
+            ret = avformat_open_input (&fmt_ctx, "", NULL, NULL);
             if (ret < 0) break;
             call++;
             ret = avformat_find_stream_info (fmt_ctx, NULL);
@@ -542,23 +554,34 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
         //DEBUG1 ("initial stream prebuffers checked, %d queued", mp->cb->cached_len);
         demux_block (mp->cb);
         DEBUG2 ("purged initial stream prebuffers on %s, %d queued", source->mount, mp->cb->cached_len);
-        //INFO2 ("Video codec detected on %s as %s", source->mount,
-                //avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
+#if HAVE_AVSTREAM_CODECPAR
+        INFO2 ("Video codec detected on %s as %s", source->mount,
+                avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
+#endif
         mp->cb->post_process = process_blocks;
         return remaining;
 
     } while(0);
-    avformat_close_input (&fmt_ctx);
+    if (fmt_ctx)
+        avformat_close_input (&fmt_ctx);
     if (avio_ctx)
     {
         av_freep (&avio_ctx->buffer);
         av_freep (&avio_ctx);
     }
-    mp->cb->post_process = NULL;
-    INFO3 ("Skipping further codec detection on %s: %s (%d)", source->mount, av_err2str(ret), call);
-    refbuf_release (cb->cached);
-    cb->cached = NULL;
-    free (info);
+    if (cb->cached_len > 1100000)
+    {
+        INFO3 ("Failed codec detection on %s: %d (%d)", source->mount, ret, call);
+        cb->post_process = NULL;
+        refbuf_release (cb->cached);
+        cb->cached = NULL;
+        cb->fmt_ctx = NULL;
+        cb->avio_ctx = NULL;
+        cb->aux_1 = NULL;
+        free (info);
+    }
+    else
+        DEBUG4 ("codec detection failed with %d on %s: %d (%d), will retry", cb->cached_len, source->mount, ret, call);
     return remaining;
 }
 

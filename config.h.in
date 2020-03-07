@@ -21,6 +21,9 @@
 /* Use AV */
 #undef HAVE_AV
 
+/* Define to 1 if `codecpar' is a member of `AVStream'. */
+#undef HAVE_AVSTREAM_CODECPAR
+
 /* Define to 1 if you have the `chroot' function. */
 #undef HAVE_CHROOT
 

@@ -2000,6 +2000,63 @@ fi
 
 } # ac_fn_cxx_try_link
 
+# ac_fn_c_check_member LINENO AGGR MEMBER VAR INCLUDES
+# ----------------------------------------------------
+# Tries to find if the field MEMBER exists in type AGGR, after including
+# INCLUDES, setting cache variable VAR accordingly.
+ac_fn_c_check_member ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2.$3" >&5
+$as_echo_n "checking for $2.$3... " >&6; }
+if eval \${$4+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$5
+int
+main ()
+{
+static $2 ac_aggr;
+if (ac_aggr.$3)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  eval "$4=yes"
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$5
+int
+main ()
+{
+static $2 ac_aggr;
+if (sizeof ac_aggr.$3)
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  eval "$4=yes"
+else
+  eval "$4=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+eval ac_res=\$$4
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+
+} # ac_fn_c_check_member
+
 # ac_fn_c_check_header_mongrel LINENO HEADER VAR INCLUDES
 # -------------------------------------------------------
 # Tests whether HEADER exists, giving a warning if it cannot be compiled using
@@ -2144,63 +2201,6 @@ $as_echo "$ac_res" >&6; }
   eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
 
 } # ac_fn_c_check_type
-
-# ac_fn_c_check_member LINENO AGGR MEMBER VAR INCLUDES
-# ----------------------------------------------------
-# Tries to find if the field MEMBER exists in type AGGR, after including
-# INCLUDES, setting cache variable VAR accordingly.
-ac_fn_c_check_member ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2.$3" >&5
-$as_echo_n "checking for $2.$3... " >&6; }
-if eval \${$4+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$5
-int
-main ()
-{
-static $2 ac_aggr;
-if (ac_aggr.$3)
-return 0;
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  eval "$4=yes"
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$5
-int
-main ()
-{
-static $2 ac_aggr;
-if (sizeof ac_aggr.$3)
-return 0;
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  eval "$4=yes"
-else
-  eval "$4=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-fi
-eval ac_res=\$$4
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
-
-} # ac_fn_c_check_member
 
 # ac_fn_c_check_decl LINENO SYMBOL VAR INCLUDES
 # ---------------------------------------------
@@ -17346,6 +17346,18 @@ else
 $as_echo "yes" >&6; }
 
 $as_echo "#define HAVE_AV 1" >>confdefs.h
+
+     CFLAGS="$CFLAGS $LIBAV_CFLAGS"
+     ac_fn_c_check_member "$LINENO" "AVStream" "codecpar" "ac_cv_member_AVStream_codecpar" "#include <libavformat/avformat.h>
+"
+if test "x$ac_cv_member_AVStream_codecpar" = xyes; then :
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_AVSTREAM_CODECPAR 1
+_ACEOF
+
+
+fi
 
 
 for arg in $LIBAV_CFLAGS
