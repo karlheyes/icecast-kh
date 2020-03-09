@@ -456,8 +456,8 @@ static void demux_block (sync_callback_t *cb)
                             seen_key = 0;
                         }
                         // push r to queue;
-                        if (push)
-                            source_add_queue_buffer (source, r);
+                        //if (push)
+                            //source_add_queue_buffer (source, r);
                         break;
                     }
                     // push r to queue;
@@ -504,7 +504,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
     if (add_cached_block (mp, cb, block, remaining) < 0)
         return remaining;
 
-    if ((mp->cb->cached_len < 300000) || (mp->cb->cached_count & 0x1F))
+    if ((mp->cb->cached_len < 320000) || (mp->cb->cached_count & 0x1F))
         return remaining;   // skip
 
     //DEBUG2 ("checking with demux, total %u / %u", mp->cb->cached_len, cb->cached_count);
@@ -533,8 +533,8 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
                     0, info, &mpts_read_packet, NULL, NULL);
             if (avio_ctx == NULL) break;
             fmt_ctx->pb = avio_ctx;
-            fmt_ctx->probesize = cb->cached_len - 50000;
-            fmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO);
+            fmt_ctx->probesize = cb->cached_len - 10000;
+            fmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO|AVFMT_FLAG_NOBUFFER|AVFMT_FLAG_FLUSH_PACKETS);
 
             call++;
             ret = avformat_open_input (&fmt_ctx, "", NULL, NULL);
