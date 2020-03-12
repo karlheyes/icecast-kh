@@ -25,6 +25,7 @@
 #include "format_mp3.h"
 #include "source.h"
 #include "global.h"
+#include "timing/timing.h"
 
 #define CATMODULE "mpeg"
 #include "logging.h"
@@ -356,7 +357,7 @@ static int mpts_read_packet(void *opaque, uint8_t *buf, int buf_size)
         if (info->pos >= r->len)
         {
             if (last_block)
-                break;  // do not move on from the last block
+                return total == 0 ? AVERROR_EOF : total;
             info->current = r->next;
             info->current_pos += r->len;
             info->pos = 0;
@@ -377,12 +378,11 @@ static int mpts_read_packet(void *opaque, uint8_t *buf, int buf_size)
 
 static int add_cached_block (struct mpeg_sync *mp, struct sync_callback_t *cb, refbuf_t *block, int remaining)
 {
-    //mp3_state *source_mp3 = cb->callback_key;
-
     format_type_t fmt = mpeg_get_type (mp);
-    if (cb->cached_len > 3000000 || (fmt != FORMAT_TYPE_UNDEFINED && fmt != FORMAT_TYPE_MPTS))
+    if (cb->cached_len > 5000000 || (fmt != FORMAT_TYPE_UNDEFINED && fmt != FORMAT_TYPE_MPTS))
     {
-        DEBUG0 ("disable caching buffers");
+        source_t *source = cb->callback_key;
+        DEBUG2 ("mount %s, disable caching buffers, %"PRIu32, source->mount, cb->cached_len);
         refbuf_release (cb->cached);
         free (cb);
         mp->cb = NULL;
@@ -398,6 +398,8 @@ static int add_cached_block (struct mpeg_sync *mp, struct sync_callback_t *cb, r
     cb->cached_p = &cached->next;
     cb->cached_len += cached->len;
     cb->cached_count++;
+    if (cb->aux_2)
+        rate_add (cb->aux_2, cached->len, timing_get_time());
     return 0;
 }
 
@@ -417,9 +419,8 @@ static void demux_block (sync_callback_t *cb)
         int ret;
         if ((ret = av_read_frame (cb->fmt_ctx, &pkt)) < 0)
         {
-            if (ret == AVERROR(EAGAIN))
+            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
             {
-                //DEBUG0 ("have EAGAIN");
                 cb->fmt_ctx->pb->error = 0;
             }
             break;
@@ -456,8 +457,8 @@ static void demux_block (sync_callback_t *cb)
                             seen_key = 0;
                         }
                         // push r to queue;
-                        //if (push)
-                            //source_add_queue_buffer (source, r);
+                        if (push)
+                            source_add_queue_buffer (source, r);
                         break;
                     }
                     // push r to queue;
@@ -476,7 +477,6 @@ static void demux_block (sync_callback_t *cb)
         av_packet_unref (&pkt);
 #endif
     } while (1);
-    //av_packet_unref (&pkt);
 }
 
 
@@ -504,7 +504,18 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
     if (add_cached_block (mp, cb, block, remaining) < 0)
         return remaining;
 
-    if ((mp->cb->cached_len < 320000) || (mp->cb->cached_count & 0x1F))
+    // the probe in the lib can take up to a few meg, which is fine for high bandwidth streams but can be
+    // more of an issue for smaller bitrates. here we use an avg bitrate measure during this stage only to
+    // come up with a scaling upper limit to avoid large data to be collected.
+    long checkpoint = 3000000;
+    if (cb->cached_len > 350000)
+    {
+        long t = (long)rate_avg(cb->aux_2);
+        if (t > 0)
+            checkpoint = t;
+        // DEBUG3 ("checkpoint rate on %s is %ld, len id %d", source->mount, t, cb->cached_len);
+    }
+    if ((mp->cb->cached_len < checkpoint) || (mp->cb->cached_count & 0x1F))
         return remaining;   // skip
 
     //DEBUG2 ("checking with demux, total %u / %u", mp->cb->cached_len, cb->cached_count);
@@ -553,6 +564,9 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
         }
         //DEBUG1 ("initial stream prebuffers checked, %d queued", mp->cb->cached_len);
         demux_block (mp->cb);
+        rate_free (cb->aux_2);
+        cb->aux_2 = NULL;
+        mp->settings |= SYNC_CHANGED;
         DEBUG2 ("purged initial stream prebuffers on %s, %d queued", source->mount, mp->cb->cached_len);
 #if HAVE_AVSTREAM_CODECPAR
         INFO2 ("Video codec detected on %s as %s", source->mount,
@@ -562,12 +576,17 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
         return remaining;
 
     } while(0);
-    if (fmt_ctx)
+    if (fmt_ctx) // has been known to crash on NULL
         avformat_close_input (&fmt_ctx);
     if (avio_ctx)
     {
         av_freep (&avio_ctx->buffer);
         av_freep (&avio_ctx);
+    }
+    if (cb && cb->aux_2)
+    {
+        rate_free (cb->aux_2);
+        cb->aux_2 = NULL;
     }
     if (cb->cached_len > 1100000)
     {
@@ -600,6 +619,7 @@ static void cleanup_cb (sync_callback_t *cb)
         }
         free (cb->aux_1);
     }
+    rate_free (cb->aux_2);
     free (cb);
 }
 #endif
@@ -847,11 +867,13 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
     mp->marker = 0x47;
 
     syncframe_set_samplerate (mp, pkt_len);
-    mp->settings |= SYNC_CHANGED;
     mp->type = FORMAT_TYPE_MPTS;
-#if 1
+#if HAVE_AV
     if (mp->cb)
+    {
         mp->cb->post_process = do_preblock_checking;
+        mp->cb->aux_2 = rate_setup (3000, 1000);
+    }
 #endif
     return 1;
 }

@@ -476,13 +476,13 @@ static void update_source_stats (source_t *source)
     {
         int log = 0;
         uint32_t qlen = (float)source_convert_qvalue (source, source->queue_len_value);
-        if (qlen)
+        if (qlen > 0)
         {
             float ratio = source->queue_size_limit / (float)qlen;
             if (ratio < 0.85 || ratio > 1.15)
                 log = 1;    // sizeable change in result so log it
+            source->queue_size_limit = qlen;
         }
-        source->queue_size_limit = qlen;
         source->min_queue_size = source_convert_qvalue (source, source->min_queue_len_value);
         source->default_burst_size = source_convert_qvalue (source, source->default_burst_value);
 
@@ -490,11 +490,14 @@ static void update_source_stats (source_t *source)
         if (source->default_burst_size > 50000000)
             source->default_burst_size = 100000;
         if (source->queue_size_limit > 1000000000)
-            source->queue_size_limit = 1000000;
+            source->queue_size_limit = 5000000;
+        if (source->queue_size_limit < 50000)
+            source->queue_size_limit = 100000;
+
         if (source->min_queue_size > 50000000 || source->min_queue_size < source->default_burst_size)
             source->min_queue_size = source->default_burst_size;
-        if (source->min_queue_size + 40000 > source->queue_size_limit)
-            source->queue_size_limit = source->min_queue_size + 40000;
+        if (source->min_queue_size + 4000 > source->queue_size_limit)
+            source->min_queue_size = source->default_burst_size;
 
         if (log)
         {
@@ -681,17 +684,26 @@ int source_read (source_t *source)
 
         if (source->queue_size != prev_qsize)
         {
-            while (source->min_queue_offset > source->min_queue_size)
+            uint64_t sync_off = source->min_queue_offset, off = sync_off;
+            refbuf_t *sync_point = source->min_queue_point, *ref = sync_point;
+            while (off > source->min_queue_size)
             {
-                refbuf_t *to_release = source->min_queue_point;
+                refbuf_t *to_release = ref;
                 if (to_release && to_release->next)
                 {
-                    source->min_queue_offset -= to_release->len;
-                    source->min_queue_point = to_release->next;
+                    if (to_release->flags & SOURCE_BLOCK_SYNC)
+                    {
+                        sync_off = off;
+                        sync_point = ref;
+                    }
+                    off -= to_release->len;
+                    ref = to_release->next;
                     continue;
                 }
                 break;
             }
+            source->min_queue_offset = sync_off;
+            source->min_queue_point = sync_point;
             source->skip_duration = (long)(source->skip_duration * 0.9);
         }
 
@@ -704,8 +716,8 @@ int source_read (source_t *source)
             source->shrink_time = 0;
         }
         /* lets see if we have too much/little data in the queue */
-        if ((queue_size_target < source->min_queue_size) || (queue_size_target > source->queue_size_limit))
-            queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_size;
+        if ((queue_size_target < source->min_queue_offset) || (queue_size_target > source->queue_size_limit))
+            queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_offset;
 
         loop = 48 + (source->incoming_rate >> 13); // scale max on high bitrates
         queue_size_target += 8000; // lets not be too tight to the limit

@@ -51,6 +51,7 @@ typedef struct sync_callback_t
     AVFormatContext *fmt_ctx;
     AVIOContext *avio_ctx;
     void *aux_1;
+    void *aux_2;
 
     // final processing on incoming block.
     int  (*post_process)(struct mpeg_sync *mp, struct sync_callback_t *cb, refbuf_t *block, int remaining);
