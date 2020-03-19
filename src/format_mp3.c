@@ -893,10 +893,13 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         char buf [30];
 
         source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
-        if (fmt == FORMAT_TYPE_MPTS && strcmp (plugin->contenttype, "video/MP2T") != 0)
+        if (fmt == FORMAT_TYPE_MPTS)
         {
-            free (plugin->contenttype);
-            plugin->contenttype = strdup ("video/MP2T");
+            if (strcmp (plugin->contenttype, "video/MP2T") != 0)
+            {
+                free (plugin->contenttype);
+                plugin->contenttype = strdup ("video/MP2T");
+            }
         }
         else
         {

@@ -75,7 +75,7 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size)
         f = NULL;
         return AVERROR_EOF;
     }
-    printf("off %ld req:%d, acq %d\n", offset, buf_size, ret);
+    //printf("off %ld req:%d, acq %d\n", offset, buf_size, ret);
     offset += ret;
     //memcpy(buf, bd->ptr, ret);
     //bd->ptr  += ret; // buf_size;
@@ -83,6 +83,58 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size)
 
     return ret; // buf_size;
 }
+
+
+// write callback file
+
+static int mpts_write_buffer (void *opaque, uint8_t *buf, int buf_size)
+{
+
+printf ("request to write %d\n", buf_size);
+return buf_size;
+#if 0
+    if(!feof(fp_write)){ 
+
+        int true_size=fwrite(buf,1,buf_size,fp_write); 
+
+        return true_size; 
+
+    }else{ 
+
+        return -1; 
+
+    } 
+#endif
+}
+
+
+#if 0
+AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
+{
+    AVStream *d = avformat_new_stream (fmt_ctx, s->codec->codec);
+    //Copy the settings of AVCodecContext
+    int ret = avcodec_copy_context (d->codec, s->codec);
+    if (ret < 0) {
+        return NULL;
+    }
+    d->codec->codec_tag = 0;
+    if (ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
+        d->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
+    return d;
+}
+#else
+AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
+{
+    AVStream *d = avformat_new_stream (fmt_ctx, NULL);
+    int ret = avcodec_parameters_copy (d->codecpar, s->codecpar);
+    if (ret < 0) {
+        return NULL;
+    }
+    d->codecpar->codec_tag = 0;
+    printf ("copied codec %s\n", avcodec_get_name (d->codecpar->codec_id));
+    return d;
+}
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -129,8 +181,10 @@ int main(int argc, char *argv[])
         goto end;
     }
     fmt_ctx->pb = avio_ctx;
+    fmt_ctx->probesize = 6000000;
+    fmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO);
 
-    ret = avformat_open_input(&fmt_ctx, NULL, NULL, NULL);
+    ret = avformat_open_input (&fmt_ctx, NULL, NULL, NULL);
     if (ret < 0) {
         fprintf(stderr, "Could not open input\n");
         goto end;
@@ -151,6 +205,45 @@ int main(int argc, char *argv[])
     }
     int video_stream_idx = ret;
     AVStream *video_stream = fmt_ctx->streams[video_stream_idx];
+
+// remux
+    AVFormatContext* ofmt_ctx=NULL; 
+
+    avformat_alloc_output_context2 (&ofmt_ctx, NULL, fmt_ctx->iformat->name, NULL); 
+    unsigned char* outbuffer=(unsigned char*)av_malloc(8192); 
+    AVIOContext *avio_out = avio_alloc_context (outbuffer, 8192,1,NULL,NULL, mpts_write_buffer, NULL);   
+
+    ofmt_ctx->pb = avio_out;  
+    //ofmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO);
+
+    //ofmt = ofmt_ctx->oformat;
+    int i;
+	for (i = 0; i < fmt_ctx->nb_streams; i++)
+    {
+		//Create output AVStream according to input AVStream
+		AVStream *in_stream = fmt_ctx->streams[i];
+		AVStream *out_stream = copy_avstream (ofmt_ctx, in_stream);
+		if (!out_stream) {
+			printf( "Failed allocating output stream\n");
+			ret = AVERROR_UNKNOWN;
+			goto end;
+		}
+	}
+    #if 0
+    if (!(ofmt_ctx->flags & AVFMT_NOFILE)) {
+        ret = avio_open(&ofmt_ctx->pb, "", AVIO_FLAG_WRITE);
+        if (ret < 0) {
+            fprintf(stderr, "Could not open output file '%s'", out_filename);
+            goto end;
+        }
+    }
+    #endif
+    ret = avformat_write_header (ofmt_ctx, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "Error occurred when opening output file\n");
+        goto end;
+    }
+
 
     #if 0
     /* find decoder for the stream */
@@ -195,9 +288,31 @@ int main(int argc, char *argv[])
    do
    {
        char msg [100];
-       //flush video
+
        if (av_read_frame(fmt_ctx, &pkt) < 0)
            break;
+
+       AVStream *in_stream, *out_stream;
+       in_stream  = fmt_ctx->streams[pkt.stream_index];
+       out_stream = ofmt_ctx->streams[pkt.stream_index];
+
+       /* copy packet */
+       #if 0
+       pkt.pts = av_rescale_q_rnd(pkt.pts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX);
+       pkt.dts = av_rescale_q_rnd(pkt.dts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX);
+       pkt.duration = av_rescale_q(pkt.duration, in_stream->time_base, out_stream->time_base);
+       pkt.pos = -1;
+#else
+       av_packet_rescale_ts(&pkt, in_stream->time_base, out_stream->time_base);
+       pkt.pos = -1;
+#endif
+       printf ("frame pos is %ld idx %d\n", pkt.dts, pkt.stream_index);
+       ret = av_interleaved_write_frame (ofmt_ctx, &pkt);
+       if (ret < 0) {
+           fprintf(stderr, "Error muxing packet\n");
+           break;
+       }
+       #if 0
        if (pkt.stream_index == video_stream_idx)
        {
            sprintf (msg, "Video%s", pkt.flags & AV_PKT_FLAG_KEY ? ", Key" : "");
@@ -206,8 +321,13 @@ int main(int argc, char *argv[])
            sprintf (msg, "Other, %d", pkt.stream_index);
 
        printf ("demux pkt size %d at %ld (%s)\n", pkt.size, pkt.pos, msg);
+       #endif
        av_packet_unref (&pkt);
    } while (1);
+   printf ("end loop\n");
+   av_write_trailer(ofmt_ctx);
+   printf ("closing\n");
+   ret = 0;
 
 end:
     avformat_close_input (&fmt_ctx);
@@ -217,12 +337,19 @@ end:
         av_freep(&avio_ctx->buffer);
         av_freep(&avio_ctx);
     }
-    // av_file_unmap(buffer, buffer_size);
 
     if (ret < 0) {
         fprintf(stderr, "Error occurred: %s\n", av_err2str(ret));
         return 1;
     }
 
+    if (ofmt_ctx)
+    {
+        //avformat_close_input (&ofmt_ctx);
+        //av_freep(&avio_ctx->buffer);
+        //av_freep(&avio_ctx);
+        // avio_closep(&ofmt_ctx->pb);
+        avformat_free_context (ofmt_ctx);
+    }
     return 0;
 }

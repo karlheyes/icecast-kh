@@ -49,9 +49,14 @@ typedef struct sync_callback_t
     uint32_t video_stream_idx;
     uint64_t stream_offset;
     AVFormatContext *fmt_ctx;
+    AVFormatContext *ofmt_ctx;
     AVIOContext *avio_ctx;
     void *aux_1;
     void *aux_2;
+    int *mapping;
+    int map_sz;
+    int seen_key;
+    int seen_initial_key;
 
     // final processing on incoming block.
     int  (*post_process)(struct mpeg_sync *mp, struct sync_callback_t *cb, refbuf_t *block, int remaining);
