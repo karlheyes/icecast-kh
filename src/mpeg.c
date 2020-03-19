@@ -497,7 +497,7 @@ AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
         return NULL;
     }
     d->codec->codec_tag = 0;
-    if (ofmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
+    if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
         d->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
     return d;
 }
@@ -761,6 +761,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             {
                 //Create output AVStream according to input AVStream
                 AVStream *in_stream = fmt_ctx->streams[i];
+#if HAVE_AVSTREAM_CODECPAR
                 AVCodecParameters *in_codecpar = in_stream->codecpar;
 
                 if (in_codecpar->codec_type != AVMEDIA_TYPE_AUDIO &&
@@ -770,6 +771,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
                     cb->mapping[i] = -1;
                     continue;
                 }
+#endif
                 cb->mapping[i] = streams++;
 
                 AVStream *out_stream = copy_avstream (ofmt_ctx, in_stream);
