@@ -344,6 +344,32 @@ struct demux_pos_info
 };
 
 
+int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refbuf_t *block, int remaining);
+
+
+static void mpts_reset_av (sync_callback_t *cb)
+{
+    if (cb == NULL) return;
+    if (cb->fmt_ctx) // has been known to crash on NULL
+    {
+        avformat_close_input (&cb->fmt_ctx);
+    }
+    if (cb->ofmt_ctx)
+    {
+        av_freep (&cb->ofmt_ctx->pb->buffer);
+        av_freep (&cb->ofmt_ctx->pb);
+        avformat_free_context (cb->ofmt_ctx);
+        cb->ofmt_ctx = NULL;
+    }
+    if (cb->avio_ctx)
+    {
+        av_freep (&cb->avio_ctx->buffer);
+        av_freep (&cb->avio_ctx);
+    }
+    cb->post_process = do_preblock_checking;
+}
+
+
 static int mpts_read_packet(void *opaque, uint8_t *buf, int buf_size)
 {
     // DEBUG1 ("buffer size is %d", buf_size);
@@ -358,13 +384,12 @@ static int mpts_read_packet(void *opaque, uint8_t *buf, int buf_size)
 
         if (info->pos >= r->len)
         {
-            if (info->lag < 150000 || last_block)
+            if (info->lag < 180000 || last_block)
             {
                 // DEBUG3 ("Have read from %p need more (total %ld, lag %d)", r, total, info->lag);
                 info->need_more = 1;
                 if (total || last_block)
                     break;
-                buf_size >>= 1; // reduce amount to pass back, we need to avoid sending too much
             }
             // else
                 // DEBUG3 ("Have read all from %p (total %ld, lag %d)", r, total, info->lag);
@@ -479,10 +504,6 @@ AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
         return NULL;
     }
     d->index = s->index;
-    //AVDictionary *d = NULL;
-    // av_dict_copy (&d->metadata, s->metadata, 0);
-    //if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
-         //d->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     d->codecpar->codec_tag = 0;
     // printf ("copied codec %s\n", avcodec_get_name (d->codecpar->codec_id));
     return d;
@@ -493,9 +514,12 @@ AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
     AVStream *d = avformat_new_stream (fmt_ctx, s->codec->codec);
     //Copy the settings of AVCodecContext
     int ret = avcodec_copy_context (d->codec, s->codec);
-    if (ret < 0) {
+    if (ret < 0)
+    {
+        INFO1 ("failed to copy context with %d", ret);
         return NULL;
     }
+    d->time_base = s->time_base;
     d->codec->codec_tag = 0;
     if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
         d->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
@@ -512,8 +536,15 @@ static int add_cached_block (struct mpeg_sync *mp, struct demux_pos_info *info, 
     if (cb->cached_len > 5000000 || (fmt != FORMAT_TYPE_UNDEFINED && fmt != FORMAT_TYPE_MPTS))
     {
         source_t *source = cb->callback_key;
-        DEBUG2 ("mount %s, disable caching buffers, %"PRIu32, source->mount, cb->cached_len);
-        refbuf_release (cb->cached);
+        INFO2 ("mount %s, disable caching buffers, %"PRIu32, source->mount, cb->cached_len);
+        mpts_reset_av (cb);
+        while (cb->cached)
+        {
+            refbuf_t *r = cb->cached;
+            cb->cached = r->next;
+            r->next = NULL;
+            refbuf_release (r);
+        }
         free (cb);
         mp->cb = NULL;
         return -1;
@@ -541,19 +572,19 @@ static int add_cached_block (struct mpeg_sync *mp, struct demux_pos_info *info, 
 }
 
 
-static void demux_block (sync_callback_t *cb)
+static int demux_block (sync_callback_t *cb)
 {
-    //source_t *source = cb->callback_key;
+    source_t *source = cb->callback_key;
     struct demux_pos_info *info = cb->aux_1;
     AVPacket pkt;
     av_init_packet(&pkt);
     pkt.data = NULL;
     pkt.size = 0;
-    int loop = 1;
+    int loop = 150;
     int ret = 0;
     do
     {
-        //int seen_key = 0;
+        loop--;
         if (info->need_more)
         {
             // DEBUG0 ("Getting more data before getting more packets");
@@ -564,8 +595,9 @@ static void demux_block (sync_callback_t *cb)
         {
             if (ret == AVERROR_EOF)
             {
-                WARN0 ("EOF case");
-                cb->fmt_ctx->pb->error = 0;
+                WARN1 ("EOF case on %s", source->mount);
+                avio_flush (cb->fmt_ctx->pb);
+                avio_seek (cb->fmt_ctx->pb, 0, SEEK_SET);
             }
             break;
         }
@@ -599,16 +631,6 @@ static void demux_block (sync_callback_t *cb)
                     }
                     info->flush_pkts = 1;
                 }
-                else
-                {
-                    //AVDictionary *d = NULL;
-                    //av_dict_copy (&d, cb->fmt_ctx->metadata, 0);
-                    //av_dict_set (&d, "mpegts_start_pid", "0x100", 0);
-                    if ((ret = avformat_write_header (cb->ofmt_ctx, NULL)) < 0)
-                        loop = 0;
-                    //av_dump_format (cb->ofmt_ctx, 0, "muxed", 1);
-                    //av_dict_free (&d);
-                }
                 cb->seen_initial_key = 1;
                 cb->seen_key = 1;
             }
@@ -635,23 +657,28 @@ static void demux_block (sync_callback_t *cb)
 #else
         av_packet_unref (&pkt);
 #endif
+        //static uint64_t purged = 0;
+        for (int i = 0; i < 15; i++)
+        {
+            refbuf_t *r = cb->cached;
+            if (r == info->current)
+                break;
+            cb->cached = r->next;
+            cb->cached_len -= r->len;
+            cb->cached_count--;
+            r->next = NULL;
+            //purged += r->len;
+            refbuf_release (r);
+        }
+        //DEBUG3 ("purged on %s to %d, total %ld", source->mount, cb->cached_len, purged);
     } while (loop);
     if (ret < 0)
-        INFO1 ("error is %s", av_err2str(ret));
-    for (int i = 0; i < 15; i++)
     {
-        refbuf_t *r = cb->cached;
-        if (r == info->current)
-            break;
-        cb->cached = r->next;
-        cb->cached_len -= r->len;
-        cb->cached_count--;
-        r->next = NULL;
-        //static uint64_t purged = 0;
-        //purged += r->len;
-        //DEBUG3 ("purged %d (%p), total %ld", r->len, r, purged);
-        refbuf_release (r);
+        INFO1 ("error is %s", av_err2str(ret));
+        mpts_reset_av (cb);
+        return -1;
     }
+    return 0;
 }
 
 
@@ -661,7 +688,7 @@ int process_blocks (struct mpeg_sync *mp, struct sync_callback_t *cb, refbuf_t *
         return remaining;
     struct demux_pos_info *info = cb->aux_1;
 
-    if (add_cached_block (mp, cb->aux_1, block, remaining) < 0 || info->lag < 120000)
+    if (add_cached_block (mp, cb->aux_1, block, remaining) < 0 || info->lag < 250000)
         return remaining;
 
     //DEBUG1 ("stream buffer added, %d queued", mp->cb->cached_len);
@@ -685,6 +712,9 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
         cb->aux_1 = info;
         mpeg_setup (&info->sync, "AV mux");
     }
+
+    if (cb->aux_2 == NULL)
+        cb->aux_2 = rate_setup (3000, 1000);
 
     if (add_cached_block (mp, info, block, remaining) < 0)
         return remaining;
@@ -710,7 +740,6 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
     int ret = 0, call = 0;
     AVFormatContext *fmt_ctx = mp->cb->fmt_ctx;
     AVIOContext *avio_ctx = mp->cb->avio_ctx;
-    AVFormatContext* ofmt_ctx = mp->cb->ofmt_ctx;
 
     do
     {
@@ -723,38 +752,48 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             // av_log_set_level (AV_LOG_VERBOSE);
             if ((fmt_ctx = avformat_alloc_context()) == NULL)
                 break;
+            cb->fmt_ctx = fmt_ctx;
+
             call++;
             uint8_t *avio_ctx_buffer = av_malloc (avio_ctx_buffer_size);
             call++;
             avio_ctx = avio_alloc_context (avio_ctx_buffer, avio_ctx_buffer_size,
                     0, info, &mpts_read_packet, NULL, NULL);
             if (avio_ctx == NULL) break;
+            cb->avio_ctx = avio_ctx;
+
             fmt_ctx->pb = avio_ctx;
             fmt_ctx->probesize = cb->cached_len - 10000;
             fmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO);
 
             call++;
-            ret = avformat_open_input (&fmt_ctx, "", NULL, NULL);
+            ret = avformat_open_input (&cb->fmt_ctx, "", NULL, NULL);
             if (ret < 0) break;
+
             call++;
-            ret = avformat_find_stream_info (fmt_ctx, NULL);
+            ret = avformat_find_stream_info (cb->fmt_ctx, NULL);
             if (ret < 0) break;
+
             call++;
-            ret = av_find_best_stream (fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+            ret = av_find_best_stream (cb->fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
             if (ret < 0) break;
+
             mp->cb->video_stream_idx = ret;
             // av_dump_format(fmt_ctx, 0, "streamed", 0);
 
             cb->map_sz = fmt_ctx->nb_streams;
             cb->mapping = (int*)av_mallocz_array (cb->map_sz, sizeof(*cb->mapping));
 
-            avformat_alloc_output_context2 (&ofmt_ctx, NULL, fmt_ctx->iformat->name, NULL);
+            call++;
+            avformat_alloc_output_context2 (&cb->ofmt_ctx, NULL, fmt_ctx->iformat->name, NULL);
             // avformat_alloc_output_context2 (&ofmt_ctx, NULL, "mpegts", NULL);
 
             unsigned char* outbuffer=(unsigned char*)av_malloc(8084);
+            call++;
             AVIOContext *avio_out = avio_alloc_context (outbuffer, 8084, 1, cb, NULL, mpts_write_buffer, NULL);
+            if (avio_out == NULL) break;
 
-            ofmt_ctx->pb = avio_out;
+            cb->ofmt_ctx->pb = avio_out;
 
             int i, streams=0;
             for (i = 0; i < fmt_ctx->nb_streams; i++)
@@ -774,51 +813,44 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
 #endif
                 cb->mapping[i] = streams++;
 
-                AVStream *out_stream = copy_avstream (ofmt_ctx, in_stream);
+                AVStream *out_stream = copy_avstream (cb->ofmt_ctx, in_stream);
                 if (!out_stream) {
-                    //printf( "Failed allocating output stream\n");
                     ret = AVERROR_UNKNOWN;
                     break;
                 }
             }
             // av_dump_format (ofmt_ctx, 0, "muxed", 1);
-
-            mp->cb->fmt_ctx = fmt_ctx;
-            mp->cb->ofmt_ctx = ofmt_ctx;
-            mp->cb->avio_ctx = avio_ctx;
         }
         //DEBUG1 ("initial stream prebuffers checked, %d queued", mp->cb->cached_len);
         rate_free (cb->aux_2);
         cb->aux_2 = NULL;
         mp->settings |= SYNC_CHANGED;
-        DEBUG2 ("purged initial stream prebuffers on %s, %d queued", source->mount, mp->cb->cached_len);
 #if HAVE_AVSTREAM_CODECPAR
         INFO2 ("Video codec detected on %s as %s", source->mount,
                 avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
 #endif
-        demux_block (mp->cb);
-        mp->cb->post_process = process_blocks;
+        if ((ret = avformat_write_header (cb->ofmt_ctx, NULL)) < 0)
+            break;
+
+        call++;
+        if ((ret = avformat_write_header (cb->ofmt_ctx, NULL)) < 0)
+            break;
+        if (demux_block (cb) >= 0)
+        {
+            cb->post_process = process_blocks;
+            DEBUG2 ("purged initial stream prebuffers on %s, %d queued", source->mount, cb->cached_len);
+        }
         return remaining;
 
     } while(0);
-    if (fmt_ctx) // has been known to crash on NULL
-        avformat_close_input (&fmt_ctx);
-    if (ofmt_ctx)
+    mpts_reset_av (cb);
+    if (cb->cached_len > 2000000)
     {
-        avformat_free_context (ofmt_ctx);
-    }
-    if (avio_ctx)
-    {
-        av_freep (&avio_ctx->buffer);
-        av_freep (&avio_ctx);
-    }
-    if (cb && cb->aux_2)
-    {
-        rate_free (cb->aux_2);
-        cb->aux_2 = NULL;
-    }
-    if (cb->cached_len > 1100000)
-    {
+        if (cb && cb->aux_2)
+        {
+            rate_free (cb->aux_2);
+            cb->aux_2 = NULL;
+        }
         INFO3 ("Failed codec detection on %s: %d (%d)", source->mount, ret, call);
         cb->post_process = NULL;
         while (cb->cached)
@@ -828,13 +860,15 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             r->next = NULL;
             refbuf_release (r);
         }
-        cb->fmt_ctx = NULL;
-        cb->avio_ctx = NULL;
         cb->aux_1 = NULL;
         free (info);
     }
     else
-        DEBUG4 ("codec detection failed with %d on %s: %d (%d), will retry", cb->cached_len, source->mount, ret, call);
+    {
+        INFO4 ("codec detection failed with %d on %s: %d (%d), will retry", cb->cached_len, source->mount, ret, call);
+        info->current = NULL;
+        info->current_pos = 0;
+    }
     return remaining;
 }
 
@@ -1125,7 +1159,6 @@ static int check_for_ts (struct mpeg_sync *mp, unsigned char *p, unsigned remain
     if (mp->cb)
     {
         mp->cb->post_process = do_preblock_checking;
-        mp->cb->aux_2 = rate_setup (3000, 1000);
     }
 #endif
     return 1;
