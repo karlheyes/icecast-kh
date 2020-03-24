@@ -631,6 +631,33 @@ static int demux_block (sync_callback_t *cb)
                     }
                     info->flush_pkts = 1;
                 }
+#if 0
+// only used for logging NAL codes
+                {
+                    const char start[] = { 00, 00, 00, 01 };
+                    const uint8_t *s = pkt.data, *p;
+                    unsigned len = pkt.size;
+                    char out [32];
+
+                    while (len > 4 && (p = memchr (s, '\0', len)))
+                    {
+                        len = (pkt.data + pkt.size) - p;
+                        if (len < 6)
+                            break;
+                        if (memcmp (p, start, 4) != 0)
+                        {
+                           len--;
+                           s = p + 1;
+                           continue;
+                        }
+                        sprintf (out, "%X-%X-%X-%X-%X", p[0], p[1], p[2], p[3], p[4]);
+                        DEBUG1 ("NAL %s", out);
+                        //last_code = p[4];
+                        len -= 5;
+                        s = p + 5;
+                    }
+                }
+#endif
                 cb->seen_initial_key = 1;
                 cb->seen_key = 1;
             }
@@ -819,6 +846,8 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
                     break;
                 }
             }
+            if (ret < 0)
+                break;
             // av_dump_format (ofmt_ctx, 0, "muxed", 1);
         }
         //DEBUG1 ("initial stream prebuffers checked, %d queued", mp->cb->cached_len);
@@ -829,8 +858,6 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
         INFO2 ("Video codec detected on %s as %s", source->mount,
                 avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
 #endif
-        if ((ret = avformat_write_header (cb->ofmt_ctx, NULL)) < 0)
-            break;
 
         call++;
         if ((ret = avformat_write_header (cb->ofmt_ctx, NULL)) < 0)
@@ -866,6 +893,15 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
     else
     {
         INFO4 ("codec detection failed with %d on %s: %d (%d), will retry", cb->cached_len, source->mount, ret, call);
+        // drop these as the probe as not managed to detect fully all it needs.
+        while (cb->cached && cb->cached != info->current)
+        {
+            refbuf_t *r = cb->cached;
+            cb->cached = r->next;
+            cb->cached_len -= r->len;
+            r->next = NULL;
+            refbuf_release (r);
+        }
         info->current = NULL;
         info->current_pos = 0;
     }
