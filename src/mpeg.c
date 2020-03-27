@@ -821,6 +821,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             if (avio_out == NULL) break;
 
             cb->ofmt_ctx->pb = avio_out;
+            cb->ofmt_ctx->flags |= (AVFMT_FLAG_IGNDTS|AVFMT_FLAG_NONBLOCK);
 
             int i, streams=0;
             for (i = 0; i < fmt_ctx->nb_streams; i++)
