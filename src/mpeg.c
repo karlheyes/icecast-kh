@@ -504,6 +504,9 @@ AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
         return NULL;
     }
     d->index = s->index;
+    d->avg_frame_rate = s->avg_frame_rate;
+    d->time_base = s->time_base;
+    av_dict_copy (&d->metadata, s->metadata, 0);
     d->codecpar->codec_tag = 0;
     // printf ("copied codec %s\n", avcodec_get_name (d->codecpar->codec_id));
     return d;
@@ -520,6 +523,7 @@ AVStream *copy_avstream (AVFormatContext *fmt_ctx, AVStream *s)
         return NULL;
     }
     d->time_base = s->time_base;
+    av_dict_copy (&d->metadata, s->metadata, 0);
     d->codec->codec_tag = 0;
     if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
         d->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
@@ -608,8 +612,8 @@ static int demux_block (sync_callback_t *cb)
         }
         if (pkt.stream_index >= cb->map_sz || cb->mapping [pkt.stream_index] < 0)
         {
-            if (pkt.stream_index >= cb->map_sz)
-                DEBUG1 ("Bad stream index %d", pkt.stream_index);
+            //if (pkt.stream_index >= cb->map_sz)
+                //DEBUG1 ("Bad stream index %d", pkt.stream_index);
             av_packet_unref (&pkt);
             continue;
         }
@@ -701,7 +705,7 @@ static int demux_block (sync_callback_t *cb)
     } while (loop);
     if (ret < 0)
     {
-        INFO1 ("error is %s", av_err2str(ret));
+        INFO2 ("error on %s is %s", source->mount, av_err2str(ret));
         mpts_reset_av (cb);
         return -1;
     }
@@ -777,6 +781,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             int avio_ctx_buffer_size = 8192;
             av_log_set_level (AV_LOG_QUIET);
             // av_log_set_level (AV_LOG_VERBOSE);
+            // av_log_set_level (AV_LOG_TRACE);
             if ((fmt_ctx = avformat_alloc_context()) == NULL)
                 break;
             cb->fmt_ctx = fmt_ctx;
@@ -792,6 +797,7 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             fmt_ctx->pb = avio_ctx;
             fmt_ctx->probesize = cb->cached_len - 10000;
             fmt_ctx->flags |= (AVFMT_FLAG_NONBLOCK|AVFMT_FLAG_CUSTOM_IO);
+            //fmt_ctx->max_delay = 50000;
 
             call++;
             ret = avformat_open_input (&cb->fmt_ctx, "", NULL, NULL);
@@ -849,20 +855,34 @@ int do_preblock_checking (struct mpeg_sync *mp, struct sync_callback_t *cb, refb
             }
             if (ret < 0)
                 break;
-            // av_dump_format (ofmt_ctx, 0, "muxed", 1);
+            av_dict_copy (&cb->ofmt_ctx->metadata, cb->fmt_ctx->metadata, 0);
+            call++;
+            if (cb->fmt_ctx->nb_programs)
+            {
+                if (cb->fmt_ctx->programs[0]->metadata)
+                    av_dict_copy (&cb->ofmt_ctx->metadata, cb->fmt_ctx->programs[0]->metadata, 0);
+            }
         }
         //DEBUG1 ("initial stream prebuffers checked, %d queued", mp->cb->cached_len);
         rate_free (cb->aux_2);
         cb->aux_2 = NULL;
         mp->settings |= SYNC_CHANGED;
+        cb->ofmt_ctx->max_delay = 120000;
 #if HAVE_AVSTREAM_CODECPAR
         INFO2 ("Video codec detected on %s as %s", source->mount,
                 avcodec_get_name (fmt_ctx->streams [mp->cb->video_stream_idx]->codecpar->codec_id));
 #endif
 
         call++;
-        if ((ret = avformat_write_header (cb->ofmt_ctx, NULL)) < 0)
+        AVDictionary *opts = NULL;
+        av_dict_set (&opts, "pcr_period", "80", 0);
+        // free opts;
+        if ((ret = avformat_write_header (cb->ofmt_ctx, &opts)) < 0)
             break;
+        av_dict_free (&opts);
+
+        // av_dump_format (cb->ofmt_ctx, 0, "muxed", 1);
+
         if (demux_block (cb) >= 0)
         {
             cb->post_process = process_blocks;
