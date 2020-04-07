@@ -131,6 +131,14 @@ static int flv_aac_hdr (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char
     if (flv->raw_offset + 17 > flv->raw->len)
         return -1;
 
+    if (flv->raw_offset == 0)
+    {
+        refbuf_t *ref = flv->client->refbuf;
+        struct metadata_block *meta = ref->associated;
+        if (flv->seen_metadata != meta)
+            flv_write_metadata (flv, meta, flv->client->mount);
+    }
+
     // we do not put adts aac headers in FLV frames
     len -= header_len;
     frame += header_len;
