@@ -153,6 +153,9 @@
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
 
+/* Define to 1 if you have the <signal.h> header file. */
+#undef HAVE_SIGNAL_H
+
 /* Define to 1 if the system has the type `SOCKET*'. */
 #undef HAVE_SOCKETP
 
