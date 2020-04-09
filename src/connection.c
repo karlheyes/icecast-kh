@@ -1156,15 +1156,26 @@ static int shoutcast_source_client (client_t *client)
             if (refbuf->data [len] == '\0')  /* no EOL yet */
                 return 0;
 
-            refbuf->data [len] = '\0';
-            snprintf (header, sizeof(header), "source:%s", refbuf->data);
+            refbuf->data [len] = '\0';  // password
+
+            // is mountpoint embedded in the password
+            const char *mount = client->server_conn->shoutcast_mount, *pw = refbuf->data;
+            char *sep = strchr (refbuf->data, ':');
+            if (sep && *pw == '/')
+            {
+                pw = sep + 1;
+                *sep = '\0';
+                mount = refbuf->data;
+            }
+            // DEBUG2 ("Using mount %s and pass %s", mount, pw);
+            snprintf (header, sizeof(header), "source:%s", pw);
             esc_header = util_base64_encode (header);
 
             len += 1 + strspn (refbuf->data+len+1, "\r\n");
             r = refbuf_new (PER_CLIENT_REFBUF_SIZE);
             snprintf (r->data, PER_CLIENT_REFBUF_SIZE,
                     "SOURCE %s HTTP/1.0\r\n" "Authorization: Basic %s\r\n%s",
-                    client->server_conn->shoutcast_mount, esc_header, refbuf->data+len);
+                    mount, esc_header, refbuf->data+len);
             r->len = strlen (r->data);
             free (esc_header);
             client->respcode = 200;
