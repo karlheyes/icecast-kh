@@ -35,6 +35,11 @@ if test x$host_os = xmingw32; then
 AC_DEFINE([_POSIX], 1, [Define to use C99 routines on MS])
 fi
 
+AC_ARG_VAR([ICY_CHARSET], [Character set used for ICY metadata, default is UTF8])
+if test -n "$ICY_CHARSET"; then
+   AC_DEFINE_UNQUOTED([ICY_DEFAULT_CHARSET], ["$ICY_CHARSET"], ["Character set for ICY metadata"])
+fi
+
 dnl Checks for programs.
 
 dnl Checks for libraries.

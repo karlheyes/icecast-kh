@@ -674,6 +674,7 @@ OGG_CFLAGS
 OGG_LIBS
 OGG_PREFIX
 XSLTCONFIG
+ICY_CHARSET
 WIN32_FALSE
 WIN32_TRUE
 CXXCPP
@@ -838,6 +839,7 @@ CXX
 CXXFLAGS
 CCC
 CXXCPP
+ICY_CHARSET
 XSLTCONFIG
 OGG_PREFIX
 VORBIS_PREFIX
@@ -1513,6 +1515,7 @@ Some influential environment variables:
   CXX         C++ compiler command
   CXXFLAGS    C++ compiler flags
   CXXCPP      C++ preprocessor
+  ICY_CHARSET Character set used for ICY metadata, default is UTF8
   XSLTCONFIG  XSLT configuration program
   OGG_PREFIX  path to ogg installation
   VORBIS_PREFIX
@@ -17046,6 +17049,15 @@ fi
 if test x$host_os = xmingw32; then
 
 $as_echo "#define _POSIX 1" >>confdefs.h
+
+fi
+
+
+if test -n "$ICY_CHARSET"; then
+
+cat >>confdefs.h <<_ACEOF
+#define ICY_DEFAULT_CHARSET "$ICY_CHARSET"
+_ACEOF
 
 fi
 

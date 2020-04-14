@@ -73,6 +73,10 @@ static void size_up_qblock (source_t *source);
 #define CLIENT_IN_METADATA              (CLIENT_INTERNAL_FORMAT)
 #define CLIENT_USING_BLANK_META         (CLIENT_INTERNAL_FORMAT<<1)
 
+#ifndef ICY_DEFAULT_CHARSET
+#define ICY_DEFAULT_CHARSET             "UTF-8"
+#endif
+
 static refbuf_t blank_icy = { 0 , 1, NULL, NULL, "\001StreamTitle='';", 17 };
 static struct metadata_block blank_meta = { 1, 1, &blank_icy, NULL, NULL, NULL };
 
@@ -395,7 +399,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
         }
     }
     if (format->charset == NULL)
-        format->charset = strdup ("UTF-8");
+        format->charset = strdup (DEFAULT_ICY_CHARSET);
 
     DEBUG1 ("sending metadata interval %d", source_mp3->interval);
     DEBUG1 ("charset %s", format->charset);
