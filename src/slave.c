@@ -252,6 +252,7 @@ void slave_shutdown(void)
     yp_shutdown();
     stats_shutdown();
     fserve_shutdown();
+    config_shutdown();
     stop_logging();
     // stall until workers have shut down
     thread_rwlock_wlock (&global.workers_rw);
