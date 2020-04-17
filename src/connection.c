@@ -424,6 +424,7 @@ static void get_ssl_certificate (ice_config_t *config)
  */
 int connection_read_ssl (connection_t *con, void *buf, size_t len)
 {
+    ERR_clear_error();
     int bytes = SSL_read (con->ssl, buf, len);
     int code = SSL_get_error (con->ssl, bytes);
     char err[128];
@@ -431,24 +432,28 @@ int connection_read_ssl (connection_t *con, void *buf, size_t len)
     switch (code)
     {
         case SSL_ERROR_NONE:
-        case SSL_ERROR_ZERO_RETURN:
             break;
-        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SSL:
+        case SSL_ERROR_SYSCALL:     // avoid the ssl shutdown
+            con->sslflags |= 1;
+            // fallthru
+        case SSL_ERROR_ZERO_RETURN:
             con->error = 1;
+            // fallthru
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             return -1;
-        default:
-            con->error = 1;
+        default:    // the rest are retryable
             ERR_error_string (ERR_get_error(), err);
             DEBUG2("error %d, %s", code, err);
-            bytes = 0;
+            return -1;
     }
     return bytes;
 }
 
 int connection_send_ssl (connection_t *con, const void *buf, size_t len)
 {
+    ERR_clear_error();
     int bytes = SSL_write (con->ssl, buf, len);
     int code = SSL_get_error (con->ssl, bytes);
     char err[128];
@@ -456,22 +461,24 @@ int connection_send_ssl (connection_t *con, const void *buf, size_t len)
     switch (code)
     {
         case SSL_ERROR_NONE:
-        case SSL_ERROR_ZERO_RETURN:
             break;
-        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SYSCALL: // avoid the ssl shutdown
+            // DEBUG3("syscall error %d, on %s (%" PRIu64 ")", sock_error(), &con->ip[0], con->id);
+        case SSL_ERROR_SSL:
+            con->sslflags |= 1;
+            // fallthru
+        case SSL_ERROR_ZERO_RETURN:
             con->error = 1;
-            DEBUG3("syscall error %d, on %s (%" PRIu64 ")", sock_error(), &con->ip[0], con->id);
             // fallthru
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             return -1;
         default:
-            con->error = 1;
             ERR_error_string (ERR_get_error(), err);
             DEBUG2("error %d, %s", code, err);
-            return -1;
     }
-    con->sent_bytes += bytes;
+    if (bytes > 0)
+        con->sent_bytes += bytes;
     return bytes;
 }
 #else
@@ -1994,7 +2001,7 @@ void connection_reset (connection_t *con, uint64_t time_ms)
 void connection_close(connection_t *con)
 {
 #ifdef HAVE_OPENSSL
-    if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); }
+    if (con->ssl) { if ((con->sslflags & 1) == 0) SSL_shutdown (con->ssl); SSL_free (con->ssl); }
 #endif
     if (con->sock != SOCK_ERROR)
         sock_close (con->sock);

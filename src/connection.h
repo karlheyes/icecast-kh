@@ -51,6 +51,7 @@ struct connection_tag
     unsigned char readchk;
 
 #ifdef HAVE_OPENSSL
+    unsigned char sslflags;
     SSL *ssl;   /* SSL handler */
 #endif
 
