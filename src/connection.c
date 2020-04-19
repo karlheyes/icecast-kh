@@ -709,6 +709,8 @@ void connection_add_banned_ip (const char *ip, int duration)
         add_banned_ip (&banned_ip, ip, timeout);
         global_unlock();
     }
+    else
+        INFO0 ("No ban-file set up, missing tag in xml or no file referenced");
 }
 
 void connection_release_banned_ip (const char *ip)
@@ -806,6 +808,19 @@ static int accept_ip_address (char *ip)
         return 0;
     }
     return 1;
+}
+
+
+static struct xforward_entry *_find_xforward_addr (ice_config_t *config, char *ip)
+{
+    struct xforward_entry *xforward = config->xforward;
+    while (xforward)
+    {
+        if (strcmp (xforward->ip, ip) == 0)
+            break;
+        xforward = xforward->next;
+    }
+    return xforward;
 }
 
 
@@ -1341,6 +1356,33 @@ static int http_client_request (client_t *client)
             {
                 const char *str;
 
+                str = httpp_getvar (client->parser, "x-forwarded-for");
+                if (str)
+                {
+                    if (_find_xforward_addr (config_get_config(), client->connection.ip) != NULL)
+                    {
+                        config_release_config();
+                        int len = strcspn (str, ",") + 1;
+                        int drop_it = 0;
+                        char *ip = malloc (len);
+                        snprintf (ip, len, "%s",  str);
+
+                        if (accept_ip_address (ip) == 0)
+                        {
+                            DEBUG2 ("Dropping client at %s via %s", ip, client->connection.ip);
+                            drop_it = 1;
+                        }
+                        else
+                            DEBUG2 ("x-forwarded-for match for %s, using %s instead", client->connection.ip, ip);
+                        free (client->connection.ip);
+                        client->connection.ip = ip;
+                        if (drop_it)
+                            return -1;
+                    }
+                    else
+                        config_release_config();
+                }
+
                 if (useragents.filename)
                 {
                     const char *agent = httpp_getvar (client->parser, "user-agent");
@@ -1642,42 +1684,12 @@ int connection_check_pass (http_parser_t *parser, const char *user, const char *
 }
 
 
-static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
-{
-    do {
-        const char *hdr = httpp_getvar (client->parser, "x-forwarded-for");
-        struct xforward_entry *xforward = config->xforward;
-        if (hdr == NULL) break;
-        while (xforward)
-        {
-            if (strcmp (xforward->ip, client->connection.ip) == 0)
-            {
-                int len = strcspn (hdr, ",") + 1;
-                char *ip = malloc (len);
-
-                snprintf (ip, len, "%s",  hdr);
-                free (client->connection.ip);
-                client->connection.ip = ip;
-                DEBUG2 ("x-forward match for %s, using %s instead", xforward->ip, ip);
-                break;
-            }
-            xforward = xforward->next;
-        }
-    } while(0);
-}
-
-
 static int _handle_source_request (client_t *client)
 {
     const char *uri = httpp_getvar (client->parser, HTTPP_VAR_URI);
-    ice_config_t *config = NULL;
 
     INFO1("Source logging in at mountpoint \"%s\"", uri);
 
-    /* use x-forwarded-for ip address if available and authorized */
-    config = config_get_config();
-    _check_for_x_forwarded_for(config, client);
-    config_release_config();
     client->flags &= ~CLIENT_KEEPALIVE;
     
     if (uri[0] != '/')
@@ -1771,7 +1783,6 @@ static int _handle_get_request (client_t *client)
         serverhost = client->server_conn->bind_address;
         serverport = client->server_conn->port;
     }
-    _check_for_x_forwarded_for(config, client);
 
     alias = config->aliases;
 
