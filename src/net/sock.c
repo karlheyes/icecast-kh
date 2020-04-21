@@ -314,7 +314,7 @@ int sock_set_cork (sock_t sock, int yes)
     int cork = yes ? 1 : 0;
 
     return setsockopt (sock, IPPROTO_TCP, TCP_CORK, (void *)&cork, sizeof(cork));
-#elif defined TCP_NOPUSH
+#elif defined BSD_TCP_NOPUSH_WORKS_OR_NOT // may need looking at in more detail
     int nopush = yes ? 1 : 0;
 
     return setsockopt (sock, IPPROTO_TCP, TCP_NOPUSH, (void *)&nopush, sizeof(nopush));
