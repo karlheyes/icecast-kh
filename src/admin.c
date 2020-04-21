@@ -298,6 +298,16 @@ int admin_mount_request (client_t *client)
         return client_send_400 (client, "unknown request");
     }
 
+    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker to kick it back to worker.
+    {
+        worker_t *worker = client->worker;
+        DEBUG0 ("client passed auth, but on different thread to src, reschedule on worker");
+        client->mount = httpp_get_query_param (client->parser, "mount");
+        client->flags |= CLIENT_ACTIVE;
+        worker_wakeup (worker);
+        return 0;
+    }
+
     avl_tree_rlock(global.source_tree);
     source = source_find_mount_raw(mount);
 
