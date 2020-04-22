@@ -25,6 +25,7 @@
 #endif
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fnmatch.h>
 
 #ifdef _MSC_VER
  #include <winsock2.h>
@@ -816,7 +817,7 @@ static struct xforward_entry *_find_xforward_addr (ice_config_t *config, char *i
     struct xforward_entry *xforward = config->xforward;
     while (xforward)
     {
-        if (strcmp (xforward->ip, ip) == 0)
+        if (fnmatch (xforward->ip, ip, 0) == 0)
             break;
         xforward = xforward->next;
     }
