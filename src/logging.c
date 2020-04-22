@@ -194,7 +194,7 @@ static int recheck_log_file (ice_config_t *config, int *id, const char *file)
         if (*id < 0)
         {
             char buf[1024];
-            snprintf (buf,1024, "could not open log %s: %s", fn, strerror(errno));
+            snprintf (buf,1024, "could not open log %.300s: %s", fn, strerror(errno));
             fatal_error (buf);
             return -1;
         }
