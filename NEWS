@@ -16,6 +16,26 @@ Feature differences from SVN trunk
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0-kh14
+. Allow for using secs (eg 5s) in queue/min-queue/burst measures.
+. Allow multiple icy sources on same port. Just embed in password a mountpoint:pass. The
+  shoutcast-mount tag still creates the +1 port and sets a default mountpoint but source
+  can override this.
+. Fix log issue which could cause a deadlock if on-[dis]connect or auth cmd are used.
+. Allow configure to accept ICY_CHARSET to set alternate in build.  The default ICY
+  metadata is assumed to be UTF8, but some sites still have issues with setting tags or
+  parameters, so allow a different default if they need it.
+. Regression on FLV wrapped aac metadata fixed.
+. Crash/corruption fix if using stream auth and metadata updates via admin.
+. Fix for glibc rwlock priority
+. Added the icy-metadata in headers allowed with CORS
+. Rework XFF to be earlier, useful in cases where banned IPs apply.
+. Allow wildcards in XFF
+. Drop the BSD NOPUSH setting for now. Have seen poor performance because of it in
+  certain cases
+. Openssl API cleanups. eg API differences between versions.
+. various small fixes, build and operational.
+
 2.4.0-kh13
 . Fix an annoying race case. memory corruption in certain cases that are hard to trigger
   normally but typically involes a listener disconnecting in certain conditions.
