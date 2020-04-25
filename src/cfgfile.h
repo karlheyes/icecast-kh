@@ -130,7 +130,6 @@ typedef struct _mount_proxy {
     char *charset;  /* character set if not utf8 */
     int allow_chunked; /* allow chunked transfers */
     int mp3_meta_interval; /* outgoing per-stream metadata interval */
-    int queue_block_size; /* for non-ogg streams, try to create blocks of this size */
     int max_send_size;
     int filter_theora; /* prevent theora pages getting queued */
     int url_ogg_meta; /* enable to allow updates via url requests for ogg */

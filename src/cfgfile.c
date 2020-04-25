@@ -1055,7 +1055,6 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         { "limit-rate",         config_get_bitrate, &mount->limit_rate },
         { "skip-accesslog",     config_get_bool,    &mount->skip_accesslog },
         { "charset",            config_get_str,     &mount->charset },
-        { "qblock-size",        config_get_int,     &mount->queue_block_size },
         { "max-send-size",      config_get_int,     &mount->max_send_size },
         { "redirect",           config_get_str,     &redirect },
         { "redirect-to",        config_get_str,     &mount->redirect },
@@ -1137,8 +1136,6 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         mount->url_ogg_meta = 1;
     if (mount->url_ogg_meta)
         mount->ogg_passthrough = 0;
-    if (mount->queue_block_size < 100)
-        mount->queue_block_size = 1400;
     if (mount->ban_client < 0)
         mount->no_mount = 0;
     if (mount->fallback_mount && mount->fallback_mount[0] != '/')

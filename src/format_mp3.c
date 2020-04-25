@@ -371,7 +371,6 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     format->charset = NULL;
 
     source_mp3->qblock_sz = 4096;
-    source_mp3->req_qblock_sz = 0;
     source_mp3->max_send_size = 0;
     format->flags &= ~FORMAT_FL_ALLOW_HTTPCHUNKED;
     if (mount)
@@ -382,8 +381,6 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
             source_mp3->interval = mount->mp3_meta_interval;
         if (mount->charset)
             format->charset = strdup (mount->charset);
-        if (mount->queue_block_size)
-            source_mp3->qblock_sz = source_mp3->req_qblock_sz = mount->queue_block_size;
         if (mount->allow_chunked)
            format->flags |= FORMAT_FL_ALLOW_HTTPCHUNKED;
     }
@@ -895,7 +892,7 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         int rate = mpeg_get_samplerate (mpeg_sync);
         char buf [30];
 
-        source_mp3->qblock_sz = source_mp3->req_qblock_sz ? source_mp3->req_qblock_sz : 1400;
+        source_mp3->qblock_sz = 1400;
         if (rate == 0 && strcmp (plugin->contenttype, "video/MP2T") != 0)
         {
             free (plugin->contenttype);
