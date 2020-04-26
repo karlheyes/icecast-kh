@@ -13,7 +13,7 @@
 # installer containing your program.
 
 Name "Icecast KH"
-OutFile "icecast-2.4.0-kh13_win64_setup.exe"
+OutFile "icecast-2.4.0-kh14_win64_setup.exe"
 
 InstallDir "$ProgramFiles64\Icecast KH"
 InstallDirRegKey HKLM SOFTWARE\Icecast "Install_Dir"
@@ -31,12 +31,12 @@ XPStyle on
 
 ;Version Information
 
-VIProductVersion "2.4.0.13"
+VIProductVersion "2.4.0.14"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "Icecast KH"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "2.4.0"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Karl Heyes @2000-2019"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Karl Heyes @2000-2020"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "Icecast KH streaming media server installer"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "2.4.0-KH13"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "2.4.0-KH14"
 
 Page components
 Page directory
