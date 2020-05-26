@@ -100,7 +100,7 @@ static int  relay_read (client_t *client);
 static void relay_release (client_t *client);
 
 int slave_running = 0;
-int worker_count;
+extern int worker_count;
 int relays_connecting;
 int streamlister;
 time_t relay_barrier_master;
