@@ -1452,6 +1452,12 @@ ssize_t pread (icefile_handle f, void *data, size_t count, off_t offset)
 void fserve_scan (time_t now)
 {
     avl_node *node;
+
+    global_lock();
+    if (global.running != ICE_RUNNING)
+        now = (time_t)0;
+    global_unlock();
+
     avl_tree_wlock (fh_cache);
     node = avl_get_first (fh_cache);
     while (node)
@@ -1460,8 +1466,7 @@ void fserve_scan (time_t now)
         node = avl_get_next (node);
 
         thread_mutex_lock (&fh->lock);
-        if (global.running != ICE_RUNNING)
-            fh->expire = 0;
+
         if (now == (time_t)0)
         {
             fh->expire = 0;
@@ -1476,7 +1481,7 @@ void fserve_scan (time_t now)
             {
                 int len = strlen (finfo->mount) + 10;
                 char *str = alloca (len);
-                char buf[20];
+                char buf[30];
                 snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
                 fh->stats = stats_handle (str);
                 stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);

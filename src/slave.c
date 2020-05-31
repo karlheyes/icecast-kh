@@ -1146,16 +1146,18 @@ static void _slave_thread(void)
     while (1)
     {
         struct timespec current;
+        int do_reread = 0;
 
         thread_get_timespec (&current);
+
+        global_lock();
         /* re-read xml file if requested */
         if (global . schedule_config_reread)
         {
-            event_config_read ();
             global . schedule_config_reread = 0;
+            do_reread = 1;
         }
 
-        global_add_bitrates (global.out_bitrate, 0L, THREAD_TIME_MS(&current));
         if (global.new_connections_slowdown)
             global.new_connections_slowdown--;
         if (global.new_connections_slowdown > 30)
@@ -1163,6 +1165,11 @@ static void _slave_thread(void)
 
         if (global.running != ICE_RUNNING)
             break;
+        global_unlock();
+
+        global_add_bitrates (global.out_bitrate, 0L, THREAD_TIME_MS(&current));
+        if (do_reread)
+            event_config_read ();
 
         if (streamlist_check <= current.tv_sec)
         {
@@ -1219,6 +1226,7 @@ static void _slave_thread(void)
         worker_balance_trigger (current.tv_sec);
         thread_sleep (1000000);
     }
+    global_unlock();
     connection_thread_shutdown();
     fserve_running = 0;
     stats_clients_wakeup ();

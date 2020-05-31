@@ -49,7 +49,7 @@
 #define atoll(nptr) strtoll(nptr, (char **)NULL, 10)
 #endif
 
-#define VAL_BUFSIZE 20
+#define VAL_BUFSIZE 30
 #define STATS_BLOCK_CONNECTION  01
 
 #define STATS_EVENT_SET     0
@@ -1361,21 +1361,28 @@ void stats_purge (time_t mark)
 
 void stats_global_calc (time_t now)
 {
-    stats_event_t event;
+    stats_event_t clients, listeners;
     avl_node *anode;
-    char buffer [VAL_BUFSIZE];
+    char buf1 [VAL_BUFSIZE];
+    char buf2 [VAL_BUFSIZE];
+    char buf3 [VAL_BUFSIZE];
 
+    global_lock();
     connection_stats ();
 
-    snprintf (buffer, sizeof(buffer), "%" PRIu64, (int64_t)global.clients);
-    build_event (&event, NULL, "clients", buffer);
-    event.flags |= STATS_COUNTERS;
-    process_event (&event);
+    snprintf (buf1, sizeof(buf1), "%" PRIu64, (int64_t)global.clients);
 
-    snprintf (buffer, sizeof(buffer), "%" PRIu64, (int64_t)global.listeners);
-    build_event (&event, NULL, "listeners", buffer);
-    event.flags |= STATS_COUNTERS;
-    process_event (&event);
+    snprintf (buf2, sizeof(buf2), "%" PRIu64, (int64_t)global.listeners);
+    snprintf (buf3, sizeof(buf3), "%" PRIu64,
+            (int64_t)global_getrate_avg (global.out_bitrate) * 8 / 1024);
+    global_unlock();
+
+    build_event (&clients, NULL, "clients", buf1);
+    clients.flags |= STATS_COUNTERS;
+    process_event (&clients);
+    build_event (&listeners, NULL, "listeners", buf2);
+    listeners.flags |= STATS_COUNTERS;
+    process_event (&listeners);
 
     avl_tree_wlock (_stats.global_tree);
     anode = avl_get_first(_stats.global_tree);
@@ -1396,11 +1403,9 @@ void stats_global_calc (time_t now)
     }
     avl_tree_unlock (_stats.global_tree);
 
-    build_event (&event, NULL, "outgoing_kbitrate", buffer);
-    event.flags = STATS_COUNTERS|STATS_HIDDEN;
-    snprintf (buffer, sizeof(buffer), "%" PRIu64,
-            (int64_t)global_getrate_avg (global.out_bitrate) * 8 / 1024);
-    process_event (&event);
+    build_event (&clients, NULL, "outgoing_kbitrate", buf3);
+    clients.flags = STATS_COUNTERS|STATS_HIDDEN;
+    process_event (&clients);
 }
 
 

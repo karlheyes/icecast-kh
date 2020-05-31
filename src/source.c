@@ -508,7 +508,7 @@ static void update_source_stats (source_t *source)
     source->bytes_read_since_update %= 1024;
     source->listener_send_trigger = incoming_rate < 8000 ? 8000 : (8000 + (incoming_rate>>4));
     if (incoming_rate)
-        source->incoming_adj = 2000000/incoming_rate;
+        source->incoming_adj = 300000/incoming_rate;
     else
         source->incoming_adj = 20;
     source->stats_interval = 5 + (global.sources >> 10);
@@ -871,8 +871,8 @@ static int source_queue_advance (client_t *client)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
         int ret = (offset & 31);
-        offset++;
-        client->schedule_ms += (source->incoming_adj + ret);
+        offset++;   // this can be a race as it helps for randomizing
+        client->schedule_ms += 5 + ((source->incoming_adj>>1) + ret);
         client->wakeup = &source->wakeup; // allow for quick wakeup
         return -1;
     }
@@ -1323,12 +1323,9 @@ int listener_waiting_on_source (source_t *source, client_t *client)
             if (ret <= 0)
             {
                 source->termination_count--;
-                global_lock();
-                global.listeners--;
-                global_unlock();
-
                 return ret;
             }
+            read_lock = 0;
             source->listeners++;
             source_setup_listener (source, client);
             ret = 0;
@@ -1421,7 +1418,7 @@ static int send_listener (source_t *source, client_t *client)
                 client->schedule_ms += 100 + (client->throttle * 3);
         }
     }
-    // set between 1 and 40
+    // set between 1 and 25
     client->throttle = source->incoming_adj > 25 ? 25 : (source->incoming_adj > 0 ? source->incoming_adj : 1);
     while (1)
     {
@@ -2265,7 +2262,7 @@ static void source_run_script (char *command, char *mountpoint)
  */
 void source_recheck_mounts (int update_all)
 {
-    ice_config_t *config = config_get_config();
+    ice_config_t *config;
     time_t mark = time (NULL);
     long count = 0;
 
@@ -2279,13 +2276,16 @@ void source_recheck_mounts (int update_all)
             source_t *source = (source_t*)node->key;
 
             thread_rwlock_wlock (&source->lock);
+            config = config_get_config();
             if (source_available (source))
                 source_update_settings (config, source, config_find_mount (config, source->mount));
+            config_release_config();
             thread_rwlock_unlock (&source->lock);
             node = avl_get_next (node);
         }
     }
 
+    config = config_get_config();
     avl_node *node = avl_get_first (config->mounts_tree);
     while (node)
     {
@@ -2939,8 +2939,13 @@ static int source_change_worker (source_t *source, client_t *client)
             if ((diff > 2000 && worker->count > 200) || (diff > (source->listeners>>4) + base))
             {
                 char *mount = strdup (source->mount);
-                this_worker->move_allocations--;
                 thread_rwlock_unlock (&source->lock);
+
+                thread_spin_lock (&this_worker->lock);
+                if (this_worker->move_allocations < 1000000)
+                    this_worker->move_allocations--;
+                thread_spin_unlock (&this_worker->lock);
+
                 ret = client_change_worker (client, worker);
                 thread_rwlock_unlock (&workers_lock);
                 if (ret)
@@ -2962,46 +2967,64 @@ static int source_change_worker (source_t *source, client_t *client)
  */
 int listener_change_worker (client_t *client, source_t *source)
 {
-    worker_t *this_worker = client->worker, *dest_worker;
-    long diff;
-    int ret = 0;
-
-    if (this_worker->move_allocations == 0)
-        return 0;
-    thread_rwlock_rlock (&workers_lock);
-    dest_worker = source->client->worker;
-
+    worker_t *this_worker = client->worker, *dest_worker = source->client->worker;
+    int ret = 0, spin = 0, locked = 0;
     int adj = source->client->connection.id & 7;
 
-    if (this_worker != dest_worker)
+    do
     {
-        diff = (this_worker->move_allocations < 1000000) ? dest_worker->count - this_worker->count : 1;
-        // only move listener if source client worker not too full, make limiter varied on source id
-        if (diff > (100 + (adj<<6)))
-            dest_worker = NULL;
-    }
-    else
-    {
-        dest_worker = worker_selected ();
-        // do not move if least busy worker is significantly less than ours
-        diff = this_worker->count - dest_worker->count;
-        if (diff < 150 + (adj<<6))
-            dest_worker = NULL;
-    }
-    if (dest_worker)
-    {
-        // called when allocations is positive, only do so many of these in one go.
-        this_worker->move_allocations--;
-
-        thread_rwlock_unlock (&source->lock);
-        uint64_t  id = client->connection.id;
-        ret = client_change_worker (client, dest_worker);
-        if (ret)
-            DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", id, source->mount, this_worker, dest_worker);
+        if (this_worker == dest_worker)
+        {
+            if (adj)
+                break;       // common, usually ignore moving a listener to different worker
+            thread_rwlock_rlock (&workers_lock);
+            dest_worker = worker_selected ();
+        }
         else
-            thread_rwlock_rlock (&source->lock);
-    }
-    thread_rwlock_unlock (&workers_lock);
+            thread_rwlock_rlock (&workers_lock);
+        locked = 1;
+
+        if (dest_worker && this_worker != dest_worker)
+        {
+            int move = 0;
+            thread_spin_lock (&dest_worker->lock);
+            int dest_count = dest_worker->count;
+            thread_spin_unlock (&dest_worker->lock);
+
+            DEBUG2 ("dest count is %d, %d", dest_count, this_worker->move_allocations);
+            thread_spin_lock (&this_worker->lock);
+            spin = 1;
+            if (this_worker->move_allocations == 0)
+                break;      // already moved many, skip for now
+            if (this_worker->move_allocations < 1000000)    // for normal worker
+            {
+                long diff = this_worker->count - dest_count;
+                if (diff < (100 + (adj<<6)))
+                    break;      // ignore the move this time
+                this_worker->move_allocations--;
+            }
+            move = 1;
+            thread_spin_unlock (&this_worker->lock);
+            spin = 0;
+
+            DEBUG1 ("move set to %d", move);
+            if (move)
+            {
+                thread_rwlock_unlock (&source->lock);
+                uint64_t  id = client->connection.id;
+                ret = client_change_worker (client, dest_worker);
+                if (ret)
+                    DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", id, source->mount, this_worker, dest_worker);
+                else
+                    thread_rwlock_rlock (&source->lock);
+            }
+        }
+    } while (0);
+
+    if (spin)
+        thread_spin_unlock (&this_worker->lock);
+    if (locked)
+        thread_rwlock_unlock (&workers_lock);
     return ret;
 }
 

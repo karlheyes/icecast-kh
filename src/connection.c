@@ -968,7 +968,9 @@ static sock_t wait_for_serversock (void)
                     case SIGINT:
                     case SIGTERM:
                         DEBUG0 ("signalfd received a termination");
+                        global_lock();
                         global.running = ICE_HALTING;
+                        global_unlock();
                         connection_running = 0;
                         break;
                     case SIGHUP:
@@ -1808,12 +1810,16 @@ static int _handle_get_request (client_t *client)
         }
         alias = alias->next;
     }
+    int client_limit = config->client_limit;
+    config_release_config();
+
+    global_lock();
     if (global.clients > config->client_limit)
     {
         client_limit_reached = 1;
-        WARN3 ("server client limit reached (%d/%d) for %s", config->client_limit, global.clients, client->connection.ip);
+        WARN3 ("server client limit reached (%d/%d) for %s", client_limit, global.clients, client->connection.ip);
     }
-    config_release_config();
+    global_unlock();
 
     stats_event_inc(NULL, "client_connections");
 
