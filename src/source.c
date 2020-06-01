@@ -1529,6 +1529,7 @@ void source_init (source_t *source)
             _parse_audio_info (source, str);
             stats_set_flags (source->stats, "audio_info", str, STATS_GENERAL);
         }
+        source->client->queue_pos = 0;
     }
     stats_release (source->stats);
     rate_free (source->in_bitrate);
