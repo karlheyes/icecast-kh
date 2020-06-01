@@ -1015,13 +1015,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     thread_mutex_unlock (&fh->lock);
     client->shared_data = fh;
 
-    if ((fh->finfo.flags & FS_FALLBACK) && (client->flags & CLIENT_AUTHENTICATED))
-    {
-        global_lock();
-        global.listeners++;     // do we want to ocmpare with max listeners?
-        global_unlock();
-    }
-
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
 
