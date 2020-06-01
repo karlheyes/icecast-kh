@@ -917,7 +917,13 @@ static void *log_commit_thread (void *arg)
     while (1)
     {
         int ret = util_timed_wait_for_fd (logger_fd[0], 5000);
-        if (ret == 0 && global.running == ICE_RUNNING) continue;
+        if (ret == 0)
+        {
+            global_lock();
+            int loop = (global.running == ICE_RUNNING);
+            global_unlock();
+            if (loop) continue;
+        }
         if (ret > 0)
         {
             char cm[80];

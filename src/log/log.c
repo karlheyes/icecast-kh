@@ -9,7 +9,7 @@
 #include <config.h>
 #endif
 #ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE     200112L
+#define _POSIX_C_SOURCE     200809L
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -231,6 +231,7 @@ int log_open(const char *filename)
 
     if (id >= 0)
     {
+        _lock_logger();
         free (loglist [id] . filename);
         loglist [id] . filename = strdup (filename);
         loglist [id].entries = 0;
@@ -240,6 +241,7 @@ int log_open(const char *filename)
         loglist [id].size = 0;
         loglist [id].reopen_at = 0;
         loglist [id].archive_timestamp = 0;
+        _unlock_logger();
     }
 
     return id;
@@ -249,22 +251,26 @@ int log_open(const char *filename)
 /* set the trigger level to trigger, represented in bytes */
 void log_set_trigger(int id, unsigned long trigger)
 {
+    _lock_logger();
     if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
         if (trigger < 100000)
             trigger = 100000;
         loglist [id] . trigger_level = trigger;
     }
+    _unlock_logger();
 }
 
 
 void log_set_reopen_after (int id, unsigned int trigger)
 {
+    _lock_logger();
     if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
          loglist [id] . duration = trigger;
          loglist [id] . reopen_at = trigger ? time (NULL) + trigger : 0;
     }
+    _unlock_logger();
 }
 
 
@@ -273,16 +279,19 @@ int log_set_filename(int id, const char *filename)
     if (id < 0 || id >= LOG_MAXLOGS)
         return LOG_EINSANE;
     /* NULL filename is ok, empty filename is not. */
-    if ((filename && !strcmp(filename, "")) || loglist [id] . in_use == 0)
+    if (filename && !strcmp(filename, ""))
         return LOG_EINSANE;
-     _lock_logger();
-    if (loglist [id] . filename)
-        free (loglist [id] . filename);
-    if (filename)
-        loglist [id] . filename = strdup (filename);
-    else
-        loglist [id] . filename = NULL;
-     _unlock_logger();
+    _lock_logger();
+    if (loglist [id] . in_use)
+    {
+        if (loglist [id] . filename)
+            free (loglist [id] . filename);
+        if (filename)
+            loglist [id] . filename = strdup (filename);
+        else
+            loglist [id] . filename = NULL;
+    }
+    _unlock_logger();
     return id;
 }
 
@@ -319,9 +328,10 @@ void log_set_lines_kept (int log_id, unsigned int count)
 void log_set_level(int log_id, unsigned level)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
-    if (loglist[log_id].in_use == 0) return;
-
-    loglist[log_id].level = level;
+    _lock_logger();
+    if (loglist[log_id].in_use)
+        loglist[log_id].level = level;
+    _unlock_logger();
 }
 
 void log_flush(int log_id)

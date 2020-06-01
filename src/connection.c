@@ -971,11 +971,15 @@ static sock_t wait_for_serversock (void)
                         global_lock();
                         global.running = ICE_HALTING;
                         global_unlock();
+                        thread_spin_lock (&_connection_lock);
                         connection_running = 0;
+                        thread_spin_unlock (&_connection_lock);
                         break;
                     case SIGHUP:
                         INFO0 ("HUP received, reread scheduled");
+                        global_lock();
                         global.schedule_config_reread = 1;
+                        global_unlock();
                         break;
                     default:
                         WARN1 ("unexpected signal (%d)", fdsi.ssi_signo);
@@ -1487,11 +1491,13 @@ static void *connection_thread (void *arg)
     header_timeout = config->header_timeout;
     config_release_config ();
 
-    connection_running = 1;
     INFO0 ("connection thread started");
 
+    thread_spin_lock (&_connection_lock);
+    connection_running = 1;
     while (connection_running)
     {
+        thread_spin_unlock (&_connection_lock);
         client_t *client = accept_client ();
         if (client)
         {
@@ -1506,7 +1512,11 @@ static void *connection_thread (void *arg)
         }
         if (global.new_connections_slowdown)
             thread_sleep (global.new_connections_slowdown * 5000);
+        thread_spin_lock (&_connection_lock);
     }
+    connection_running = 0;
+    thread_spin_unlock (&_connection_lock);
+
     global_lock();
     cached_file_clear (&banned_ip);
     cached_file_clear (&allowed_ip);
@@ -1527,7 +1537,6 @@ void connection_thread_startup ()
     sigfillset(&mask);
     pthread_sigmask (SIG_SETMASK, &mask, NULL);
 #endif
-    connection_running = 0;
     if (conn_tid)
         WARN0("id for connection thread still set");
 
@@ -1539,7 +1548,9 @@ void connection_thread_shutdown ()
 {
     if (conn_tid)
     {
+        thread_spin_lock (&_connection_lock);
         connection_running = 0;
+        thread_spin_unlock (&_connection_lock);
         INFO0("shutting down connection thread");
         thread_join (conn_tid);
         conn_tid = NULL;
