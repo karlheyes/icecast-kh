@@ -61,7 +61,8 @@ typedef struct log_tag
     off_t trigger_level;
     time_t reopen_at;
     unsigned int duration;
-    int archive_timestamp;
+    short archive_timestamp;
+    time_t recheck_time;
 
     unsigned long buffer_bytes;
     unsigned int entries;
@@ -149,6 +150,7 @@ static int _log_open (int id, time_t now)
                 loglist [id] . size = st.st_size;
             if (loglist [id] . duration)
                 loglist [id] . reopen_at = now + loglist [id] . duration;
+            loglist [id].recheck_time = now + 10;
         }
         else
             loglist [id] . size = 0;
@@ -468,6 +470,21 @@ static int do_log_run (int log_id)
     else
         next = loglist [log_id].written_entry->next;
 
+    if (next && loglist[log_id].logfile && loglist [log_id] .filename && loglist [log_id].recheck_time <= now)
+    {
+        struct stat st;
+        loglist [log_id].recheck_time = now + 6;
+        if (fstat (fileno(loglist[log_id].logfile), &st) < 0)
+        {
+            loglist [log_id].size = loglist [log_id].trigger_level+1;
+            // fprintf (stderr, "recheck size of %s, failed\n", loglist [log_id] .filename);
+        }
+        else
+        {
+            // fprintf (stderr, "recheck size of %s, %s\n", loglist [log_id] .filename, (loglist [log_id].size == st.st_size) ? "ok" :"different");
+            loglist [log_id] . size = st.st_size;
+        }
+    }
     // fprintf (stderr, "in log run, id %d\n", log_id);
     while (next && ++loop < 300)
     {
@@ -479,7 +496,7 @@ static int do_log_run (int log_id)
 
         // fprintf (stderr, "in log run, line is %s\n", next->line);
         if (fprintf (loglist [log_id].logfile, "%s\n", next->line) >= 0)
-            loglist [log_id].size += next->len;
+            loglist [log_id].size += (next->len + 1);
 
         _lock_logger ();
         next = next->next;

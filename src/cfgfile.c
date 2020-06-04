@@ -771,6 +771,7 @@ static int _parse_accesslog (xmlNodePtr node, void *arg)
     log->logid = -1;
     log->type = LOG_ACCESS_CLF;
     log->qstr = 1;
+    log->archive = -1;
     if (parse_xml_tags (node, icecast_tags))
         return 2;
     if (type && strcmp (type, "CLF-ESC") == 0)
@@ -820,7 +821,7 @@ static int _parse_logging (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
     long old_trigger_size = -1;
-    int old_archive = -1;
+    int old_archive = 1;
     struct cfg_tag icecast_tags[] =
     {
         { "preroll-log",    _parse_errorlog,    &config->preroll_log },
@@ -860,27 +861,30 @@ static int _parse_logging (xmlNodePtr node, void *arg)
 
     if (parse_xml_tags (node, icecast_tags))
         return -1;
-    if (old_trigger_size > 0)
-    {
-        if (old_trigger_size > 2000000) // have a very large upper value
-            old_trigger_size = 2000000;
-        old_trigger_size <<= 10; // convert to bytes
-        if (config->error_log.size == 0)
-            config->error_log.size = old_trigger_size;
-        if (config->access_log.size == 0)
-            config->access_log.size = old_trigger_size;
-        if (config->playlist_log.size == 0)
-            config->playlist_log.size = old_trigger_size;
-    }
-    if (old_archive > -1)
-    {
-        if (config->error_log.archive == -1)
-            config->error_log.archive = old_archive;
-        if (config->access_log.archive == -1)
-            config->access_log.archive = old_archive;
-        if (config->playlist_log.archive == -1)
-            config->playlist_log.archive = old_archive;
-    }
+    if (old_trigger_size < 0)
+        old_trigger_size = 20000;   // default
+    if (old_trigger_size > 2000000) // have a very large upper value
+        old_trigger_size = 2000000;
+    old_trigger_size <<= 10; // convert to bytes
+
+    if (config->preroll_log.size == 0)
+        config->preroll_log.size = old_trigger_size;
+    if (config->error_log.size == 0)
+        config->error_log.size = old_trigger_size;
+    if (config->access_log.size == 0)
+        config->access_log.size = old_trigger_size;
+    if (config->playlist_log.size == 0)
+        config->playlist_log.size = old_trigger_size;
+
+    if (config->preroll_log.archive == -1)
+        config->preroll_log.archive = old_archive;
+    if (config->error_log.archive == -1)
+        config->error_log.archive = old_archive;
+    if (config->access_log.archive == -1)
+        config->access_log.archive = old_archive;
+    if (config->playlist_log.archive == -1)
+        config->playlist_log.archive = old_archive;
+
     return 0;
 }
 

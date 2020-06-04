@@ -198,7 +198,7 @@ static int recheck_log_file (ice_config_t *config, int *id, const char *file)
             fatal_error (buf);
             return -1;
         }
-        INFO1 ("Using global log file %s", fn);
+        INFO1 ("Using log file %s", fn);
         return 0;
     }
     log_set_filename (*id, fn);
@@ -211,12 +211,17 @@ static int recheck_access_log (ice_config_t *config, struct access_log *access)
 {
     if (recheck_log_file (config, &access->logid, access->name) < 0)
         return -1;
-    log_set_trigger (access->logid, access->size);
+    if (access->logid == -1)
+        return 0; // closed
+    long max_size = (access->size > 10000) ? access->size : config->access_log.size;
+    log_set_trigger (access->logid, max_size);
     log_set_reopen_after (access->logid, access->duration);
     if (access->display > 0)
         log_set_lines_kept (access->logid, access->display);
-    log_set_archive_timestamp (access->logid, access->archive);
+    int archive = (access->archive == -1) ? config->access_log.archive : access->archive;
+    log_set_archive_timestamp (access->logid, archive);
     log_set_level (access->logid, 4);
+    // DEBUG4 ("log %s, size %ld, duration %u, archive %d", access->name, max_size, access->duration, archive);
     return 0;
 }
 
@@ -284,7 +289,7 @@ int restart_logging (ice_config_t *config)
             m = m->next;
         }
     }
-    // any logs for specifically named munts
+    // any logs for specifically named mounts
     if (config->mounts_tree)
     {
         avl_node *node = avl_get_first (config->mounts_tree);

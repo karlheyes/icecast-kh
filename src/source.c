@@ -1816,6 +1816,48 @@ static int compare_intro_ipcache (void *arg, void *a, void *b)
 }
 
 
+int source_apply_preroll (mount_proxy *mountinfo, source_t *source)
+{
+    do
+    {
+        if (mountinfo == NULL || mountinfo->preroll_log.name == NULL)
+            break;
+
+        ice_config_t *config = config_get_config_unlocked ();
+        struct error_log *preroll = &mountinfo->preroll_log;
+        unsigned int len = 4096;
+        int ret;
+        char buffer [len];
+
+        ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->log_dir);
+        if (ret < 0 || ret >= len)
+            break;
+        len -= ret;
+        if (util_expand_pattern (source->mount, mountinfo->preroll_log.name, buffer + ret, &len) < 0)
+            break;
+        if (source->preroll_log_id < 0)
+            source->preroll_log_id = log_open (buffer);
+        if (source->preroll_log_id < 0)
+            break;
+        INFO3 ("using pre-roll log file %s (%s) for %s", preroll->name, buffer, source->mount);
+        // log_set_filename (source->preroll_log_id, buffer);
+        long max_size = (preroll->size > 10000) ? preroll->size : config->preroll_log.size;
+        log_set_trigger (source->preroll_log_id, max_size);
+        log_set_reopen_after (source->preroll_log_id, preroll->duration);
+        log_set_lines_kept (source->preroll_log_id, preroll->display);
+        int archive = (preroll->archive == -1) ? config->preroll_log.archive : preroll->archive;
+        log_set_archive_timestamp (source->preroll_log_id, archive);
+        //DEBUG4 ("log %s, size %ld, duration %u, archive %d", preroll->name, max_size, preroll->duration, archive);
+        log_reopen (source->preroll_log_id);
+        return 0;
+    } while (0);
+
+    log_close (source->preroll_log_id);
+    source->preroll_log_id = -1;
+    return -1;
+}
+
+
 /* Apply the mountinfo details to the source */
 static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
 {
@@ -2009,38 +2051,7 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
         else
             source->dumpfilename = strdup (buffer);
     }
-    // check for pre-roll log file
-    if (mountinfo && mountinfo->preroll_log.name)
-    {
-        ice_config_t *config = config_get_config_unlocked ();
-        char buffer[4096];
-        unsigned int len = sizeof buffer;
-        int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->log_dir);
-
-        if (ret > 0 && ret < len)
-        {
-            len -= ret;
-            if (source->preroll_log_id < 0)
-            {
-                source->preroll_log_id = log_open (buffer);
-            }
-            if (source->preroll_log_id >= 0 && util_expand_pattern (source->mount, mountinfo->preroll_log.name, buffer + ret, &len) == 0)
-            {
-                INFO3 ("using pre-roll log file %s (%s) for %s", mountinfo->preroll_log.name, buffer, source->mount);
-                log_set_filename (source->preroll_log_id, buffer);
-                log_set_trigger (source->preroll_log_id, mountinfo->preroll_log.size);
-                log_set_reopen_after (source->preroll_log_id, mountinfo->preroll_log.duration);
-                log_set_lines_kept (source->preroll_log_id, mountinfo->preroll_log.display);
-                log_set_archive_timestamp (source->preroll_log_id, mountinfo->preroll_log.archive);
-            }
-            log_reopen (source->preroll_log_id);
-        }
-    }
-    else
-    {
-        log_close (source->preroll_log_id);
-        source->preroll_log_id = -1;
-    }
+    source_apply_preroll (mountinfo, source);
 
     /* handle changes in intro file setting */
     file_close (&source->intro_file);
