@@ -138,8 +138,11 @@ static int _log_open (int id, time_t now)
             f = fopen (loglist [id] . filename, "a");
             if (f == NULL)
             {
-                loglist [id] . logfile = stderr;
-                do_log_run (id);
+                if (loglist [id] . logfile != stderr)
+                {
+                    loglist [id] . logfile = stderr;
+                    do_log_run (id);
+                }
                 return 0;
             }
             loglist [id].logfile = f;

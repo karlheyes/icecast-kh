@@ -654,8 +654,12 @@ static void _set_defaults(ice_config_t *configuration)
     configuration->playlist_log.name = (char *)xmlCharStrdup (CONFIG_DEFAULT_PLAYLIST_LOG);
     configuration->access_log.name = (char *)xmlCharStrdup (CONFIG_DEFAULT_ACCESS_LOG);
     configuration->access_log.log_ip = 1;
+    configuration->access_log.logid = -1;
     configuration->error_log.name = (char *)xmlCharStrdup (CONFIG_DEFAULT_ERROR_LOG);
     configuration->error_log.level = CONFIG_DEFAULT_LOG_LEVEL;
+    configuration->error_log.logid = -1;
+    configuration->preroll_log.logid = -1;
+    configuration->playlist_log.logid = -1;
     configuration->chroot = CONFIG_DEFAULT_CHROOT;
     configuration->chuid = CONFIG_DEFAULT_CHUID;
     configuration->user = NULL;
