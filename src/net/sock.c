@@ -294,7 +294,7 @@ int sock_set_blocking(sock_t sock, int block)
         u_long nonblock = 0;
         if (block == 0)
             nonblock = 1;
-        return ioctlsocket(sock, FIONBIO, &nonblock);
+        return ioctlsocket(sock, FIONBIO, &nonblock) == SOCKET_ERROR ? -1 : 0;
     }
 #else
     return fcntl(sock, F_SETFL, (block) ? 0 : O_NONBLOCK);
