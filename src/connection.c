@@ -1879,6 +1879,12 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
                 {
                     INFO2 ("Leaving port %d (%s) open", listener->port,
                             listener->bind_address ? listener->bind_address : "");
+                    // update the following attributes of existing socket
+                    sock_listen (global.serversock [old], listener->qlen);
+                    if (listener->so_sndbuf)
+                        sock_set_send_buffer (global.serversock [old], listener->so_sndbuf);
+                    if (listener->so_mss)
+                        sock_set_mss (global.serversock [old], listener->so_mss);
                     if (new < old)
                     {
                         global.server_conn [new] = global.server_conn [old];
