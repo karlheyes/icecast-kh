@@ -109,7 +109,7 @@ typedef struct source_tag
 #define SOURCE_RESERVED             (1<<7)
 
 #define source_available(x)     (((x)->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) && ((x)->flags & SOURCE_LISTENERS_SYNC) == 0)
-#define source_running(x)       ((x)->flags & SOURCE_RUNNING)
+#define source_running(x)       (((x)->flags & (SOURCE_TERMINATING|SOURCE_RUNNING)) == SOURCE_RUNNING)
 
 source_t *source_reserve (const char *mount, int ret_exist);
 void *source_client_thread (void *arg);
