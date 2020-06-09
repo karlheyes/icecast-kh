@@ -402,6 +402,8 @@ static void get_ssl_certificate (ice_config_t *config)
         INFO1 ("SSL certificate found at %s", config->cert_file);
         if (strcmp (config->cert_file, config->key_file) != 0)
             INFO1 ("SSL private key found at %s", config->key_file);
+        if (config->ca_file)
+            INFO1 ("SSL certificate chain found at %s", config->ca_file);
 
         INFO1 ("SSL using ciphers %s", config->cipher_list);
         if (ssl_ctx)
