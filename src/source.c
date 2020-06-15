@@ -485,6 +485,7 @@ static void update_source_stats (source_t *source)
         source->queue_size_limit = qlen;
         source->min_queue_size = source_convert_qvalue (source, source->min_queue_len_value);
         source->default_burst_size = source_convert_qvalue (source, source->default_burst_value);
+        //DEBUG3 ("%s, burst %d, %d", source->mount, (source->default_burst_value&(1<<31))?1:0, source->default_burst_value&(~(1<<31)));
 
         // sanity checks
         if (source->default_burst_size > 50000000)
@@ -493,8 +494,12 @@ static void update_source_stats (source_t *source)
             source->queue_size_limit = 1000000;
         if (source->min_queue_size > 50000000 || source->min_queue_size < source->default_burst_size)
             source->min_queue_size = source->default_burst_size;
-        if (source->min_queue_size + 40000 > source->queue_size_limit)
-            source->queue_size_limit = source->min_queue_size + 40000;
+        if (source->min_queue_size + (incoming_rate<<2) > source->queue_size_limit)
+        {
+            source->queue_size_limit = source->min_queue_size + (incoming_rate<<2);
+            INFO1 ("Adjusting queue size limit higher to allow for a minimum on %s", source->mount);
+            source->queue_len_value = source->queue_size_limit;
+        }
 
         if (log)
         {
@@ -2683,12 +2688,14 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     if (client->flags & CLIENT_RANGE_END)
     {
         // range given on a stream, impose a length limit
-        if ((off_t)client->connection.discon.offset < client->intro_offset)
-           client->connection.discon.offset = 4096;
-        else
+        if ((off_t)client->connection.discon.offset > client->intro_offset)
         {
             client->connection.discon.offset -= client->intro_offset;
             client->intro_offset = 0;
+        }
+        else
+        {
+            client->flags &= ~CLIENT_RANGE_END;
         }
     }
     source_setup_listener (source, client);
