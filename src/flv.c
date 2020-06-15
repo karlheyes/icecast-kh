@@ -195,6 +195,12 @@ static int flv_aac_firsthdr (struct mpeg_sync *mp, sync_callback_t *cb, unsigned
     flv->cb.frame_callback = flv_aac_hdr;
     // DEBUG2 ("codes for audiospecificconfig are %x, %x", flv->tag[17], flv->tag[18]);
 
+    // needed after the first audio specific frame
+    refbuf_t *ref = flv->client->refbuf;
+    struct metadata_block *meta = ref->associated;
+    if (flv->seen_metadata != meta)
+        flv_write_metadata (flv, meta, flv->client->mount);
+
     return flv_aac_hdr (mp, cb, frame, len, headerlen);
 }
 
