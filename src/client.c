@@ -9,7 +9,7 @@
  *                      Karl Heyes <karl@xiph.org>
  *                      and others (see AUTHORS for details).
  *
- * Copyright 2000-2017, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2000-2020, Karl Heyes <karl@kheyes.plus.com>
  *
  */
 
@@ -486,8 +486,6 @@ static worker_t *find_least_busy_handler (int log)
 
 worker_t *worker_selected (void)
 {
-    if (worker_least_used && (worker_least_used->count + worker_least_used->pending_count) - worker_min_count > 20)
-        worker_least_used = find_least_busy_handler(1);
     return worker_least_used;
 }
 
@@ -798,8 +796,9 @@ void worker_balance_trigger (time_t now)
         if (worker_balance_to_check)
         {
             worker_t *w = worker_balance_to_check;
+            // DEBUG2 ("Worker allocations reset on %p, least is %p", w, worker_least_used);
             thread_spin_lock (&w->lock);
-            w->move_allocations = 500;
+            w->move_allocations = 200;
             worker_balance_to_check = w->next;
             thread_spin_unlock (&w->lock);
         }
@@ -827,7 +826,7 @@ static void worker_start (void)
         handler->move_allocations = 1000000;    // should stay fixed for this one
         handler->thread = thread_create ("worker", worker, handler, THREAD_ATTACHED);
         thread_rwlock_unlock (&workers_lock);
-        INFO0 ("starting incoming worker thread");
+        INFO1 ("starting incoming worker thread %p", worker_incoming);
         worker_start();  // single level recursion, just get a special worker thread set up
         return;
     }

@@ -2988,45 +2988,45 @@ int listener_change_worker (client_t *client, source_t *source)
 {
     worker_t *this_worker = client->worker, *dest_worker = source->client->worker;
     int ret = 0, spin = 0, locked = 0;
-    int adj = source->client->connection.id & 7;
+    long diff = 0;
 
     do
     {
-        if (this_worker == dest_worker)
-        {
-            if (adj)
-                break;       // common, usually ignore moving a listener to different worker
-            thread_rwlock_rlock (&workers_lock);
-            dest_worker = worker_selected ();
-        }
-        else
-            thread_rwlock_rlock (&workers_lock);
+        if (is_worker_incoming (this_worker) == 0 && (this_worker->time_ms & 0x14))
+            break;      // routine called frequently, but we do not need to reassess so frequently for normal workers
+        if (thread_rwlock_tryrlock (&workers_lock) != 0)
+            break;
         locked = 1;
+        if (this_worker == dest_worker)
+            dest_worker = worker_selected ();
 
         if (dest_worker && this_worker != dest_worker)
         {
             int move = 0;
+            int adj = ((client->connection.id & 7) << 6) + 100;
+
             thread_spin_lock (&dest_worker->lock);
             int dest_count = dest_worker->count;
             thread_spin_unlock (&dest_worker->lock);
 
-            DEBUG2 ("dest count is %d, %d", dest_count, this_worker->move_allocations);
             thread_spin_lock (&this_worker->lock);
             spin = 1;
             if (this_worker->move_allocations == 0)
                 break;      // already moved many, skip for now
-            if (this_worker->move_allocations < 1000000)    // for normal worker
+            int this_alloc = this_worker->move_allocations;
+
+            if (is_worker_incoming (this_worker) == 0)
             {
-                long diff = this_worker->count - dest_count;
-                if (diff < (100 + (adj<<6)))
-                    break;      // ignore the move this time
                 this_worker->move_allocations--;
+                diff = this_worker->count - dest_count;
+                if (diff < adj)
+                    break;      // ignore the move this time
             }
             move = 1;
             thread_spin_unlock (&this_worker->lock);
             spin = 0;
+            DEBUG3 ("dest count is %d, %d, move %d", dest_count, this_alloc, move);
 
-            DEBUG1 ("move set to %d", move);
             if (move)
             {
                 thread_rwlock_unlock (&source->lock);
