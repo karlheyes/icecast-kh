@@ -183,6 +183,9 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
+/* Define to 1 if you have the `strncasecmp' function. */
+#undef HAVE_STRNCASECMP
+
 /* Define to 1 if you have the `strsep' function. */
 #undef HAVE_STRSEP
 

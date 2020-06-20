@@ -20,6 +20,10 @@
 #include <stdlib.h>
 #include <curl/curl.h>
 
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
+
 #include "thread/thread.h"
 
 #include "connection.h"
@@ -121,44 +125,52 @@ static client_t ypclient;
 
 
 /* curl callback used to parse headers coming back from the YP server */
-static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void *stream)
+static size_t response_header (void *ptr, size_t size, size_t nmemb, void *stream)
 {
     ypdata_t *yp = stream;
     unsigned bytes = size * nmemb;
 
-    /* DEBUG2 ("header from YP is \"%.*s\"", bytes, ptr); */
-    if (strncmp (ptr, "YPResponse: 1", 13) == 0)
-        yp->cmd_ok = 1;
-
-    if (strncmp (ptr, "YPMessage: ", 11) == 0)
+    // DEBUG2 ("header from YP is \"%.*s\"", bytes, (char*)ptr);
+    if (strncasecmp (ptr, "YPResponse:", 11) == 0)
     {
-        unsigned len = bytes - 11;
+        unsigned resp = 0;
+        sscanf (ptr+11, "%u", &resp);
+        if (resp == 1)
+            yp->cmd_ok = resp;
+    }
+
+    if (strncasecmp (ptr, "YPMessage:", 10) == 0)
+    {
+        unsigned len = bytes - 10;
         free (yp->error_msg);
         yp->error_msg = calloc (1, len);
         if (yp->error_msg)
-            sscanf (ptr, "YPMessage: %[^\r\n]", yp->error_msg);
+        {
+            sscanf (ptr+10, " %[^\r\n]", yp->error_msg);
+            INFO2 ("message for %s, %s", yp->mount, yp->error_msg);
+        }
     }
 
     if (yp->process == do_yp_add)
     {
-        if (strncmp (ptr, "SID: ", 5) == 0)
+        if (strncasecmp (ptr, "SID:", 4) == 0)
         {
-            unsigned len = bytes - 5;
+            unsigned len = bytes - 4;
             free (yp->sid);
             yp->sid = calloc (1, len);
             if (yp->sid)
-                sscanf (ptr, "SID: %[^\r\n]", yp->sid);
+                sscanf (ptr+4, " %[^\r\n]", yp->sid);
         }
     }
-    if (strncmp (ptr, "TouchFreq: ", 11) == 0)
+    if (strncasecmp (ptr, "TouchFreq:", 10) == 0)
     {
-        unsigned secs;
-        sscanf (ptr, "TouchFreq: %u", &secs);
+        unsigned secs = 300;
+        sscanf (ptr+10, "%u", &secs);
         if (secs < 30)
             secs = 30;
         if (yp->touch_interval != secs)
         {
-            DEBUG1 ("server touch interval is %u", secs);
+            INFO2 ("touch interval for %s set to %u", yp->mount, secs);
             yp->touch_interval = secs;
         }
     }
@@ -323,7 +335,7 @@ void yp_recheck_config (ice_config_t *config)
                 server->touch_interval = 30;
             curl_easy_setopt (server->curl, CURLOPT_USERAGENT, server->server_id);
             curl_easy_setopt (server->curl, CURLOPT_URL, server->url);
-            curl_easy_setopt (server->curl, CURLOPT_HEADERFUNCTION, handle_returned_header);
+            curl_easy_setopt (server->curl, CURLOPT_HEADERFUNCTION, response_header);
             curl_easy_setopt (server->curl, CURLOPT_WRITEFUNCTION, handle_returned_data);
             curl_easy_setopt (server->curl, CURLOPT_WRITEDATA, server->curl);
             curl_easy_setopt (server->curl, CURLOPT_TIMEOUT, server->url_timeout);
@@ -474,7 +486,7 @@ static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
     free (value);
 
     value = stats_get_value (yp->mount, "server_name");
-    if (value == NULL || strcmp (value, "Unspecified name") == 0)
+    if (value == NULL || strcasecmp (value, "Unspecified name") == 0)
     {
         INFO1 ("mount %s requires valid name", yp->mount);
         yp_schedule (yp, 600);
