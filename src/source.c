@@ -2228,17 +2228,17 @@ static void source_run_script (char *command, char *mountpoint)
 #define MAX_SCRIPT_ARGS          20
                     {
                         int i = 1;
-                        char *p, *args [MAX_SCRIPT_ARGS+1];
+                        char *args [MAX_SCRIPT_ARGS+1], *tmp;
 
                         // default set unless overridden
                         args[0] = comm;
                         args[1] = mountpoint;
                         args[2] = NULL;
-                        while (i < MAX_SCRIPT_ARGS && (args[i] = strsep (&p, " \t")))
+                        while (i < MAX_SCRIPT_ARGS && (tmp = strsep (&p, " \t")))
                         {
                             unsigned len = 4096;
                             char *str = malloc (len);
-                            if (util_expand_pattern (mountpoint, args[i], str, &len) == 0)
+                            if (util_expand_pattern (mountpoint, tmp, str, &len) == 0)
                                 args[i] = str;
                             i++;
                         }
