@@ -400,6 +400,9 @@ int httpp_parse(http_parser_t *parser, const char *http_data, unsigned long len)
         case httpp_req_post:
             httpp_setvar(parser, HTTPP_VAR_REQ_TYPE, "POST");
             break;
+        case httpp_req_options:
+            httpp_setvar(parser, HTTPP_VAR_REQ_TYPE, "OPTIONS");
+            break;
         case httpp_req_head:
             httpp_setvar(parser, HTTPP_VAR_REQ_TYPE, "HEAD");
             break;
