@@ -351,16 +351,33 @@ int client_send_501(client_t *client)
 }
 
 
+int client_add_cors (client_t *client, char *buf, int remain)
+{
+    int bytes = 0;
+    const char *cred = "", *origin = httpp_getvar (client->parser, "origin");
+    if (origin)
+        cred = "Access-Control-Allow-Credentials: true\r\n";
+    else
+        origin = "*";
+
+    bytes = snprintf (buf, remain,
+            "Access-Control-Allow-Origin: %s\r\n%s"
+            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
+            "Access-Control-Allow-Methods: GET, OPTIONS, SOURCE, PUT, HEAD, STATS\r\n\r\n",
+            origin, cred);
+    return bytes;
+}
+
+
 int client_send_options(client_t *client)
 {
     client_set_queue (client, NULL);
     client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
+    char *ptr = client->refbuf->data;
+    int bytes = snprintf (ptr, PER_CLIENT_REFBUF_SIZE,
             "HTTP/1.1 200 OK\r\n"
-            "Connection: Keep-alive\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
-            "Access-Control-Allow-Methods: GET, OPTIONS, HEAD, STATS\r\n\r\n");
+            "Connection: Keep-alive\r\n");
+    client_add_cors (client, ptr+bytes, PER_CLIENT_REFBUF_SIZE-bytes);
     client->respcode = 200;
     client->refbuf->len = strlen (client->refbuf->data);
     return fserve_setup_client (client);

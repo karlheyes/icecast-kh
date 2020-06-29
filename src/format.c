@@ -512,7 +512,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             else
             {
                 if (strcasecmp (var->name, "ice-password") &&
-                        strcasecmp (var->name, "icy-metaint"))
+                        strcasecmp (var->name, "icy-metaint") &&
+                        strncasecmp (var->name, "Access-control-", 15))
                 {
                     if (!strncasecmp ("ice-", var->name, 4))
                     {
@@ -548,17 +549,13 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
     remaining -= bytes;
     ptr += bytes;
 
-    /* prevent proxy servers from caching */
     bytes = snprintf (ptr, remaining, "Cache-Control: no-cache, no-store\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
-            "Access-Control-Allow-Methods: GET, OPTIONS, HEAD\r\n"
-            "%s\r\n"
-            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n", client_keepalive_header (client));
+            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n"
+            "%s\r\n", client_keepalive_header (client));
     remaining -= bytes;
     ptr += bytes;
 
-    bytes = snprintf (ptr, remaining, "\r\n");
+    bytes = client_add_cors (client, ptr, remaining);
     remaining -= bytes;
     ptr += bytes;
 
