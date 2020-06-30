@@ -190,8 +190,10 @@ void slave_update_mounts (void)
  */
 void slave_update_all_mounts (void)
 {
+    thread_spin_lock (&relay_start_lock);
     update_settings = 1;
     update_all_sources = 1;
+    thread_spin_unlock (&relay_start_lock);
 }
 
 
@@ -200,10 +202,12 @@ void slave_update_all_mounts (void)
  */
 void slave_restart (void)
 {
+    thread_spin_lock (&relay_start_lock);
     restart_connection_thread = 1;
-    slave_update_all_mounts ();
+    update_settings = 1;
     update_all_sources = 1;
     streamlist_check = 0;
+    thread_spin_unlock (&relay_start_lock);
 }
 
 
@@ -1190,6 +1194,7 @@ static void _slave_thread(void)
         if (update_settings)
         {
             update = update_settings;
+            update_all = update_all_sources;
             if (update_all_sources || current.tv_sec%5 == 0)
             {
                 update_settings = 0;
