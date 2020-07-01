@@ -1,4 +1,4 @@
-Feature differences from SVN trunk
+Feature differences from Xiph release
 
 . FLV wrapping for mp3/aac listeners requesting it with ?type=.flv
 . define a fixed number of worker threads (default 1) for processing clients
@@ -13,8 +13,23 @@ Feature differences from SVN trunk
 . mount can filter out theora content, useful for defining a local relay
   of a theora+vorbis stream to have a vorbis only stream from the same source.
 . handlers setting for URL authenticator, for N requests at a time.
+. allows for using seconds as a measure for the queue/min/burst sizes
+. multiple ICY sources on single port
 
 any extra tags are shown in the conf/icecast.xml.dist file
+
+2.4.0-kh15
+. Locking updates. For most, it will be no different but some platforms can be affected
+. Keep consistency on the global listener count. Could of shown as very large number.
+. Fix issue with fallback override of listeners. listeners being dropped
+. Fix broken parameter to on-[dis]connect script on previous release.
+. Small update for CORS handling.
+. Fix YP updating.  Long standing error flagged up on directory changes.
+. Update for listeners moving between workers for load balancing.
+. Small update for the FLV-aac wrapping in previous release.
+. Fix up range request bug.
+. Fix various log related issues.
+. Some internal code cleanup
 
 2.4.0-kh14
 . Allow for using secs (eg 5s) in queue/min-queue/burst measures.
