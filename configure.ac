@@ -1,5 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT([Icecast], [2.4.0-kh13-dynrelays], [karl@kheyes.plus.com])
+AC_INIT([Icecast], [2.4.0-kh15-dynrelays], [karl@kheyes.plus.com])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign])
 
@@ -35,6 +35,11 @@ if test x$host_os = xmingw32; then
 AC_DEFINE([_POSIX], 1, [Define to use C99 routines on MS])
 fi
 
+AC_ARG_VAR([ICY_CHARSET], [Character set used for ICY metadata, default is UTF8])
+if test -n "$ICY_CHARSET"; then
+   AC_DEFINE_UNQUOTED([ICY_DEFAULT_CHARSET], ["$ICY_CHARSET"], ["Character set for ICY metadata"])
+fi
+
 dnl Checks for programs.
 
 dnl Checks for libraries.
@@ -50,7 +55,7 @@ dnl Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_TIME
 
-AC_CHECK_HEADERS([fcntl.h fnmatch.h sys/timeb.h sys/wait.h alloca.h malloc.h glob.h winsock2.h windows.h stdbool.h])
+AC_CHECK_HEADERS([fcntl.h fnmatch.h sys/timeb.h sys/wait.h alloca.h malloc.h glob.h winsock2.h windows.h stdbool.h signal.h])
 AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
 save_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="$CPPFLAGS $LIBAV_CFLAGS"
@@ -67,7 +72,7 @@ AC_CHECK_TYPES([struct timespec])
 
 dnl Checks for library functions.
 AC_CHECK_FUNCS([localtime_r gmtime_r FindFirstFile])
-AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp])
+AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp strncasecmp])
 AC_CHECK_FUNCS([getrlimit gettimeofday ftime fsync glob pread pipe2 setresuid setresgid])
 AC_CHECK_TYPES([struct signalfd_siginfo],
                [AC_DEFINE(HAVE_SIGNALFD, 1 ,[Define if signalfd exists])], [],

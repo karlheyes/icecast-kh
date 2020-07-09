@@ -65,7 +65,6 @@ typedef struct {
     struct metadata_block *metadata;
     refbuf_t *read_data;
     int read_count;
-    unsigned short req_qblock_sz;
     unsigned short qblock_sz;
     unsigned short max_send_size;
 

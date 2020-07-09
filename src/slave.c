@@ -100,7 +100,7 @@ static int  relay_read (client_t *client);
 static void relay_release (client_t *client);
 
 int slave_running = 0;
-int worker_count;
+extern int worker_count;
 int relays_connecting;
 int streamlister;
 time_t relay_barrier_master;
@@ -181,15 +181,19 @@ relay_server *relay_copy (relay_server *r)
  */
 void slave_update_mounts (void)
 {
+    thread_spin_lock (&relay_start_lock);
     update_settings = 1;
+    thread_spin_unlock (&relay_start_lock);
 }
 
 /* force a recheck of the mounts.
  */
 void slave_update_all_mounts (void)
 {
+    thread_spin_lock (&relay_start_lock);
     update_settings = 1;
     update_all_sources = 1;
+    thread_spin_unlock (&relay_start_lock);
 }
 
 
@@ -198,10 +202,12 @@ void slave_update_all_mounts (void)
  */
 void slave_restart (void)
 {
+    thread_spin_lock (&relay_start_lock);
     restart_connection_thread = 1;
-    slave_update_all_mounts ();
+    update_settings = 1;
     update_all_sources = 1;
     streamlist_check = 0;
+    thread_spin_unlock (&relay_start_lock);
 }
 
 
@@ -1250,23 +1256,30 @@ static void _slave_thread(void)
     while (1)
     {
         struct timespec current;
+        int do_reread = 0;
 
         thread_get_timespec (&current);
+
+        global_lock();
+        if (global.running != ICE_RUNNING)
+            break;
         /* re-read xml file if requested */
         if (global . schedule_config_reread)
         {
-            event_config_read ();
             global . schedule_config_reread = 0;
+            do_reread = 1;
         }
 
-        global_add_bitrates (global.out_bitrate, 0L, THREAD_TIME_MS(&current));
         if (global.new_connections_slowdown)
             global.new_connections_slowdown--;
         if (global.new_connections_slowdown > 30)
             global.new_connections_slowdown = 30;
 
-        if (global.running != ICE_RUNNING)
-            break;
+        global_unlock();
+
+        global_add_bitrates (global.out_bitrate, 0L, THREAD_TIME_MS(&current));
+        if (do_reread)
+            event_config_read ();
 
         if (streamlist_check <= current.tv_sec)
         {
@@ -1280,21 +1293,33 @@ static void _slave_thread(void)
             config_release_config();
         }
 
+        int update = 0, update_all = 0, restart = 0;
+        thread_spin_lock (&relay_start_lock);
         if (update_settings)
         {
+            update = update_settings;
+            update_all = update_all_sources;
             if (update_all_sources || current.tv_sec%5 == 0)
             {
-                source_recheck_mounts (update_all_sources);
                 update_settings = 0;
                 update_all_sources = 0;
             }
             if (restart_connection_thread)
             {
-                connection_thread_shutdown();
-                connection_thread_startup();
+                restart = restart_connection_thread;
                 restart_connection_thread = 0;
             }
         }
+        thread_spin_unlock (&relay_start_lock);
+
+        if (update)
+            source_recheck_mounts (update_all);
+        if (restart)
+        {
+            connection_thread_shutdown();
+            connection_thread_startup();
+        }
+
         stats_global_calc (current.tv_sec);
         fserve_scan (current.tv_sec);
 
@@ -1323,12 +1348,16 @@ static void _slave_thread(void)
         worker_balance_trigger (current.tv_sec);
         thread_sleep (1000000);
     }
+    global_unlock();
     connection_thread_shutdown();
     fserve_running = 0;
     stats_clients_wakeup ();
     INFO0 ("shutting down current relays");
-    relay_barrier_xml = time(NULL) + 1000;
+    time_t next = time(NULL) + 1000;
+    thread_spin_lock (&relay_start_lock);
+    relay_barrier_xml = next;
     relay_barrier_master = relay_barrier_xml;
+    thread_spin_unlock (&relay_start_lock);
     redirector_clearall();
 
     INFO0 ("Slave thread shutdown complete");
@@ -1463,7 +1492,9 @@ static void redirector_add (const char *server, int port, int interval)
 
 static int relay_expired (relay_server *relay)
 {
+    thread_spin_lock (&relay_start_lock);
     time_t t = (relay->flags & RELAY_FROM_MASTER) ? relay_barrier_master : relay_barrier_xml;
+    thread_spin_unlock (&relay_start_lock);
 
     if (relay->flags & RELAY_ONCE_ONLY)
         relay->updated = t;     // prevent an automatic drop on reload.
@@ -1743,11 +1774,14 @@ static int relay_startup (client_t *client)
         DEBUG1 ("relay %s disabled", relay->localmount);
         return client->ops->process (client);
     }
+    global_lock();
     if (global.running != ICE_RUNNING)  /* wait for cleanup */
     {
+        global_unlock();
         client->schedule_ms = client->worker->time_ms + 50;
         return 0;
     }
+    global_unlock();
     if (worker->move_allocations)
     {
         int ret = 0;

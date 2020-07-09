@@ -73,6 +73,10 @@ static void size_up_qblock (source_t *source);
 #define CLIENT_IN_METADATA              (CLIENT_INTERNAL_FORMAT)
 #define CLIENT_USING_BLANK_META         (CLIENT_INTERNAL_FORMAT<<1)
 
+#ifndef ICY_DEFAULT_CHARSET
+#define ICY_DEFAULT_CHARSET             "UTF-8"
+#endif
+
 static refbuf_t blank_icy = { 0 , 1, NULL, NULL, "\001StreamTitle='';", 17 };
 static struct metadata_block blank_meta = { 1, 1, &blank_icy, NULL, NULL, NULL };
 
@@ -367,7 +371,6 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
     format->charset = NULL;
 
     source_mp3->qblock_sz = 4096;
-    source_mp3->req_qblock_sz = 0;
     source_mp3->max_send_size = 0;
     format->flags &= ~FORMAT_FL_ALLOW_HTTPCHUNKED;
     if (mount)
@@ -378,8 +381,6 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
             source_mp3->interval = mount->mp3_meta_interval;
         if (mount->charset)
             format->charset = strdup (mount->charset);
-        if (mount->queue_block_size)
-            source_mp3->qblock_sz = source_mp3->req_qblock_sz = mount->queue_block_size;
         if (mount->allow_chunked)
            format->flags |= FORMAT_FL_ALLOW_HTTPCHUNKED;
     }
@@ -395,7 +396,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
         }
     }
     if (format->charset == NULL)
-        format->charset = strdup ("UTF-8");
+        format->charset = strdup (ICY_DEFAULT_CHARSET);
 
     DEBUG1 ("sending metadata interval %d", source_mp3->interval);
     DEBUG1 ("charset %s", format->charset);

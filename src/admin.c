@@ -298,6 +298,16 @@ int admin_mount_request (client_t *client)
         return client_send_400 (client, "unknown request");
     }
 
+    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker to kick it back to worker.
+    {
+        worker_t *worker = client->worker;
+        DEBUG0 ("client passed auth, but on different thread to src, reschedule on worker");
+        client->mount = httpp_get_query_param (client->parser, "mount");
+        client->flags |= CLIENT_ACTIVE;
+        worker_wakeup (worker);
+        return 0;
+    }
+
     avl_tree_rlock(global.source_tree);
     source = source_find_mount_raw(mount);
 
@@ -355,15 +365,34 @@ int admin_handle_request (client_t *client, const char *uri)
         uri++;
         if (mount == NULL)
         {
-            if (client->server_conn && client->server_conn->shoutcast_mount)
-                httpp_set_query_param (client->parser, "mount",
-                        client->server_conn->shoutcast_mount);
+            char *mount_pass = strdup (pass);
+            char *sep = strchr (mount_pass, ':');
+            mount = client->server_conn->shoutcast_mount;
+            if (sep && pass[0] == '/' && sep[1] != '\0')
+            {
+                mount = mount_pass;
+                *sep = '\0';
+                pass = sep + 1;
+                // DEBUG2 ("admin.cgi, Using mount %s, pass %s", mount, pass);
+                client->password = strdup (pass);
+            }
+            if (mount == NULL)
+            {
+                free (mount_pass);
+                return client_send_400 (client, "unknown mountpoint");
+            }
+            httpp_set_query_param (client->parser, "mount", mount);
+            httpp_setvar (client->parser, HTTPP_VAR_ICYPASSWORD, pass);
+            free (mount_pass);
             mount = httpp_get_query_param (client->parser, "mount");
         }
+        else
+        {
+            httpp_setvar (client->parser, HTTPP_VAR_ICYPASSWORD, pass);
+            client->password = strdup (pass);
+        }
         httpp_setvar (client->parser, HTTPP_VAR_PROTOCOL, "ICY");
-        httpp_setvar (client->parser, HTTPP_VAR_ICYPASSWORD, pass);
         client->username = strdup ("source");
-        client->password = strdup (pass);
     }
     else
         uri += 7;

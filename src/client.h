@@ -127,6 +127,7 @@ struct _client_tag
 
 void client_register (client_t *client);
 void client_destroy(client_t *client);
+int  client_add_cors (client_t *client, char *buf, int remain);
 int  client_send_options(client_t *client);
 int  client_send_501(client_t *client);
 int  client_send_416(client_t *client);

@@ -502,7 +502,7 @@ static auth_result url_add_listener (auth_client *auth_user)
         tmp = httpp_getvar (client->parser, "referer");
         referer = tmp ? util_url_escape (tmp) : strdup ("");
 
-        current_listeners = stats_get_value(auth->mount, "listeners");
+        current_listeners = stats_get_value (auth_user->mount, "listeners");
         if (current_listeners == NULL)
             current_listeners = strdup("");
 

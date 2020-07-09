@@ -485,6 +485,7 @@ static void update_source_stats (source_t *source)
         }
         source->min_queue_size = source_convert_qvalue (source, source->min_queue_len_value);
         source->default_burst_size = source_convert_qvalue (source, source->default_burst_value);
+        //DEBUG3 ("%s, burst %d, %d", source->mount, (source->default_burst_value&(1<<31))?1:0, source->default_burst_value&(~(1<<31)));
 
         // sanity checks
         if (source->default_burst_size > 50000000)
@@ -496,8 +497,12 @@ static void update_source_stats (source_t *source)
 
         if (source->min_queue_size > 50000000 || source->min_queue_size < source->default_burst_size)
             source->min_queue_size = source->default_burst_size;
-        if (source->min_queue_size + 4000 > source->queue_size_limit)
-            source->min_queue_size = source->default_burst_size;
+        if (source->min_queue_size + (incoming_rate<<2) > source->queue_size_limit)
+        {
+            source->queue_size_limit = source->min_queue_size + (incoming_rate<<2);
+            INFO1 ("Adjusting queue size limit higher to allow for a minimum on %s", source->mount);
+            source->queue_len_value = source->queue_size_limit;
+        }
 
         if (log)
         {
@@ -545,7 +550,6 @@ void source_add_queue_buffer (source_t *source, refbuf_t *r)
 
     source->stream_data_tail = r;
     source->queue_size += r->len;
-    source->client->queue_pos += r->len;
     source->wakeup = 1;
 
     /* move the starting point for new listeners */
@@ -891,8 +895,8 @@ static int source_queue_advance (client_t *client)
     {
         // most listeners will be through here, so a minor spread should limit a wave of sends
         int ret = (offset & 31);
-        offset++;
-        client->schedule_ms += (source->incoming_adj + ret);
+        offset++;   // this can be a race as it helps for randomizing
+        client->schedule_ms += 5 + ((source->incoming_adj>>1) + ret);
         client->wakeup = &source->wakeup; // allow for quick wakeup
         return -1;
     }
@@ -956,8 +960,8 @@ static int source_queue_advance (client_t *client)
             {
                 client->refbuf = refbuf->next;
                 client->pos = 0;
+                continue;
             }
-            continue;
         }
         break;
     }
@@ -1343,12 +1347,9 @@ int listener_waiting_on_source (source_t *source, client_t *client)
             if (ret <= 0)
             {
                 source->termination_count--;
-                global_lock();
-                global.listeners--;
-                global_unlock();
-
                 return ret;
             }
+            read_lock = 0;
             source->listeners++;
             source_setup_listener (source, client);
             ret = 0;
@@ -1441,7 +1442,7 @@ static int send_listener (source_t *source, client_t *client)
                 client->schedule_ms += 100 + (client->throttle * 3);
         }
     }
-    // set between 1 and 40
+    // set between 1 and 25
     client->throttle = source->incoming_adj > 25 ? 25 : (source->incoming_adj > 0 ? source->incoming_adj : 1);
     while (1)
     {
@@ -1552,6 +1553,7 @@ void source_init (source_t *source)
             _parse_audio_info (source, str);
             stats_set_flags (source->stats, "audio_info", str, STATS_GENERAL);
         }
+        source->client->queue_pos = 0;
     }
     stats_release (source->stats);
     rate_free (source->in_bitrate);
@@ -1838,6 +1840,48 @@ static int compare_intro_ipcache (void *arg, void *a, void *b)
 }
 
 
+int source_apply_preroll (mount_proxy *mountinfo, source_t *source)
+{
+    do
+    {
+        if (mountinfo == NULL || mountinfo->preroll_log.name == NULL)
+            break;
+
+        ice_config_t *config = config_get_config_unlocked ();
+        struct error_log *preroll = &mountinfo->preroll_log;
+        unsigned int len = 4096;
+        int ret;
+        char buffer [len];
+
+        ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->log_dir);
+        if (ret < 0 || ret >= len)
+            break;
+        len -= ret;
+        if (util_expand_pattern (source->mount, mountinfo->preroll_log.name, buffer + ret, &len) < 0)
+            break;
+        if (source->preroll_log_id < 0)
+            source->preroll_log_id = log_open (buffer);
+        if (source->preroll_log_id < 0)
+            break;
+        INFO3 ("using pre-roll log file %s (%s) for %s", preroll->name, buffer, source->mount);
+        // log_set_filename (source->preroll_log_id, buffer);
+        long max_size = (preroll->size > 10000) ? preroll->size : config->preroll_log.size;
+        log_set_trigger (source->preroll_log_id, max_size);
+        log_set_reopen_after (source->preroll_log_id, preroll->duration);
+        log_set_lines_kept (source->preroll_log_id, preroll->display);
+        int archive = (preroll->archive == -1) ? config->preroll_log.archive : preroll->archive;
+        log_set_archive_timestamp (source->preroll_log_id, archive);
+        //DEBUG4 ("log %s, size %ld, duration %u, archive %d", preroll->name, max_size, preroll->duration, archive);
+        log_reopen (source->preroll_log_id);
+        return 0;
+    } while (0);
+
+    log_close (source->preroll_log_id);
+    source->preroll_log_id = -1;
+    return -1;
+}
+
+
 /* Apply the mountinfo details to the source */
 static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
 {
@@ -2031,38 +2075,7 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
         else
             source->dumpfilename = strdup (buffer);
     }
-    // check for pre-roll log file
-    if (mountinfo && mountinfo->preroll_log.name)
-    {
-        ice_config_t *config = config_get_config_unlocked ();
-        char buffer[4096];
-        unsigned int len = sizeof buffer;
-        int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->log_dir);
-
-        if (ret > 0 && ret < len)
-        {
-            len -= ret;
-            if (source->preroll_log_id < 0)
-            {
-                source->preroll_log_id = log_open (buffer);
-            }
-            if (source->preroll_log_id >= 0 && util_expand_pattern (source->mount, mountinfo->preroll_log.name, buffer + ret, &len) == 0)
-            {
-                INFO3 ("using pre-roll log file %s (%s) for %s", mountinfo->preroll_log.name, buffer, source->mount);
-                log_set_filename (source->preroll_log_id, buffer);
-                log_set_trigger (source->preroll_log_id, mountinfo->preroll_log.size);
-                log_set_reopen_after (source->preroll_log_id, mountinfo->preroll_log.duration);
-                log_set_lines_kept (source->preroll_log_id, mountinfo->preroll_log.display);
-                log_set_archive_timestamp (source->preroll_log_id, mountinfo->preroll_log.archive);
-            }
-            log_reopen (source->preroll_log_id);
-        }
-    }
-    else
-    {
-        log_close (source->preroll_log_id);
-        source->preroll_log_id = -1;
-    }
+    source_apply_preroll (mountinfo, source);
 
     /* handle changes in intro file setting */
     file_close (&source->intro_file);
@@ -2234,17 +2247,17 @@ static void source_run_script (char *command, char *mountpoint)
 #define MAX_SCRIPT_ARGS          20
                     {
                         int i = 1;
-                        char *p, *args [MAX_SCRIPT_ARGS+1];
+                        char *args [MAX_SCRIPT_ARGS+1], *tmp;
 
                         // default set unless overridden
                         args[0] = comm;
                         args[1] = mountpoint;
                         args[2] = NULL;
-                        while (i < MAX_SCRIPT_ARGS && (args[i] = strsep (&p, " \t")))
+                        while (i < MAX_SCRIPT_ARGS && (tmp = strsep (&p, " \t")))
                         {
                             unsigned len = 4096;
                             char *str = malloc (len);
-                            if (util_expand_pattern (mountpoint, args[i], str, &len) == 0)
+                            if (util_expand_pattern (mountpoint, tmp, str, &len) == 0)
                                 args[i] = str;
                             i++;
                         }
@@ -2285,7 +2298,7 @@ static void source_run_script (char *command, char *mountpoint)
  */
 void source_recheck_mounts (int update_all)
 {
-    ice_config_t *config = config_get_config();
+    ice_config_t *config;
     time_t mark = time (NULL);
     long count = 0;
 
@@ -2299,13 +2312,16 @@ void source_recheck_mounts (int update_all)
             source_t *source = (source_t*)node->key;
 
             thread_rwlock_wlock (&source->lock);
+            config = config_get_config();
             if (source_available (source))
                 source_update_settings (config, source, config_find_mount (config, source->mount));
+            config_release_config();
             thread_rwlock_unlock (&source->lock);
             node = avl_get_next (node);
         }
     }
 
+    config = config_get_config();
     avl_node *node = avl_get_first (config->mounts_tree);
     while (node)
     {
@@ -2695,12 +2711,14 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     if (client->flags & CLIENT_RANGE_END)
     {
         // range given on a stream, impose a length limit
-        if ((off_t)client->connection.discon.offset < client->intro_offset)
-           client->connection.discon.offset = 4096;
-        else
+        if ((off_t)client->connection.discon.offset > client->intro_offset)
         {
             client->connection.discon.offset -= client->intro_offset;
             client->intro_offset = 0;
+        }
+        else
+        {
+            client->flags &= ~CLIENT_RANGE_END;
         }
     }
     source_setup_listener (source, client);
@@ -2964,8 +2982,13 @@ static int source_change_worker (source_t *source, client_t *client)
             if ((diff > 2000 && worker->count > 200) || (diff > (source->listeners>>4) + base))
             {
                 char *mount = strdup (source->mount);
-                this_worker->move_allocations--;
                 thread_rwlock_unlock (&source->lock);
+
+                thread_spin_lock (&this_worker->lock);
+                if (this_worker->move_allocations < 1000000)
+                    this_worker->move_allocations--;
+                thread_spin_unlock (&this_worker->lock);
+
                 ret = client_change_worker (client, worker);
                 thread_rwlock_unlock (&workers_lock);
                 if (ret)
@@ -2987,46 +3010,64 @@ static int source_change_worker (source_t *source, client_t *client)
  */
 int listener_change_worker (client_t *client, source_t *source)
 {
-    worker_t *this_worker = client->worker, *dest_worker;
-    long diff;
-    int ret = 0;
+    worker_t *this_worker = client->worker, *dest_worker = source->client->worker;
+    int ret = 0, spin = 0, locked = 0;
+    long diff = 0;
 
-    if (this_worker->move_allocations == 0)
-        return 0;
-    thread_rwlock_rlock (&workers_lock);
-    dest_worker = source->client->worker;
-
-    int adj = source->client->connection.id & 7;
-
-    if (this_worker != dest_worker)
+    do
     {
-        diff = (this_worker->move_allocations < 1000000) ? dest_worker->count - this_worker->count : 1;
-        // only move listener if source client worker not too full, make limiter varied on source id
-        if (diff > (100 + (adj<<6)))
-            dest_worker = NULL;
-    }
-    else
-    {
-        dest_worker = worker_selected ();
-        // do not move if least busy worker is significantly less than ours
-        diff = this_worker->count - dest_worker->count;
-        if (diff < 150 + (adj<<6))
-            dest_worker = NULL;
-    }
-    if (dest_worker)
-    {
-        // called when allocations is positive, only do so many of these in one go.
-        this_worker->move_allocations--;
+        if (is_worker_incoming (this_worker) == 0 && (this_worker->time_ms & 0x14))
+            break;      // routine called frequently, but we do not need to reassess so frequently for normal workers
+        if (thread_rwlock_tryrlock (&workers_lock) != 0)
+            break;
+        locked = 1;
+        if (this_worker == dest_worker)
+            dest_worker = worker_selected ();
 
-        thread_rwlock_unlock (&source->lock);
-        uint64_t  id = client->connection.id;
-        ret = client_change_worker (client, dest_worker);
-        if (ret)
-            DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", id, source->mount, this_worker, dest_worker);
-        else
-            thread_rwlock_rlock (&source->lock);
-    }
-    thread_rwlock_unlock (&workers_lock);
+        if (dest_worker && this_worker != dest_worker)
+        {
+            int move = 0;
+            int adj = ((client->connection.id & 7) << 6) + 100;
+
+            thread_spin_lock (&dest_worker->lock);
+            int dest_count = dest_worker->count;
+            thread_spin_unlock (&dest_worker->lock);
+
+            thread_spin_lock (&this_worker->lock);
+            spin = 1;
+            if (this_worker->move_allocations == 0)
+                break;      // already moved many, skip for now
+            int this_alloc = this_worker->move_allocations;
+
+            if (is_worker_incoming (this_worker) == 0)
+            {
+                this_worker->move_allocations--;
+                diff = this_worker->count - dest_count;
+                if (diff < adj)
+                    break;      // ignore the move this time
+            }
+            move = 1;
+            thread_spin_unlock (&this_worker->lock);
+            spin = 0;
+            DEBUG3 ("dest count is %d, %d, move %d", dest_count, this_alloc, move);
+
+            if (move)
+            {
+                thread_rwlock_unlock (&source->lock);
+                uint64_t  id = client->connection.id;
+                ret = client_change_worker (client, dest_worker);
+                if (ret)
+                    DEBUG4 ("moving listener %" PRIu64 " on %s from %p to %p", id, source->mount, this_worker, dest_worker);
+                else
+                    thread_rwlock_rlock (&source->lock);
+            }
+        }
+    } while (0);
+
+    if (spin)
+        thread_spin_unlock (&this_worker->lock);
+    if (locked)
+        thread_rwlock_unlock (&workers_lock);
     return ret;
 }
 

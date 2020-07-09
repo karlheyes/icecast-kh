@@ -131,6 +131,14 @@ static int flv_aac_hdr (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char
     if (flv->raw_offset + 17 > flv->raw->len)
         return -1;
 
+    if (flv->raw_offset == 0)
+    {
+        refbuf_t *ref = flv->client->refbuf;
+        struct metadata_block *meta = ref->associated;
+        if (flv->seen_metadata != meta)
+            flv_write_metadata (flv, meta, flv->client->mount);
+    }
+
     // we do not put adts aac headers in FLV frames
     len -= header_len;
     frame += header_len;
@@ -186,6 +194,12 @@ static int flv_aac_firsthdr (struct mpeg_sync *mp, sync_callback_t *cb, unsigned
     flv->tag[16] = 0x01;   // as per spec. headerless frame follows this
     flv->cb.frame_callback = flv_aac_hdr;
     // DEBUG2 ("codes for audiospecificconfig are %x, %x", flv->tag[17], flv->tag[18]);
+
+    // needed after the first audio specific frame
+    refbuf_t *ref = flv->client->refbuf;
+    struct metadata_block *meta = ref->associated;
+    if (flv->seen_metadata != meta)
+        flv_write_metadata (flv, meta, flv->client->mount);
 
     return flv_aac_hdr (mp, cb, frame, len, headerlen);
 }

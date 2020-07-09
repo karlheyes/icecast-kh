@@ -9,7 +9,7 @@
 #include <config.h>
 #endif
 #ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE     1L
+#define _POSIX_C_SOURCE     200809L
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,7 +62,8 @@ typedef struct log_tag
     off_t trigger_level;
     time_t reopen_at;
     unsigned int duration;
-    int archive_timestamp;
+    short archive_timestamp;
+    time_t recheck_time;
 
     unsigned long buffer_bytes;
     unsigned int entries;
@@ -138,8 +139,11 @@ static int _log_open (int id, time_t now)
             f = fopen (loglist [id] . filename, "a");
             if (f == NULL)
             {
-                loglist [id] . logfile = stderr;
-                do_log_run (id);
+                if (loglist [id] . logfile != stderr)
+                {
+                    loglist [id] . logfile = stderr;
+                    do_log_run (id);
+                }
                 return 0;
             }
             loglist [id].logfile = f;
@@ -150,6 +154,7 @@ static int _log_open (int id, time_t now)
                 loglist [id] . size = st.st_size;
             if (loglist [id] . duration)
                 loglist [id] . reopen_at = now + loglist [id] . duration;
+            loglist [id].recheck_time = now + 10;
         }
         else
             loglist [id] . size = 0;
@@ -233,6 +238,7 @@ int log_open(const char *filename)
 
     if (id >= 0)
     {
+        _lock_logger();
         free (loglist [id] . filename);
         loglist [id] . filename = strdup (filename);
         loglist [id].entries = 0;
@@ -242,6 +248,7 @@ int log_open(const char *filename)
         loglist [id].size = 0;
         loglist [id].reopen_at = 0;
         loglist [id].archive_timestamp = 0;
+        _unlock_logger();
     }
 
     return id;
@@ -251,20 +258,26 @@ int log_open(const char *filename)
 /* set the trigger level to trigger, represented in bytes */
 void log_set_trigger(int id, unsigned long trigger)
 {
-    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use && trigger > 500000)
+    _lock_logger();
+    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
-         loglist [id] . trigger_level = trigger;
+        if (trigger < 100000)
+            trigger = 100000;
+        loglist [id] . trigger_level = trigger;
     }
+    _unlock_logger();
 }
 
 
 void log_set_reopen_after (int id, unsigned int trigger)
 {
+    _lock_logger();
     if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
     {
          loglist [id] . duration = trigger;
          loglist [id] . reopen_at = trigger ? time (NULL) + trigger : 0;
     }
+    _unlock_logger();
 }
 
 
@@ -273,16 +286,19 @@ int log_set_filename(int id, const char *filename)
     if (id < 0 || id >= LOG_MAXLOGS)
         return LOG_EINSANE;
     /* NULL filename is ok, empty filename is not. */
-    if ((filename && !strcmp(filename, "")) || loglist [id] . in_use == 0)
+    if (filename && !strcmp(filename, ""))
         return LOG_EINSANE;
-     _lock_logger();
-    if (loglist [id] . filename)
-        free (loglist [id] . filename);
-    if (filename)
-        loglist [id] . filename = strdup (filename);
-    else
-        loglist [id] . filename = NULL;
-     _unlock_logger();
+    _lock_logger();
+    if (loglist [id] . in_use)
+    {
+        if (loglist [id] . filename)
+            free (loglist [id] . filename);
+        if (filename)
+            loglist [id] . filename = strdup (filename);
+        else
+            loglist [id] . filename = NULL;
+    }
+    _unlock_logger();
     return id;
 }
 
@@ -319,9 +335,10 @@ void log_set_lines_kept (int log_id, unsigned int count)
 void log_set_level(int log_id, unsigned level)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
-    if (loglist[log_id].in_use == 0) return;
-
-    loglist[log_id].level = level;
+    _lock_logger();
+    if (loglist[log_id].in_use)
+        loglist[log_id].level = level;
+    _unlock_logger();
 }
 
 void log_flush(int log_id)
@@ -352,7 +369,11 @@ void log_reopen(int log_id)
                 break;
             // a missing or different sized log indicates an external move so trigger a reopen
         }
-        loglist [log_id].size = loglist [log_id].trigger_level + 1;
+        if (loglist [log_id] . logfile)
+        {
+            fclose (loglist [log_id] . logfile);
+            loglist [log_id] . logfile = NULL;
+        }
     } while (0);
     _unlock_logger();
 }
@@ -458,6 +479,21 @@ static int do_log_run (int log_id)
     else
         next = loglist [log_id].written_entry->next;
 
+    if (next && loglist[log_id].logfile && loglist [log_id] .filename && loglist [log_id].recheck_time <= now)
+    {
+        struct stat st;
+        loglist [log_id].recheck_time = now + 6;
+        if (fstat (fileno(loglist[log_id].logfile), &st) < 0)
+        {
+            loglist [log_id].size = loglist [log_id].trigger_level+1;
+            // fprintf (stderr, "recheck size of %s, failed\n", loglist [log_id] .filename);
+        }
+        else
+        {
+            // fprintf (stderr, "recheck size of %s, %s\n", loglist [log_id] .filename, (loglist [log_id].size == st.st_size) ? "ok" :"different");
+            loglist [log_id] . size = st.st_size;
+        }
+    }
     // fprintf (stderr, "in log run, id %d\n", log_id);
     while (next && ++loop < 300)
     {
@@ -470,7 +506,7 @@ static int do_log_run (int log_id)
         // fprintf (stderr, "in log run, line is %s\n", next->line);
         int id = loglist [log_id].logfile ? log_id : 0;
         if (fprintf (loglist [id].logfile, "%s\n", next->line) >= 0)
-            loglist [id].size += next->len;
+            loglist [id].size += (next->len + 1);
 
         _lock_logger ();
         next = next->next;

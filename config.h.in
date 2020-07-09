@@ -168,6 +168,9 @@
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
 
+/* Define to 1 if you have the <signal.h> header file. */
+#undef HAVE_SIGNAL_H
+
 /* Define to 1 if the system has the type `SOCKET*'. */
 #undef HAVE_SOCKETP
 
@@ -194,6 +197,9 @@
 
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strncasecmp' function. */
+#undef HAVE_STRNCASECMP
 
 /* Define to 1 if you have the `strsep' function. */
 #undef HAVE_STRSEP
@@ -251,6 +257,9 @@
 
 /* Define to 1 if you have the `xsltSaveResultToString' function. */
 #undef HAVE_XSLTSAVERESULTTOSTRING
+
+/* "Character set for ICY metadata" */
+#undef ICY_DEFAULT_CHARSET
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #undef LT_OBJDIR

@@ -11,7 +11,7 @@ AC_ARG_WITH(openssl,
     openssl_prefix="$withval", openssl_prefix="")
 
 if test "x$openssl_prefix" != "x" -a "x$openssl_prefix" != "xyes"; then
-    OPENSSL_LIBS="-L$openssl_prefix/lib -lssl"
+    OPENSSL_LIBS="-L$openssl_prefix/lib -lssl -lcrypto"
     OPENSSL_CFLAGS="-I$openssl_prefix/include"
 else
     AC_PATH_PROG([PKGCONFIG], [pkg-config], [no])
@@ -24,7 +24,7 @@ else
         else
             openssl_prefix="$prefix"
         fi
-        OPENSSL_LIBS="-L$openssl_prefix/lib -lssl"
+        OPENSSL_LIBS="-L$openssl_prefix/lib -lssl -lcrypto"
         OPENSSL_CFLAGS="-I$openssl_prefix/include"
     fi
 fi

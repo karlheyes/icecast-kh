@@ -294,7 +294,7 @@ int sock_set_blocking(sock_t sock, int block)
         u_long nonblock = 0;
         if (block == 0)
             nonblock = 1;
-        return ioctlsocket(sock, FIONBIO, &nonblock);
+        return ioctlsocket(sock, FIONBIO, &nonblock) == SOCKET_ERROR ? -1 : 0;
     }
 #else
     return fcntl(sock, F_SETFL, (block) ? 0 : O_NONBLOCK);
@@ -314,7 +314,7 @@ int sock_set_cork (sock_t sock, int yes)
     int cork = yes ? 1 : 0;
 
     return setsockopt (sock, IPPROTO_TCP, TCP_CORK, (void *)&cork, sizeof(cork));
-#elif defined TCP_NOPUSH
+#elif defined BSD_TCP_NOPUSH_WORKS_OR_NOT // may need looking at in more detail
     int nopush = yes ? 1 : 0;
 
     return setsockopt (sock, IPPROTO_TCP, TCP_NOPUSH, (void *)&nopush, sizeof(nopush));

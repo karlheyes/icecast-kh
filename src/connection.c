@@ -25,6 +25,7 @@
 #endif
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fnmatch.h>
 
 #ifdef _MSC_VER
  #include <winsock2.h>
@@ -398,6 +399,13 @@ static void get_ssl_certificate (ice_config_t *config)
             WARN1 ("Invalid cipher list: %s", config->cipher_list);
         }
         ssl_ok = 1;
+        INFO1 ("SSL certificate found at %s", config->cert_file);
+        if (strcmp (config->cert_file, config->key_file) != 0)
+            INFO1 ("SSL private key found at %s", config->key_file);
+        if (config->ca_file)
+            INFO1 ("SSL certificate chain found at %s", config->ca_file);
+
+        INFO1 ("SSL using ciphers %s", config->cipher_list);
         if (ssl_ctx)
             SSL_CTX_free (ssl_ctx);
         ssl_ctx = new_ssl_ctx;
@@ -419,6 +427,7 @@ static void get_ssl_certificate (ice_config_t *config)
  */
 int connection_read_ssl (connection_t *con, void *buf, size_t len)
 {
+    ERR_clear_error();
     int bytes = SSL_read (con->ssl, buf, len);
     int code = SSL_get_error (con->ssl, bytes);
     char err[128];
@@ -426,24 +435,28 @@ int connection_read_ssl (connection_t *con, void *buf, size_t len)
     switch (code)
     {
         case SSL_ERROR_NONE:
-        case SSL_ERROR_ZERO_RETURN:
             break;
-        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SSL:
+        case SSL_ERROR_SYSCALL:     // avoid the ssl shutdown
+            con->sslflags |= 1;
+            // fallthru
+        case SSL_ERROR_ZERO_RETURN:
             con->error = 1;
+            // fallthru
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             return -1;
-        default:
-            con->error = 1;
+        default:    // the rest are retryable
             ERR_error_string (ERR_get_error(), err);
             DEBUG2("error %d, %s", code, err);
-            bytes = 0;
+            return -1;
     }
     return bytes;
 }
 
 int connection_send_ssl (connection_t *con, const void *buf, size_t len)
 {
+    ERR_clear_error();
     int bytes = SSL_write (con->ssl, buf, len);
     int code = SSL_get_error (con->ssl, bytes);
     char err[128];
@@ -451,22 +464,24 @@ int connection_send_ssl (connection_t *con, const void *buf, size_t len)
     switch (code)
     {
         case SSL_ERROR_NONE:
-        case SSL_ERROR_ZERO_RETURN:
             break;
-        case SSL_ERROR_SYSCALL:
+        case SSL_ERROR_SYSCALL: // avoid the ssl shutdown
+            // DEBUG3("syscall error %d, on %s (%" PRIu64 ")", sock_error(), &con->ip[0], con->id);
+        case SSL_ERROR_SSL:
+            con->sslflags |= 1;
+            // fallthru
+        case SSL_ERROR_ZERO_RETURN:
             con->error = 1;
-            DEBUG3("syscall error %d, on %s (%" PRIu64 ")", sock_error(), &con->ip[0], con->id);
             // fallthru
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             return -1;
         default:
-            con->error = 1;
             ERR_error_string (ERR_get_error(), err);
             DEBUG2("error %d, %s", code, err);
-            return -1;
     }
-    con->sent_bytes += bytes;
+    if (bytes > 0)
+        con->sent_bytes += bytes;
     return bytes;
 }
 #else
@@ -697,6 +712,8 @@ void connection_add_banned_ip (const char *ip, int duration)
         add_banned_ip (&banned_ip, ip, timeout);
         global_unlock();
     }
+    else
+        INFO0 ("No ban-file set up, missing tag in xml or no file referenced");
 }
 
 void connection_release_banned_ip (const char *ip)
@@ -794,6 +811,19 @@ static int accept_ip_address (char *ip)
         return 0;
     }
     return 1;
+}
+
+
+static struct xforward_entry *_find_xforward_addr (ice_config_t *config, char *ip)
+{
+    struct xforward_entry *xforward = config->xforward;
+    while (xforward)
+    {
+        if (fnmatch (xforward->ip, ip, 0) == 0)
+            break;
+        xforward = xforward->next;
+    }
+    return xforward;
 }
 
 
@@ -940,12 +970,18 @@ static sock_t wait_for_serversock (void)
                     case SIGINT:
                     case SIGTERM:
                         DEBUG0 ("signalfd received a termination");
+                        global_lock();
                         global.running = ICE_HALTING;
+                        global_unlock();
+                        thread_spin_lock (&_connection_lock);
                         connection_running = 0;
+                        thread_spin_unlock (&_connection_lock);
                         break;
                     case SIGHUP:
                         INFO0 ("HUP received, reread scheduled");
+                        global_lock();
                         global.schedule_config_reread = 1;
+                        global_unlock();
                         break;
                     default:
                         WARN1 ("unexpected signal (%d)", fdsi.ssi_signo);
@@ -1151,15 +1187,26 @@ static int shoutcast_source_client (client_t *client)
             if (refbuf->data [len] == '\0')  /* no EOL yet */
                 return 0;
 
-            refbuf->data [len] = '\0';
-            snprintf (header, sizeof(header), "source:%s", refbuf->data);
+            refbuf->data [len] = '\0';  // password
+
+            // is mountpoint embedded in the password
+            const char *mount = client->server_conn->shoutcast_mount, *pw = refbuf->data;
+            char *sep = strchr (refbuf->data, ':');
+            if (sep && *pw == '/')
+            {
+                pw = sep + 1;
+                *sep = '\0';
+                mount = refbuf->data;
+            }
+            // DEBUG2 ("Using mount %s and pass %s", mount, pw);
+            snprintf (header, sizeof(header), "source:%s", pw);
             esc_header = util_base64_encode (header);
 
             len += 1 + strspn (refbuf->data+len+1, "\r\n");
             r = refbuf_new (PER_CLIENT_REFBUF_SIZE);
             snprintf (r->data, PER_CLIENT_REFBUF_SIZE,
                     "SOURCE %s HTTP/1.0\r\n" "Authorization: Basic %s\r\n%s",
-                    client->server_conn->shoutcast_mount, esc_header, refbuf->data+len);
+                    mount, esc_header, refbuf->data+len);
             r->len = strlen (r->data);
             free (esc_header);
             client->respcode = 200;
@@ -1318,6 +1365,33 @@ static int http_client_request (client_t *client)
             {
                 const char *str;
 
+                str = httpp_getvar (client->parser, "x-forwarded-for");
+                if (str)
+                {
+                    if (_find_xforward_addr (config_get_config(), client->connection.ip) != NULL)
+                    {
+                        config_release_config();
+                        int len = strcspn (str, ",") + 1;
+                        int drop_it = 0;
+                        char *ip = malloc (len);
+                        snprintf (ip, len, "%s",  str);
+
+                        if (accept_ip_address (ip) == 0)
+                        {
+                            DEBUG2 ("Dropping client at %s via %s", ip, client->connection.ip);
+                            drop_it = 1;
+                        }
+                        else
+                            DEBUG2 ("x-forwarded-for match for %s, using %s instead", client->connection.ip, ip);
+                        free (client->connection.ip);
+                        client->connection.ip = ip;
+                        if (drop_it)
+                            return -1;
+                    }
+                    else
+                        config_release_config();
+                }
+
                 if (useragents.filename)
                 {
                     const char *agent = httpp_getvar (client->parser, "user-agent");
@@ -1419,11 +1493,13 @@ static void *connection_thread (void *arg)
     header_timeout = config->header_timeout;
     config_release_config ();
 
-    connection_running = 1;
     INFO0 ("connection thread started");
 
+    thread_spin_lock (&_connection_lock);
+    connection_running = 1;
     while (connection_running)
     {
+        thread_spin_unlock (&_connection_lock);
         client_t *client = accept_client ();
         if (client)
         {
@@ -1438,7 +1514,11 @@ static void *connection_thread (void *arg)
         }
         if (global.new_connections_slowdown)
             thread_sleep (global.new_connections_slowdown * 5000);
+        thread_spin_lock (&_connection_lock);
     }
+    connection_running = 0;
+    thread_spin_unlock (&_connection_lock);
+
     global_lock();
     cached_file_clear (&banned_ip);
     cached_file_clear (&allowed_ip);
@@ -1459,7 +1539,6 @@ void connection_thread_startup ()
     sigfillset(&mask);
     pthread_sigmask (SIG_SETMASK, &mask, NULL);
 #endif
-    connection_running = 0;
     if (conn_tid)
         WARN0("id for connection thread still set");
 
@@ -1471,7 +1550,9 @@ void connection_thread_shutdown ()
 {
     if (conn_tid)
     {
+        thread_spin_lock (&_connection_lock);
         connection_running = 0;
+        thread_spin_unlock (&_connection_lock);
         INFO0("shutting down connection thread");
         thread_join (conn_tid);
         conn_tid = NULL;
@@ -1619,42 +1700,12 @@ int connection_check_pass (http_parser_t *parser, const char *user, const char *
 }
 
 
-static void _check_for_x_forwarded_for(ice_config_t *config, client_t *client)
-{
-    do {
-        const char *hdr = httpp_getvar (client->parser, "x-forwarded-for");
-        struct xforward_entry *xforward = config->xforward;
-        if (hdr == NULL) break;
-        while (xforward)
-        {
-            if (strcmp (xforward->ip, client->connection.ip) == 0)
-            {
-                int len = strcspn (hdr, ",") + 1;
-                char *ip = malloc (len);
-
-                snprintf (ip, len, "%s",  hdr);
-                free (client->connection.ip);
-                client->connection.ip = ip;
-                DEBUG2 ("x-forward match for %s, using %s instead", xforward->ip, ip);
-                break;
-            }
-            xforward = xforward->next;
-        }
-    } while(0);
-}
-
-
 static int _handle_source_request (client_t *client)
 {
     const char *uri = httpp_getvar (client->parser, HTTPP_VAR_URI);
-    ice_config_t *config = NULL;
 
     INFO1("Source logging in at mountpoint \"%s\"", uri);
 
-    /* use x-forwarded-for ip address if available and authorized */
-    config = config_get_config();
-    _check_for_x_forwarded_for(config, client);
-    config_release_config();
     client->flags &= ~CLIENT_KEEPALIVE;
     
     if (uri[0] != '/')
@@ -1748,7 +1799,6 @@ static int _handle_get_request (client_t *client)
         serverhost = client->server_conn->bind_address;
         serverport = client->server_conn->port;
     }
-    _check_for_x_forwarded_for(config, client);
 
     alias = config->aliases;
 
@@ -1773,12 +1823,16 @@ static int _handle_get_request (client_t *client)
         }
         alias = alias->next;
     }
+    int client_limit = config->client_limit;
+    config_release_config();
+
+    global_lock();
     if (global.clients > config->client_limit)
     {
         client_limit_reached = 1;
-        WARN3 ("server client limit reached (%d/%d) for %s", config->client_limit, global.clients, client->connection.ip);
+        WARN3 ("server client limit reached (%d/%d) for %s", client_limit, global.clients, client->connection.ip);
     }
-    config_release_config();
+    global_unlock();
 
     stats_event_inc(NULL, "client_connections");
 
@@ -1827,6 +1881,12 @@ void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
                 {
                     INFO2 ("Leaving port %d (%s) open", listener->port,
                             listener->bind_address ? listener->bind_address : "");
+                    // update the following attributes of existing socket
+                    sock_listen (global.serversock [old], listener->qlen);
+                    if (listener->so_sndbuf)
+                        sock_set_send_buffer (global.serversock [old], listener->so_sndbuf);
+                    if (listener->so_mss)
+                        sock_set_mss (global.serversock [old], listener->so_mss);
                     if (new < old)
                     {
                         global.server_conn [new] = global.server_conn [old];
@@ -1986,7 +2046,7 @@ void connection_reset (connection_t *con, uint64_t time_ms)
 void connection_close(connection_t *con)
 {
 #ifdef HAVE_OPENSSL
-    if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); }
+    if (con->ssl) { if ((con->sslflags & 1) == 0) SSL_shutdown (con->ssl); SSL_free (con->ssl); }
 #endif
     if (con->sock != SOCK_ERROR)
         sock_close (con->sock);
