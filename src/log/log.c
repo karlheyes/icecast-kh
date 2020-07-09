@@ -367,7 +367,11 @@ void log_reopen(int log_id)
                 break;
             // a missing or different sized log indicates an external move so trigger a reopen
         }
-        loglist [log_id].size = loglist [log_id].trigger_level + 1;
+        if (loglist [log_id] . logfile)
+        {
+            fclose (loglist [log_id] . logfile);
+            loglist [log_id] . logfile = NULL;
+        }
     } while (0);
     _unlock_logger();
 }
