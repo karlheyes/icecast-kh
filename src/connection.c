@@ -494,6 +494,7 @@ static void get_ssl_certificate (ice_config_t *config)
 }
 #endif /* HAVE_OPENSSL */
 
+
 int connection_unreadable (connection_t *con)
 {
     if (((++con->readchk) & 15) == 15)
@@ -507,6 +508,7 @@ int connection_unreadable (connection_t *con)
     }
     return 0;
 }
+
 
 /* handlers (default) for reading and writing a connection_t, no encrpytion
  * used just straight access to the socket
@@ -894,8 +896,7 @@ void connection_uses_ssl (connection_t *con)
 
 int connection_peek (connection_t *con)
 {
-#ifdef HAVE_OPENSSL
-    if (con->ssl == NULL)   // if set then ssl is already determined, so skip this
+    if (not_ssl_connection (con))   // if set then ssl is already determined, so skip this
     {
         unsigned char arr[20];
         int r = sock_peek (con->sock, (char*)arr, sizeof (arr));
@@ -912,7 +913,6 @@ int connection_peek (connection_t *con)
             return -1;
         con->error = 1;
     }
-#endif
     return 0;
 }
 
@@ -1143,7 +1143,7 @@ static client_t *accept_client (void)
     if (server_conn)
     {
         global_lock ();
-        server_conn->refcount--;
+        config_clear_listener (server_conn);
         global_unlock ();
     }
     sock_close (sock);
@@ -1290,7 +1290,7 @@ static int http_client_request (client_t *client)
     refbuf_t *refbuf = client->shared_data;
     int remaining, ret = -1;
 
-    if (global.running != ICE_RUNNING)
+    if (global.running != ICE_RUNNING || client->connection.error)
         return -1;
     if (refbuf == NULL)
     {
@@ -1391,7 +1391,6 @@ static int http_client_request (client_t *client)
                     else
                         config_release_config();
                 }
-
                 if (useragents.filename)
                 {
                     const char *agent = httpp_getvar (client->parser, "user-agent");
@@ -1497,6 +1496,7 @@ static void *connection_thread (void *arg)
 
     thread_spin_lock (&_connection_lock);
     connection_running = 1;
+
     while (connection_running)
     {
         thread_spin_unlock (&_connection_lock);
@@ -1710,7 +1710,7 @@ static int _handle_source_request (client_t *client)
     
     if (uri[0] != '/')
     {
-        WARN0 ("source mountpoint not starting with /");
+        WARN1 ("mountpoint not starting with / (%s)", uri);
         return client_send_401 (client, NULL);
     }
     switch (auth_check_source (client, uri))
@@ -1756,7 +1756,7 @@ static void check_for_filtering (ice_config_t *config, client_t *client, char *u
     {
         client->flags |= CLIENT_WANTS_FLV;
         client->flags &= ~CLIENT_KEEPALIVE;
-        DEBUG1 ("listener at %s has requested FLV", &client->connection.ip[0]);
+        DEBUG1 ("listener at %s has requested FLV", CONN_ADDR (client));
     }
     if (extension == NULL || uri == NULL)
         return;
@@ -1937,6 +1937,7 @@ int connection_setup_sockets (ice_config_t *config)
     }
     if (sockets_setup > 0)
         sockets_setup--;
+
     get_ssl_certificate (config);
     if (count)
         INFO1 ("%d listening sockets already open", count);
@@ -1953,6 +1954,7 @@ int connection_setup_sockets (ice_config_t *config)
             if (sock_get_next_server_socket (sockets, &sock) < 0)
                 break;   // end of any available sockets
             socket_attempt++;
+
             if (sock == SOCK_ERROR)
                 continue;
             /* some win32 setups do not do TCP win scaling well, so allow an override */

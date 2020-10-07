@@ -1371,7 +1371,6 @@ void stats_global_calc (time_t now)
     connection_stats ();
 
     snprintf (buf1, sizeof(buf1), "%" PRIu64, (int64_t)global.clients);
-
     snprintf (buf2, sizeof(buf2), "%" PRIu64, (int64_t)global.listeners);
     snprintf (buf3, sizeof(buf3), "%" PRIu64,
             (int64_t)global_getrate_avg (global.out_bitrate) * 8 / 1024);
@@ -1380,6 +1379,7 @@ void stats_global_calc (time_t now)
     build_event (&clients, NULL, "clients", buf1);
     clients.flags |= STATS_COUNTERS;
     process_event (&clients);
+
     build_event (&listeners, NULL, "listeners", buf2);
     listeners.flags |= STATS_COUNTERS;
     process_event (&listeners);

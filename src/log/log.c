@@ -78,7 +78,6 @@ int logs_allocated;
 static log_t *loglist;
 
 static int _get_log_id(void);
-static void _release_log_id(int log_id);
 static void _lock_logger(void);
 static void _unlock_logger(void);
 static int do_log_run (int log_id);
@@ -305,7 +304,8 @@ int log_set_archive_timestamp(int id, int value)
     if (id < 0 || id >= LOG_MAXLOGS)
         return LOG_EINSANE;
      _lock_logger();
-     loglist[id].archive_timestamp = value;
+     if (loglist [id] . in_use)
+         loglist[id].archive_timestamp = value;
      _unlock_logger();
     return id;
 }
@@ -321,11 +321,11 @@ int log_open_with_buffer(const char *filename, int size)
 void log_set_lines_kept (int log_id, unsigned int count)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
-    if (loglist[log_id].in_use == 0) return;
     if (count > 1000000) return;
 
     _lock_logger ();
-    loglist[log_id].keep_entries = count;
+    if (loglist[log_id].in_use)
+        loglist[log_id].keep_entries = count;
     _unlock_logger ();
 }
 
@@ -333,6 +333,7 @@ void log_set_lines_kept (int log_id, unsigned int count)
 void log_set_level(int log_id, unsigned level)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
+
     _lock_logger();
     if (loglist[log_id].in_use)
         loglist[log_id].level = level;
@@ -383,8 +384,8 @@ static void _log_close_internal (int log_id)
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
 
     int loop = 0;
-    while (++loop < 10 && do_log_run (log_id) > 0)
-        ;
+    do {} while (++loop < 10 && do_log_run (log_id) > 0);
+
     loglist[log_id].level = 2;
     free (loglist[log_id].filename);
     loglist[log_id].filename = NULL;
@@ -477,6 +478,7 @@ static int do_log_run (int log_id)
     else
         next = loglist [log_id].written_entry->next;
 
+    // recheck size every so often in case contents are modified outside of this use.
     if (next && loglist[log_id].logfile && loglist [log_id] .filename && loglist [log_id].recheck_time <= now)
     {
         struct stat st;
@@ -716,16 +718,6 @@ static int _get_log_id(void)
     return id;
 }
 
-static void _release_log_id(int log_id)
-{
-    /* lock mutex */
-    _lock_logger();
-
-    loglist[log_id].in_use = 0;
-
-    /* unlock mutex */
-    _unlock_logger();
-}
 
 static void _lock_logger(void)
 {

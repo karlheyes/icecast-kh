@@ -79,6 +79,12 @@ struct connection_bufs
 #else
 #define not_ssl_connection(x)    (1)
 #endif
+
+#define PRI_ConnID   PRIu64
+
+#define CONN_ID(x)              ((x)->connection.id)
+#define CONN_ADDR(x)            (&(x)->connection.ip[0])
+
 void connection_initialize(void);
 void connection_shutdown(void);
 void connection_thread_startup();

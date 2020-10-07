@@ -202,7 +202,7 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
     bytes = con_read (&client->connection, buf, len);
 
     if (bytes == -1 && client->connection.error)
-        DEBUG2 ("reading from connection %"PRIu64 " from %s has failed", client->connection.id, &client->connection.ip[0]);
+        DEBUG2 ("reading from connection %"PRI_ConnID " from %s has failed", CONN_ID(client), CONN_ADDR(client));
 
     return bytes;
 }
@@ -396,7 +396,7 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
     ret = con_send (&client->connection, buf, len);
 
     if (client->connection.error)
-        DEBUG3 ("Client %"PRIu64 " connection on %s from %s died", client->connection.id, (client->mount ? client->mount:"unknown"), &client->connection.ip[0]);
+        DEBUG3 ("Client %"PRI_ConnID " connection on %s from %s died", CONN_ID(client), (client->mount ? client->mount:"unknown"), CONN_ADDR(client));
 
     return ret;
 }
@@ -458,10 +458,12 @@ void client_set_queue (client_t *client, refbuf_t *refbuf)
     client->pos = 0;
 }
 
+
 int is_worker_incoming (worker_t *w)
 {
     return (w == worker_incoming) ? 1 : 0;
 }
+
 
 static uint64_t worker_check_time_ms (worker_t *worker)
 {
@@ -547,6 +549,7 @@ void client_add_worker (client_t *client)
     thread_spin_unlock (&handler->lock);
     worker_wakeup (handler);
 }
+
 
 void client_add_incoming (client_t *client)
 {
@@ -980,10 +983,10 @@ void worker_logger (int stop)
 {
     if (stop)
     {
-       logger_commits(0);
-       sock_close (logger_fd[1]);
-       logger_fd[1] = -1;
-       return;
+        logger_commits(0);
+        sock_close (logger_fd[1]);
+        logger_fd[1] = -1;
+        return;
     }
     thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
 }
