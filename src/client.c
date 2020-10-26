@@ -363,7 +363,8 @@ int client_add_cors (client_t *client, char *buf, int remain)
     bytes = snprintf (buf, remain,
             "Access-Control-Allow-Origin: %s\r\n%s"
             "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
-            "Access-Control-Allow-Methods: GET, OPTIONS, SOURCE, PUT, HEAD, STATS\r\n\r\n",
+            "Access-Control-Expose-Headers: Icy-MetaInt, Icy-Br, Icy-Description, Icy-Genre, Icy-Name, Ice-Audio-Info, Icy-Url, Icy-Sr, Icy-Vbr, Icy-Pub\r\n"
+	    "Access-Control-Allow-Methods: GET, OPTIONS, SOURCE, PUT, HEAD, STATS\r\n\r\n",
             origin, cred);
     return bytes;
 }
