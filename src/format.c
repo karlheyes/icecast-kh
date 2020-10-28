@@ -330,6 +330,7 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
 #define FMT_LOWERCASE_TYPE      2
 #define FMT_FORCE_AAC           4
 #define FMT_DISABLE_CHUNKED     8
+#define FMT_NO_ICY              16
 
         do
         {
@@ -374,6 +375,8 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
             contenttypehdr = "content-type";
         if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
             contenttype = "audio/aac";
+        if (fmtcode & FMT_NO_ICY)
+            client->flags |= CLIENT_NO_ICY;
         if (fs)
         {
             uint64_t len = (uint64_t)-1;

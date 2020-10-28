@@ -1127,7 +1127,7 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     client->refbuf->len = 0;
 
     metadata = httpp_getvar(client->parser, "icy-metadata");
-    if (metadata && atoi(metadata))
+    if (metadata && atoi(metadata) && (client->flags & CLIENT_NO_ICY) == 0)
         httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack force 1.0 if icy metadata requested
 
     if (format_general_headers (plugin, client) < 0)
@@ -1150,7 +1150,7 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     else
     {
         /* check for shoutcast style metadata inserts */
-        if (metadata && atoi(metadata))
+        if (metadata && atoi(metadata) && (client->flags & CLIENT_NO_ICY) == 0)
         {
             if (source_mp3->interval >= 0)
                 client_mp3->interval = source_mp3->interval;
