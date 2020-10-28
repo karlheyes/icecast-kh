@@ -172,6 +172,7 @@ int  is_worker_incoming (worker_t *w);
 #define CLIENT_RANGE_END            (1<<11)
 #define CLIENT_KEEPALIVE            (1<<12)
 #define CLIENT_CHUNKED              (1<<13)
+#define CLIENT_NO_ICY               (1<<14)
 #define CLIENT_FORMAT_BIT           (1<<16)
 
 #endif  /* __CLIENT_H__ */
