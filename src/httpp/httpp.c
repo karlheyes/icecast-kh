@@ -22,6 +22,9 @@
 #include <avl/avl.h>
 #include "httpp.h"
 #include "global.h"
+#include "logging.h"
+
+#define CATMODULE "httpp"
 
 #if defined(_WIN32) && !defined(HAVE_STRCASECMP)
 #define strcasecmp stricmp
@@ -80,7 +83,6 @@ static int split_headers(char *data, unsigned long len, char **line)
                 if (data[i + 1] == '\n' || data[i + 1] == '\r')
                     break;
                 line[lines] = &data[i + 1];
-                printf("Read header %s \n", line[lines]);
             }
         }
     }
@@ -124,6 +126,7 @@ static void parse_headers(http_parser_t *parser, char **line, int lines)
         
         if (name != NULL && value != NULL) {
             httpp_setvar(parser, _lowercase(name), value);
+            DEBUG2("Header %s: %s", _lowercase(name), value);
             name = NULL; 
             value = NULL;
         }
@@ -308,7 +311,6 @@ int httpp_parse(http_parser_t *parser, const char *http_data, unsigned long len)
     data[len] = 0;
 
     lines = split_headers(data, len, line);
-    printf("Found %d headers\n", lines);
 
     /* parse the first line special
     ** the format is:
