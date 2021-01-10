@@ -1390,7 +1390,12 @@ static int http_client_request (client_t *client)
                             return -1;
                     }
                     else
+                    {
+                        DEBUG1("No x-forwarded-for match for %s", str);
                         config_release_config();
+                    }
+                } else {
+                    DEBUG1("No x-forwarded-for header found in %s", (char *) client->parser);
                 }
 
                 if (useragents.filename)
