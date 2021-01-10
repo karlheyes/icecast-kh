@@ -204,6 +204,7 @@
         <logdir>@localstatedir@/log/@PACKAGE@</logdir>
         <webroot>@pkgdatadir@/web</webroot>
         <adminroot>@pkgdatadir@/admin</adminroot>
+        <x-forwarded-for></x-forwarded-for>
         <!-- <pidfile>@pkgdatadir@/icecast.pid</pidfile> -->
         <!-- <ssl-certificate>@pkgdatadir@/icecast.pem</ssl-certificate> -->
         <!-- <deny-ip>/path/to/file-with-IPs</deny-ip> -->
