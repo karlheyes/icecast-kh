@@ -823,6 +823,7 @@ static struct xforward_entry *_find_xforward_addr (ice_config_t *config, char *i
             break;
         xforward = xforward->next;
     }
+    DEBUG2 ("Using %s for %s", xforward->ip, ip);
     return xforward;
 }
 
