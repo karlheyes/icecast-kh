@@ -308,7 +308,7 @@ int httpp_parse(http_parser_t *parser, const char *http_data, unsigned long len)
     data[len] = 0;
 
     lines = split_headers(data, len, line);
-    DEBUG1("Found %d headers", lines);
+    printf("Found %d headers\n", lines);
 
     /* parse the first line special
     ** the format is:
