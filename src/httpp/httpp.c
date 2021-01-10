@@ -80,7 +80,7 @@ static int split_headers(char *data, unsigned long len, char **line)
                 if (data[i + 1] == '\n' || data[i + 1] == '\r')
                     break;
                 line[lines] = &data[i + 1];
-                DEBUG1("Read header %s", line[lines]);
+                printf("Read header %s \n", line[lines]);
             }
         }
     }

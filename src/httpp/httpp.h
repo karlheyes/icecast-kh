@@ -10,7 +10,6 @@
 #define __HTTPP_H
 
 #include <avl/avl.h>
-#include <logging.h>
 
 #define HTTPP_VAR_PROTOCOL "__protocol"
 #define HTTPP_VAR_VERSION "__version"
