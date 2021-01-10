@@ -80,6 +80,7 @@ static int split_headers(char *data, unsigned long len, char **line)
                 if (data[i + 1] == '\n' || data[i + 1] == '\r')
                     break;
                 line[lines] = &data[i + 1];
+                DEBUG1("Read header %s", line[lines]);
             }
         }
     }
@@ -307,6 +308,7 @@ int httpp_parse(http_parser_t *parser, const char *http_data, unsigned long len)
     data[len] = 0;
 
     lines = split_headers(data, len, line);
+    DEBUG1("Found %d headers", lines);
 
     /* parse the first line special
     ** the format is:

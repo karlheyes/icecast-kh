@@ -3099,7 +3099,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE='icecast'
- VERSION='2.4.0-kh15'
+ VERSION='2.4.0-kh15-cheeky'
 
 
 cat >>confdefs.h <<_ACEOF
