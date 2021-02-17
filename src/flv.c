@@ -229,7 +229,7 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
     {
         char *value = stats_get_value (mount, "server_name");
 
-        flvmeta  = flv_meta_allocate (200);
+        flvmeta  = flv_meta_allocate (4000);
         if (value)
             flv_meta_append_string (flvmeta, "name", value);
         free (value);
@@ -261,7 +261,7 @@ int flv_write_metadata (struct flv *flv, refbuf_t *scmeta, const char *mount)
         flv_meta_append_bool (flvmeta, "hasMetadata", 1);
         flv_meta_append_bool (flvmeta, "hasVideo", 0);
         flv_meta_append_bool (flvmeta, "hasAudio", 1);
-        flv_meta_append_string (flvmeta, NULL, NULL);
+        flv_meta_append_end_marker (flvmeta);
         flvm = (struct flvmeta *)flvmeta->data;
         meta_copied  = flvm->meta_pos - sizeof (*flvm);
         if (meta_copied + 15 + flv->raw_offset > raw->len)
@@ -411,20 +411,29 @@ refbuf_t *flv_meta_allocate (size_t len)
 }
 
 
+void flv_meta_append_end_marker (refbuf_t *buffer)
+{
+    struct flvmeta *flvm = (struct flvmeta *)buffer->data;
+    unsigned char *ptr = (unsigned char *)buffer->data + flvm->meta_pos;
+
+    if (3 + flvm->meta_pos > buffer->len) {
+        WARN0 ("not enough space for end-of-metadata marker");
+        return;
+    }
+
+    memcpy (ptr, "\000\000\011", 3);
+    flvm->meta_pos += 3;
+}
+
+
 static int flv_meta_increase (refbuf_t *buffer, int taglen, int valuelen)
 {
     struct flvmeta *flvm = (struct flvmeta *)buffer->data;
     unsigned char *array_size_loc = (unsigned char *)buffer->data + sizeof (*flvm) + 16;
 
     if (taglen + valuelen + 3 + flvm->meta_pos > buffer->len - 3)
-        taglen = 0; // force end of the metadata
-    if (taglen == 0)
-    {
-        DEBUG1 ("%d array elements", flvm->arraylen);
-        memcpy (buffer->data+flvm->meta_pos, "\000\000\011", 3);
-        flvm->meta_pos += 3;
         return -1;
-    }
+
     flvm->arraylen++;
     flv_write_UI16 (array_size_loc, flvm->arraylen); // over 64k tags not handled
     flvm->meta_pos += (2 + taglen + 1 + valuelen);
@@ -439,7 +448,10 @@ void flv_meta_append_bool (refbuf_t *buffer, const char *tag, int value)
     unsigned char *ptr = (unsigned char *)buffer->data + flvm->meta_pos;
 
     if (flv_meta_increase (buffer, taglen, 1) < 0)
+    {
+        WARN1 ("not enough space for %s", tag);
         return;
+    }
 
     flv_write_UI16 (ptr, taglen);
     memcpy (ptr+2, tag, taglen);
@@ -457,7 +469,10 @@ void flv_meta_append_number (refbuf_t *buffer, const char *tag, double value)
 
     if (tag)   taglen = strlen (tag);
     if (flv_meta_increase (buffer, taglen, 8) < 0)
+    {
+        WARN1 ("not enough space for %s", tag);
         return;
+    }
 
     flv_write_UI16 (ptr, taglen);
     memcpy (ptr+2, tag, taglen);
@@ -479,7 +494,10 @@ void flv_meta_append_string (refbuf_t *buffer, const char *tag, const char *valu
     if (value) valuelen = strlen (value);
 
     if (flv_meta_increase (buffer, taglen, valuelen+2) < 0)
+    {
+        WARN1 ("not enough space for %s", tag);
         return;
+    }
 
     flv_write_UI16 (ptr, taglen);
     memcpy (ptr+2, tag, taglen);
