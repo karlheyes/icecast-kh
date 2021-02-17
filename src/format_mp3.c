@@ -541,7 +541,7 @@ static void mp3_set_title (source_t *source)
         DEBUG1 ("icy metadata as %.80s...", icy->data+1);
         yp_touch (source->mount, source->stats);
 
-        flv_meta_append_string (flvmeta, NULL, NULL);
+        flv_meta_append_end_marker (flvmeta);
 
         if (ib_len > 0) ib_len--; // add nul char to help parsing
         iceblock->len -= ib_len;
