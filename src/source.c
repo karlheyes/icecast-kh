@@ -514,11 +514,11 @@ static void update_source_stats (source_t *source)
 
     source->bytes_sent_at_update = source->format->sent_bytes;
     source->bytes_read_since_update %= 1024;
-    source->listener_send_trigger = incoming_rate < 8000 ? 8000 : (8000 + (incoming_rate>>4));
+    source->listener_send_trigger = incoming_rate < 12000 ? 12000 : (10000 + (incoming_rate>>3));
     if (incoming_rate)
-        source->incoming_adj = 2000000/incoming_rate;
+        source->incoming_adj = 800000/incoming_rate;
     else
-        source->incoming_adj = 20;
+        source->incoming_adj = 16;
     source->stats_interval = 5 + (global.sources >> 10);
 }
 
@@ -547,6 +547,7 @@ void source_add_queue_buffer (source_t *source, refbuf_t *r)
     if (source->stream_data_tail)
         source->stream_data_tail->next = r;
     source->buffer_count++;
+    source->client->queue_pos += r->len;
 
     source->stream_data_tail = r;
     source->queue_size += r->len;

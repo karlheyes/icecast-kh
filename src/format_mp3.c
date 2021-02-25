@@ -859,7 +859,7 @@ static void size_up_qblock (source_t *source)
     mp3_state *source_mp3 = source->format->_state;
     int multi = 6;
     if (source->incoming_rate)
-        multi = (source->incoming_rate/100000) + 1;
+        multi = (source->incoming_rate/50000) + 1;
     source_mp3->qblock_sz = 1400 * (multi < 17 ? multi : 17);
 
     // if ((source->buffer_count & 15) == 15)

@@ -832,7 +832,7 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
         *sum += value;
     while (1)
     {
-        struct rate_calc_node *next = NULL, *node;
+        struct rate_calc_node *next = NULL;
         int to_insert = 1;
         if (calc->current)
         {
@@ -853,7 +853,7 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
         if (to_insert)
         {
             thread_spin_unlock (&calc->lock);
-            node = calloc (1, sizeof (*node));
+            struct rate_calc_node *node = calloc (1, sizeof (*node));
 
             node->index = sid;
             thread_spin_lock (&calc->lock);
