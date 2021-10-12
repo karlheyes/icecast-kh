@@ -49,29 +49,40 @@ static refbuf_t *process_flac_page (ogg_state_t *ogg_info, ogg_codec_t *codec, o
 
     if (codec->headers)
     {
+        int loop = 3;
         ogg_packet packet;
         if (ogg_stream_pagein (&codec->os, page) < 0)
         {
             ogg_info->error = 1;
             return NULL;
         }
-        while (ogg_stream_packetout (&codec->os, &packet))
+        while (loop)
         {
-            int type = packet.packet[0];
-            if (type == 0xFF)
+            int pkt = ogg_stream_packetout (&codec->os, &packet);
+
+            if (pkt > 0)
             {
-                codec->headers = 0;
-                break;
+                int type = packet.packet[0];
+                if (type == 0xFF) // seen audio pkt, drop to normal processing
+                {
+                    codec->headers = 0;
+                    break;
+                }
+                codec->headers--;
+                // other valid header pkts are fine
+                if (type >= 1 && type <= 0x7E)
+                    continue;
+                if (type >= 0x81 && type <= 0xFE)
+                    continue;
+                // something odd
+                ogg_info->error = 1;
+                return NULL;
             }
-            if (type >= 1 && type <= 0x7E)
-                continue;
-            if (type >= 0x81 && type <= 0xFE)
-                continue;
-            ogg_info->error = 1;
-            return NULL;
+            loop = (pkt < 0) ? (loop-1) : 0;
         }
         if (codec->headers)
         {
+            DEBUG0("Adding header page");
             format_ogg_attach_header (codec, page);
             return NULL;
         }
@@ -98,22 +109,44 @@ ogg_codec_t *initial_flac_page (format_plugin_t *plugin, ogg_page *page)
     do
     {
         unsigned char *parse = packet.packet;
+        // format 0x7F F L A C, '1' x  y y f L a C zzzzz
+        // x   1 byte minor number
+        // y   2 BE byte count of header packets
+        // z   StreamINFO structure
 
         if (page->header_len + page->body_len != 79)
             break;
-        if (*parse != 0x7F)
-            break;
-        parse++;
-        if (memcmp (parse, "FLAC", 4) != 0)
+        if (parse[0] != 0x7F)
             break;
 
-        INFO0 ("seen initial FLAC header");
+        if (memcmp (parse+1, "FLAC", 4) != 0)
+            break;
 
-        parse += 4;
-        stats_event_args (ogg_info->mount, "FLAC_version", "%d.%d",  parse[0], parse[1]);
+        if (parse[5] != 1)
+        {
+            WARN1 ("Unknown Ogg FLAC version %d, skipping", parse[5]);
+            break;
+        }
+        int headers = (parse[7]<<8) + parse[8];
+        if (headers == 0)
+        {
+            WARN0 ("FLAC stream has unknown number of headers, skipping");
+            break;
+        }
+        if (memcmp (parse+9, "fLaC", 4) != 0)
+            break;
+        uint32_t samplerate = (((parse[9+10] << 8) + parse[9+11]) << 4) + (parse[9+12]>>4);
+        if (samplerate == 0)
+            INFO0 ("seen initial FLAC header");
+        else
+        {
+            uint32_t channels = ((parse[9+12]>>1) & 0x7) + 1;
+            INFO2 ("seen initial FLAC header (hint %dHz, channels %d)", samplerate, channels);
+        }
+        stats_event_args (ogg_info->mount, "FLAC_version", "%d.%d",  parse[5], parse[6]);
         codec->process_page = process_flac_page;
         codec->codec_free = flac_codec_free;
-        codec->headers = 1;
+        codec->headers = headers;
         codec->parent = ogg_info;
         codec->name = "FLAC";
 
