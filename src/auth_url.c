@@ -576,6 +576,8 @@ static auth_result url_add_listener (auth_client *auth_user)
         /* url has user/pass but libcurl may need to clear any existing settings */
         curl_easy_setopt (atd->curl, CURLOPT_USERPWD, "");
     }
+    /* Don't follow Location: redirect in header, pass on */
+    curl_easy_setopt (atd->curl, CURLOPT_FOLLOWLOCATION, 0); 
     curl_easy_setopt (atd->curl, CURLOPT_URL, url->addurl);
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, post);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
