@@ -462,7 +462,7 @@ static void set_bitrate_from_inrate (ypdata_t *yp)
     if (value)
     {
         long v = atol (value), c = 0;
-        char buf [12];
+        char buf [22];
 
         v = (long)(v*1.1) + 5;
         for (; v > 7; c++)

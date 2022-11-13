@@ -860,7 +860,7 @@ static int sock_alloc_sockets (struct _server_sockets *s, int port, const char *
     struct addrinfo hints;
     char service [10];
 
-    if (port < 0)
+    if (port < 0 || port > 65535)
         return SOCK_ERROR;
 
     memset (&hints, 0, sizeof(hints));
