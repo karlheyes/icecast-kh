@@ -121,6 +121,7 @@ typedef struct {
     int  timelimit_header_len;
     char *userpwd;
     int  header_chk_count;
+    int  redir_limit;
     char *header_chk_list;      // nulld headers to pass from client into addurl.
     char *header_chk_prefix;    // prefix for POSTing client headers.
 } auth_url;
@@ -828,6 +829,7 @@ static void *alloc_thread_data (auth_t *auth)
 #endif
     curl_easy_setopt (atd->curl, CURLOPT_ERRORBUFFER, &atd->errormsg[0]);
     curl_easy_setopt (atd->curl, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_setopt (atd->curl, CURLOPT_MAXREDIRS, (long)url->redir_limit);
 #ifdef CURLOPT_POSTREDIR
     curl_easy_setopt (atd->curl, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
 #endif
@@ -864,6 +866,7 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
     url_info->auth_header = strdup ("icecast-auth-user:");
     url_info->timelimit_header = strdup ("icecast-auth-timelimit:");
     url_info->timeout = 5;
+    url_info->redir_limit = 1;
     url_info->stop_req_duration = 60;
 
     while(options) {
@@ -926,6 +929,12 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         {
             free (url_info->timelimit_header);
             url_info->timelimit_header = strdup (options->value);
+        }
+        if (strcmp(options->name, "redirect_limit") == 0)
+        {
+            int redir = atoi (options->value);
+            // excessive numbers will just be an operational problem, and -1 is indefinite in libcurl (default) so avoid
+            url_info->redir_limit = (redir < 11 && redir >= 0) ? redir : 1;
         }
         if (strcmp(options->name, "timeout") == 0)
         {
