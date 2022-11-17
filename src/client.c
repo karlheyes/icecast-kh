@@ -958,12 +958,15 @@ static void *log_commit_thread (void *arg)
         if (ret < 0 && sock_recoverable ((err = sock_error())) && global.running == ICE_RUNNING)
             continue;
         sock_close (logger_fd[0]);
+        thread_rwlock_rlock (&workers_lock);
         if (worker_count)
         {
+            thread_rwlock_unlock (&workers_lock);
             worker_control_create (logger_fd);
-            ERROR1 ("logger received code %d", err);
+            if (err) ERROR1 ("logger received code %d", err);
             continue;
         }
+        thread_rwlock_unlock (&workers_lock);
         log_commit_entries ();
         // fprintf (stderr, "logger closed with zero workers\n");
         break;
