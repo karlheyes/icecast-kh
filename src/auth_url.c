@@ -385,7 +385,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     mount = util_url_escape (post);
     ipaddr = util_url_escape (client->connection.ip);
 
-    snprintf (post, sizeof (post),
+    int ret = snprintf (post, sizeof (post),
             "action=listener_remove&server=%s&port=%d&client=%" PRIu64 "&mount=%s"
             "&user=%s&pass=%s&ip=%s&duration=%lu&agent=%s&sent=%" PRIu64,
             server, auth_user->port, client->connection.id, mount, username,
@@ -397,6 +397,11 @@ static auth_result url_remove_listener (auth_client *auth_user)
     free (password);
     free (user_agent);
 
+    if (ret < 0 || ret >= sizeof (post))
+    {
+        WARN2 ("Failed to POST on %s for client %" PRIu64, auth_user->mount, client->connection.id);
+        return AUTH_FAILED;
+    }
     if (strchr (url->removeurl, '@') == NULL)
     {
         if (url->userpwd)
@@ -673,14 +678,19 @@ static void url_stream_start (auth_client *auth_user)
     if (ipaddr == NULL) ipaddr = strdup("");
     if (agent == NULL) agent = strdup("");
 
-    snprintf (post, sizeof (post),
-            "action=mount_add&mount=%.200s&server=%s&port=%d&ip=%s&agent=%.200s", mount, server,
+    int r = snprintf (post, sizeof (post),
+            "action=mount_add&mount=%s&server=%s&port=%d&ip=%s&agent=%s", mount, server,
             auth_user->port, ipaddr, agent);
     free (ipaddr);
     free (agent);
     free (server);
     free (mount);
 
+    if (r < 0 || r >= sizeof (post))
+    {
+        WARN1 ("POST too long for %s", auth_user->mount);
+        return;
+    }
     if (strchr (url->stream_start, '@') == NULL)
     {
         if (url->userpwd)
@@ -722,14 +732,19 @@ static void url_stream_end (auth_client *auth_user)
     if (ipaddr == NULL) ipaddr = strdup("");
     if (agent == NULL) agent = strdup("");
 
-    snprintf (post, sizeof (post),
-            "action=mount_remove&mount=%s&server=%.200s&port=%d&ip=%s&agent=%.200s", mount, server,
+    int r = snprintf (post, sizeof (post),
+            "action=mount_remove&mount=%s&server=%s&port=%d&ip=%s&agent=%s", mount, server,
             auth_user->port, ipaddr, agent);
     free (ipaddr);
     free (agent);
     free (server);
     free (mount);
 
+    if (r < 0 || r >= sizeof (post))
+    {
+        WARN1 ("POST too long for %s", auth_user->mount);
+        return;
+    }
     if (strchr (url->stream_end, '@') == NULL)
     {
         if (url->userpwd)
@@ -780,7 +795,7 @@ static void url_stream_auth (auth_client *auth_user)
     pass = util_url_escape (client->password);
     ipaddr = util_url_escape (client->connection.ip);
 
-    snprintf (post, sizeof (post),
+    int r = snprintf (post, sizeof (post),
             "action=stream_auth&mount=%s&ip=%s&server=%s&port=%d&user=%s&pass=%s%s",
             mount, ipaddr, host, auth_user->port, user, pass, admin);
     free (ipaddr);
@@ -790,6 +805,11 @@ static void url_stream_auth (auth_client *auth_user)
     free (host);
 
     client->flags &= ~CLIENT_AUTHENTICATED;
+    if (r < 0 || r >= sizeof (post))
+    {
+        WARN1 ("POST too long for %s", auth_user->mount);
+        return;
+    }
     if (curl_easy_perform (atd->curl))
         WARN3 ("auth to server %s (%s) failed with %s", url->stream_auth, auth_user->mount, atd->errormsg);
 }
