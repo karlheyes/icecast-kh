@@ -3,7 +3,8 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -70,9 +71,9 @@ typedef struct _stats_node_tag
 
 typedef struct _stats_event_tag
 {
-    char *source;
-    char *name;
-    char *value;
+    const char *source;
+    const char *name;
+    const char *value;
     int  flags;
     int  action;
 
@@ -133,9 +134,9 @@ unsigned int throttle_sends;
 /* simple helper function for creating an event */
 static void build_event (stats_event_t *event, const char *source, const char *name, const char *value)
 {
-    event->source = (char *)source;
-    event->name = (char *)name;
-    event->value = (char *)value;
+    event->source = source;
+    event->name = name;
+    event->value = value;
     event->flags = STATS_PUBLIC;
     if (source) event->flags |= STATS_SLAVE;
     if (value)
@@ -225,7 +226,7 @@ void stats_event(const char *source, const char *name, const char *value)
                 source?source:"global", name, value);
         return;
     }
-    build_event (&event, source, name, (char *)value);
+    build_event (&event, source, name, value);
     process_event (&event);
 }
 
@@ -358,8 +359,8 @@ void stats_event_add(const char *source, const char *name, unsigned long value)
 
     if (value == 0)
         return;
-    build_event (&event, source, name, buffer);
     snprintf (buffer, VAL_BUFSIZE, "%ld", value);
+    build_event (&event, source, name, buffer);
     event.action = STATS_EVENT_ADD;
     /* DEBUG2("%s on %s", name, source==NULL?"global":source); */
     process_event (&event);
@@ -372,9 +373,9 @@ void stats_event_sub(const char *source, const char *name, unsigned long value)
 
     if (value == 0)
         return;
-    build_event (&event, source, name, buffer);
     /* DEBUG2("%s on %s", name, source==NULL?"global":source); */
     snprintf (buffer, VAL_BUFSIZE, "%ld", value);
+    build_event (&event, source, name, buffer);
     event.action = STATS_EVENT_SUB;
     process_event (&event);
 }
@@ -449,6 +450,8 @@ static void modify_node_event (stats_node_t *node, stats_event_t *event)
 {
     if (node == NULL || event == NULL)
         return;
+    char *nv = NULL;
+
     if (event->action & STATS_EVENT_HIDDEN)
     {
         node->flags = event->flags;
@@ -485,11 +488,11 @@ static void modify_node_event (stats_node_t *node, stats_event_t *event)
             default:
                 break;
         }
-        snprintf (event->value, VAL_BUFSIZE, "%" PRId64, value);
+        nv = malloc (VAL_BUFSIZE);
+        snprintf (nv, VAL_BUFSIZE, "%" PRId64, value);
     }
-    if (node->value)
-        free (node->value);
-    node->value = strdup (event->value);
+    free (node->value);
+    node->value = nv ? nv : strdup (event->value);
 
     if (node->flags & STATS_REGULAR)
         node->last_reported = 0;
@@ -960,7 +963,7 @@ static xmlNodePtr _dump_stats_to_doc (xmlNodePtr root, const char *show_mount, i
 
 
 /* factoring out code for stats loops
- * this function copies all stats to queue, and registers 
+ * this function copies all stats to queue, and registers
  */
 static void _register_listener (client_t *client)
 {
@@ -970,7 +973,7 @@ static void _register_listener (client_t *client)
     stats_event_t stats_count;
     refbuf_t *refbuf, *biglist = NULL, **full_p = &biglist, *last = NULL;
     size_t size = 8192, len = 0;
-    char buffer[20];
+    char buffer[VAL_BUFSIZE] = "";
 
     build_event (&stats_count, NULL, "stats_connections", buffer);
     stats_count.action = STATS_EVENT_INC;
@@ -1533,7 +1536,7 @@ void stats_set_args (stats_handle_t handle, const char *name, const char *format
 void stats_set_expire (stats_handle_t handle, time_t mark)
 {
     stats_source_t *src_stats = (stats_source_t *)handle;
-    
+
     if (src_stats)
         src_stats->updated = mark;
 }
