@@ -3,12 +3,12 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
+ * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
  *                      and others (see AUTHORS for details).
- * Copyright 2000-2017, Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* -*- c-basic-offset: 4; indent-tabs-mode: nil; -*- */
@@ -829,44 +829,56 @@ static struct xforward_entry *_find_xforward_addr (ice_config_t *config, char *i
 }
 
 
+static int _set_connection_peer (connection_t *con, sock_t sock)
+{
+    struct sockaddr_storage sa;
+    socklen_t slen = sizeof (sa);
+
+    if (getpeername (sock, (struct sockaddr *)&sa, &slen) == 0)
+    {
+        char *ip;
+#ifdef HAVE_GETNAMEINFO
+        char buffer [200] = "unknown";
+        getnameinfo ((struct sockaddr *)&sa, slen, buffer, 200, NULL, 0, NI_NUMERICHOST);
+        if (strncmp (buffer, "::ffff:", 7) == 0)
+            ip = strdup (buffer+7);
+        else
+            ip = strdup (buffer);
+#else
+        int len = 30;
+        ip = malloc (len);
+        strncpy (ip, inet_ntoa (((struct sockaddr_in*)&sa)->sin_addr), len);
+#endif
+        free (con->ip);
+        if (accept_ip_address (ip))
+        {
+            con->ip = ip;
+            return 0;
+        }
+        con->ip = NULL;
+        free (ip);
+    }
+    return -1;
+}
+
+
 int connection_init (connection_t *con, sock_t sock, const char *addr)
 {
     if (con)
     {
-        struct sockaddr_storage sa;
-        socklen_t slen = sizeof (sa);
-
         con->sock = sock;
         if (sock == SOCK_ERROR)
             return -1;
         con->id = _next_connection_id();
         if (addr)
         {
+            free (con->ip);
             con->ip = strdup (addr + (strncmp (addr, "::ffff:", 7) == 0 ? 7: 0));
             return 0;
         }
-        if (getpeername (sock, (struct sockaddr *)&sa, &slen) == 0)
-        {
-            char *ip;
-#ifdef HAVE_GETNAMEINFO
-            char buffer [200] = "unknown";
-            getnameinfo ((struct sockaddr *)&sa, slen, buffer, 200, NULL, 0, NI_NUMERICHOST);
-            if (strncmp (buffer, "::ffff:", 7) == 0)
-                ip = strdup (buffer+7);
-            else
-                ip = strdup (buffer);
-#else
-            int len = 30;
-            ip = malloc (len);
-            strncpy (ip, inet_ntoa (((struct sockaddr_in*)&sa)->sin_addr), len);
-#endif
-            if (accept_ip_address (ip))
-            {
-                con->ip = ip;
-                return 0;
-            }
-            free (ip);
-        }
+        if (_set_connection_peer (con, sock) == 0)
+            return 0;
+        free (con->ip);
         memset (con, 0, sizeof (connection_t));
         con->sock = SOCK_ERROR;
     }
@@ -2027,14 +2039,20 @@ int connection_setup_sockets (ice_config_t *config)
 }
 
 
-void connection_reset (connection_t *con, uint64_t time_ms)
+int connection_reset (connection_t *con, uint64_t time_ms)
 {
+    if (_set_connection_peer (con, con->sock) < 0)
+    {
+        con->error = 1;
+        return -1;
+    }
     con->con_time = time_ms/1000;
     con->discon.time = con->con_time + 7;
     con->sent_bytes = 0;
 #ifdef HAVE_OPENSSL
     if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); con->ssl = NULL; }
 #endif
+    return 0;
 }
 
 void connection_close(connection_t *con)

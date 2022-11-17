@@ -136,24 +136,27 @@ void client_destroy(client_t *client)
     if (not_ssl_connection (&client->connection))
         sock_set_cork (client->connection.sock, 0); // ensure any corked data is actually sent.
 
-    global_lock ();
-    if (global.running != ICE_RUNNING || client->connection.error ||
-            (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
+    do
     {
-        global.clients--;
-        config_clear_listener (client->server_conn);
-        global_unlock ();
-        connection_close (&client->connection);
+        global_lock ();
+        if (global.running != ICE_RUNNING || client->connection.error ||
+                (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
+        {
+            global.clients--;
+            config_clear_listener (client->server_conn);
+            global_unlock ();
+            connection_close (&client->connection);
 
-        free(client);
-        return;
-    }
-    global_unlock ();
+            free(client);
+            return;
+        }
+        global_unlock ();
+        client->counter = client->schedule_ms = timing_get_time();
+    } while (connection_reset (&client->connection, client->schedule_ms) < 0);  // loop back on failure to kick out
+
     DEBUG1 ("keepalive detected on %s, placing back onto worker", client->connection.ip);
     if (not_ssl_connection (&client->connection))
         sock_set_cork (client->connection.sock, 1);    // reenable cork for the next go around
-    client->counter = client->schedule_ms = timing_get_time();
-    connection_reset (&client->connection, client->schedule_ms);
 
     client->ops = &http_request_ops;
     client->flags = CLIENT_ACTIVE;

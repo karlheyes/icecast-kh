@@ -3,7 +3,8 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -90,7 +91,7 @@ void connection_shutdown(void);
 void connection_thread_startup();
 void connection_thread_shutdown();
 int  connection_setup_sockets (struct ice_config_tag *config);
-void connection_reset (connection_t *con, uint64_t time_ms);
+int  connection_reset (connection_t *con, uint64_t time_ms);
 void connection_close(connection_t *con);
 int  connection_init (connection_t *con, sock_t sock, const char *addr);
 void connection_uses_ssl (connection_t *con);
