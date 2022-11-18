@@ -4,6 +4,7 @@
  * A copy of this license is included with this source.
  *
  * Copyright 2009-2010,     Karl Heyes <karl@xiph.org>
+ * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>,
  */
 
 /* flv.c

@@ -4,7 +4,7 @@
  * A copy of this license is included with this source.
  *
  * Copyright 2010-2020, Karl Heyes <karl@kheyes.plus.net>
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>

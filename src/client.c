@@ -9,7 +9,7 @@
  *                      Karl Heyes <karl@xiph.org>
  *                      and others (see AUTHORS for details).
  *
- * Copyright 2000-2020, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2000-2022, Karl Heyes <karl@kheyes.plus.com>
  *
  */
 

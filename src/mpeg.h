@@ -4,7 +4,7 @@
  * A copy of this license is included with this source.
  *
  * Copyright 2009-2010,  Karl Heyes <karl@xiph.org>
- * Copyright 2009-2018,  Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2009-2022,  Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* mpeg.c
