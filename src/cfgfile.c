@@ -1385,7 +1385,6 @@ static int _parse_listen_sock (xmlNodePtr node, void *arg)
 #ifndef _WIN32
         { "so-mss",             config_get_int,     &listener->so_mss },
 #endif
-        { "ssl",                config_get_bool,    &listener->ssl },
         { "shoutcast-mount",    config_get_str,     &listener->shoutcast_mount },
         { NULL, NULL, NULL },
     };

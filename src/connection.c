@@ -908,23 +908,28 @@ void connection_uses_ssl (connection_t *con)
 
 int connection_peek (connection_t *con)
 {
-    if (not_ssl_connection (con))   // if set then ssl is already determined, so skip this
+    if (ssl_ok && not_ssl_connection (con))   // if set then ssl is already determined, so skip this
     {
-        unsigned char arr[20];
+        unsigned char arr[12];
         int r = sock_peek (con->sock, (char*)arr, sizeof (arr));
-        if (r > 0)
+        if (r > 5)
         {
-            if (r > 5 && arr[0] == 0x16 && arr[1] == 0x3 && arr[5] == 0x1)
+            if (arr[0] == 0x16 && arr[1] == 0x3 && arr[5] == 0x1)
             {
+                sock_set_cork (con->sock, 0);   // make sure this is off, leave curl to decide
+                sock_set_nodelay (con->sock);
                 connection_uses_ssl (con);
-                return 1;
             }
-            return r < 10 ? 0 : 1;
+            else if (sock_set_cork (con->sock, 1) < 0)
+                sock_set_nodelay (con->sock);
+            return 1;
         }
         if (r < 0)
             return -1;
-        con->error = 1;
+        con->error = 1;  // closed socket
     }
+    else if (sock_set_cork (con->sock, 1) < 0)
+        sock_set_nodelay (con->sock);
     return 0;
 }
 
@@ -1093,11 +1098,13 @@ static client_t *accept_client (void)
 
         if (accept_ip_address (addr) == 0)
             break;
-        if (sock_set_blocking (sock, 0) || (sock_set_cork (sock, 1) < 0 && sock_set_nodelay (sock)))
+
+        if (sock_set_blocking (sock, 0))
         {
             WARN0 ("failed to set tcp options on client connection, dropping");
             break;
         }
+
         global_lock ();
         for (i=0; i < global.server_sockets; i++)
         {
@@ -1111,20 +1118,8 @@ static client_t *accept_client (void)
         global_unlock ();
         if (server_conn)
         {
-            client_t *client = NULL;
-            int not_using_ssl = 1;
+            client_t *client = calloc (1, sizeof (client_t));
 
-            if (ssl_ok && server_conn->ssl)
-                not_using_ssl = 0;
-            if (not_using_ssl)
-            {
-                if (sock_set_blocking (sock, 0) || (sock_set_cork (sock, 1) < 0 && sock_set_nodelay (sock)))
-                {
-                    WARN1 ("failed to set tcp options on incoming client connection %s, dropping", addr);
-                    break;
-                }
-            }
-            client = calloc (1, sizeof (client_t));
             if (client == NULL || connection_init (&client->connection, sock, addr) < 0)
             {
                 free (client);
@@ -1137,9 +1132,6 @@ static client_t *accept_client (void)
             global_lock ();
             client_register (client);
             global_unlock ();
-
-            if (not_using_ssl == 0)
-                connection_uses_ssl (&client->connection);
 
             if (server_conn->shoutcast_compat)
                 client->ops = &shoutcast_source_ops;
@@ -1315,11 +1307,11 @@ static int http_client_request (client_t *client)
     {
         char *buf = refbuf->data + refbuf->len;
 
-        if (refbuf->len == 0)
+        if (refbuf->len == 0 && not_ssl_connection (&client->connection))
         {
             if (connection_peek (&client->connection) < 0)
             {
-                client->schedule_ms = client->worker->time_ms + (not_ssl_connection (&client->connection) ? 90 : 133);
+                client->schedule_ms = client->worker->time_ms + 11; // check frequently, on incoming worker
                 return 0;
             }
         }
@@ -1365,7 +1357,7 @@ static int http_client_request (client_t *client)
                     ptr += 6;
                     break;
                 }
-                client->schedule_ms = client->worker->time_ms + 100;
+                client->schedule_ms = client->worker->time_ms + 40;
                 return 0;
             } while (0);
             client->refbuf = client->shared_data;
@@ -1468,10 +1460,11 @@ static int http_client_request (client_t *client)
         {
             /* scale up the retry time, very short initially, usual case */
             uint64_t diff = client->worker->time_ms - client->counter;
-            diff >>= 1;
-            if (diff > 200)
-                diff = 200;
-            client->schedule_ms = client->worker->time_ms + 6 + diff;
+            diff >>= 3;
+            if (diff > 100)
+                diff = 100;
+            // DEBUG1 ("diff %" PRIu64, diff);
+            client->schedule_ms = client->worker->time_ms + 2 + diff;
             return 0;
         }
     }
@@ -1520,7 +1513,8 @@ static void *connection_thread (void *arg)
             client->counter = client->schedule_ms = timing_get_time();
             client->connection.con_time = client->schedule_ms/1000;
             client->connection.discon.time = client->connection.con_time + header_timeout;
-            client->schedule_ms += 30;
+            //if (not_ssl_connection (&client->connection))
+                client->schedule_ms += 9;
             client_add_incoming (client);
             stats_event_inc (NULL, "connections");
         }
@@ -1863,7 +1857,7 @@ static int _handle_get_request (client_t *client)
 }
 
 
-/* close any open listening sockets 
+/* close any open listening sockets
  */
 void connection_listen_sockets_close (ice_config_t *config, int all_sockets)
 {

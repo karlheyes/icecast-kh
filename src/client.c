@@ -155,8 +155,6 @@ void client_destroy(client_t *client)
     } while (connection_reset (&client->connection, client->schedule_ms) < 0);  // loop back on failure to kick out
 
     DEBUG1 ("keepalive detected on %s, placing back onto worker", client->connection.ip);
-    if (not_ssl_connection (&client->connection))
-        sock_set_cork (client->connection.sock, 1);    // reenable cork for the next go around
 
     client->ops = &http_request_ops;
     client->flags = CLIENT_ACTIVE;
