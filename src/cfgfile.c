@@ -29,7 +29,7 @@
 #include "cfgfile.h"
 #include "refbuf.h"
 #include "client.h"
-#include "logging.h" 
+#include "logging.h"
 #include "global.h"
 #include "git_hash.h"
 
@@ -83,16 +83,20 @@ static ice_config_locks _locks;
 static void _set_defaults(ice_config_t *c);
 static int  _parse_root (xmlNodePtr node, ice_config_t *config);
 
-static void create_locks(void) {
+static void create_locks(void)
+{
     thread_rwlock_create(&_locks.config_lock);
+    thread_spin_create(&_locks.mount_lock);
 }
 
-static void release_locks(void) {
+static void release_locks(void)
+{
     thread_rwlock_destroy(&_locks.config_lock);
+    thread_spin_destroy(&_locks.mount_lock);
 }
 
 
-/* 
+/*
  */
 struct cfg_tag
 {
@@ -150,7 +154,7 @@ int config_get_qsizing (xmlNodePtr node, void *x)
 /* Process xml node for boolean value, it may be true, yes, or 1
  */
 int config_get_bool (xmlNodePtr node, void *x)
-{   
+{
     if (xmlIsBlankNode (node) == 0)
     {
         char *str = (char *)xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
@@ -354,9 +358,18 @@ int config_mount_template (const char *mount)
 }
 
 
-static void config_clear_mount (mount_proxy *mount)
+void config_clear_mount (mount_proxy *mount)
 {
     config_options_t *option;
+
+    thread_spin_lock (&_locks.mount_lock);
+    if (mount->_refcount > 1)
+    {
+        mount->_refcount--;
+        thread_spin_unlock (&_locks.mount_lock);
+        return;
+    }
+    thread_spin_unlock (&_locks.mount_lock);
 
     if (mount->username)    xmlFree (mount->username);
     if (mount->password)    xmlFree (mount->password);
@@ -533,7 +546,7 @@ int config_parse_file(const char *filename, ice_config_t *configuration)
     xmlNodePtr node;
 
     if (filename == NULL || strcmp(filename, "") == 0) return CONFIG_EINSANE;
-    
+
     xmlSetGenericErrorFunc ("conf/file", log_parse_failure);
     xmlSetStructuredErrorFunc ("conf/file", config_xml_parse_failure);
     doc = xmlParseFile(filename);
@@ -680,7 +693,7 @@ static int _parse_alias (xmlNodePtr node, void *arg)
     ice_config_t *config = arg;
     aliases **cur, *alias = calloc (1, sizeof (aliases));
     xmlChar *temp;
-    
+
     alias->source = (char *)xmlGetProp (node, XMLSTR ("source"));
     alias->destination = (char *)xmlGetProp (node, XMLSTR ("dest"));
     if (alias->source == NULL || alias->destination == NULL)
@@ -1101,6 +1114,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     };
 
     /* default <mount> settings */
+    mount->_refcount = 1;
     mount->max_listeners = -1;
     mount->max_bandwidth = -1;
     mount->burst_size = config->burst_size;
@@ -1502,13 +1516,16 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
 
 
 /* return the mount details that match the supplied mountpoint */
-mount_proxy *config_find_mount (ice_config_t *config, const char *mount)
+mount_proxy *config_find_mount (ice_config_t *_c, const char *mount)
 {
+    ice_config_t *config = _c;
     if (mount == NULL)
     {
         WARN0 ("no mount name provided");
         return NULL;
     }
+    if (_c == NULL)
+        config = config_get_config();
     void *result;
     mount_proxy findit, *mountinfo = NULL;
     findit.mountname = (char *)mount;
@@ -1529,6 +1546,26 @@ mount_proxy *config_find_mount (ice_config_t *config, const char *mount)
     }
     else
         mountinfo = result;
+    if (_c == NULL)
+        config_release_config();
+    return mountinfo;
+}
+
+
+mount_proxy *config_lock_mount (ice_config_t *_c, const char *mount)
+{
+    ice_config_t *config = _c;
+    if (_c == NULL)
+        config = config_get_config();
+    mount_proxy *mountinfo = config_find_mount (config, mount);
+    if (mountinfo)
+    {
+         thread_spin_lock (&_locks.mount_lock);
+         mountinfo->_refcount++;
+         thread_spin_unlock (&_locks.mount_lock);
+    }
+    if (_c == NULL)
+        config_release_config();
     return mountinfo;
 }
 

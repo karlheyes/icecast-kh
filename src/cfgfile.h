@@ -113,7 +113,7 @@ typedef struct _mount_proxy {
     /* Max bandwidth (kbps)  for this mountpoint only. -1 (default) is not specified */
     int64_t max_bandwidth;
 
-    int max_listeners; /* Max listeners for this mountpoint only. -1 to not 
+    int max_listeners; /* Max listeners for this mountpoint only. -1 to not
                           limit here (i.e. only use the global limit) */
     char *fallback_mount; /* Fallback mountname */
 
@@ -126,6 +126,7 @@ typedef struct _mount_proxy {
     uint32_t burst_size;
     uint32_t min_queue_size;     /* minimum length of queue */
     uint32_t queue_size_limit;
+    uint32_t _refcount;
     int hidden; /* Do we list this on the xsl pages */
     unsigned int source_timeout;  /* source timeout in seconds */
     char *charset;  /* character set if not utf8 */
@@ -338,6 +339,7 @@ typedef struct ice_config_tag
 
 typedef struct {
     rwlock_t config_lock;
+    spin_t mount_lock;
 } ice_config_locks;
 
 void config_initialize(void);
@@ -350,6 +352,9 @@ void config_set_config (ice_config_t *new_config, ice_config_t *old_config);
 listener_t *config_clear_listener (listener_t *listener);
 relay_server *config_clear_relay (relay_server *relay);
 void config_clear(ice_config_t *config);
+void config_clear_mount (mount_proxy *mountinfo);
+#define config_release_mount config_clear_mount
+mount_proxy *config_lock_mount (ice_config_t *config, const char *mount);
 mount_proxy *config_find_mount (ice_config_t *config, const char *mount);
 void config_xml_parse_failure (void*x,  xmlErrorPtr error);
 int config_qsizing_conv_a2n (const char *str, uint32_t *p);
