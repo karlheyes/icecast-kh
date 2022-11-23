@@ -162,6 +162,7 @@ void client_destroy(client_t *client)
     client->refbuf = NULL;
     client->pos = 0;
     client->intro_offset = 0;
+    client->aux_data = (uintptr_t)-1;
     client_add_incoming (client);
 }
 
@@ -202,7 +203,7 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
 #endif
     bytes = con_read (&client->connection, buf, len);
 
-    if (bytes == -1 && client->connection.error)
+    if (bytes == -1 && client->connection.error && client->aux_data != (uintptr_t)-1)
         DEBUG2 ("reading from connection %"PRI_ConnID " from %s has failed", CONN_ID(client), CONN_ADDR(client));
 
     return bytes;
