@@ -1158,7 +1158,7 @@ avl_print_tree (avl_tree * tree, avl_key_printer_fun_type key_printer)
     print_node (key_printer, tree->root->right, &top);
   } else {
     fprintf (stdout, "<empty tree>\n");
-  }  
+  }
 }
 
 
@@ -1170,6 +1170,16 @@ void avl_tree_rlock_c(avl_tree *tree, int line, const char *file)
 void avl_tree_wlock_c(avl_tree *tree, int line, const char *file)
 {
     thread_rwlock_wlock_c(&tree->rwlock, line, file);
+}
+
+int  avl_tree_tryrlock_c(avl_tree *tree, int line, const char *file)
+{
+    return thread_rwlock_tryrlock_c(&tree->rwlock, line, file);
+}
+
+int  avl_tree_trywlock_c(avl_tree *tree, int line, const char *file)
+{
+    return thread_rwlock_trywlock_c(&tree->rwlock, line, file);
 }
 
 void avl_tree_unlock_c(avl_tree *tree, int line, const char *file)

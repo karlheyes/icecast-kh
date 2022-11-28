@@ -104,6 +104,8 @@ typedef struct _avl_tree {
 #define avl_tree_new(x,y)       avl_tree_new_c(x,y, __LINE__, __FILE__)
 #define avl_tree_rlock(x)       avl_tree_rlock_c(x,__LINE__,__FILE__)
 #define avl_tree_wlock(x)       avl_tree_wlock_c(x,__LINE__,__FILE__)
+#define avl_tree_tryrlock(x)    avl_tree_tryrlock_c(x,__LINE__,__FILE__)
+#define avl_tree_trywlock(x)    avl_tree_trywlock_c(x,__LINE__,__FILE__)
 #define avl_tree_unlock(x)      avl_tree_unlock_c(x,__LINE__,__FILE__)
 
 avl_tree * avl_tree_new_c (avl_key_compare_fun_type compare_fun, void * compare_arg, int line, const char *file);
@@ -196,7 +198,8 @@ int avl_get_item_by_key_least (
 /* optional locking stuff */
 void avl_tree_rlock_c(avl_tree *tree, int line, const char *file);
 void avl_tree_wlock_c(avl_tree *tree, int line, const char *file);
-int  avl_tree_trywlock(avl_tree *tree);
+int  avl_tree_tryrlock_c(avl_tree *tree, int line, const char *file);
+int  avl_tree_trywlock_c(avl_tree *tree, int line, const char *file);
 void avl_tree_unlock_c(avl_tree *tree, int line, const char *file);
 void avl_node_rlock(avl_node *node);
 void avl_node_wlock(avl_node *node);
