@@ -68,6 +68,15 @@ void global_unlock(void)
     thread_mutex_unlock(&_global_mutex);
 }
 
+
+int global_state (void)
+{
+    global_lock();
+    int rc = global.running;
+    global_unlock();
+    return rc;
+}
+
 void global_add_bitrates (struct rate_calc *rate, unsigned long value, uint64_t milli)
 {
     rate_add (rate, value, milli);

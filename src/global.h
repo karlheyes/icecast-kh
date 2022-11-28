@@ -95,6 +95,7 @@ void global_initialize(void);
 void global_shutdown(void);
 void global_lock(void);
 void global_unlock(void);
+int  global_state(void);
 void global_add_bitrates (struct rate_calc *rate, unsigned long value, uint64_t milli);
 void global_reduce_bitrate_sampling (struct rate_calc *rate);
 unsigned long global_getrate_avg (struct rate_calc *rate);

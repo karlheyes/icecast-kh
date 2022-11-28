@@ -1294,7 +1294,7 @@ static int http_client_request (client_t *client)
     refbuf_t *refbuf = client->shared_data;
     int remaining, ret = -1;
 
-    if (global.running != ICE_RUNNING || client->connection.error)
+    if (global_state() != ICE_RUNNING || client->connection.error)
         return -1;
     if (refbuf == NULL)
     {
