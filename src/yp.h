@@ -28,9 +28,10 @@
 #define YP_ADD_ALL -1
 
 #ifdef USE_YP
+#include "stats.h"
 void yp_add (const char *mount);
 void yp_remove (const char *mount);
-void yp_touch (const char *mount, long stats);
+void yp_touch (const char *mount, stats_handle_t stats);
 void yp_recheck_config (ice_config_t *config);
 void yp_initialize (ice_config_t *config);
 void yp_shutdown(void);

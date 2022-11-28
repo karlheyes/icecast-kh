@@ -1157,7 +1157,7 @@ static void yp_queue_change (yp_change_t *change)
 }
 
 
-void yp_touch (const char *mount, long stats)
+void yp_touch (const char *mount, stats_handle_t stats)
 {
     yp_change_t *yp_change = calloc (1, sizeof (*yp_change));
     char *artist, *title, *song = NULL;

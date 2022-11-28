@@ -18,6 +18,7 @@
 #include "util.h"
 #include "format.h"
 #include "fserve.h"
+#include "stats.h"
 
 #include <stdio.h>
 
@@ -87,7 +88,7 @@ typedef struct source_tag
 
     int intro_skip_replay;
     int stats_interval;
-    long stats;
+    stats_handle_t stats;
 
     time_t last_read;
 
