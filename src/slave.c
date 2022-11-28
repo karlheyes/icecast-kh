@@ -708,7 +708,7 @@ static int relay_installed (relay_server *relay)
         case -1:
             free (client);
             return 0;
-        case 1: 
+        case 1:
             thread_rwlock_unlock (&relay->source->lock);
     }
     global_lock();

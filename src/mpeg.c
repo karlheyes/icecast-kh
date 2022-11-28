@@ -856,7 +856,7 @@ int mpeg_complete_frames_cb (mpeg_sync *mp, sync_callback_t *cb, refbuf_t *new_b
 
     if (mp == NULL || (mp->settings & MPEG_SKIP_SYNC))
         return 0;  /* leave as-is */
-    
+
     mp->settings &= ~SYNC_RESIZE;
     mp->sample_count = 0;
     if (offset == 0)

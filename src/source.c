@@ -191,18 +191,18 @@ source_t *source_find_mount_raw(const char *mount)
     }
     /* get the root node */
     node = global.source_tree->root->right;
-    
+
     while (node) {
         source = (source_t *)node->key;
         cmp = strcmp (mount, source->mount);
-        if (cmp < 0) 
+        if (cmp < 0)
             node = node->left;
         else if (cmp > 0)
             node = node->right;
         else
             return source;
     }
-    
+
     /* didn't find it */
     return NULL;
 }
@@ -1341,6 +1341,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
             client->shared_data = NULL;
             ret = move_listener (client, &source->fallback);
             thread_rwlock_wlock (&source->lock);
+
             if (ret <= 0)
             {
                 source->termination_count--;
