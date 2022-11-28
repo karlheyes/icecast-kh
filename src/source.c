@@ -2870,6 +2870,7 @@ static void source_swap_client (source_t *source, client_t *client)
 
 int source_startup (client_t *client, const char *uri)
 {
+    client->aux_data = (uintptr_t)strdup(uri);
     source_t *source;
     ice_config_t *config = config_get_config();
     mount_proxy *mountinfo;

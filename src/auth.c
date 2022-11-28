@@ -579,7 +579,7 @@ void auth_postprocess_source (auth_client *auth_user)
     {
         DEBUG2 ("metadata request (%s, %s)", req, mount);
         client->mount = mount;
-        client->aux_data = (int64_t)strdup("metadata");
+        client->aux_data = (uintptr_t)strdup("metadata");
         admin_mount_request (client);
     }
     else

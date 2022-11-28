@@ -414,7 +414,7 @@ int admin_handle_request (client_t *client, const char *uri)
     {
         xmlSetStructuredErrorFunc ((char*)mount, config_xml_parse_failure);
         client->mount = mount;
-        client->aux_data = (int64_t)strdup (uri);
+        client->aux_data = (uintptr_t)strdup (uri);
 
         /* no auth/stream required for this */
         if (strcmp (uri, "buildm3u") == 0)
