@@ -43,14 +43,14 @@ typedef struct mpeg_sync
     uint32_t mask;
     uint32_t match;
 
-    unsigned short resync_count;
+    uint32_t resync_count;
+    uint32_t sample_count;
+
     unsigned char marker;
     frame_type_t type;
 
     uint32_t tag_len;
     unsigned char *tag_data;
-
-    uint64_t sample_count;
 
     int (*process_frame) (struct mpeg_sync *mp, sync_callback_t *cb, unsigned char *p, int len);
 
