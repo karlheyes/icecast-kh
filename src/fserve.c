@@ -1019,20 +1019,25 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         client->check_buffer = format_generic_write_to_client;
 
     client->ops = &buffer_content_ops;
+
+    worker_t *worker = client->worker;
+    thread_spin_lock (&worker->lock);
     client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
     client->flags |= CLIENT_IN_FSERVE;
+
     if (client->flags & CLIENT_ACTIVE)
     {
+        thread_spin_unlock (&worker->lock);
         client->schedule_ms = client->worker->time_ms;
         if (finfo && finfo->flags & FS_FALLBACK)
-            return 0; // prevent a recursive loop 
+            return 0; // prevent a recursive loop
         return client->ops->process (client);
     }
     else
     {
-        worker_t *worker = client->worker;
         ret = (fh->finfo.limit) ? 0 : -1;
         client->flags |= CLIENT_ACTIVE;
+        thread_spin_unlock (&worker->lock);
         worker_wakeup (worker); /* worker may of already processed client but make sure */
     }
     return ret;

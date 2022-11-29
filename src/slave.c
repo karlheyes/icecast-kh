@@ -1675,26 +1675,38 @@ static int relay_startup (client_t *client)
         return 0;
     }
     global_unlock();
+    thread_spin_lock (&worker->lock);
     if (worker->move_allocations)
     {
         int ret = 0;
         worker_t *dest_worker;
 
+        thread_spin_unlock (&worker->lock);
         thread_rwlock_rlock (&workers_lock);
         dest_worker = worker_selected ();
         if (dest_worker != worker)
         {
-            long diff = worker->count - dest_worker->count;
+            thread_spin_lock (&dest_worker->lock);
+            int dest_count = dest_worker->count;
+            thread_spin_unlock (&dest_worker->lock);
+
+            thread_spin_lock (&worker->lock);
+            long diff = worker->count - dest_count;
             if (diff > 5)
             {
                 worker->move_allocations--;
+                thread_spin_unlock (&worker->lock);
                 ret = client_change_worker (client, dest_worker);
             }
+            else
+                thread_spin_unlock (&worker->lock);
         }
         thread_rwlock_unlock (&workers_lock);
         if (ret)
             return ret;
     }
+    else
+        thread_spin_unlock (&worker->lock);
 
     if (relay->flags & RELAY_ON_DEMAND)
     {

@@ -728,6 +728,7 @@ void *worker (void *arg)
         uint64_t sched_ms = worker->time_ms + 12;
 
         c = 0;
+        thread_spin_lock (&worker->lock);
         while (client)
         {
             if (client->worker != worker) abort();
@@ -753,6 +754,7 @@ void *worker (void *arg)
 
                 if (process)
                 {
+                    thread_spin_unlock (&worker->lock);
                     if ((c & 511) == 0)
                     {
                         // update these periodically to keep in sync
@@ -775,11 +777,11 @@ void *worker (void *arg)
                         if (nx == NULL) /* is this the last client */
                             worker->last_p = prevp;
                         client = *prevp = nx;
-                        thread_spin_unlock (&worker->lock);
                         continue;
                     }
+                    thread_spin_lock (&worker->lock);
                 }
-                if ((client->flags & CLIENT_ACTIVE) && client->schedule_ms < worker->wakeup_ms)
+                if (ret == 0 && (client->flags & CLIENT_ACTIVE) && client->schedule_ms < worker->wakeup_ms)
                     worker->wakeup_ms = client->schedule_ms;
             }
             prevp = &client->next_on_worker;
@@ -790,7 +792,6 @@ void *worker (void *arg)
             DEBUG2 ("%p now has %d clients", worker, worker->count);
             prev_count = worker->count;
         }
-        thread_spin_lock (&worker->lock);
         if (worker->running == 0)
         {
             if (worker->count == 0 && worker->pending_count == 0)
