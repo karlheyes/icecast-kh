@@ -32,6 +32,8 @@ typedef struct _listener_t listener_t;
 #include "compat.h"
 
 
+extern uint64_t config_updated;
+
 typedef struct _redirect_host
 {
     struct _redirect_host *next;
@@ -354,6 +356,7 @@ relay_server *config_clear_relay (relay_server *relay);
 void config_clear(ice_config_t *config);
 void config_clear_mount (mount_proxy *mountinfo);
 #define config_release_mount config_clear_mount
+int config_mount_ref (mount_proxy *mountinfo, int inc);
 mount_proxy *config_lock_mount (ice_config_t *config, const char *mount);
 mount_proxy *config_find_mount (ice_config_t *config, const char *mount);
 void config_xml_parse_failure (void*x,  xmlErrorPtr error);

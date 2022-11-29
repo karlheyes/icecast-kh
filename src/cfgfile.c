@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <fnmatch.h>
 #include "thread/thread.h"
+#include "timing/timing.h"
 #include "cfgfile.h"
 #include "refbuf.h"
 #include "client.h"
@@ -79,6 +80,7 @@
 
 static ice_config_t _current_configuration;
 static ice_config_locks _locks;
+uint64_t config_updated = (uint64_t)0;
 
 static void _set_defaults(ice_config_t *c);
 static int  _parse_root (xmlNodePtr node, ice_config_t *config);
@@ -362,14 +364,9 @@ void config_clear_mount (mount_proxy *mount)
 {
     config_options_t *option;
 
-    thread_spin_lock (&_locks.mount_lock);
-    if (mount->_refcount > 1)
-    {
-        mount->_refcount--;
-        thread_spin_unlock (&_locks.mount_lock);
+    if (mount == NULL) return;
+    if (config_mount_ref (mount, 0) < 0)
         return;
-    }
-    thread_spin_unlock (&_locks.mount_lock);
 
     if (mount->username)    xmlFree (mount->username);
     if (mount->password)    xmlFree (mount->password);
@@ -611,6 +608,7 @@ void config_set_config (ice_config_t *new_config, ice_config_t *old_config)
     if (old_config)
         memcpy (old_config, &_current_configuration, sizeof(ice_config_t));
     memcpy(&_current_configuration, new_config, sizeof(ice_config_t));
+    config_updated = timing_get_time();
 }
 
 ice_config_t *config_get_config_unlocked(void)
@@ -1552,18 +1550,37 @@ mount_proxy *config_find_mount (ice_config_t *_c, const char *mount)
 }
 
 
+// return 0 for operation done, -1 for failure (ie refcount is out of whack)
+//
+int config_mount_ref (mount_proxy *mountinfo, int inc)
+{
+    int odd = 0, val = -1;
+
+    if (mountinfo)
+    {
+         thread_spin_lock (&_locks.mount_lock);
+         if (inc > 0)
+             mountinfo->_refcount++;
+         else if (mountinfo->_refcount > 0)
+             mountinfo->_refcount--;
+         else
+             odd = 1;
+         val = mountinfo->_refcount;
+         thread_spin_unlock (&_locks.mount_lock);
+         if (odd)
+             WARN2 ("request to decrease ref on %s, count %d", mountinfo->mountname, val);
+    }
+    return val ? -1 : 0;
+}
+
+
 mount_proxy *config_lock_mount (ice_config_t *_c, const char *mount)
 {
     ice_config_t *config = _c;
     if (_c == NULL)
         config = config_get_config();
     mount_proxy *mountinfo = config_find_mount (config, mount);
-    if (mountinfo)
-    {
-         thread_spin_lock (&_locks.mount_lock);
-         mountinfo->_refcount++;
-         thread_spin_unlock (&_locks.mount_lock);
-    }
+    config_mount_ref (mountinfo, 1);
     if (_c == NULL)
         config_release_config();
     return mountinfo;
