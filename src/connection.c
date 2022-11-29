@@ -789,7 +789,11 @@ static int search_banned_ip_locked (char *ip)
 static int search_banned_ip (char *ip)
 {
     int ret;
-    cached_file_recheck (&banned_ip, cachefile_timecheck);
+    thread_spin_lock (&_connection_lock);
+    time_t t = cachefile_timecheck;
+    thread_spin_unlock (&_connection_lock);
+
+    cached_file_recheck (&banned_ip, t);
     global_lock();
     ret = search_banned_ip_locked (ip);
     global_unlock();
@@ -800,14 +804,17 @@ static int search_banned_ip (char *ip)
 /* return 0 if the passed ip address is not to be handled by icecast, non-zero otherwise */
 static int accept_ip_address (char *ip)
 {
-    cachefile_timecheck = time (NULL);
+    time_t t = time (NULL);
+    thread_spin_lock (&_connection_lock);
+    cachefile_timecheck = t;
+    thread_spin_unlock (&_connection_lock);
 
     if (search_banned_ip (ip) > 0)
     {
         DEBUG1 ("%s banned", ip);
         return 0;
     }
-    if (cached_pattern_search (&allowed_ip, ip, cachefile_timecheck) == 0)
+    if (cached_pattern_search (&allowed_ip, ip, t) == 0)
     {
         DEBUG1 ("%s is not allowed", ip);
         return 0;
