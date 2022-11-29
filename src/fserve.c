@@ -1253,7 +1253,8 @@ void fserve_recheck_mime_types (ice_config_t *config)
 
 int fserve_kill_client (client_t *client, const char *mount, int response)
 {
-    int loop = 2, id;
+    int loop = 2;
+    uint64_t id;
     fbinfo finfo;
     xmlDocPtr doc;
     xmlNodePtr node;
@@ -1269,12 +1270,13 @@ int fserve_kill_client (client_t *client, const char *mount, int response)
     if (idtext == NULL)
         return client_send_400 (client, "missing parameter id");
 
-    id = atoi(idtext);
+    if (sscanf (idtext, "%" SCNuMAX, &id) != 1)
+        return client_send_400 (client, "unable to handle id");
 
     doc = xmlNewDoc(XMLSTR("1.0"));
     node = xmlNewDocNode(doc, NULL, XMLSTR("iceresponse"), NULL);
     xmlDocSetRootElement(doc, node);
-    snprintf (buf, sizeof(buf), "Client %d not found", id);
+    snprintf (buf, sizeof(buf), "Client %" PRIuMAX " not found", id);
 
     avl_tree_rlock (fh_cache);
     while (1)
@@ -1292,7 +1294,7 @@ int fserve_kill_client (client_t *client, const char *mount, int response)
                 if (listener->connection.id == id)
                 {
                     listener->connection.error = 1;
-                    snprintf (buf, sizeof(buf), "Client %d removed", id);
+                    snprintf (buf, sizeof(buf), "Client %" PRIu64 " removed", id);
                     v = "1";
                     loop = 0;
                     break;

@@ -98,7 +98,7 @@ static struct admin_command admin_general[] =
     { "listmounts.xsl",     XSLT,   { command_list_mounts } },
     { "moveclients.xsl",    XSLT,   { command_list_mounts } },
     { "function.xsl",       XSLT,   { command_admin_function } },
-    { "response.xsl",       XSLT },
+    { "response.xsl",       XSLT,   { NULL } },
     { NULL }
 };
 
@@ -299,7 +299,7 @@ int admin_mount_request (client_t *client)
         return client_send_400 (client, "unknown request");
     }
 
-    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker to kick it back to worker.
+    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker so kick it back to worker.
     {
         worker_t *worker = client->worker;
         DEBUG0 ("client passed auth, but on different thread to src, reschedule on worker");
@@ -950,7 +950,11 @@ static int command_kill_client (client_t *client, source_t *source, int response
         return client_send_400 (client, "missing arg, id");
     }
 
-    sscanf (idtext, "%" SCNu64, &id);
+    if (sscanf (idtext, "%" SCNu64, &id) != 1)
+    {
+        thread_rwlock_unlock (&source->lock);
+        return client_send_400 (client, "invalid value, id");
+    }
 
     listener = source_find_client(source, id);
 
