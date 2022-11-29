@@ -329,25 +329,25 @@ int admin_mount_request (client_t *client)
     {
         int ret = 0;
 
+        thread_rwlock_wlock (&source->lock);
+        avl_tree_unlock (global.source_tree);
+
         // see if we should move workers. avoid excessive write lock bubbles in worker run queue
         worker_t *src_worker = source->client->worker;
         if (src_worker != client->worker)
         {
             client->ops = &admin_mount_ops;
-            avl_tree_unlock (global.source_tree);
+            thread_rwlock_unlock (&source->lock);
             // DEBUG0 (" moving admin request to alternate worker");
             return client_change_worker (client, src_worker);
         }
         free (uri);
-        thread_rwlock_wlock (&source->lock);
         if (source_available (source) == 0)
         {
             thread_rwlock_unlock (&source->lock);
-            avl_tree_unlock (global.source_tree);
             INFO1("Received admin command on unavailable mount \"%s\"", mount);
             return client_send_400 (client, "Source is not available");
         }
-        avl_tree_unlock(global.source_tree);
         ret = cmd->handle.source (client, source, cmd->response);
         return ret;
     }
