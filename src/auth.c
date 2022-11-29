@@ -620,7 +620,7 @@ int auth_add_listener (const char *mount, client_t *client)
                 pos2 = 0;
             }
 
-            if (pos2 >= 0 && pos1 <= pos2)
+            if (pos1 <= pos2)
             {
                 client->intro_offset = pos1;
                 client->connection.discon.offset = pos2;
