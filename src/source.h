@@ -113,7 +113,7 @@ typedef struct source_tag
 #define source_available(x)     (((x)->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) && ((x)->flags & SOURCE_LISTENERS_SYNC) == 0)
 #define source_running(x)       (((x)->flags & (SOURCE_TERMINATING|SOURCE_RUNNING)) == SOURCE_RUNNING)
 
-source_t *source_reserve (const char *mount, int ret_exist);
+int  source_reserve (const char *mount, source_t **sp, int flags);
 void *source_client_thread (void *arg);
 int  source_startup (client_t *client, const char *uri);
 void source_update_settings (ice_config_t *config, source_t *source, mount_proxy *mountinfo);

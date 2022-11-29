@@ -72,6 +72,7 @@ static int  source_listener_release (source_t *source, client_t *client);
 static int  source_client_read (client_t *client);
 static int  source_client_shutdown (client_t *client);
 static int  source_client_http_send (client_t *client);
+static int  source_client_startup (client_t *client);
 static int  send_to_listener (client_t *client);
 static int  send_listener (source_t *source, client_t *client);
 static int  wait_for_restart (client_t *client);
@@ -129,24 +130,39 @@ struct _client_functions source_client_http_ops =
 };
 
 
+struct _client_functions source_client_start_ops =
+{
+    source_client_startup,
+    source_client_release
+};
+
+
 /* Allocate a new source with the stated mountpoint, if one already
  * exists with that mountpoint in the global source tree then return
  * NULL.
+ * flags bit 0 - set, return source if already reserved, NULL if not
  */
-source_t *source_reserve (const char *mount, int flags)
+int source_reserve (const char *mount, source_t **sp, int flags)
 {
-    source_t *src = NULL;
+    int rc = 0;
+    source_t *src;
 
     do
     {
-        avl_tree_wlock (global.source_tree);
+        if (avl_tree_trywlock (global.source_tree) < 0)
+        {
+            *sp = NULL;
+            return 0;
+        }
         src = source_find_mount_raw (mount);
         if (src)
         {
             if ((flags & 1) == 0)
+            {
                 src = NULL;
-            else if (src->flags & SOURCE_LISTENERS_SYNC)
-                src = NULL;
+                rc = -1;
+                break;
+            }
             break;
         }
 
@@ -167,13 +183,23 @@ source_t *source_reserve (const char *mount, int flags)
         src->flags |= SOURCE_RESERVED;
 
         avl_insert (global.source_tree, src);
+        rc = 1;
 
     } while (0);
 
     if (src)
-        thread_rwlock_wlock (&src->lock);
+    {
+        if (thread_rwlock_trywlock (&src->lock) < 0)
+            rc = 0;
+        else if (src->flags & SOURCE_LISTENERS_SYNC)
+        {
+            thread_rwlock_unlock (&src->lock);
+            rc = 0;
+        }
+    }
     avl_tree_unlock (global.source_tree);
-    return src;
+    *sp = src;
+    return rc;
 }
 
 
@@ -2874,16 +2900,41 @@ static void source_swap_client (source_t *source, client_t *client)
 int source_startup (client_t *client, const char *uri)
 {
     client->aux_data = (uintptr_t)strdup(uri);
-    source_t *source;
+    client->ops = &source_client_start_ops;
+
+    if ((client->flags & CLIENT_ACTIVE) == 0)
+    {
+        client->schedule_ms = 0;
+        client->flags |= CLIENT_ACTIVE;
+        worker_wakeup (client->worker);
+    }
+    return 0;
+}
+
+
+int  source_client_startup (client_t *client)
+{
+    source_t *source = client->shared_data;     // usually not present unless partially done previously
+    char *uri = (char*)client->aux_data;
+
     ice_config_t *config = config_get_config();
     mount_proxy *mountinfo;
-    int source_limit = config->source_limit;
+    int rc = 1, source_limit = config->source_limit;
 
     config_release_config();
 
-    source = source_reserve (uri, (client->flags & CLIENT_HIJACKER) ? 1 : 0);
-    if (source)
+    if (source == NULL)
+        rc = source_reserve (uri, &source, (client->flags & CLIENT_HIJACKER) ? 1 : 0);
+    if (rc == 0)
     {
+        client->shared_data = source;
+        client->schedule_ms += 10;
+        return 0;
+    }
+    if (rc > 0)
+    {
+        free (uri);
+        client->aux_data = 0;
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
             source_swap_client (source, client);
@@ -2945,13 +2996,9 @@ int source_startup (client_t *client, const char *uri)
             client->ops = &source_client_http_ops;
             thread_rwlock_unlock (&source->lock);
         }
-        if ((client->flags & CLIENT_ACTIVE) == 0)
-        {
-            client->flags |= CLIENT_ACTIVE;
-            worker_wakeup (client->worker);
-        }
         return 0;
     }
+    // rc < 0
     WARN1 ("Mountpoint %s in use", uri);
     return client_send_403 (client, "Mountpoint in use");
 }

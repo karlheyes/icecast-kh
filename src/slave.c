@@ -678,16 +678,27 @@ int relay_has_source (relay_server *relay, client_t *client)
 {
     source_t *source = relay->source;
     if (source)
-        thread_rwlock_wlock (&source->lock);
+    {
+        if (thread_rwlock_trywlock (&source->lock) < 0)
+            return 0;
+    }
     else
     {
-        source = source_reserve (relay->localmount, 0);
-        if (source == NULL)
-            return 0;
+        if (client->worker == NULL)
+            return 0;   // do the rest from a client context
+        int rc = source_reserve (relay->localmount, &source, 0);
+        if (rc < 0)
+        {
+            detach_master_relay (relay->localmount, 1);
+            return -1;
+        }
         relay->source = source;
-        source->client = client;
-        source->format->type = relay->type;
+        if (rc == 0)
+            return 0;
     }
+    source->client = client;
+    source->format->type = relay->type;
+
     if (source_format_init (source) < 0)
     {
         detach_master_relay (relay->localmount, 1);
@@ -1613,8 +1624,15 @@ static int relay_initialise (client_t *client)
     if (rc < 0)  return -1;
     if (rc == 0)  // in cases where relay was added ok but source in use, should be rare
     {
-        WARN1 ("relay for \"%s\" cannot get started, mountpoint in use, waiting", relay->localmount);
-        client->schedule_ms = client->worker->time_ms + 120000;
+        if (relay->source)
+        {
+            client->schedule_ms = client->worker->time_ms + 20;
+        }
+        else
+        {
+            WARN1 ("relay for \"%s\" cannot get started, mountpoint in use, waiting", relay->localmount);
+            client->schedule_ms = client->worker->time_ms + 120000;
+        }
         return 0;
     }
     do
