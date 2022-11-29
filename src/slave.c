@@ -1793,7 +1793,7 @@ int fallback_count (ice_config_t *config, const char *mount)
                 }
                 count = fserve_query_count (&finfo);
             }
-            if (mountinfo == NULL)
+            if (mountinfo == NULL || mountinfo->fallback_mount == NULL)
                 break;
             len = sizeof buffer;
             if (util_expand_pattern (m, mountinfo->fallback_mount, buffer, &len) < 0)
