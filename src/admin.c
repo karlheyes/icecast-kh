@@ -337,9 +337,12 @@ int admin_mount_request (client_t *client)
         if (src_worker != client->worker)
         {
             client->ops = &admin_mount_ops;
+            thread_rwlock_rlock (&workers_lock);
             thread_rwlock_unlock (&source->lock);
             // DEBUG0 (" moving admin request to alternate worker");
-            return client_change_worker (client, src_worker);
+            ret = client_change_worker (client, src_worker);
+            thread_rwlock_unlock (&workers_lock);
+            return ret;
         }
         free (uri);
         if (source_available (source) == 0)
