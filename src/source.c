@@ -581,8 +581,10 @@ int source_read (source_t *source)
     unsigned long queue_size_target = 0;
     int fds = 0;
 
+    global_lock();
     if (global.running != ICE_RUNNING)
         source->flags &= ~SOURCE_RUNNING;
+    global_unlock();
     do
     {
         source->wakeup = 0;
@@ -2892,8 +2894,10 @@ int source_startup (client_t *client, const char *uri)
             source->client = client;
             if (global.sources >= source_limit)
             {
-                WARN1 ("Request to add source when maximum source limit reached %d", global.sources);
+                int count = global.sources;
+
                 global_unlock();
+                WARN1 ("Request to add source when maximum source limit reached %d", count);
                 thread_rwlock_unlock (&source->lock);
                 source_free_source (source);
                 return client_send_403 (client, "too many streams connected");
