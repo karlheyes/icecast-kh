@@ -1173,9 +1173,12 @@ void stats_add_listener (client_t *client, int mask)
 int stats_transform_xslt (client_t *client, const char *uri)
 {
     xmlDocPtr doc;
-    char *xslpath = util_get_path_from_normalised_uri (uri, 0);
     const char *mount = httpp_get_query_param (client->parser, "mount");
     int ret;
+
+    config_get_config ();
+    char *xslpath = util_get_path_from_normalised_uri (uri, 0);
+    config_release_config ();
 
     if (mount == NULL && client->server_conn->shoutcast_mount && strcmp (uri, "/7.xsl") == 0)
         mount = client->server_conn->shoutcast_mount;

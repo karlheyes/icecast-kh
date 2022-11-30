@@ -1053,7 +1053,7 @@ static int command_metadata (client_t *client, source_t *source, int response)
             stats_event (source->mount, "artwork", artwork);
         if (intro)
         {
-            source_set_intro (source, intro);
+            source_set_intro (source, NULL, intro);
         }
         if (plugin->set_tag)
         {

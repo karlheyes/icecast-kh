@@ -555,13 +555,16 @@ void source_add_queue_buffer (source_t *source, refbuf_t *r)
     /* append buffer to the in-flight data queue,  */
     if (source->stream_data == NULL)
     {
-        mount_proxy *mountinfo = config_find_mount (config_get_config(), source->mount);
+        ice_config_t *config = config_get_config();
+        mount_proxy *mountinfo = config_find_mount (config, source->mount);
         if (mountinfo)
         {
-            source_set_intro (source, mountinfo->intro_filename);
+            source_set_intro (source, config, mountinfo->intro_filename);
+            config_release_config ();
             source_set_override (mountinfo, source, source->format->type);
         }
-        config_release_config();
+        else
+            config_release_config ();
 
         source->stream_data = r;
         source->min_queue_point = r;
@@ -1589,7 +1592,7 @@ void source_init (source_t *source)
 
     source->flags |= SOURCE_RUNNING;
 
-    mountinfo = config_find_mount (config_get_config(), source->mount);
+    mountinfo = config_lock_mount (NULL, source->mount);
     if (mountinfo)
     {
         if (mountinfo->max_stream_duration)
@@ -1598,7 +1601,7 @@ void source_init (source_t *source)
             source_run_script (mountinfo->on_connect, source->mount);
         auth_stream_start (mountinfo, source);
     }
-    config_release_config();
+    config_release_mount (mountinfo);
 
     INFO1 ("Source %s initialised", source->mount);
 
@@ -1614,7 +1617,6 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
     source_t *source;
     const char *dest = dest_source->mount;
     int ret = 0, loop = 15;
-    ice_config_t *config = config_get_config_unlocked();
     unsigned int len;
     char *mount = dest_source->mount, buffer [4096];
 
@@ -1670,7 +1672,9 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
             }
             thread_rwlock_unlock (&source->lock);
         }
-        mountinfo = config_find_mount (config, mount);
+        mount_proxy *m = config_lock_mount (NULL, mount);
+        config_release_mount (mountinfo);
+        mountinfo = m;
         if (mountinfo == NULL || mountinfo->fallback_mount == NULL || mountinfo->fallback_override == 0)
         {
             avl_tree_unlock (global.source_tree);
@@ -1727,15 +1731,17 @@ void source_set_fallback (source_t *source, const char *dest_mount)
 }
 
 
-int source_set_intro (source_t *source, const char *file_pattern)
+int source_set_intro (source_t *source, ice_config_t *_c, const char *file_pattern)
 {
     if (file_pattern == NULL || source == NULL)
         return -1;
 
-    ice_config_t *config = config_get_config_unlocked ();
+    ice_config_t *config = _c ? _c : config_get_config ();
     char buffer[4096];
     unsigned int len = sizeof buffer;
     int ret = snprintf (buffer, len, "%s" PATH_SEPARATOR, config->webroot_dir);
+    if (_c == NULL)
+        config_release_config ();
 
     do
     {
@@ -1790,7 +1796,7 @@ void source_shutdown (source_t *source, int with_fallback)
     source->client->timer_start = source->client->worker->time_ms;
     source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
     source_listeners_wakeup (source);
-    mountinfo = config_find_mount (config_get_config(), source->mount);
+    mountinfo = config_lock_mount (NULL, source->mount);
     if (src_client->connection.con_time && src_client->parser)
     {
         /* only do these if source has been running */
@@ -1806,7 +1812,7 @@ void source_shutdown (source_t *source, int with_fallback)
     if (mountinfo && with_fallback && global.running == ICE_RUNNING)
         source_set_fallback (source, mountinfo->fallback_mount);
     source->flags &= ~(SOURCE_TIMEOUT);
-    config_release_config();
+    config_release_mount (mountinfo);
 }
 
 
@@ -1909,7 +1915,7 @@ int source_apply_preroll (mount_proxy *mountinfo, source_t *source)
 
 
 /* Apply the mountinfo details to the source */
-static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
+static void source_apply_mount (source_t *source, ice_config_t *config, mount_proxy *mountinfo)
 {
     const char *str;
     int val;
@@ -2115,7 +2121,7 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
     {
         // only set here if there is data present, for type verification
         if (source->stream_data)
-           source_set_intro (source, mountinfo->intro_filename);
+           source_set_intro (source, config, mountinfo->intro_filename);
 
         if (mountinfo->intro_skip_replay)
         {
@@ -2148,10 +2154,11 @@ static void source_apply_mount (source_t *source, mount_proxy *mountinfo)
 /* update the specified source with details from the config or mount.
  * mountinfo can be NULL in which case default settings should be taken
  */
-void source_update_settings (ice_config_t *config, source_t *source, mount_proxy *mountinfo)
+void source_update_settings (ice_config_t *_c, source_t *source, mount_proxy *mountinfo)
 {
     char *listen_url;
     int len;
+    ice_config_t *config = _c ? _c : config_get_config();
 
     /* set global settings first */
     if (mountinfo == NULL)
@@ -2168,7 +2175,9 @@ void source_update_settings (ice_config_t *config, source_t *source, mount_proxy
     snprintf (listen_url, len, "http://%s:%d%s", config->hostname, config->port, source->mount);
     stats_set_flags (source->stats, "listenurl", listen_url, STATS_COUNTERS);
 
-    source_apply_mount (source, mountinfo);
+    source_apply_mount (source, config, mountinfo);
+    if (_c == NULL)
+        config_release_config();
 
     if (source->dumpfilename)
         DEBUG1 ("Dumping stream to %s", source->dumpfilename);
@@ -2319,6 +2328,31 @@ static void source_run_script (char *command, char *mountpoint)
 #endif
 
 
+// match the fallback return code on this, -2 try again, -1 missing, 0+ actual count
+//
+static int _get_source_listeners (const char *mount)
+{
+    int rc = -2;
+
+    if (avl_tree_tryrlock (global.source_tree) == 0)
+    {
+        source_t *source = source_find_mount_raw (mount);
+        if (source == NULL)
+            rc = -1;
+        else if (thread_rwlock_tryrlock (&source->lock) == 0)
+        {
+            if (source_available (source))
+                rc = source->listeners;
+            else
+                rc = -1;
+            thread_rwlock_unlock (&source->lock);
+        }
+        avl_tree_unlock (global.source_tree);
+    }
+    return rc;
+}
+
+
 /* rescan the mount list, so that xsl files are updated to show
  * unconnected but active fallback mountpoints
  */
@@ -2326,74 +2360,91 @@ void source_recheck_mounts (int update_all)
 {
     ice_config_t *config;
     time_t mark = time (NULL);
-    long count = 0;
 
-    avl_tree_rlock (global.source_tree);
-
+    //DEBUG1 ("run through %d", update_all);
     if (update_all)
     {
+        avl_tree_rlock (global.source_tree);
         avl_node *node = avl_get_first (global.source_tree);
         while (node)
         {
             source_t *source = (source_t*)node->key;
+            mount_proxy *mountinfo = config_lock_mount (NULL, source->mount);
 
             thread_rwlock_wlock (&source->lock);
-            config = config_get_config();
             if (source_available (source))
-                source_update_settings (config, source, config_find_mount (config, source->mount));
-            config_release_config();
+                source_update_settings (NULL, source, mountinfo);
             thread_rwlock_unlock (&source->lock);
+            config_release_mount (mountinfo);
             node = avl_get_next (node);
         }
+        avl_tree_unlock (global.source_tree);
     }
 
+    // update stats for specific mounts that are inactive but have active fallbacks
     config = config_get_config();
     avl_node *node = avl_get_first (config->mounts_tree);
+    int loop = 0;
     while (node)
     {
-        source_t *source;
+        source_t *source = NULL;
         mount_proxy *mount = (mount_proxy*)node->key;
+        int rc = -1;
 
         node = avl_get_next (node);
 
-        ++count;
-        if ((count & 63) == 0)  // lets give others access to this every so often
-        {
-            avl_tree_unlock (global.source_tree);
-            avl_tree_rlock (global.source_tree);
-        }
+        if (mount->fallback_mount == NULL)
+            continue;              // ignore these
 
-        source = source_find_mount_raw (mount->mountname);
-        if ((source == NULL || source_available (source) == 0) && mount->fallback_mount)
-        {
-            int count = -1;
-            unsigned int len;
-            char buffer [4096];
+        config_mount_ref (mount, 1);
+        config_release_config();
 
-            len = sizeof buffer;
-            if (util_expand_pattern (mount->mountname, mount->fallback_mount, buffer, &len) == 0)
-                count = fallback_count (config, buffer);
+        do {
+            if ((rc = _get_source_listeners (mount->mountname)) < -1)
+                break;  // odd case, loop back around try again a few times
 
-            DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, count);
-            if (count >= 0)
+            if (rc < 0)         // source not available, check for a file
             {
-                stats_handle_t stats = stats_handle (mount->mountname);
-                if (source == NULL) // mark for purge if there is no source at all
-                    stats_set_expire (stats, mark);
-                stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);
-                stats_set_args (stats, "listenurl", "http://%s:%d%s",
-                        config->hostname, config->port, mount->mountname);
-                stats_set (stats, "listeners", "0");
-                if (mount->max_listeners < 0)
-                    stats_set (stats, "max_listeners", "unlimited");
-                else
-                    stats_set_args (stats, "max_listeners", "%d", mount->max_listeners);
-                stats_release (stats);
+                unsigned int len;
+                char buffer [4096];
+
+                len = sizeof buffer;
+                if (util_expand_pattern (mount->mountname, mount->fallback_mount, buffer, &len) == 0)
+                    rc = fallback_count (config, buffer);
+
+                if (rc == -2) break;  // odd case, would stall, try again
+                if (rc >= 0)
+                {
+                    DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, rc);
+                    stats_handle_t stats = stats_handle (mount->mountname);
+                    if (source == NULL) // mark for purge if there is no source at all
+                        stats_set_expire (stats, mark);
+                    stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);
+                    stats_set_args (stats, "listenurl", "http://%s:%d%s",
+                            config->hostname, config->port, mount->mountname);
+                    stats_set (stats, "listeners", "0");
+                    if (mount->max_listeners < 0)
+                        stats_set (stats, "max_listeners", "unlimited");
+                    else
+                        stats_set_args (stats, "max_listeners", "%d", mount->max_listeners);
+                    stats_release (stats);
+                }
+                // rc == -1 m just fall thru...
             }
+        } while (0);
+
+        config_mount_ref (mount, 0);
+        if (rc < -1)
+        {
+            thread_sleep (10);
+            config = config_get_config();
+            if (++loop > 9) break;
+            node = avl_get_first (config->mounts_tree);
+            continue;
         }
+        config = config_get_config();
     }
     stats_purge (mark);
-    avl_tree_unlock (global.source_tree);
     config_release_config();
 }
 
@@ -2474,7 +2525,6 @@ void source_client_release (client_t *client)
 static int source_listener_release (source_t *source, client_t *client)
 {
     int ret;
-    ice_config_t *config;
     mount_proxy *mountinfo;
 
     if (client->shared_data == source) // still attached to source?
@@ -2507,14 +2557,14 @@ static int source_listener_release (source_t *source, client_t *client)
     global.listeners--;
     global_unlock();
 
-    config = config_get_config ();
-    mountinfo = config_find_mount (config, source->mount);
+    mountinfo = config_lock_mount (NULL, source->mount);
 
     if (mountinfo && mountinfo->access_log.name)
         logging_access_id (&mountinfo->access_log, client);
 
     ret = auth_release_listener (client, source->mount, mountinfo);
-    config_release_config();
+    config_release_mount (mountinfo);
+
     return ret;
 }
 
@@ -2526,14 +2576,18 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     source_t *source;
     mount_proxy *minfo = mountinfo;
     const char *passed_mount = mount;
-    ice_config_t *config = config_get_config_unlocked();
     unsigned int len;
-    char buffer[4096];
+
+    ice_config_t *config = config_get_config();
+    int64_t max_bandwidth = config->max_bandwidth;
+    unsigned int max_listeners = config->max_listeners;
+    config_release_config();
 
     do
     {
         int64_t stream_bitrate = 0;
         int flags = 0;
+        char buffer[4096];
 
         do
         {
@@ -2583,7 +2637,9 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 mount = minfo->fallback_mount;
             else
                 mount = buffer;
-            minfo = config_find_mount (config_get_config_unlocked(), mount);
+            mount_proxy *m = config_lock_mount (NULL, mount);
+            config_release_mount (minfo);
+            minfo = m;
             flags = FS_FALLBACK;
             loop--;
         } while (1);
@@ -2600,18 +2656,19 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         {
             stream_bitrate  = 8 * rate_avg (source->in_bitrate);
 
-            if (config->max_bandwidth)
+            if (max_bandwidth)
             {
                 int64_t global_rate = (int64_t)8 * global_getrate_avg (global.out_bitrate);
 
                 DEBUG1 ("server outgoing bitrate is %" PRId64, global_rate);
-                if (global_rate + stream_bitrate > config->max_bandwidth)
+                if (global_rate + stream_bitrate > max_bandwidth)
                 {
                     thread_rwlock_unlock (&source->lock);
                     INFO0 ("server-wide outgoing bandwidth limit reached");
                     return client_send_403redirect (client, passed_mount, "server bandwidth reached");
                 }
             }
+
             if ((client->flags & CLIENT_AUTHENTICATED) == 0 || httpp_getvar (client->parser, "range"))
             {
                 int ret;
@@ -2717,9 +2774,9 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     }
 
     global_lock();
-    if (config->max_listeners)
+    if (max_listeners)
     {
-        if (config->max_listeners <= global.listeners)
+        if (max_listeners <= global.listeners)
         {
             global_unlock();
             thread_rwlock_unlock (&source->lock);
@@ -2971,11 +3028,10 @@ int  source_client_startup (client_t *client)
         client->respcode = 200;
         client->shared_data = source;
 
-        config = config_get_config();
-        mountinfo = config_find_mount (config, source->mount);
-        source_update_settings (config, source, mountinfo);
+        mountinfo = config_lock_mount (NULL, source->mount);
+        source_update_settings (NULL, source, mountinfo);
         INFO1 ("source %s is ready to start", source->mount);
-        config_release_config();
+        config_release_mount (mountinfo);
 
         if (client->server_conn && client->server_conn->shoutcast_compat)
         {

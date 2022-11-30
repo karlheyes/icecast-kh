@@ -132,7 +132,7 @@ void source_setup_listener (source_t *source, client_t *client);
 void source_init (source_t *source);
 void source_shutdown (source_t *source, int with_fallback);
 void source_set_fallback (source_t *source, const char *dest_mount);
-int source_set_intro (source_t *source, const char *file_pattern);
+int  source_set_intro (source_t *source, ice_config_t *_c, const char *file_pattern);
 int  source_format_init (source_t *source);
 void source_listeners_wakeup (source_t *source);
 

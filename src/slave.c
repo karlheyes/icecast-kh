@@ -1789,10 +1789,13 @@ int fallback_count (ice_config_t *config, const char *mount)
     if (strstr (mount, "${")) return -1;
     while (m && loop--)
     {
+        if (avl_tree_tryrlock (global.source_tree) < 0)
+            return -2;
         source_t *fallback = source_find_mount_raw (m);
         if (fallback == NULL || source_running (fallback) == 0)
         {
             unsigned int len;
+            avl_tree_unlock (global.source_tree);
             mount_proxy *mountinfo = config_find_mount (config, m);
             if (fallback == NULL)
             {
@@ -1810,6 +1813,8 @@ int fallback_count (ice_config_t *config, const char *mount)
                        finfo.limit = rate * 1000 / 8;
                 }
                 count = fserve_query_count (&finfo);
+                if (count < -1)
+                    return count;
             }
             if (mountinfo == NULL || mountinfo->fallback_mount == NULL)
                 break;
@@ -1819,6 +1824,7 @@ int fallback_count (ice_config_t *config, const char *mount)
             m = buffer;
             continue;
         }
+        avl_tree_unlock (global.source_tree);
         count = fallback->listeners;
         break;
     }

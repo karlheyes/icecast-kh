@@ -339,6 +339,9 @@ static void fh_add_client (fh_node *fh, client_t *client)
 
 
 /* find/create handle and return it with the structure in a locked state */
+// requires config read lock and fh_cache write lock on entry. New node is added or
+// existing one returned. config used for the path lookup. Both are dropped on exit
+//
 static fh_node *open_fh (fbinfo *finfo)
 {
     fh_node *fh, *result;
@@ -349,6 +352,7 @@ static fh_node *open_fh (fbinfo *finfo)
     memcpy (&fh->finfo, finfo, sizeof (fbinfo));
     if (avl_get_by_key (fh_cache, fh, (void**)&result) == 0)
     {
+        config_release_config ();
         free (fh);
         thread_mutex_lock (&result->lock);
         avl_tree_unlock (fh_cache);
@@ -369,6 +373,8 @@ static fh_node *open_fh (fbinfo *finfo)
     if (fh->finfo.mount[0])
     {
         char *fullpath= util_get_path_from_normalised_uri (fh->finfo.mount, fh->finfo.flags&FS_USE_ADMIN);
+        config_release_config ();
+
         char *contenttype = fserve_content_type (fullpath);
         format_type_t type = format_get_type (contenttype);
 
@@ -433,6 +439,8 @@ static fh_node *open_fh (fbinfo *finfo)
         if (fh->finfo.limit)
             fh->out_bitrate = rate_setup (10000, 1000);
     }
+    else
+        config_release_config ();
     fh->clients = avl_tree_new (client_compare, NULL);
     thread_mutex_create (&fh->lock);
     thread_mutex_lock (&fh->lock);
@@ -926,11 +934,14 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         mount_proxy *minfo;
         if (finfo->flags & FS_FALLBACK && finfo->limit == 0)
             return -1;
+
         avl_tree_wlock (fh_cache);
         fh = find_fh (finfo);
-        minfo = config_find_mount (config_get_config(), finfo->mount);
+        minfo = config_lock_mount (config_get_config(), finfo->mount);
+
         if (fh)
         {
+            config_release_config();
             thread_mutex_lock (&fh->lock);
             avl_tree_unlock (fh_cache);
             client->shared_data = NULL;
@@ -939,28 +950,29 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
                 if (minfo->max_listeners >= 0 && fh->refcount > minfo->max_listeners)
                 {
                     thread_mutex_unlock (&fh->lock);
-                    config_release_config();
+                    config_release_mount (minfo);
                     return client_send_403redirect (client, finfo->mount, "max listeners reached");
                 }
                 if (check_duplicate_logins (finfo->mount, fh->clients, client, minfo->auth) == 0)
                 {
                     thread_mutex_unlock (&fh->lock);
-                    config_release_config();
+                    config_release_mount (minfo);
                     return client_send_403 (client, "Account already in use");
                 }
             }
-            config_release_config();
+            config_release_mount (minfo);
         }
         else
         {
             if (minfo && minfo->max_listeners == 0)
             {
-                avl_tree_unlock (fh_cache);
+                config_release_mount (minfo);
                 config_release_config();
+                avl_tree_unlock (fh_cache);
                 client->shared_data = NULL;
                 return client_send_403redirect (client, finfo->mount, "max listeners reached");
             }
-            config_release_config();
+            config_release_mount (minfo);
             fh = open_fh (finfo);
             if (fh == NULL)
                 return client_send_404 (client, NULL);
@@ -1012,8 +1024,8 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         return client_send_416 (client);
     }
     fh_add_client (fh, client);
-    thread_mutex_unlock (&fh->lock);
     client->shared_data = fh;
+    thread_mutex_unlock (&fh->lock);
 
     if (client->check_buffer == NULL)
         client->check_buffer = format_generic_write_to_client;
@@ -1388,7 +1400,9 @@ int fserve_query_count (fbinfo *finfo)
 
     if (finfo->flags & FS_FALLBACK && finfo->limit)
     {
+        config_get_config();
         avl_tree_wlock (fh_cache);
+
         fh = open_fh (finfo);
         if (fh)
         {
@@ -1399,6 +1413,7 @@ int fserve_query_count (fbinfo *finfo)
     else
     {
         avl_tree_rlock (fh_cache);
+
         fh = find_fh (finfo);
         if (fh)
         {

@@ -243,6 +243,7 @@ static int verify_path(char *path) {
     return 1;
 }
 
+#if 0
 char *util_get_path_from_uri(char *uri) {
     char *path = util_normalise_uri(uri);
     char *fullpath;
@@ -255,12 +256,14 @@ char *util_get_path_from_uri(char *uri) {
         return fullpath;
     }
 }
+#endif
 
+// requires config lock on entry.
 char *util_get_path_from_normalised_uri(const char *uri, int use_admin)
 {
     char *fullpath;
     char *root;
-    ice_config_t *config = config_get_config();
+    ice_config_t *config = config_get_config_unlocked();
 
     if (use_admin)
         root = config->adminroot_dir;
@@ -270,7 +273,6 @@ char *util_get_path_from_normalised_uri(const char *uri, int use_admin)
     fullpath = malloc(strlen(uri) + strlen(root) + 1);
     if (fullpath)
         sprintf (fullpath, "%s%s", root, uri);
-    config_release_config();
 
     return fullpath;
 }
