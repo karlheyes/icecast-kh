@@ -14,8 +14,7 @@ dnl Get the cflags and libraries for speex
 dnl
 AC_ARG_VAR([SPEEX],[path to speex installation])
 AC_ARG_WITH(speex,
-    AC_HELP_STRING([--with-speex=PREFIX],
-        [Prefix where libspeex is installed (optional)]),
+    AS_HELP_STRING([--with-speex=PREFIX],[Prefix where libspeex is installed (optional)]),
     speex_prefix="$withval",
     speex_prefix="$SPEEX_PREFIX"
     )

@@ -13,8 +13,7 @@ dnl Get the cflags and libraries for theora
 dnl
 AC_ARG_VAR([THEORA],[path to theora installation])
 AC_ARG_WITH(theora,
-    AC_HELP_STRING([--with-theora=PREFIX],
-        [Prefix where libtheora is installed (optional)]),
+    AS_HELP_STRING([--with-theora=PREFIX],[Prefix where libtheora is installed (optional)]),
     theora_prefix="$withval",
     theora_prefix="$THEORA_PREFIX"
     )

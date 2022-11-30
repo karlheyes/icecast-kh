@@ -10,8 +10,7 @@ AC_DEFUN([XIPH_PATH_OGG],
 [dnl 
 AC_ARG_VAR([OGG_PREFIX],[path to ogg installation])
 AC_ARG_WITH(ogg,
-    [AC_HELP_STRING([--with-ogg=PREFIX],
-        [Prefix where libogg is installed (optional)])],
+    [AS_HELP_STRING([--with-ogg=PREFIX],[Prefix where libogg is installed (optional)])],
     ogg_prefix="$withval",
     ogg_prefix="$OGG_PREFIX"
     )
@@ -42,9 +41,7 @@ LIBS="$LIBS $OGG_LIBS"
 LDFLAGS="$LDFLAGS $OGG_LDFLAGS"
 AC_TRY_LINK_FUNC(ogg_sync_init,
     [ xt_cv_lib_ogg=ok ],
-    [ AC_TRY_LINK([#include <ogg/ogg.h>],, 
-        [ xt_cv_lib_ogg="pre v1.0, needs updating" ],
-        [ xt_cv_lib_ogg="not found" ])
+    [ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <ogg/ogg.h>]], [[]])],[ xt_cv_lib_ogg="pre v1.0, needs updating" ],[ xt_cv_lib_ogg="not found" ])
     ])
 CFLAGS="$ac_save_CFLAGS"
 LDFLAGS="$ac_save_LDFLAGS"

@@ -3,13 +3,14 @@ AC_INIT([Icecast], [2.4.0-kh15], [karl@kheyes.plus.com])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign])
 
-AC_PREREQ(2.59)
+AC_PREREQ([2.71])
 AC_CONFIG_SRCDIR([src/main.c])
-AM_CONFIG_HEADER(config.h)
+AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_MACRO_DIR([m4])
 
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+dnl  use make V=1 to show rules
 
 LT_INIT
 
@@ -45,8 +46,7 @@ dnl Checks for programs.
 dnl Checks for libraries.
 
 dnl Checks for header files.
-AC_HEADER_STDC
-AC_HEADER_TIME
+AC_CHECK_HEADERS_ONCE([sys/time.h])
 
 AC_CHECK_HEADERS([fcntl.h fnmatch.h sys/timeb.h sys/wait.h alloca.h malloc.h glob.h winsock2.h windows.h stdbool.h signal.h])
 AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
@@ -74,7 +74,7 @@ AC_CHECK_TYPES([SOCKET*],
         [AC_DEFINE([FD_t], [int], [socket type for the rest])], [
 #include <winsock2.h>
 ])
-if test "x$ac_cv_func_fnmatch" != "xyes" 
+if test "x$ac_cv_func_fnmatch" != "xyes"
 then
 AC_CHECK_LIB(fnmatch, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-lfnmatch"])],
         [ AC_CHECK_LIB(iberty, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-liberty"])],

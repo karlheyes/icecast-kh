@@ -9,11 +9,9 @@ dnl
 AC_DEFUN([XIPH_FUNC_VA_COPY],
 [dnl
 AC_MSG_CHECKING([for va_copy])
-AC_TRY_LINK([#include <stdarg.h>], [va_list ap1, ap2; va_copy(ap1, ap2);],
-  AC_MSG_RESULT([va_copy]),
-  [dnl
+AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <stdarg.h>], [va_list ap1, ap2; va_copy(ap1, ap2);])],[AC_MSG_RESULT(va_copy)],[dnl
   AH_TEMPLATE([va_copy], [define if va_copy is not available])
-  AC_TRY_LINK([#include <stdarg.h>], [va_list ap1, ap2; __va_copy(ap1, ap2);],
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <stdarg.h>], [va_list ap1, ap2; __va_copy(ap1, ap2);],
     [dnl
     AC_DEFINE([va_copy], [__va_copy])
     AC_MSG_RESULT([__va_copy])],
@@ -22,6 +20,8 @@ AC_TRY_LINK([#include <stdarg.h>], [va_list ap1, ap2; va_copy(ap1, ap2);],
     AC_MSG_RESULT([memcpy])
     ])
   ])
+])
+])
 ])
 ])dnl XIPH_FUNC_VA_COPY
 
@@ -32,8 +32,7 @@ dnl
 # Define __attribute__ to be empty if the compiler does not support it
 AC_DEFUN([XIPH_C_ATTRIBUTE],
 [dnl
-AC_TRY_COMPILE([int func(void) __attribute__((unused));],
-  [int x __attribute__ ((unused));],[dnl
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[int func(void) __attribute__((unused));]], [[int x __attribute__ ((unused));]])],[dnl
   AH_VERBATIM([_GNU_PRINTF],[/* Use GNU setting because of mingw else use standard attribute format setting */
 #ifndef __GNUC__
 #define gnu_printf printf
@@ -57,7 +56,7 @@ if test x"$GCC" = "xyes"
 then
   save_cflags="$CFLAGS"
   CFLAGS="-Werror $1"
-  AC_TRY_COMPILE(,,,xt_warning=yes)
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[]])],[],[xt_warning=yes])
   CFLAGS="$save_cflags"
 fi
 if test "$xt_warning" = "yes"

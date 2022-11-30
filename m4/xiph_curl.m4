@@ -8,7 +8,7 @@ AC_DEFUN([XIPH_PATH_CURL],
 dnl Get the cflags and libraries
 dnl
 AC_ARG_WITH(curl,
-    AC_HELP_STRING([--with-curl=PFX],[Prefix where libcurl is installed (optional)]),
+    AS_HELP_STRING([--with-curl=PFX],[Prefix where libcurl is installed (optional)]),
     curl_prefix="$withval", curl_prefix="$CURL_PREFIX")
 
 if test "x$curl_prefix" = "xno"
@@ -17,7 +17,7 @@ then
 else
 
 AC_ARG_WITH(curl-config,
-    AC_HELP_STRING([--with-curl-config=curl-config],[Use curl-config to find libcurl]),
+    AS_HELP_STRING([--with-curl-config=curl-config],[Use curl-config to find libcurl]),
     CURL_CONFIG="$withval", [AC_PATH_PROGS(CURL_CONFIG, [curl-config], "")])
 
 if test "x$curl_prefix" != "x" -a "x$curl_prefix" != "xyes"; then

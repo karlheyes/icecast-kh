@@ -6,8 +6,7 @@ AC_DEFUN([XIPH_PATH_XML],
 AC_MSG_RESULT([checking for XML configuration])
 AC_ARG_VAR([XMLCONFIG],[XML configuration program])
 AC_ARG_WITH(xml-config,
-    [AC_HELP_STRING([--with-xml-config=PATH],
-                    [use xml-config in PATH to find libxml])],
+    [AS_HELP_STRING([--with-xml-config=PATH],[use xml-config in PATH to find libxml])],
     [XMLCONFIG="$withval"],
     [AC_PATH_PROGS(XMLCONFIG, [xml2-config xml-config], "")]
 )
@@ -35,8 +34,7 @@ AC_DEFUN([XIPH_PATH_XSLT],
 [dnl
 AC_ARG_VAR([XSLTCONFIG],[XSLT configuration program])
 AC_ARG_WITH(xslt-config,
-    [AC_HELP_STRING([--with-xslt-config=PATH],
-                    [use xslt-config in PATH to find libxslt])],
+    [AS_HELP_STRING([--with-xslt-config=PATH],[use xslt-config in PATH to find libxslt])],
     [XSLTCONFIG="$withval"],
     [AC_PATH_PROGS(XSLTCONFIG, [xslt-config], "")]
 )

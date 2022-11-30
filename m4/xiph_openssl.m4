@@ -7,7 +7,7 @@ AC_DEFUN([XIPH_PATH_OPENSSL],
 dnl Get the cflags and libraries
 dnl
 AC_ARG_WITH(openssl,
-    AC_HELP_STRING([--with-openssl=PFX],[Prefix where openssl is installed (optional)]),
+    AS_HELP_STRING([--with-openssl=PFX],[Prefix where openssl is installed (optional)]),
     openssl_prefix="$withval", openssl_prefix="")
 
 if test "x$openssl_prefix" != "x" -a "x$openssl_prefix" != "xyes"; then
@@ -34,7 +34,7 @@ xt_save_CFLAGS="$CFLAGS"
 xt_save_LIBS="$LIBS"
 CFLAGS="$CFLAGS $OPENSSL_CFLAGS"
 LIBS="$OPENSSL_LIBS $LIBS"
-AC_TRY_LINK([#include <openssl/ssl.h>], [void *a = SSL_new], [openssl_ok='yes'])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <openssl/ssl.h>]], [[void *a = SSL_new]])],[openssl_ok='yes'],[])
 CFLAGS="$xt_save_CFLAGS"
 LIBS="$xt_save_LIBS"
 

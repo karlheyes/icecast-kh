@@ -16,8 +16,7 @@ dnl Get the cflags and libraries for vorbis
 dnl
 AC_ARG_VAR([VORBIS_PREFIX],[path to vorbis installation])
 AC_ARG_WITH(vorbis,
-    AC_HELP_STRING([--with-vorbis=PREFIX],
-        [Prefix where libvorbis is installed (optional)]),
+    AS_HELP_STRING([--with-vorbis=PREFIX],[Prefix where libvorbis is installed (optional)]),
     vorbis_prefix="$withval",
     vorbis_prefix="$VORBIS_PREFIX"
     )
