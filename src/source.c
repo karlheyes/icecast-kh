@@ -2844,14 +2844,21 @@ void source_setup_listener (source_t *source, client_t *client)
         client->check_buffer = http_source_listener; // special case for headers
     // add client to the source
     avl_insert (source->clients, client);
+
     if (source->flags & SOURCE_ON_DEMAND)
         source->client->connection.discon.time = 0; // a run-over with on-demand relays needs resetting
 
     if ((source->flags & (SOURCE_ON_DEMAND|SOURCE_RUNNING)) == SOURCE_ON_DEMAND)
     {
+        // source is write locked, so will not be changing workers under us
+        worker_t *worker = source->client->worker;
+        client->schedule_ms += (worker == client->worker) ? 5 : 300;
+
+        thread_spin_lock (&worker->lock);
         source->client->schedule_ms = 0;
-        client->schedule_ms += 300;
-        worker_wakeup (source->client->worker);
+        thread_spin_unlock (&worker->lock);
+
+        worker_wakeup (worker);
         DEBUG1 ("woke up relay on %s", source->mount);
     }
 }
