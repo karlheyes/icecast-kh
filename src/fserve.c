@@ -727,11 +727,11 @@ static int fserve_change_worker (client_t *client)
         {
             this_worker->move_allocations--;
             ret = client_change_worker (client, worker);
-            if (ret)
-                DEBUG2 ("moving listener from %p to %p", this_worker, worker);
         }
     }
     thread_rwlock_unlock (&workers_lock);
+    if (ret)
+        DEBUG2 ("moving listener from %p to %p", this_worker, worker);
     return ret;
 }
 
