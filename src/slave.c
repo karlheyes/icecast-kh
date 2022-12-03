@@ -571,17 +571,16 @@ static void *start_relay_stream (void *arg)
     client_t *client = arg;
     relay_server *relay;
     source_t *src;
-    int failed = 1, sources;
+    int failed = 1;
 
     global_lock();
-    sources = ++global.sources;
     stats_event_args (NULL, "sources", "%d", global.sources);
     global_unlock();
     /* set the start time, because we want to decrease the sources on all failures */
     client->connection.con_time = time (NULL);
     do
     {
-        ice_config_t *config = config_get_config();
+        ice_config_t *config;
         mount_proxy *mountinfo;
 
         relay = client->shared_data;
@@ -589,13 +588,7 @@ static void *start_relay_stream (void *arg)
 
         thread_rwlock_wlock (&src->lock);
         src->flags |= SOURCE_PAUSE_LISTENERS;
-        if (sources > config->source_limit)
-        {
-            config_release_config();
-            WARN1 ("starting relayed mountpoint \"%s\" requires a higher sources limit", relay->localmount);
-            break;
-        }
-        config_release_config();
+
         INFO1("Starting relayed source at mountpoint \"%s\"", relay->localmount);
 
         if (open_relay (relay) < 0)
@@ -631,8 +624,11 @@ static void *start_relay_stream (void *arg)
     relays_connecting--;
     thread_spin_unlock (&relay_start_lock);
 
+    worker_t *worker = client->worker;
+    thread_spin_lock (&worker->lock);
     client->flags |= CLIENT_ACTIVE;
-    worker_wakeup (client->worker);
+    thread_spin_unlock (&worker->lock);
+    worker_wakeup (worker);
     return NULL;
 }
 

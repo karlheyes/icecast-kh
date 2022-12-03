@@ -784,14 +784,23 @@ void source_listeners_wakeup (source_t *source)
 {
     client_t *s = source->client;
     avl_node *node = avl_get_first (source->clients);
+
+    thread_rwlock_rlock (&workers_lock);
     while (node)
     {
         client_t *client = (client_t *)node->key;
         if (s->schedule_ms + 100 < client->schedule_ms)
             DEBUG2 ("listener on %s was ahead by %ld", source->mount, (long)(client->schedule_ms - s->schedule_ms));
-        client->schedule_ms = 0;
+        worker_t *w = client->worker;
+        if (s->worker != w)
+        {
+            thread_spin_lock (&w->lock);
+            client->schedule_ms = 0;
+            thread_spin_unlock (&w->lock);
+        }
         node = avl_get_next (node);
     }
+    thread_rwlock_unlock (&workers_lock);
 }
 
 
@@ -906,7 +915,6 @@ void source_add_bytes_sent (struct rate_calc *out_bitrate, unsigned long written
 
 static int source_queue_advance (client_t *client)
 {
-    static unsigned char offset = 0;
     unsigned long written = 0;
     source_t *source = client->shared_data;
     refbuf_t *refbuf;
@@ -921,10 +929,7 @@ static int source_queue_advance (client_t *client)
 
     if (lag == 0)
     {
-        // most listeners will be through here, so a minor spread should limit a wave of sends
-        int ret = (offset & 31);
-        offset++;   // this can be a race as it helps for randomizing
-        client->schedule_ms += 5 + ((source->incoming_adj>>1) + ret);
+        client->schedule_ms += 5 + ((source->incoming_adj>>1));
         client->wakeup = &source->wakeup; // allow for quick wakeup
         return -1;
     }
@@ -1293,10 +1298,12 @@ static int wait_for_restart (client_t *client)
         client->connection.error = 1; // in here too long, drop client
     }
 
+    thread_rwlock_rlock (&source->lock);
     if (source_running (source) || client->connection.error ||
             (source->flags & SOURCE_PAUSE_LISTENERS) == 0 ||
             (source->flags & (SOURCE_TERMINATING|SOURCE_LISTENERS_SYNC)))
     {
+        thread_rwlock_unlock (&source->lock);
         client->ops = &listener_client_ops;
         return 0;
     }
@@ -1305,6 +1312,7 @@ static int wait_for_restart (client_t *client)
         client->schedule_ms = client->worker->time_ms + 100;
     else
         client->schedule_ms = client->worker->time_ms + 300;
+    thread_rwlock_unlock (&source->lock);
     return 0;
 }
 
@@ -1316,12 +1324,15 @@ static int wait_for_other_listeners (client_t *client)
 {
     source_t *source = client->shared_data;
 
+    thread_rwlock_rlock (&source->lock);
     if ((source->flags & (SOURCE_TERMINATING|SOURCE_LISTENERS_SYNC)) == SOURCE_LISTENERS_SYNC)
     {
+        thread_rwlock_unlock (&source->lock);
         client->schedule_ms = client->worker->time_ms + 150;
         return 0;
     }
     client->ops = &listener_client_ops;
+    thread_rwlock_unlock (&source->lock);
     return 0;
 }
 
