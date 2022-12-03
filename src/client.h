@@ -168,7 +168,7 @@ int  is_worker_incoming (worker_t *w);
 #define CLIENT_SKIP_ACCESSLOG       (1<<6)
 #define CLIENT_HAS_MOVED            (1<<7)
 #define CLIENT_IP_BAN_LIFT          (1<<8)
-#define CLIENT_META_INSTREAM        (1<<9)
+
 #define CLIENT_HIJACKER             (1<<10)
 #define CLIENT_RANGE_END            (1<<11)
 #define CLIENT_KEEPALIVE            (1<<12)

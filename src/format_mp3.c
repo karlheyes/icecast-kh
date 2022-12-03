@@ -210,7 +210,6 @@ static void mpeg_apply_client (format_plugin_t *plugin, client_t *client)
     metadata = httpp_getvar (plugin->parser, "icy-metaint");
     if (metadata)
     {
-        client->flags |= CLIENT_META_INSTREAM;
         source_mp3->inline_metadata_interval = atoi (metadata);
         if (source_mp3->inline_metadata_interval > 0)
         {
