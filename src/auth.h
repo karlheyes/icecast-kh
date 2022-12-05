@@ -22,6 +22,7 @@ typedef struct _auth_thread_t auth_thread_t;
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
+#include <inttypes.h>
 #include "client.h"
 #include "thread/thread.h"
 
@@ -41,6 +42,7 @@ typedef struct auth_client_tag
     char        *hostname;
     int         port;
     int         handler;
+    uint32_t     flags;
     client_t    *client;
     struct auth_tag *auth;
     void        *thread_data;

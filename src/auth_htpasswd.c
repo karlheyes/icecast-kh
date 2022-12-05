@@ -220,7 +220,7 @@ static auth_result htpasswd_auth (auth_client *auth_user)
         {
             free (hashed_pw);
             thread_rwlock_unlock (&htpasswd->file_rwlock);
-            client->flags |= CLIENT_AUTHENTICATED;
+            auth_user->flags |= CLIENT_AUTHENTICATED;
             return AUTH_OK;
         }
         thread_rwlock_unlock (&htpasswd->file_rwlock);

@@ -127,7 +127,10 @@ static auth_client *auth_client_setup (const char *mount, client_t *client)
     auth_user->port = config->port;
     auth_user->client = client;
     if (client)
+    {
+        auth_user->flags = (client->flags & (~CLIENT_ACTIVE));
         client->mount = auth_user->mount;
+    }
     return auth_user;
 }
 
@@ -301,7 +304,11 @@ static void stream_auth_callback (auth_client *auth_user)
     if (auth_user->auth->stream_auth)
         auth_user->auth->stream_auth (auth_user);
 
-    if (client->flags & CLIENT_AUTHENTICATED)
+    thread_spin_lock (&client->worker->lock);
+    client->flags = auth_user->flags;
+    thread_spin_unlock (&client->worker->lock);
+
+    if (auth_user->flags & CLIENT_AUTHENTICATED)
         auth_postprocess_source (auth_user);
     else
         WARN1 ("Failed auth for source \"%s\"", auth_user->mount);
@@ -549,7 +556,11 @@ static int auth_postprocess_listener (auth_client *auth_user)
     if (client == NULL)
         return 0;
 
-    if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+    thread_spin_lock (&client->worker->lock);
+    client->flags = auth_user->flags;
+    thread_spin_unlock (&client->worker->lock);
+
+    if ((auth_user->flags & CLIENT_AUTHENTICATED) == 0)
     {
         /* auth failed so do we place the listener elsewhere */
         auth_user->client = NULL;
@@ -692,7 +703,9 @@ int auth_add_listener (const char *mount, client_t *client)
                 {
                     auth_client *auth_user = auth_client_setup (mount, client);
                     auth_user->process = auth_new_listener;
+                    thread_spin_lock (&client->worker->lock);
                     client->flags &= ~CLIENT_ACTIVE;
+                    thread_spin_unlock (&client->worker->lock);
                     DEBUG1 ("adding client #%" PRIu64 " for authentication", client->connection.id);
                     queue_auth_client (auth_user, mountinfo);
                     config_release_mount (mountinfo);
@@ -726,9 +739,14 @@ int auth_release_listener (client_t *client, const char *mount, mount_proxy *mou
         if (mount && mountinfo && mountinfo->auth && mountinfo->auth->release_listener)
         {
             auth_client *auth_user = auth_client_setup (mount, client);
+            if (client->worker)
+                thread_spin_lock (&client->worker->lock);
             client->flags &= ~CLIENT_ACTIVE;
             if (client->worker)
+            {
                 client->ops = &auth_release_ops; // put into a wait state
+                thread_spin_unlock (&client->worker->lock);
+            }
             auth_user->process = auth_remove_listener;
             queue_auth_client (auth_user, mountinfo);
             return 0;
@@ -891,7 +909,9 @@ int auth_stream_authenticate (client_t *client, const char *mount, mount_proxy *
 
         auth_user->process = stream_auth_callback;
         INFO1 ("request source auth for \"%s\"", mount);
+        thread_spin_lock (&client->worker->lock);
         client->flags &= ~CLIENT_ACTIVE;
+        thread_spin_unlock (&client->worker->lock);
         queue_auth_client (auth_user, mountinfo);
         return 1;
     }

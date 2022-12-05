@@ -198,30 +198,30 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
             {
                 snprintf (atd->errormsg, sizeof(atd->errormsg), "auth on %s disabled, response was \'%.200s...\'", auth->mount, header);
                 url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
-                client->flags |= CLIENT_AUTHENTICATED;
+                auth_user->flags |= CLIENT_AUTHENTICATED;
                 return bytes;
             }
         }
         header_data = strchr (header, ':');
         if (header_data == NULL)
-            return bytes;
+            break;
         header_data++;
         header_data += strspn (header_data, " \t");  // find non-space start
         header_datalen = strcspn (header_data, "\r\n"); // find length
 
         if (strncasecmp (header, url->auth_header, url->auth_header_len) == 0)
         {
-            client->flags |= CLIENT_AUTHENTICATED;
+            auth_user->flags |= CLIENT_AUTHENTICATED;
             if (header_data)
             {
                 if (strstr (header_data, "withintro"))
-                    client->flags |= CLIENT_HAS_INTRO_CONTENT;
+                    auth_user->flags |= CLIENT_HAS_INTRO_CONTENT;
                 if (strstr (header_data, "hijack"))
-                    client->flags |= CLIENT_HIJACKER;
+                    auth_user->flags |= CLIENT_HIJACKER;
                 if (strstr (header_data, "0"))
                 {
                     WARN0 ("auth header returned with 0 value");
-                    client->flags &= ~CLIENT_AUTHENTICATED;
+                    auth_user->flags &= ~CLIENT_AUTHENTICATED;
                 }
             }
             break;
@@ -235,7 +235,7 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
         }
         if (strncasecmp (header, "icecast-slave:", 14) == 0)
         {
-            client->flags |= CLIENT_IS_SLAVE;
+            auth_user->flags |= CLIENT_IS_SLAVE;
             break;
         }
 
@@ -301,7 +301,7 @@ static size_t handle_returned_data (void *ptr, size_t size, size_t nmemb, void *
     refbuf_t *r = client->refbuf;
 
     if (client && client->respcode == 0 && r &&
-         client->flags & CLIENT_HAS_INTRO_CONTENT)
+         auth_user->flags & CLIENT_HAS_INTRO_CONTENT)
     {
         refbuf_t *n;
         struct build_intro_contents *x = (void*)r->data;
