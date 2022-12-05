@@ -564,7 +564,6 @@ static int auth_postprocess_listener (auth_client *auth_user)
     }
     mountinfo = config_lock_mount (NULL, mount);
     ret = add_authenticated_listener (mount, mountinfo, client);
-    config_release_mount (mountinfo);
     auth_user->client = NULL;
 
     return ret;
