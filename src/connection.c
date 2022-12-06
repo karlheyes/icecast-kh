@@ -1520,8 +1520,7 @@ static void *connection_thread (void *arg)
             client->counter = client->schedule_ms = timing_get_time();
             client->connection.con_time = client->schedule_ms/1000;
             client->connection.discon.time = client->connection.con_time + header_timeout;
-            //if (not_ssl_connection (&client->connection))
-                client->schedule_ms += 9;
+            client->schedule_ms += 9;
             client_add_incoming (client);
             stats_event_inc (NULL, "connections");
         }
