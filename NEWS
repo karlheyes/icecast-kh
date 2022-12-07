@@ -18,6 +18,19 @@ Feature differences from Xiph release
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0.kh16
+. Locking updates. Mostly for the config, mount lookup and client processing.
+. Add redirect_limit to auth URL options, default 1 but 0-10 allowed.
+. If URL Post is too large then avoid the backend request.
+. Fix up the slow SSL response on web requests.
+. The id flag on killclient command did not handle very large numbers
+. Drop the source limit check on relay startup. Did not make much sense.
+. Fix some keepalive client issues.
+. log reopening fix
+. Ogg FLaC header fix
+. Various internal code changes.
+. update auto* build setup
+
 2.4.0-kh15
 . Locking updates. For most, it will be no different but some platforms can be affected
 . Keep consistency on the global listener count. Could of shown as very large number.
