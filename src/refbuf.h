@@ -19,6 +19,7 @@
 #ifndef __REFBUF_H__
 #define __REFBUF_H__
 
+#include <stdarg.h>
 #include <sys/types.h>
 
 typedef struct _refbuf_tag
@@ -45,6 +46,10 @@ void refbuf_addref(refbuf_t *self);
 void refbuf_release(refbuf_t *self);
 refbuf_t *refbuf_copy(refbuf_t *orig);
 refbuf_t *refbuf_copy_default (refbuf_t *orig);
+
+int refbuf_appendv (refbuf_t *refbuf, int max_len, const char *fmt, va_list ap);
+int refbuf_append (refbuf_t *refbuf, int max_len, const char *fmt, ...);
+
 
 
 #define PER_CLIENT_REFBUF_SIZE  4096

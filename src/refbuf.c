@@ -147,3 +147,39 @@ void refbuf_release(refbuf_t *self)
     }
 }
 
+
+int refbuf_appendv (refbuf_t *refbuf, int max_len, const char *fmt, va_list ap)
+{
+    char *buf = (char*)refbuf->data + refbuf->len;
+    int remain = max_len - refbuf->len;
+    int ret = -1;
+    va_list vl;
+
+    va_copy (vl, ap);
+    if (remain > 0)
+    {
+        ret = vsnprintf (buf, remain, fmt, vl);
+        if (ret > 0 && ret < remain)
+            refbuf->len += ret;
+    }
+    return ret;
+}
+
+
+int refbuf_append (refbuf_t *refbuf, int max_len, const char *fmt, ...)
+{
+    int ret;
+    va_list va;
+
+    va_start (va, fmt);
+    ret = refbuf_appendv (refbuf, max_len, fmt, va);
+    va_end(va);
+    if (refbuf->len == 0) // trap for stupid case, report and then ignore it
+    {
+        ERROR1 ("message too big to append, ignoring \"%.25s...\"", refbuf->data);
+        return 0;
+    }
+    return ret;
+}
+
+

@@ -815,40 +815,6 @@ static void process_event (stats_event_t *event)
 }
 
 
-static int _append_to_bufferv (refbuf_t *refbuf, int max_len, const char *fmt, va_list ap)
-{
-    char *buf = (char*)refbuf->data + refbuf->len;
-    int len = max_len - refbuf->len;
-    int ret;
-    va_list vl;
-
-    va_copy (vl, ap);
-    if (len <= 0)
-        return -1;
-    ret = vsnprintf (buf, len, fmt, vl);
-    if (ret < 0 || ret >= len)
-        return -1;
-    refbuf->len += ret;
-    return ret;
-}
-
-static int _append_to_buffer (refbuf_t *refbuf, int max_len, const char *fmt, ...)
-{
-    int ret;
-    va_list va;
-
-    va_start (va, fmt);
-    ret = _append_to_bufferv (refbuf, max_len, fmt, va);
-    va_end(va);
-    if (refbuf->len == 0) // trap for stupid case, report and then ignore it
-    {
-        ERROR1 ("message too big to append, ignoring \"%.25s...\"", refbuf->data);
-        return 0;
-    }
-    return ret;
-}
-
-
 static void _add_node_to_stats_client (client_t *client, refbuf_t *refbuf)
 {
     if (refbuf->len)
@@ -892,7 +858,7 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
             /* lets see if we can append to an existing block */
             if (r->len < 4000)
             {
-                int written = _append_to_bufferv (r, 4096, fmt, ap);
+                int written = refbuf_appendv (r, 4096, fmt, ap);
                 if (written > 0)
                 {
                     listener->content_len += written;
@@ -902,7 +868,7 @@ static void _add_stats_to_stats_client (client_t *client, const char *fmt, va_li
         }
         r = refbuf_new (4096);
         r->len = 0;
-        if (_append_to_bufferv (r, 4096, fmt, ap) < 0)
+        if (refbuf_appendv (r, 4096, fmt, ap) < 0)
         {
             WARN1 ("stat details are too large \"%s\"", fmt);
             refbuf_release (r);
@@ -989,7 +955,7 @@ static void _register_listener (client_t *client)
     refbuf = refbuf_new (size);
     refbuf->len = 0;
 
-    _append_to_buffer (refbuf, size, "HTTP/1.0 200 OK\r\nCapability: streamlist stats\r\n\r\n");
+    refbuf_append (refbuf, size, "HTTP/1.0 200 OK\r\nCapability: streamlist stats\r\n\r\n");
 
     /* now the global stats */
     avl_tree_rlock (_stats.global_tree);
@@ -1000,7 +966,7 @@ static void _register_listener (client_t *client)
 
         if (stat->flags & listener->mask)
         {
-            while (_append_to_buffer (refbuf, size, "EVENT global %s %s\n", stat->name, stat->value) < 0)
+            while (refbuf_append (refbuf, size, "EVENT global %s %s\n", stat->name, stat->value) < 0)
             {
                 *full_p = last = refbuf;
                 full_p = &refbuf->next;
@@ -1025,7 +991,7 @@ static void _register_listener (client_t *client)
             const char *type = "audio/mpeg";
             if (ct)
                 type = ct->value;
-            while (_append_to_buffer (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
+            while (refbuf_append (refbuf, size, "NEW %s %s\n", type, snode->source) < 0)
             {
                 *full_p = last = refbuf;
                 full_p = &refbuf->next;
@@ -1036,7 +1002,7 @@ static void _register_listener (client_t *client)
         }
         node = avl_get_next(node);
     }
-    while (_append_to_buffer (refbuf, size, "INFO full list end\n") < 0)
+    while (refbuf_append (refbuf, size, "INFO full list end\n") < 0)
     {
         *full_p = last = refbuf;
         full_p = &refbuf->next;
@@ -1064,7 +1030,7 @@ static void _register_listener (client_t *client)
                     if (strcmp (stat->name, "metadata_updated") == 0)
                         metadata_stat = stat;
                     else
-                        while (_append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, stat->name, stat->value) < 0)
+                        while (refbuf_append (refbuf, size, "EVENT %s %s %s\n", snode->source, stat->name, stat->value) < 0)
                         {
                             *full_p = last = refbuf;
                             full_p = &refbuf->next;
@@ -1076,7 +1042,7 @@ static void _register_listener (client_t *client)
                 node2 = avl_get_next (node2);
             }
             while (metadata_stat &&
-                    _append_to_buffer (refbuf, size, "EVENT %s %s %s\n", snode->source, metadata_stat->name, metadata_stat->value) < 0)
+                    refbuf_append (refbuf, size, "EVENT %s %s %s\n", snode->source, metadata_stat->name, metadata_stat->value) < 0)
             {
                 *full_p = last = refbuf;
                 full_p = &refbuf->next;
