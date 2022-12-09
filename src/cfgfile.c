@@ -385,13 +385,17 @@ int config_mount_template (const char *mount)
 }
 
 
-void config_clear_mount (mount_proxy *mount)
+void config_clear_mount (mount_proxy *mount, int log)
 {
     config_options_t *option;
 
     if (mount == NULL) return;
     if (config_mount_ref (mount, 0) < 0)
+    {
+        if (log)
+            WARN2 ("mount block %s has reference %d", mount->mountname, mount->_refcount);
         return;
+    }
 
     if (mount->username)    xmlFree (mount->username);
     if (mount->password)    xmlFree (mount->password);
@@ -438,7 +442,7 @@ void config_clear_mount (mount_proxy *mount)
 // helper routine for avl/cleanup
 static int config_clear_mount_from_tree (void *arg)
 {
-    config_clear_mount ((mount_proxy *)arg);
+    config_clear_mount ((mount_proxy *)arg, 1);
     return 1;
 }
 
@@ -525,7 +529,7 @@ void config_clear(ice_config_t *c)
     {
         mount_proxy *to_go = c->mounts;
         c->mounts = to_go->next;
-        config_clear_mount (to_go);
+        config_clear_mount (to_go, 1);
     }
     alias = c->aliases;
     while(alias) {
@@ -1163,7 +1167,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
     if (mount->mountname == NULL)
     {
         xmlFree (redirect);
-        config_clear_mount (mount);
+        config_clear_mount (mount, 0);
         return -1;
     }
     if (redirect)
