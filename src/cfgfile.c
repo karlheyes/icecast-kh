@@ -258,6 +258,31 @@ int config_get_bitrate (xmlNodePtr node, void *x)
 }
 
 
+int config_get_loglevel (xmlNodePtr node, void *x)
+{
+    int *p = (int*)x;
+    int v = 2;
+
+    if (xmlIsBlankNode (node) == 0)
+    {
+        char *str = (char*)xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
+        do
+        {
+            if (str == NULL) break;
+            if ((v=4) && strcasecmp (str, "debug") == 0) break;
+            if ((v=3) && strcasecmp (str, "info") == 0) break;
+            if ((v=2) && strcasecmp (str, "warn") == 0) break;
+            if ((v=1) && strcasecmp (str, "error") == 0) break;
+            v = atoi (str);
+        } while (0);
+        xmlFree (str);
+    }
+    *p = (v > 0 || v < 5) ? v : 2;  // set to default if invalid setting provided
+    // WARN1 ("log level set to %d", *p);
+    return 0;
+}
+
+
 int parse_xml_tags (xmlNodePtr parent, const struct cfg_tag *args)
 {
     int ret = 0, seen_element = 0;
@@ -804,7 +829,7 @@ static int _parse_errorlog (xmlNodePtr node, void *arg)
         { "name",           config_get_str,     &log->name },
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
-        { "level",          config_get_int,     &log->level },
+        { "level",          config_get_loglevel,     &log->level },
         { "size",           config_get_long,    &log->size },
         { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
@@ -851,7 +876,7 @@ static int _parse_logging (xmlNodePtr node, void *arg)
         { "errorlog",       _parse_errorlog,    &config->error_log },
         { "errorlog",       config_get_str,     &config->error_log.name },
         { "errorlog_lines", config_get_int,     &config->error_log.display },
-        { "loglevel",       config_get_int,     &config->error_log.level },
+        { "loglevel",       config_get_loglevel,     &config->error_log.level },
         { "playlistlog",    config_get_str,     &config->playlist_log },
         { "playlistlog_lines",
                             config_get_int,     &config->playlist_log.display },
