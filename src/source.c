@@ -2605,6 +2605,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             if (loop == 0)
             {
                 WARN0 ("preventing a fallback loop");
+                if (minfo != mountinfo)
+                    config_release_mount (minfo);
                 return client_send_403 (client, "Fallback through too many mountpoints");
             }
             avl_tree_rlock (global.source_tree);
@@ -2622,6 +2624,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             if (minfo == NULL || minfo->fallback_mount == NULL)
             {
                 int ret = -2;
+                if (minfo != mountinfo)
+                    config_release_mount (minfo);
                 if (rate == 0)
                     if (sscanf (mount, "%*[^[][%d]", &rate) == 1)
                         rate = rate * 1000 / 8;
@@ -2649,7 +2653,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             else
                 mount = buffer;
             mount_proxy *m = config_lock_mount (NULL, mount);
-            config_release_mount (minfo);
+            if (minfo != mountinfo)
+                config_release_mount (minfo);
             minfo = m;
             flags = FS_FALLBACK;
             loop--;
@@ -2675,6 +2680,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 if (global_rate + stream_bitrate > max_bandwidth)
                 {
                     thread_rwlock_unlock (&source->lock);
+                    if (minfo != mountinfo)
+                        config_release_mount (minfo);
                     INFO0 ("server-wide outgoing bandwidth limit reached");
                     return client_send_403redirect (client, passed_mount, "server bandwidth reached");
                 }
@@ -2694,6 +2701,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 if (ret < 0)
                 {
                     thread_rwlock_unlock (&source->lock);
+                    if (minfo != mountinfo)
+                        config_release_mount (minfo);
                     return ret;
                 }
                 if (client->parser->req_type == httpp_req_head)
@@ -2721,6 +2730,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
         if (check_duplicate_logins (source->mount, source->clients, client, mountinfo->auth) == 0)
         {
             thread_rwlock_unlock (&source->lock);
+            if (minfo != mountinfo)
+                config_release_mount (minfo);
             return client_send_403 (client, "Account already in use");
         }
 
@@ -2761,15 +2772,21 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 mount = buffer;
             INFO1 ("stream full trying %s", mount);
             loop--;
+            if (minfo != mountinfo)
+                config_release_mount (minfo);
             continue;
         }
 
         /* now we fail the client */
         thread_rwlock_unlock (&source->lock);
+        if (minfo != mountinfo)
+            config_release_mount (minfo);
         return client_send_403redirect (client, passed_mount, "max listeners reached");
 
     } while (1);
 
+    if (minfo != mountinfo)
+        config_release_mount (minfo);
     client->connection.sent_bytes = 0;
 
     if ((client->flags & CLIENT_AUTHENTICATED) == 0)
