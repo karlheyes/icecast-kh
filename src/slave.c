@@ -692,9 +692,9 @@ int relay_has_source (relay_server *relay, client_t *client)
         relay->source = source;
         if (rc == 0)
             return 0;
+        source->client = client;
+        source->format->type = relay->type;
     }
-    source->client = client;
-    source->format->type = relay->type;
 
     if (source_format_init (source) < 0)
     {
