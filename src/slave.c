@@ -574,6 +574,7 @@ static void *start_relay_stream (void *arg)
     int failed = 1;
 
     global_lock();
+    ++global.sources;
     stats_event_args (NULL, "sources", "%d", global.sources);
     global_unlock();
     /* set the start time, because we want to decrease the sources on all failures */
@@ -1505,10 +1506,10 @@ static int relay_read (client_t *client)
     {
         client->schedule_ms = client->worker->time_ms + 150;
         if (client->timer_start + 1500 < client->worker->time_ms)
-        {               
+        {
             WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount);
             source->flags &= ~SOURCE_TERMINATING;
-        }   
+        }
         else
             DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
         thread_rwlock_unlock (&source->lock);
