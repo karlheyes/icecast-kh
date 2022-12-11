@@ -405,7 +405,7 @@ static void format_mp3_apply_settings (format_plugin_t *format, mount_proxy *mou
 /* called from the source thread when the metadata has been updated.
  * The artist title are checked and made ready for clients to send
  */
-static void mp3_set_title (source_t *source)
+static void metadata_setup (source_t *source)
 {
     const char streamtitle[] = "StreamTitle='";
     const char streamurl[] = "StreamUrl='";
@@ -417,9 +417,11 @@ static void mp3_set_title (source_t *source)
 
     if (source_mp3->metadata && (source_mp3->metadata->on_queue) == 0 && source->queue_size)
     {
-         WARN1 ("ignoring this update to metadata on %s, as previous update has not had chance", source->mount);
+         INFO1 ("waiting for metadata to be pushed onto queue on %s before updating", source->mount);
          return;
     }
+    source_mp3->update_metadata = 0;
+
     /* work out message length */
     if (source_mp3->url_artist)
         len += strlen (source_mp3->url_artist);
@@ -537,7 +539,7 @@ static void mp3_set_title (source_t *source)
                 r += snprintf (icy->data+r, size-r, "%s", source_mp3->extra_icy_meta);
             }
         }
-        DEBUG1 ("icy metadata as %.80s...", icy->data+1);
+        INFO3 ("icy metadata on %s as (%d) %.80s...", source->mount, icy->data[0], icy->data+1);
         yp_touch (source->mount, source->stats);
 
         flv_meta_append_string (flvmeta, NULL, NULL);
@@ -807,11 +809,9 @@ static int complete_read (source_t *source)
         source_mp3->read_data = refbuf_new (source_mp3->qblock_sz);
         source_mp3->read_count = 0;
     }
-    if (format->read_bytes > 20000 && source_mp3->update_metadata) // only update after 20k received
-    {
-        mp3_set_title (source);
-        source_mp3->update_metadata = 0;
-    }
+    if (source_mp3->update_metadata && format->read_bytes > 20000) // only update after 20k received
+        metadata_setup (source);
+
     if (source_mp3->read_count < source_mp3->read_data->len)
     {
         char *buf = source_mp3->read_data->data + source_mp3->read_count;
