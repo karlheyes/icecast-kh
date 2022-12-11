@@ -3146,7 +3146,7 @@ static int source_change_worker (source_t *source, client_t *client)
  */
 int listener_change_worker (client_t *client, source_t *source)
 {
-    worker_t *this_worker = client->worker, *dest_worker = source->client->worker;
+    worker_t *this_worker = client->worker, *dest_worker;
     int ret = 0, spin = 0, locked = 0;
     long diff = 0;
 
@@ -3157,6 +3157,7 @@ int listener_change_worker (client_t *client, source_t *source)
         if (thread_rwlock_tryrlock (&workers_lock) != 0)
             break;
         locked = 1;
+        dest_worker = source->client->worker;
         if (this_worker == dest_worker)
             dest_worker = worker_selected ();
 
