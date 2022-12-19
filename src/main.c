@@ -97,9 +97,9 @@ static void _print_usage(void)
 
 void initialize_subsystems(void)
 {
-    global_initialize();
-    thread_initialize();
     log_initialize_lib (thread_mtx_create_callback, thread_mtx_lock_callback);
+    thread_initialize();
+    global_initialize();
     errorlog = log_open_file (stderr);
     sock_initialize();
     resolver_initialize();

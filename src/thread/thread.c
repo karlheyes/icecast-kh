@@ -177,7 +177,7 @@ void thread_initialize(void)
     _mutex_create(&_mutextree_mutex);
 
     _mutextree_mutex.mutex_id = _next_mutex_id++;
-    avl_insert(_mutextree, (void *)&_mutextree_mutex);
+    //avl_insert(_mutextree, (void *)&_mutextree_mutex);
 
     log_initialize();
     _logid = log_open("thread.log");
@@ -386,6 +386,9 @@ static void _mutex_create(mutex_t *mutex)
 
 void thread_mutex_create_c(mutex_t *mutex, int line, const char *file)
 {
+#ifdef THREAD_DEBUG
+    if (mutex == NULL) return;
+#endif
     _mutex_create(mutex);
 
 #ifdef THREAD_DEBUG
@@ -393,15 +396,20 @@ void thread_mutex_create_c(mutex_t *mutex, int line, const char *file)
     sprintf (mutex->name, "%s:%d", file, line);
     _mutex_lock(&_mutextree_mutex);
     mutex->mutex_id = _next_mutex_id++;
-    avl_insert(_mutextree, (void *)mutex);
+    if (_initialized)
+        avl_insert(_mutextree, (void *)mutex);
     _mutex_unlock(&_mutextree_mutex);
 
-    LOG_DEBUG3 ("mutex %s created (%s:%d)", mutex->name, file, line);
+    if (strcmp (file, __FILE__))
+        LOG_DEBUG3 ("mutex %s created (%s:%d)", mutex->name, file, line);
 #endif
 }
 
 void thread_mutex_destroy_c (mutex_t *mutex, int line, const char *file)
 {
+#ifdef THREAD_DEBUG
+    if (mutex == NULL) return;
+#endif
     int rc = pthread_mutex_destroy(&mutex->sys_mutex);
     if (rc)
     {
@@ -410,32 +418,44 @@ void thread_mutex_destroy_c (mutex_t *mutex, int line, const char *file)
     }
 
 #ifdef THREAD_DEBUG
+    if (mutex != &_mutextree_mutex)
+    {
     _mutex_lock(&_mutextree_mutex);
     avl_delete(_mutextree, mutex, _free_mutex);
     _mutex_unlock(&_mutextree_mutex);
+    }
 #endif
 }
 
 void thread_mutex_lock_c(mutex_t *mutex, int line, const char *file)
 {
 #ifdef THREAD_DEBUG
-    LOG_DEBUG3("Lock on %s requested at %s:%d", mutex->name, file, line);
+    if (strcmp (file, __FILE__))
+        LOG_DEBUG3("Lock on %s requested at %s:%d", mutex->name, file, line);
+    if (mutex == NULL)
+        return;
 #endif
     _mutex_lock_c(mutex, file, line);
 #ifdef THREAD_DEBUG
     mutex->lock_start = get_count();
     mutex->file = (char*)file;
     mutex->line = line;
-    LOG_DEBUG3("Lock on %s acquired at %s:%d", mutex->name, file, line);
+    if (strcmp (file, __FILE__))
+        LOG_DEBUG3("Lock on %s acquired at %s:%d", mutex->name, file, line);
 #endif /* THREAD_DEBUG */
 }
 
 void thread_mutex_unlock_c(mutex_t *mutex, int line, const char *file)
 {
+#ifdef THREAD_DEBUG
+    if (mutex == NULL)
+        return;
+#endif
     _mutex_unlock_c(mutex, file, line);
 #ifdef THREAD_DEBUG
-    LOG_DEBUG4 ("lock %s, at %s:%d lasted %llu", mutex->name, mutex->file,
-            mutex->line, get_count() - mutex->lock_start);
+    if (strcmp (file, __FILE__))
+        LOG_DEBUG4 ("lock %s, at %s:%d lasted %llu", mutex->name, mutex->file,
+                mutex->line, get_count() - mutex->lock_start);
     mutex->file = NULL;
 #endif
 }

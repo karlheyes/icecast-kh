@@ -437,6 +437,7 @@ void log_shutdown(void)
         log_close (log_id);
     logs_allocated = 0;
     free (loglist);
+    loglist = NULL;
     /* destroy mutexes */
     if (log_mutex_alloc)
         log_mutex_alloc (&_logger_mutex, 0);
