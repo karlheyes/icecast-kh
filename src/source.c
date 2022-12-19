@@ -560,8 +560,7 @@ void source_add_queue_buffer (source_t *source, refbuf_t *r)
         if (mountinfo)
         {
             source_set_intro (source, config, mountinfo->intro_filename);
-            config_release_config ();
-            source_set_override (mountinfo, source, source->format->type);
+            source_set_override (mountinfo, source, source->format->type); // drops config lock
         }
         else
             config_release_config ();
@@ -1623,6 +1622,8 @@ void source_init (source_t *source)
 }
 
 
+// enter with config lock, which this drops as a cascade through mounts can occur.
+//
 static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, format_type_t type)
 {
     source_t *source;
@@ -1636,6 +1637,8 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
         INFO1 ("no override for %s set", dest_source->mount);
         return 0;
     }
+    config_mount_ref (mountinfo, 1);
+    config_release_config ();
     INFO2 ("for %s set to %s", dest_source->mount, mountinfo->fallback_mount);
     avl_tree_rlock (global.source_tree);
     while (loop--)
@@ -1694,6 +1697,7 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
             break;
         }
     }
+    config_mount_ref (mountinfo, 0);
     return ret;
 }
 
