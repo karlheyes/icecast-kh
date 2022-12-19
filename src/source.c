@@ -1634,6 +1634,7 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
 
     if (mountinfo == NULL || mountinfo->fallback_mount == NULL || mountinfo->fallback_override == 0)
     {
+        config_release_config ();
         INFO1 ("no override for %s set", dest_source->mount);
         return 0;
     }
