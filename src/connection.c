@@ -1421,6 +1421,7 @@ static int http_client_request (client_t *client)
                     ERROR2("Bad protocol (%.15s) detected from %s", str, &client->connection.ip[0]);
                     return -1;
                 }
+                #if 0
                 str = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
                 if (str && strcmp (str, "1.1") == 0)
                     client->flags |= CLIENT_KEEPALIVE;  // make default for 1.1
@@ -1433,6 +1434,7 @@ static int http_client_request (client_t *client)
                     else
                         client->flags &= ~CLIENT_KEEPALIVE;
                 }
+                #endif
 
                 auth_check_http (client);
                 switch (client->parser->req_type)

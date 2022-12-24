@@ -21,6 +21,7 @@
 
 typedef struct _client_tag client_t;
 typedef struct _worker_t worker_t;
+struct _config_http_header_tag;
 
 #include "cfgfile.h"
 #include "connection.h"
@@ -125,6 +126,73 @@ struct _client_tag
     int respcode;
     unsigned int throttle;
 };
+
+typedef struct _client_http_headers_t client_http_headers_t;
+typedef struct _client_http_header_t client_http_header_t;
+
+typedef struct _client_http_header_t {
+    struct _client_http_header_t *next;
+    int (*callback)(client_http_headers_t * http, client_http_header_t *curr);
+    uint32_t flags;
+    char *name;
+    char *value;
+    uint16_t name_len;
+    uint16_t value_len;
+} client_http_header_t;
+
+
+typedef int (*_status_callback_func)(client_http_headers_t *http, va_list ap);
+
+typedef struct
+{
+    int status;
+    const char *msg;
+    _status_callback_func callback;
+} client_http_status_t;
+
+typedef struct  _client_http_headers_t {
+    client_http_header_t *headers;
+    uint32_t len;
+    uint32_t flags;
+
+    char respcode[4];
+    char *msg;
+
+    // placeholders quick lookup
+    uint8_t in_major;
+    uint8_t in_minor;
+    off_t   in_length;
+
+    const char *in_connection;
+    const char *in_origin;
+    char *in_realm;
+
+    client_t *client;
+    client_http_status_t  conn;
+
+} client_http_headers_t;
+
+// flags for http_headers_t
+#define CLIENT_HTTPHDRS_WILDCARD_ORIGIN                 1<<0
+#define CLIENT_HTTPHDRS_USE_ICY                         1<<1
+#define CLIENT_HTTPHDRS_USES_FILE                       1<<2
+//#define CLIENT_HTTPHDRS_USE_ICY
+//#define CLIENT_HTTPHDRS_USE_ICY
+
+
+
+
+int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int status, unsigned int flags, const char *statusmsg);
+#define client_http_setup(H,C,S,M) client_http_setup_flags(H,C,S,0,M)
+int  client_http_apply_cfg (client_http_headers_t *http, struct _config_http_header_tag *h);
+int  client_http_apply (client_http_headers_t *http, const client_http_header_t *header);
+int  client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...) __attribute__ ((format (printf, 4, 5)));
+void client_http_clear (client_http_headers_t *http);
+int  client_http_complete (client_http_headers_t *http, ...);
+int  client_http_send (client_http_headers_t *http, ...);
+int  client_send_m3u (client_t *client, const char *path);
+
+
 
 void client_register (client_t *client);
 void client_destroy(client_t *client);

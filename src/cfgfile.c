@@ -358,6 +358,22 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 }
 
 
+ice_config_http_header_t *config_clear_http_header (ice_config_http_header_t *header)
+{
+    ice_config_http_header_t *ret = NULL;
+
+    if (header)
+    {
+        ret = header->next;
+        xmlFree (header->field.name);
+        xmlFree (header->field.value);
+        xmlFree (header->field.status);
+        free (header);
+    }
+    return ret;
+}
+
+
 relay_server *config_clear_relay (relay_server *relay)
 {
     if (relay == NULL) return NULL;
@@ -426,6 +442,9 @@ void config_clear_mount (mount_proxy *mount, int log)
         free (option);
         option = nextopt;
     }
+    while (mount->http_headers)
+        mount->http_headers = config_clear_http_header (mount->http_headers);
+
     if (mount->auth)
     {
         thread_mutex_lock (&mount->auth->lock);
@@ -510,6 +529,9 @@ void config_clear(ice_config_t *c)
     while ((c->listen_sock = config_clear_listener (c->listen_sock)))
         ;
     global_unlock();
+
+    while (c->http_headers)
+        c->http_headers = config_clear_http_header (c->http_headers);
 
     if (c->master_server) xmlFree(c->master_server);
     if (c->master_username) xmlFree(c->master_username);
@@ -1075,6 +1097,124 @@ static int _parse_directory (xmlNodePtr node, void *arg)
 }
 
 
+static int _add_http_header (ice_config_http_header_t **top, const ice_config_http_header_t *src)
+{
+    // does it already exist, if so maybe replace
+    ice_config_http_header_t **trail = top, *hdr = *top;
+
+    while (hdr)
+    {
+        if (strcasecmp (hdr->field.name, src->field.name) == 0)
+        {
+            if (hdr->flags & CFG_HTTPHDR_CONST)
+                return -1;    // no change allowed.
+            if (hdr->flags & CFG_HTTPHDR_MULTI)
+                hdr = NULL;
+            hdr->field = src->field;
+            break;
+        }
+        trail = &hdr->next;
+        hdr = *trail;
+    }
+    if (hdr == NULL)        // a new one
+    {
+        hdr = malloc (sizeof (*hdr));
+        *hdr = *src;
+        hdr->next = *trail;
+        *trail = hdr;
+    }
+    if ((src->flags & CFG_HTTPHDR_NOCOPY) == 0)
+    {
+        hdr->field.name =   (char*)xmlCharStrdup (src->field.name);
+        hdr->field.value =  (char*)xmlCharStrdup (src->field.value);
+        //hdr->callback = src->callback;
+        hdr->field.status = (char*)xmlCharStrdup (src->field.status);
+    }
+    DEBUG4 ("Adding %s name %s status %s (%d)", hdr->field.name, hdr->field.value, hdr->field.status, (hdr->field.callback)?1:0);
+    return 0;
+}
+
+
+static int config_get_http_header (xmlNodePtr node, void *arg)
+{
+    ice_config_http_header_t **top = arg;
+    char *name = (char*)xmlGetProp(node, XMLSTR("name"));
+    char *value = (char*)xmlGetProp(node, XMLSTR("value"));
+    char *code = (char*)xmlGetProp(node, XMLSTR("status"));
+
+    do
+    {
+        if (name == NULL || name[0] == '\0')
+            break;
+        int len = 0;
+        // verify provided xml
+        if (sscanf (name, "%*[^]0x00-0x20()0x80-0xFF<>@,;:\\\"/[?={}]%n", &len) != 0 || len < 0 || name[len] != '\0')
+        {
+            WARN1 ("header name invalid \"%100s\"", name);
+            break;
+        }
+
+        ice_config_http_header_t hdr = { .flags = CFG_HTTPHDR_NOCOPY, .field = { .name = name, .value = value, .status = code } };
+        if (_add_http_header (top,  &hdr) < 0)
+            break;
+
+        return 0;
+    } while (0);
+
+    xmlFree (code);
+    xmlFree (value);
+    xmlFree (name);
+    return -1;
+}
+
+
+int config_http_copy (ice_config_http_header_t *src, ice_config_http_header_t **dest)
+{
+    while (src)
+    {
+        ice_config_http_header_t hdr = *src;
+        hdr.flags &= ~CFG_HTTPHDR_NOCOPY;
+        _add_http_header (dest, &hdr);
+        // if (_add_http_header (dest, &hdr) < 0)
+            // break;
+        dest = &(*dest)->next;
+        src = src->next;
+    }
+    return 0;
+}
+
+
+static int _parse_http_headers (xmlNodePtr node, void *arg)
+{
+    ice_config_http_header_t **h_p = arg;
+    struct cfg_tag icecast_tags[] =
+    {
+        { "header",               config_get_http_header,    h_p },
+        { NULL, NULL, NULL },
+    };
+
+    if (parse_xml_tags (node, icecast_tags))
+        return -1;
+    return 0;
+}
+
+
+static int _parse_mount_http_headers (xmlNodePtr node, void *arg)
+{
+    mount_proxy *mount = arg;
+    // populate from global set first, then apply local definitions.
+    config_http_copy (config_get_config_unlocked()->http_headers, &mount->http_headers);
+    return _parse_http_headers (node, &mount->http_headers);
+}
+
+
+static int _parse_global_http_headers (xmlNodePtr node, void *arg)
+{
+   ice_config_t *config = arg;
+   return _parse_http_headers (node, &config->http_headers);
+}
+
+
 static int _parse_mount (xmlNodePtr node, void *arg)
 {
     ice_config_t *config = arg;
@@ -1107,6 +1247,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
         { "max-send-size",      config_get_int,     &mount->max_send_size },
         { "redirect",           config_get_str,     &redirect },
         { "redirect-to",        config_get_str,     &mount->redirect },
+        { "http-headers",       _parse_mount_http_headers,      mount },
         { "metadata-interval",  config_get_int,     &mount->mp3_meta_interval },
         { "mp3-metadata-interval",
                                 config_get_int,     &mount->mp3_meta_interval },
@@ -1508,6 +1649,7 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
         { "shoutcast-mount",    config_get_str,     &config->shoutcast_mount },
         { "listen-socket",      _parse_listen_sock, config },
         { "limits",             _parse_limits,      config },
+        { "http-headers",       _parse_global_http_headers,    config },
         { "relay",              _parse_relay,       config },
         { "mount",              _parse_mount,       config },
         { "master",             _parse_master,      config },
@@ -1519,6 +1661,12 @@ static int _parse_root (xmlNodePtr node, ice_config_t *config)
         { "include",            parse_include,      config },
         { NULL, NULL, NULL }
     };
+
+    extern ice_config_http_header_t default_headers[];
+
+    for (int i = 0; default_headers[i].field.name; i++)
+        if (_add_http_header (&config->http_headers, &default_headers[i]) < 0)
+            WARN1 ("Problem with default header %s", default_headers[i].field.name);
 
     config->master_relay_auth = 1;
     if (parse_xml_tags (node, icecast_tags))

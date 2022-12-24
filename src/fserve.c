@@ -456,6 +456,63 @@ static fh_node *open_fh (fbinfo *finfo)
 }
 
 
+#if 0
+int fserve_build_m3u (client_t *client, const char *path)
+{
+    const char  *host = httpp_getvar (client->parser, "host"),
+          *args = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
+    char *sourceuri = strdup (path);
+    char *dot = strrchr (sourceuri, '.');
+    char *protocol = not_ssl_connection (&client->connection) ? "http" : "https";
+    const char *agent = httpp_getvar (client->parser, "user-agent");
+    char userpass[1000] = "";
+    char hostport[1000] = "";
+
+    if (agent)
+    {
+        if (strstr (agent, "QTS") || strstr (agent, "QuickTime"))
+            protocol = "icy";
+    }
+    /* at least a couple of players (fb2k/winamp) are reported to send a
+     * host header but without the port number. So if we are missing the
+     * port then lets treat it as if no host line was sent */
+    if (host && strchr (host, ':') == NULL)
+        host = NULL;
+
+    *dot = 0;
+    do
+    {
+        if (client->username && client->password)
+        {
+            int ret = snprintf (userpass, sizeof userpass, "%s:%s@", client->username, client->password);
+            if (ret < 0 || ret >= sizeof userpass)
+                break;
+        }
+        if (host == NULL)
+        {
+            ice_config_t *config = config_get_config();
+            int ret = snprintf (hostport, sizeof hostport, "%s:%u", config->hostname, config->port);
+            if (ret < 0 || ret >= sizeof hostport)
+                break;
+            config_release_config();
+            host = hostport;
+        }
+        client_http_headers_t http;
+        client_http_setup (&http, client, 200, NULL);
+        client_http_apply_fmt (&http, 0, "Content-Type", "%s", "audio/x-mpegurl");
+        client_http_apply_fmt (&http, 0, "Content-Disposition", "%s", "attachment; filename=\"listen.m3u\"");
+        client_http_apply_fmt (&http, 0, NULL, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
+        client_http_complete (&http, NULL);
+        client_http_clear (&http);
+        free (sourceuri);
+        return fserve_setup_client_fb (client, NULL);
+    } while (0);
+    free (sourceuri);
+    return client_send_400 (client, "Not Available");
+}
+#endif
+
+
 /* client has requested a file, so check for it and send the file.  Do not
  * refer to the client_t afterwards.  return 0 for success, -1 on error.
  */
@@ -499,72 +556,13 @@ int fserve_client_create (client_t *httpclient, const char *path)
     }
 
     client_set_queue (httpclient, NULL);
-    httpclient->refbuf = refbuf_new (4096);
 
     if (m3u_requested && m3u_file_available == 0)
     {
-        const char  *host = httpp_getvar (httpclient->parser, "host"),
-                    *args = httpp_getvar (httpclient->parser, HTTPP_VAR_QUERYARGS),
-                    *at = "", *user = "", *pass ="";
-        char *sourceuri = strdup (path);
-        char *dot = strrchr (sourceuri, '.');
-        char *protocol = not_ssl_connection (&httpclient->connection) ? "http" : "https";
-        const char *agent = httpp_getvar (httpclient->parser, "user-agent");
-        int x;
-        char scratch[1000];
-
-        if (agent)
-        {
-            if (strstr (agent, "QTS") || strstr (agent, "QuickTime"))
-                protocol = "icy";
-        }
-        /* at least a couple of players (fb2k/winamp) are reported to send a 
-         * host header but without the port number. So if we are missing the
-         * port then lets treat it as if no host line was sent */
-        if (host && strchr (host, ':') == NULL)
-            host = NULL;
-
-        *dot = 0;
-        if (httpclient->username && httpclient->password)
-        {
-            at = "@";
-            user = httpclient->username;
-            pass = httpclient->password;
-        }
-        httpclient->respcode = 200;
-        if (host == NULL)
-        {
-            config = config_get_config();
-            x = snprintf (scratch, sizeof scratch,
-                    "%s://%s%s%s%s%s:%d%s%s\r\n",
-                    protocol,
-                    user, at[0]?":":"", pass, at,
-                    config->hostname, config->port,
-                    sourceuri,
-                    args?args:"");
-            config_release_config();
-        }
-        else
-        {
-            x = snprintf (scratch, sizeof scratch,
-                    "%s://%s%s%s%s%s%s%s\r\n",
-                    protocol,
-                    user, at[0]?":":"", pass, at,
-                    host,
-                    sourceuri,
-                    args?args:"");
-        }
-        snprintf (httpclient->refbuf->data, BUFSIZE,
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Length: %d\r\n"
-                "%s\r\n"
-                "Content-Type: audio/x-mpegurl\r\n\r\n%s",
-                x, client_keepalive_header (httpclient), scratch);
-        httpclient->refbuf->len = strlen (httpclient->refbuf->data);
-        free (sourceuri);
         free (fullpath);
-        return fserve_setup_client_fb (httpclient, NULL);
+        return client_send_m3u (httpclient, path);
     }
+    httpclient->refbuf = refbuf_new (4096);
     if (xspf_requested && xspf_file_available == 0)
     {
         xmlDocPtr doc;

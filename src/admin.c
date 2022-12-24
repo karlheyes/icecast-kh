@@ -205,30 +205,26 @@ xmlDocPtr admin_build_sourcelist (const char *mount, int show_listeners)
 }
 
 
-int admin_send_response (xmlDocPtr doc, client_t *client, 
+int admin_send_response (xmlDocPtr doc, client_t *client,
         admin_response_type response, const char *xslt_template)
 {
     int ret = -1;
 
+    client_set_queue (client, NULL);
     if (response == RAW)
     {
         xmlChar *buff = NULL;
         int len = 0;
-        unsigned int buf_len;
-        const char *http = "HTTP/1.0 200 OK\r\n"
-               "Content-Type: text/xml\r\n"
-               "Content-Length: ";
         xmlDocDumpFormatMemoryEnc (doc, &buff, &len, NULL, 1);
-        buf_len = strlen (http) + len + 50;
-        client_set_queue (client, NULL);
-        client->refbuf = refbuf_new (buf_len);
-        len = snprintf (client->refbuf->data, buf_len, "%s%d\r\n%s\r\n\r\n%s", http, len,
-                client_keepalive_header (client), buff);
-        client->refbuf->len = len;
+        refbuf_t *rb = refbuf_new (len);
+        memcpy (rb->data, buff, len);
         xmlFree(buff);
         xmlFreeDoc (doc);
-        client->respcode = 200;
-        return fserve_setup_client (client);
+
+        client_http_headers_t http;
+        client_http_setup (&http, client, 200, NULL);
+        client_http_apply_fmt (&http, 0, "Content-Type", "%s", "text/xml");
+        return client_http_send (&http, rb);
     }
     if (response == XSLT)
     {
@@ -792,43 +788,16 @@ static int command_buildm3u (client_t *client, const char *mount)
 {
     const char *username = NULL;
     const char *password = NULL;
-    ice_config_t *config;
-    const char *host = httpp_getvar (client->parser, "host");
-    const char *protocol = not_ssl_connection (&client->connection) ? "http" : "https";
 
     if (COMMAND_REQUIRE(client, "username", username) < 0 ||
             COMMAND_REQUIRE(client, "password", password) < 0)
         return client_send_400 (client, "missing arg, username/password");
 
-    client->respcode = 200;
-    config = config_get_config();
-    if (host)
-    {
-        char port[10] = "";
-        if (strchr (host, ':') == NULL)
-            snprintf (port, sizeof (port), ":%u",  config->port);
-        snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Type: audio/x-mpegurl\r\n"
-                "Content-Disposition: attachment; filename=\"listen.m3u\"\r\n\r\n"
-                "%s://%s:%s@%s%s%s\r\n",
-                protocol, username, password,
-                host, port, mount);
-    }
-    else
-    {
-        snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-                "HTTP/1.0 200 OK\r\n"
-                "Content-Type: audio/x-mpegurl\r\n"
-                "Content-Disposition: attachment; filename=\"listen.m3u\"\r\n\r\n"
-                "%s://%s:%s@%s:%d%s\r\n",
-                protocol, username, password,
-                config->hostname, config->port, mount);
-    }
-    config_release_config();
-
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
+    free (client->username);
+    client->username = strdup (username);
+    free (client->password);
+    client->password = strdup (password);
+    return client_send_m3u (client, mount);
 }
 
 

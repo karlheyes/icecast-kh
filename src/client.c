@@ -27,6 +27,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #include "thread/thread.h"
 #include "avl/avl.h"
@@ -210,77 +211,443 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
 }
 
 
+int _date_hdr (client_http_headers_t * http, client_http_header_t *curr)
+{
+    client_t *cl = http->client;
+
+    struct tm result;
+    time_t now = cl->worker ? cl->worker->current_time.tv_sec : time(NULL);
+    if (gmtime_r (&now, &result))
+    {
+        char *datebuf = malloc (40);
+        if (strftime (datebuf, 40, "%a, %d %b %Y %X GMT", &result) > 0)
+        {
+            curr->value = datebuf;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+
+int _connection_hdr (client_http_headers_t * http, client_http_header_t *curr)
+{
+    if (http->in_major == 1 && http->in_minor == 1)
+    {
+        if (http->in_connection && strcasecmp (http->in_connection, "keep-alive") == 0)
+        {
+            curr->value = strdup ("keep-alive");
+            http->client->flags |= CLIENT_KEEPALIVE;
+        }
+        return 0;
+    }
+    return -1;
+}
+
+
+int _length_hdr (client_http_headers_t * http, client_http_header_t *curr)
+{
+    if (http->in_major == 1)
+    {
+        char *v = NULL;
+        if (http->flags & CLIENT_HTTPHDRS_USES_FILE)
+        {
+            char buf[24];
+            uint64_t len = http->msg ? strlen(http->msg) : 0;
+            if (http->client->refbuf)
+                len += http->client->refbuf->len;
+            snprintf (buf, sizeof (buf), "%" PRIu64, len);
+            v = strdup (buf);
+        }
+        curr->value = v;
+        return 0;
+    }
+    return -1;
+}
+
+
+int _send_cors_hdr (client_http_headers_t * http, client_http_header_t *curr)
+{
+    if (http->in_origin == NULL)
+    {
+        curr->value = NULL; // drop header but not error out
+        return -1;
+    }
+
+    if (strcasecmp (curr->name, "Access-Control-Allow-Origin") == 0)
+    {
+        if (strcmp (curr->value, "*") == 0)
+            curr->value = strdup (http->in_origin);
+        if (strcmp (curr->value, "*") == 0)
+            http->flags |= CLIENT_HTTPHDRS_WILDCARD_ORIGIN;
+        else
+            http->flags &= ~CLIENT_HTTPHDRS_WILDCARD_ORIGIN;
+    }
+    if (strcasecmp (curr->name, "Access-Control-Allow-Credentials") == 0 && (http->flags&CLIENT_HTTPHDRS_WILDCARD_ORIGIN))
+        return -1;
+    return 0;
+}
+
+
+ice_config_http_header_t default_headers[] =
+{
+    { .field = { .status = "2*",     .name = "Server",               .value = "Icecast" } },
+    { .field = { .status = "[24]*",  .name = "Connection",           .value = "Close",       .callback = _connection_hdr } },
+    { .field = { .status = "2*",     .name = "Pragma",               .value = "no-cache" } },
+    { .field = { .status = "2*",     .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
+    { .field = { .status = "2*",     .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
+    { .field = { .status = "2*",     .name = "Vary",                 .value = "Origin" } },
+    { .field = { .status = "2*",     .name = "Access-Control-Allow-Origin",
+                                .value = "*",
+                                .callback = _send_cors_hdr } },
+    { .field = { .status = "2*",     .name = "Access-Control-Allow-Credentials",
+                                .value = "True", .callback = _send_cors_hdr } },
+    { .field = { .status = "2*",     .name = "Access-Control-Allow-Headers",
+                                .value = "Origin, Icy-MetaData, Range, icy-br, icy-description, icy-genre, icy-name, icy-pub, icy-url",
+                                .callback = _send_cors_hdr } },
+    { .field = { .status = "2*",     .name = "Access-Control-Allow-Methods",
+                                .value = "GET, OPTIONS, SOURCE, PUT, HEAD, STATS",
+                                .callback = _send_cors_hdr } },
+    { .field = { .status = "*",      .name = "Date",                 .callback = _date_hdr } },
+    { .field = { .status = "*",      .name = "Content-Type",         .value = "text/html" } },
+    { .field = { .name = NULL }}
+};
+
+
+static int _client_http_apply (client_http_headers_t *http, const client_http_header_t *header)
+{
+    client_http_header_t **trail = &http->headers, *chdr = http->headers;
+
+    if (header->name == NULL)
+    {
+        if (header->value == NULL)
+            return -1;      // definitely fail
+        free (http->msg);
+        http->msg = strdup (header->value);
+        return 0;
+    }
+    if (header->callback == NULL && header->value == NULL) return -1; // error case
+    if (header->name[0] == '\0' && http->headers)
+        return -1;      // special case first header (empty string) for the status line
+
+    // calc lengths of strings, but allow extra space for chars ': ' and '\r\n'
+    int nlen = strlen (header->name) + 2, vlen;
+
+    client_http_header_t matched = { .name = NULL };
+
+    while (chdr)
+    {
+        if (strcasecmp (chdr->name, header->name) == 0)
+        {
+            matched = *chdr;
+            if (chdr->flags & CFG_HTTPHDR_MULTI)
+                break;
+            if (chdr->flags & CFG_HTTPHDR_CONST)
+                return -1;
+            // replace existing data block
+            break;
+        }
+        trail = &chdr->next;
+        chdr = *trail;
+    }
+    if (matched.name == NULL)
+    {
+        chdr = calloc (1, sizeof (*chdr));
+        chdr->name = header->name;
+    }
+    chdr->value = header->value;
+    if (header->callback)
+    {
+        if (header->callback (http, chdr) < 0)
+        {
+            int ret = chdr->value == NULL ? 0 : -1;
+            if (matched.name)
+                *chdr = matched;      // leave as it was
+            else
+                free (chdr);
+            return ret;
+        }
+    }
+    chdr->name = strdup (header->name);
+    if (chdr->value == NULL)
+        chdr->value = strdup (header->value ? header->value : "");
+    else if (chdr->value == header->value)
+        chdr->value = strdup (header->value);
+
+    chdr->flags = (header->flags & ~CFG_HTTPHDR_NOCOPY);
+    vlen = strlen (chdr->value) + 2;
+    chdr->callback = header->callback;
+    chdr->value_len = vlen;
+    chdr->name_len = nlen;
+    http->len -= (matched.name_len + matched.value_len);
+    http->len += (nlen + vlen);
+
+    if (matched.name)
+    {   // we are replacing so just clean up
+        free (matched.name);
+        free (matched.value);
+    }
+    else
+    {   // insert
+        chdr->next = *trail;
+        *trail = chdr;
+    }
+    return 0;
+}
+
+
+int client_http_apply (client_http_headers_t *http, const client_http_header_t *header)
+{
+    const client_http_header_t *hdr = header;
+
+    while (hdr)
+    {
+        if (_client_http_apply (http, hdr) < 0)
+            WARN2 ("header problem %s:%s", hdr->name, hdr->value);
+        hdr = hdr->next;
+    }
+    return 0;
+}
+
+
+void client_http_clear (client_http_headers_t *http)
+{
+    while (http->headers)
+    {
+        client_http_header_t *hdr = http->headers;
+        http->headers = hdr->next;
+
+        if ((hdr->flags & CFG_HTTPHDR_NOCOPY) == 0)
+        {
+            free (hdr->name);
+            free (hdr->value);
+        }
+        free (hdr);
+    }
+    free (http->in_realm);
+    free (http->msg);
+}
+
+
+//
+int client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...)
+{
+    char content [4096];
+    client_http_header_t hdr = { .next = NULL, .name = (char*)name, .value = content, .flags = flags };
+    va_list ap;
+
+    va_start(ap, fmt);
+    int ret = vsnprintf (content, sizeof content, fmt, ap);
+    va_end(ap);
+    if (ret > 0 && ret < sizeof content)
+        return client_http_apply (http, &hdr);
+    WARN1 ("truncated content %.100s", content);
+    return -1;
+}
+
+
+int  client_http_apply_cfg (client_http_headers_t *http, ice_config_http_header_t *h)
+{
+    while (h)
+    {
+        if (cached_pattern_compare (http->respcode, h->field.status) == 0)
+        {
+            client_http_header_t hdr = { .name = h->field.name, .value = h->field.value, .flags = h->flags, .callback = h->field.callback };
+            client_http_apply (http, &hdr);
+        }
+        h = h->next;
+    }
+    return 0;
+}
+
+
+static int send_200 (client_http_headers_t *http, va_list ap)
+{
+    refbuf_t *t = va_arg (ap, refbuf_t *);
+
+    http->client->refbuf = t;
+    return 0;
+}
+
+
+int client_http_status_lookup (int status, client_http_status_t *s)
+{
+#define RetX(A,B,C) (*s = (client_http_status_t){.status=A, .msg=B, .callback=C })
+    switch (status)
+    {
+        case 200: RetX (200, "OK", send_200); break;
+        case 204: RetX (204, "No Content", NULL); break;
+        case 206: RetX (206, "Partial Content", NULL); break;
+        case 302: RetX (302, "Found", NULL); break;
+        case 403: RetX (403, "Forbidden", NULL); break;
+        case 401: RetX (401, "Authentication Required", NULL); break;
+        case 404: RetX (404, "File Not Found", NULL); break;
+#if 0
+        case 100: *s = (X){ .status = 100, .msg = "Continue" }; break;
+        case 101: statusmsg = "Switching Protocols"; break;
+        case 204: statusmsg = "No Content"; break;
+        case 206: statusmsg = "Partial Content"; break;
+        case 300: statusmsg = "Multiple Choices"; break;
+        case 301: statusmsg = "Moved Permanently"; break;
+        case 303: statusmsg = "See Other"; break;
+        case 304: statusmsg = "Not Modified"; break;
+        case 305: statusmsg = "Use Proxy"; break;
+        case 307: statusmsg = "Temporary Redirect"; break;
+        case 308: statusmsg = "Permanent Redirect"; break;
+        case 405: statusmsg = "Method Not Allowed"; break;
+        case 409: statusmsg = "Conflict"; break;
+        case 415: statusmsg = "Unsupported Media Type"; break;
+        case 416: statusmsg = "Request Range Not Satisfiable"; break;
+        case 422: statusmsg = "Unprocessable Entity"; break;
+        case 426: statusmsg = "Upgrade Required"; break;
+        case 429: statusmsg = "Too Many Requests"; break;
+#endif
+        default:  RetX (400, "Bad Request", NULL); break;
+    }
+    return 0;
+}
+
+
+int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int status, unsigned int flags, const char *statusmsg)
+{
+    if (client && client->respcode) return -1;
+    memset (http, 0, sizeof (*http));
+    http->client = client;
+    client_set_queue (client, NULL);
+    client_http_status_lookup (status, &http->conn);
+    client->respcode = http->conn.status;
+
+    // for matching on header pattern matching and quicker lookup/check
+    snprintf (&http->respcode[0], sizeof (http->respcode), "%" PRIu16, client->respcode);
+
+    char protocol[20];
+    if (flags & CLIENT_HTTPHDRS_USE_ICY)
+        strcpy (protocol, "ICY");
+    else
+    {
+        const char *in_version = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
+        if (in_version == NULL)
+            in_version = "1.0";
+        int ret = sscanf (in_version, "%" SCNu8 ".%" SCNu8, &http->in_major, &http->in_minor);
+        if (ret < 1 || ret > 2) return -1;  // parsing error
+        if (http->in_major < 1 || http->in_major > 3 || http->in_minor > 1) return -1; // may need altering for newer specs
+        snprintf (protocol, sizeof protocol, "HTTP/%d.%d", http->in_major, http->in_minor);
+    }
+
+    http->in_connection = httpp_getvar (client->parser, "connection");
+    http->in_origin = httpp_getvar (client->parser, "origin");
+
+    // special case, first line has blank name as it is different to the other headers
+    char line [1024];
+    client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
+    if (statusmsg == NULL)
+        statusmsg = http->conn.msg;
+    snprintf (line, sizeof(line), "%s %d %.1000s", protocol, http->conn.status, statusmsg);
+
+    http->len = 1;       // start with allowing for the nul
+    client_http_apply (http, &firsthdr);
+
+    ice_config_t *config = config_get_config();
+    if (client->respcode == 401)        http->in_realm = strdup (config->server_id);
+    mount_proxy *mountinfo = config_find_mount (config, client->mount);
+    if (mountinfo && mountinfo->http_headers)
+        client_http_apply_cfg (http, mountinfo->http_headers);
+    else
+        client_http_apply_cfg (http, config->http_headers);
+    config_release_config();
+
+    return 0;
+}
+
+
+int  client_http_vcomplete (client_http_headers_t *http, va_list va)
+{
+    if (http == NULL || http->headers == NULL)
+        return -1;
+    if (http->conn.callback)
+    {
+        http->conn.callback (http, va);
+    }
+
+    client_t *cl = http->client;
+    const char *msg = (http->msg) ? http->msg : "";
+    int remain = strlen (msg);
+    uint64_t msglen = remain + ((cl && cl->refbuf) ? cl->refbuf->len : 0);
+
+    if (http->in_length > 0)
+        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, http->in_length);
+    else if (http->in_length == 0)
+        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, msglen);
+
+    remain += http->len;
+    refbuf_t *rb = refbuf_new (remain);
+    rb->next = cl->refbuf;
+    cl->refbuf = rb;
+    char *p = rb->data;
+
+    client_http_header_t *h = http->headers;
+    int c = 0;
+    const char *sep = "";
+    while (h)
+    {
+        int r = snprintf (p, remain, "%s%s%s\r\n", h->name, sep, h->value);
+        if (r < 0) return -1;
+        sep = ": ";
+        p += r;
+        c += r;
+        remain -= r;
+        h = h->next;
+    }
+    if ((c + 3) != http->len) WARN3 ("verify check %d vs %d (%s)", c, http->len, rb->data);
+    c += snprintf (p, remain, "\r\n%s", msg);
+    http->client->refbuf = rb;
+    rb->len = c;
+    return 0;
+}
+
+int  client_http_complete (client_http_headers_t *http, ...)
+{
+    va_list va;
+    va_start (va, http);
+    int r = client_http_vcomplete (http, va);
+    va_end (va);
+    return r;
+}
+
+
+int client_http_send (client_http_headers_t *http, ...)
+{
+    va_list ap;
+    va_start (ap, http);
+    client_http_vcomplete (http, ap);
+    va_end(ap);
+
+    client_t *client = http->client;
+    http->client = NULL;
+    client_http_clear (http);
+    return fserve_setup_client (client);
+}
+
+
 int client_send_302(client_t *client, const char *location)
 {
-    int len;
-    char body [4096];
-
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    len = snprintf (body, sizeof body, "Moved <a href=\"%s\">here</a>\r\n", location);
-    len = snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.0 302 Temporarily Moved\r\n"
-            "Content-Type: text/html\r\n"
-            "Content-Length: %d\r\n"
-            "Location: %s\r\n\r\n%s",
-            len, location, body);
-    client->respcode = 302;
-    client->flags &= ~CLIENT_KEEPALIVE;
-    client->refbuf->len = len;
-    return fserve_setup_client (client);
+    if (location == NULL) return -1;
+    //client_set_queue (client, NULL);
+    client_http_headers_t http;
+    client_http_setup (&http, client, 302, NULL);
+    client_http_apply_fmt (&http, 0, "Location", "%s", location);
+    return client_http_send (&http);
 }
 
 
 int client_send_400(client_t *client, const char *message)
 {
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.0 400 Bad Request\r\n"
-            "Content-Type: text/html\r\n\r\n"
-            "<b>%s</b>\r\n", message?message:"");
-    client->respcode = 400;
-    client->flags &= ~CLIENT_KEEPALIVE;
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
-}
+    //client_set_queue (client, NULL);
+    client_http_headers_t http;
+    client_http_setup (&http, client, 400, NULL);
+    client_http_apply_fmt (&http, 0, NULL, message);
+    return client_http_send (&http);
 
-
-int client_send_401 (client_t *client, const char *realm)
-{
-    ice_config_t *config = config_get_config ();
-
-    if (realm == NULL)
-        realm = config->server_id;
-
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (500);
-    snprintf (client->refbuf->data, 500,
-            "HTTP/1.0 401 Authentication Required\r\n"
-            "WWW-Authenticate: Basic realm=\"%s\"\r\n"
-            "\r\n"
-            "You need to authenticate\r\n", realm);
-    config_release_config();
-    client->respcode = 401;
-    client->flags &= ~CLIENT_KEEPALIVE;
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
-}
-
-
-int client_send_403(client_t *client, const char *reason)
-{
-    if (reason == NULL)
-        reason = "Forbidden";
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.0 403 %s\r\n"
-            "Content-Type: text/html\r\n\r\n", reason);
-    client->respcode = 403;
-    client->flags &= ~CLIENT_KEEPALIVE;
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
 }
 
 
@@ -291,41 +658,32 @@ int client_send_403redirect (client_t *client, const char *mount, const char *re
     return client_send_403 (client, reason);
 }
 
+int client_send_401(client_t *client, const char *realm)
+{
+    //client_set_queue (client, NULL);
+    client_http_headers_t http;
+    char line [512];
+    if (client_http_setup (&http, client, 401, NULL) < 0) return -1;
+    snprintf (line, sizeof line, "Basic realm=\"%.490s\"", realm ? realm : http.in_realm);
+    client_http_apply_fmt (&http, 0, "WWW-Authenticate", "%s", line);
+    return client_http_send (&http);
+}
+
+int client_send_403 (client_t *client, const char *reason)
+{
+    //client_set_queue (client, NULL);
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 403, reason) < 0) return -1;
+    return client_http_send (&http);
+}
 
 int client_send_404 (client_t *client, const char *message)
 {
-    int ret = -1;
-
-    if (client->worker == NULL)   /* client is not on any worker now */
-    {
-        client_destroy (client);
-        return 0;
-    }
-    client_set_queue (client, NULL);
-    if (client->respcode || client->connection.error)
-    {
-        worker_t *worker = client->worker;
-        if (client->respcode >= 300)
-            client->flags = client->flags & ~CLIENT_AUTHENTICATED;
-        client->flags |= CLIENT_ACTIVE;
-        worker_wakeup (worker);
-    }
-    else
-    {
-        if (client->parser->req_type == httpp_req_head || message == NULL)
-            message = "Not Available";
-        ret = strlen (message);
-        client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-        snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-                "HTTP/1.0 404 Not Available\r\n"
-                "%s\r\nContent-Length: %d\r\nContent-Type: text/html\r\n\r\n"
-                "%s", client_keepalive_header (client), ret,
-                message ? message: "");
-        client->respcode = 404;
-        client->refbuf->len = strlen (client->refbuf->data);
-        ret = fserve_setup_client (client);
-    }
-    return ret;
+    //client_set_queue (client, NULL);
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 404, NULL) < 0) return -1;
+    client_http_apply_fmt (&http, 0, NULL, message);
+    return client_http_send (&http);
 }
 
 
@@ -353,6 +711,7 @@ int client_send_501(client_t *client)
 }
 
 
+#if 0
 int client_add_cors (client_t *client, char *buf, int remain)
 {
     int bytes = 0;
@@ -369,20 +728,14 @@ int client_add_cors (client_t *client, char *buf, int remain)
             origin, cred);
     return bytes;
 }
-
+#endif
 
 int client_send_options(client_t *client)
 {
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    char *ptr = client->refbuf->data;
-    int bytes = snprintf (ptr, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.1 200 OK\r\n"
-            "Connection: Keep-alive\r\n");
-    client_add_cors (client, ptr+bytes, PER_CLIENT_REFBUF_SIZE-bytes);
-    client->respcode = 200;
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
+    //client_set_queue (client, NULL);
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 204, NULL) < 0) return -1;
+    return client_http_send (&http);
 }
 
 
@@ -433,6 +786,61 @@ int client_send_buffer_callback (client_t *client, int(*callback)(client_t*))
     client->format_data = callback;
     client->ops = &client_buffer_ops;
     return 0;
+}
+
+
+int client_send_m3u (client_t *client, const char *path)
+{
+    const char  *host = httpp_getvar (client->parser, "host"),
+          *args = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
+    char *sourceuri = strdup (path);
+    char *dot = strrchr (sourceuri, '.');
+    char *protocol = not_ssl_connection (&client->connection) ? "http" : "https";
+    const char *agent = httpp_getvar (client->parser, "user-agent");
+    char userpass[1000] = "";
+    char hostport[1000] = "";
+
+    if (agent)
+    {
+        if (strstr (agent, "QTS") || strstr (agent, "QuickTime"))
+            protocol = "icy";
+    }
+    /* at least a couple of players (fb2k/winamp) are reported to send a
+     * host header but without the port number. So if we are missing the
+     * port then lets treat it as if no host line was sent */
+    if (host && strchr (host, ':') == NULL)
+        host = NULL;
+
+    *dot = 0;
+    do
+    {
+        if (client->username && client->password)
+        {
+            int ret = snprintf (userpass, sizeof userpass, "%s:%s@", client->username, client->password);
+            if (ret < 0 || ret >= sizeof userpass)
+                break;
+        }
+        if (host == NULL)
+        {
+            ice_config_t *config = config_get_config();
+            int ret = snprintf (hostport, sizeof hostport, "%s:%u", config->hostname, config->port);
+            if (ret < 0 || ret >= sizeof hostport)
+                break;
+            config_release_config();
+            host = hostport;
+        }
+        client_http_headers_t http;
+        client_http_setup (&http, client, 200, NULL);
+        client_http_apply_fmt (&http, 0, "Content-Type", "%s", "audio/x-mpegurl");
+        client_http_apply_fmt (&http, 0, "Content-Disposition", "%s", "attachment; filename=\"listen.m3u\"");
+        client_http_apply_fmt (&http, 0, NULL, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
+        client_http_complete (&http, NULL);
+        client_http_clear (&http);
+        free (sourceuri);
+        return fserve_setup_client_fb (client, NULL);
+    } while (0);
+    free (sourceuri);
+    return client_send_400 (client, "Not Available");
 }
 
 

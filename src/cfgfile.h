@@ -97,6 +97,33 @@ typedef struct _config_options {
     struct _config_options *next;
 } config_options_t;
 
+
+
+
+typedef struct _config_http_header_tag {
+    /* link to the next list element */
+    struct _config_http_header_tag *next;
+
+    unsigned int flags;
+    struct
+    {
+        /* filters */
+        char *status;
+
+        /* name and value of the header */
+        char *name;
+        char *value;
+
+        void *callback;
+    } field;
+
+} ice_config_http_header_t;
+
+#define CFG_HTTPHDR_MULTI               1       // only one, generally the default
+#define CFG_HTTPHDR_CONST               2       // set once not overriden, may not be unique
+#define CFG_HTTPHDR_NOCOPY              4       // data is not copied
+
+
 typedef struct _mount_proxy {
     char *mountname; /* The mountpoint this proxy is used for */
 
@@ -147,6 +174,7 @@ typedef struct _mount_proxy {
     /* duration (secs) for mountpoint to be kept reserved after source client exits */
     int wait_time;
 
+    ice_config_http_header_t *http_headers;
     char *auth_type; /* Authentication type */
     struct auth_tag *auth;
     char *cluster_password;
@@ -308,6 +336,7 @@ typedef struct ice_config_tag
 
     mount_proxy *mounts;
     avl_tree *mounts_tree;
+    ice_config_http_header_t *http_headers;
 
     char *server_id;
     char *base_dir;

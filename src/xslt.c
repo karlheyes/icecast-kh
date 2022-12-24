@@ -465,18 +465,22 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
     free (params);
     client->shared_data = NULL;
 
+    client_http_headers_t http;
+
     if (res == NULL || xslt_SaveResultToBuf (&content, &len, res, cur) < 0)
     {
         thread_rwlock_unlock (&xslt_lock);
         xmlFreeDoc (res);
         xmlFreeDoc (doc);
         WARN1 ("problem applying stylesheet \"%s\"", cache [idx].filename);
-        return client_send_404 (client, "XSLT problem");
+
+        client_http_setup (&http, client, 404, NULL);
+        return client_http_send (&http);
     }
     else
     {
-        /* the 100 is to allow for the hardcoded headers */
-        refbuf_t *refbuf = refbuf_new (1000);
+        client_http_setup (&http, client, 200, NULL);
+
         const char *mediatype = NULL;
 
         /* lets find out the content type to use */
@@ -493,26 +497,21 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
                 else
                     mediatype = "text/xml";
         }
-        int bytes = snprintf (refbuf->data, 1000,
-                "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n%s"
-                "Expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n"
-                "Cache-Control: no-store, no-cache, must-revalidate\r\n"
-                "Pragma: no-cache\r\n%s\r\n",
-                mediatype, len,
-                cache[idx].disposition ? cache[idx].disposition : "", client_keepalive_header (client));
+        if (cur->encoding)
+            client_http_apply_fmt (&http, 0, "Content-Type", "%s; charset=%s", mediatype, (char *)cur->encoding);
+        else
+            client_http_apply_fmt (&http, 0, "Content-Type", "%s", mediatype);
+
+        client_http_apply_fmt (&http, 0, "Content-Length", "%d", len);
+        if (cache[idx].disposition)
+            client_http_apply_fmt (&http, 0, "content-disposition", "attachment; filename=\"%s\"", cache[idx].disposition);
 
         thread_rwlock_unlock (&xslt_lock);
-        if (bytes < 1000)
-            client_add_cors (client, refbuf->data+bytes, 1000-bytes);
-        client->respcode = 200;
         client_set_queue (client, NULL);
-        client->refbuf = refbuf;
-        refbuf->len = strlen (refbuf->data);
-        refbuf->next = content;
     }
     xmlFreeDoc(res);
     xmlFreeDoc(doc);
-    return fserve_setup_client (client);
+    return client_http_send (&http, content);
 }
 
 
