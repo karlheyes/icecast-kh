@@ -497,13 +497,8 @@ int client_http_status_lookup (int status, client_http_status_t *s)
         case 416: RetX (416, "Request Range Not Satisfiable"); break;
         case 501: RetX (501, "Not Implemented"); break;
 #if 0
-        case 100: *s = (X){ .status = 100, .msg = "Continue" }; break;
         case 101: statusmsg = "Switching Protocols"; break;
         case 405: statusmsg = "Method Not Allowed"; break;
-        case 409: statusmsg = "Conflict"; break;
-        case 415: statusmsg = "Unsupported Media Type"; break;
-        case 426: statusmsg = "Upgrade Required"; break;
-        case 429: statusmsg = "Too Many Requests"; break;
 #endif
         default:  RetX (400, "Bad Request"); break;
     }

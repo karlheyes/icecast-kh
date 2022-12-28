@@ -176,10 +176,6 @@ typedef struct  _client_http_headers_t {
 #define CLIENT_HTTPHDRS_WILDCARD_ORIGIN                 1<<0
 #define CLIENT_HTTPHDRS_USE_ICY                         1<<1
 #define CLIENT_HTTPHDRS_USES_FILE                       1<<2
-//#define CLIENT_HTTPHDRS_USE_ICY
-//#define CLIENT_HTTPHDRS_USE_ICY
-
-
 
 
 int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int status, unsigned int flags, const char *statusmsg);
@@ -192,8 +188,6 @@ void client_http_clear (client_http_headers_t *http);
 int  client_http_complete (client_http_headers_t *http);
 int  client_http_send (client_http_headers_t *http);
 int  client_send_m3u (client_t *client, const char *path);
-
-
 
 void client_register (client_t *client);
 void client_destroy(client_t *client);

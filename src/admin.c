@@ -210,7 +210,6 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
 {
     int ret = -1;
 
-    client_set_queue (client, NULL);
     if (response == RAW)
     {
         xmlChar *buff = NULL;
@@ -233,7 +232,7 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
         int fullpath_xslt_template_len;
         ice_config_t *config = config_get_config();
 
-        fullpath_xslt_template_len = strlen (config->adminroot_dir) + 
+        fullpath_xslt_template_len = strlen (config->adminroot_dir) +
             strlen(xslt_template) + 2;
         fullpath_xslt_template = malloc(fullpath_xslt_template_len);
         snprintf(fullpath_xslt_template, fullpath_xslt_template_len, "%s%s%s",

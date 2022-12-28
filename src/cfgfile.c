@@ -1175,8 +1175,6 @@ int config_http_copy (ice_config_http_header_t *src, ice_config_http_header_t **
         ice_config_http_header_t hdr = *src;
         hdr.flags &= ~CFG_HTTPHDR_NOCOPY;
         _add_http_header (dest, &hdr);
-        // if (_add_http_header (dest, &hdr) < 0)
-            // break;
         dest = &(*dest)->next;
         src = src->next;
     }

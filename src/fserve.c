@@ -456,63 +456,6 @@ static fh_node *open_fh (fbinfo *finfo)
 }
 
 
-#if 0
-int fserve_build_m3u (client_t *client, const char *path)
-{
-    const char  *host = httpp_getvar (client->parser, "host"),
-          *args = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
-    char *sourceuri = strdup (path);
-    char *dot = strrchr (sourceuri, '.');
-    char *protocol = not_ssl_connection (&client->connection) ? "http" : "https";
-    const char *agent = httpp_getvar (client->parser, "user-agent");
-    char userpass[1000] = "";
-    char hostport[1000] = "";
-
-    if (agent)
-    {
-        if (strstr (agent, "QTS") || strstr (agent, "QuickTime"))
-            protocol = "icy";
-    }
-    /* at least a couple of players (fb2k/winamp) are reported to send a
-     * host header but without the port number. So if we are missing the
-     * port then lets treat it as if no host line was sent */
-    if (host && strchr (host, ':') == NULL)
-        host = NULL;
-
-    *dot = 0;
-    do
-    {
-        if (client->username && client->password)
-        {
-            int ret = snprintf (userpass, sizeof userpass, "%s:%s@", client->username, client->password);
-            if (ret < 0 || ret >= sizeof userpass)
-                break;
-        }
-        if (host == NULL)
-        {
-            ice_config_t *config = config_get_config();
-            int ret = snprintf (hostport, sizeof hostport, "%s:%u", config->hostname, config->port);
-            if (ret < 0 || ret >= sizeof hostport)
-                break;
-            config_release_config();
-            host = hostport;
-        }
-        client_http_headers_t http;
-        client_http_setup (&http, client, 200, NULL);
-        client_http_apply_fmt (&http, 0, "Content-Type", "%s", "audio/x-mpegurl");
-        client_http_apply_fmt (&http, 0, "Content-Disposition", "%s", "attachment; filename=\"listen.m3u\"");
-        client_http_apply_fmt (&http, 0, NULL, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
-        client_http_complete (&http, NULL);
-        client_http_clear (&http);
-        free (sourceuri);
-        return fserve_setup_client_fb (client, NULL);
-    } while (0);
-    free (sourceuri);
-    return client_send_400 (client, "Not Available");
-}
-#endif
-
-
 /* client has requested a file, so check for it and send the file.  Do not
  * refer to the client_t afterwards.  return 0 for success, -1 on error.
  */
