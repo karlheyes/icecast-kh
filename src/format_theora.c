@@ -206,22 +206,22 @@ static int write_video_preview (client_t *client, video_preview_t *video_preview
             PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_write_info (png_ptr, info_ptr);
-    ERROR0("finished writing png header");
 
     /* write image to hard disk */
     for ( i = 0; i < video_preview -> video_height; i++)
-        png_write_row (png_ptr, 
+        png_write_row (png_ptr,
                 video_preview->rgb_image + i * (video_preview->video_width) * 4 );
 
     png_write_end (png_ptr, info_ptr);
     png_destroy_write_struct (&png_ptr, &info_ptr);
 
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE, "HTTP/1.0 200 OK\r\n"
-            "Content-Length: %d\r\nContentType: image/png\r\n\r\n", preview.total_length);
-    client->refbuf->len = strlen (client->refbuf->data);
-    client->respcode = 200;
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
+    client_http_apply_fmt (&http, 0, "Content-Type", "image/png");
+    http.in_length = preview.total_length;
+    client_http_complete (&http);
 
-	return 0;
+    return 0;
 }
 
 
@@ -233,7 +233,7 @@ static int get_image (client_t *client, struct ogg_codec_tag *codec)
 
 
 /* ok it has to be optimized but for now it's clean, and it's ok ;) */
-static void yuv2rgb (yuv_buffer *_yuv, video_preview_t *video_preview) 
+static void yuv2rgb (yuv_buffer *_yuv, video_preview_t *video_preview)
 {
 	int                     i,j;
 	int                     crop_offset;
