@@ -1213,7 +1213,8 @@ static int http_source_listener (client_t *client)
 
     if (client->respcode == 0)
     {
-        int (*build_headers)(format_plugin_t *, client_t *) = format_general_headers;
+        int (*build_headers)(format_plugin_t *, client_http_headers_t *http, client_t *) = format_client_headers;
+        client_http_headers_t http;
 
         if (source_running (source) == 0)
         {
@@ -1223,12 +1224,15 @@ static int http_source_listener (client_t *client)
         if (source->format->create_client_data)
             build_headers = source->format->create_client_data;
 
-        refbuf->len = 0;
-        if (build_headers (source->format, client) < 0)
+        if (build_headers (source->format, &http, client) < 0)
         {
+            client_http_clear (&http);
             ERROR1 ("internal problem, dropping client %" PRIu64, client->connection.id);
             return -1;
         }
+        client_http_complete (&http);
+        client_http_clear (&http);
+        refbuf = client->refbuf;
         stats_lock (source->stats, source->mount);
         stats_set_inc (source->stats, "listener_connections");
         stats_release (source->stats);
@@ -2695,13 +2699,15 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             if ((client->flags & CLIENT_AUTHENTICATED) == 0 || httpp_getvar (client->parser, "range"))
             {
                 int ret;
-                int (*build_headers)(format_plugin_t *, client_t *) = format_general_headers;
+                int (*build_headers)(format_plugin_t *, client_http_headers_t *,client_t *) = format_client_headers;
 
                 if (source->format->create_client_data)
                     build_headers = source->format->create_client_data;
 
-                client->refbuf->len = 0;
-                ret = build_headers (source->format, client);
+                client_http_headers_t http;
+                ret = build_headers (source->format, &http, client);
+                client_http_complete (&http);
+                client_http_clear (&http);
 
                 if (ret < 0)
                 {

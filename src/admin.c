@@ -224,7 +224,8 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
         client_http_headers_t http;
         client_http_setup (&http, client, 200, NULL);
         client_http_apply_fmt (&http, 0, "Content-Type", "%s", "text/xml");
-        return client_http_send (&http, rb);
+        client_http_apply_block (&http, rb);
+        return client_http_send (&http);
     }
     if (response == XSLT)
     {
@@ -476,20 +477,19 @@ static int command_require (client_t *client, const char *name, const char **var
     if (*var == NULL)
         return -1;
     return 0;
-} 
+}
 
 #define COMMAND_OPTIONAL(client,name,var) \
     (var) = httpp_get_query_param((client)->parser, (name))
 
 int html_success (client_t *client, const char *message)
 {
-    client->respcode = 200;
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n" 
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
+    client_http_apply_fmt (&http, 0, NULL,
             "<html><head><title>Admin request successful</title></head>"
             "<body><p>%s</p></body></html>", message);
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
+    return client_http_send (&http);
 }
 
 
@@ -1177,7 +1177,7 @@ static int command_list_log (client_t *client, int response)
     {
         config_release_config();
         WARN1 ("request to show unknown log \"%s\"", logname);
-        return client_send_400 (client, "unknown");
+        return client_send_400 (client, "unknown log");
     }
     content = refbuf_new (len+1);
     log_contents (log, &content->data, &content->len);
@@ -1198,15 +1198,11 @@ static int command_list_log (client_t *client, int response)
     }
     else
     {
-        refbuf_t *http = refbuf_new (100);
-        int len = snprintf (http->data, 100, "%s",
-                "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n");
-        http->len = len;
-        http->next = content; 
-        client->respcode = 200;
-        client_set_queue (client, NULL);
-        client->refbuf = http;
-        return fserve_setup_client (client);
+        client_http_headers_t http;
+        if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
+        client_http_apply_block (&http, content);
+        client_http_apply_fmt (&http, 0, "Content-Type", "text/plain");
+        return client_http_send (&http);
     }
 }
 
@@ -1221,16 +1217,16 @@ int command_list_mounts(client_t *client, int response)
     {
         redirector_update (client);
 
-        snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-                "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n");
-        client->refbuf->len = strlen (client->refbuf->data);
-        client->respcode = 200;
-
+        refbuf_t *rb;
         if (strcmp (httpp_getvar (client->parser, HTTPP_VAR_URI), "/admin/streams") == 0)
-            client->refbuf->next = stats_get_streams (1);
+            rb = stats_get_streams (1);
         else
-            client->refbuf->next = stats_get_streams (0);
-        return fserve_setup_client (client);
+            rb = stats_get_streams (0);
+
+        client_http_headers_t http;
+        if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
+        client_http_apply_block (&http, rb);
+        return client_http_send (&http);
     }
     else
     {

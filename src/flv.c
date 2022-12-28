@@ -518,24 +518,17 @@ void flv_meta_append_string (refbuf_t *buffer, const char *tag, const char *valu
 }
 
 
-void flv_create_client_data (format_plugin_t *plugin, client_t *client)
+int flv_create_client_data (format_plugin_t *plugin, client_http_headers_t *http, client_t *client)
 {
     struct flv *flv = calloc (1, sizeof (struct flv));
-    int bytes;
-    char *ptr = client->refbuf->data;
 
+    if (client_http_setup (http, client, 200, NULL) < 0) return -1;
+    http->in_length = (off_t)-1;
+    client_http_apply_fmt (http, 0, "content-type", "video/x-flv");
     mpeg_setup (&flv->mpeg_sync, client->connection.ip);
     mpeg_check_numframes (&flv->mpeg_sync, 1);
     client->format_data = flv;
     client->free_client_data = free_flv_client_data;
-    client->refbuf->flags |= WRITE_BLOCK_GENERIC;
-
-    bytes = snprintf (ptr, 200, "HTTP/1.0 200 OK\r\n"
-            "content-type: video/x-flv\r\n"
-            "Cache-Control: no-cache\r\n"
-            "Expires: Thu, 01 Jan 1970 00:00:01 GMT\r\n"
-            "Pragma: no-cache\r\n"
-            "\r\n");
 
     // only flv headers in here, allows for up to 64 frames per read block, expandable
     flv->wrapper = refbuf_new (1024);
@@ -553,9 +546,9 @@ void flv_create_client_data (format_plugin_t *plugin, client_t *client)
     flv->seen_metadata = (void*)flv; // force metadata initially with non-NULL meta
     flv->client = client;
 
-    client->respcode = 200;
-    client->refbuf->len = bytes;
     connection_bufs_init (&flv->bufs, 10);
+
+    return 0;
 }
 
 

@@ -292,279 +292,6 @@ int format_generic_write_to_client (client_t *client)
 }
 
 
-#if 0
-int format_general_headers (format_plugin_t *plugin, client_t *client)
-{
-    unsigned remaining = 4096 - client->refbuf->len;
-    char *ptr = client->refbuf->data + client->refbuf->len;
-    int bytes = 0;
-    int bitrate_filtered = 0;
-    avl_node *node;
-    ice_config_t *config;
-    uint64_t length = 0; 
-
-    /* hack for flash player, it wants a length. */
-    if (httpp_getvar (client->parser, "x-flash-version"))
-        length = 221183499;
-    else
-    {
-        // flash may not send above header, so check for swf in referer
-        const char *referer = httpp_getvar (client->parser, "referer");
-        if (referer)
-        {
-            int len = strcspn (referer, "?");
-            if (len >= 4 && strncmp (referer+len-4, ".swf", 4) == 0)
-                length = 221183499;
-        }
-    }
-
-    if (client->respcode == 0)
-    {
-        const char *useragent = httpp_getvar (client->parser, "user-agent");
-        const char *ver = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
-        const char *protocol;
-        const char *contenttypehdr = "Content-Type";
-        const char *contenttype = plugin ? plugin->contenttype : "application/octet-stream";
-        const char *fs = httpp_getvar (client->parser, "__FILESIZE");
-        const char *opt = httpp_get_query_param (client->parser, "_hdr");
-        int fmtcode = 0;
-#define FMT_RETURN_ICY          1
-#define FMT_LOWERCASE_TYPE      2
-#define FMT_FORCE_AAC           4
-#define FMT_DISABLE_CHUNKED     8
-
-        do
-        {
-            if (ver && strcmp (ver, "1.1") == 0)
-                protocol = "HTTP/1.1";
-            else
-                protocol = "HTTP/1.0";
-            if (opt)
-            {
-                fmtcode = atoi (opt);
-                break;
-            }
-            // ignore following settings for files.
-            if (fs == NULL && useragent && plugin)
-            {
-                if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
-                    fmtcode = FMT_RETURN_ICY;
-                if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
-                    fmtcode = FMT_RETURN_ICY;
-                if (strstr (useragent, "RealMedia")) /* hack for rp (mainly mobile) */
-                    fmtcode = FMT_RETURN_ICY;
-                if (strstr (useragent, "Shoutcast Server")) /* hack for sc_serv */
-                    fmtcode = FMT_LOWERCASE_TYPE;
-                // if (strstr (useragent, "Sonos"))
-                //    contenttypehdr = "content-type";
-                if (plugin->type == FORMAT_TYPE_AAC && strstr (useragent, "AppleWebKit"))
-                    fmtcode |= FMT_FORCE_AAC;
-                if (strstr (useragent, "BlackBerry"))
-                {
-                    fmtcode |= FMT_RETURN_ICY;
-                    if (plugin->type == FORMAT_TYPE_AAC)
-                        fmtcode |= FMT_FORCE_AAC;
-                }
-            }
-        } while (0);
-
-        if (fmtcode & FMT_DISABLE_CHUNKED)
-            client->flags &= ~CLIENT_KEEPALIVE;
-        if (fmtcode & FMT_RETURN_ICY)
-            protocol = "ICY";
-        if (fmtcode & FMT_LOWERCASE_TYPE)
-            contenttypehdr = "content-type";
-        if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
-            contenttype = "audio/aac";
-        if (fs)
-        {
-            uint64_t len = (uint64_t)-1;
-            sscanf (fs, "%" SCNuMAX, &len);
-            if (length == 0 || len < length)
-                length = len;
-        }
-        if (client->flags & CLIENT_RANGE_END)
-        {
-            if (length && client->connection.discon.offset > length)
-                client->connection.discon.offset = length - 1;
-
-            if (client->intro_offset > client->connection.discon.offset)
-            {
-                DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", (long)client->intro_offset, client->connection.discon.offset);
-                return -1;
-            }
-            uint64_t len = client->connection.discon.offset - client->intro_offset + 1;
-            char total_size [32] = "*";
-
-            if (fs) // allow range on files
-            {
-                snprintf (total_size, sizeof total_size, "%" PRIu64, length);
-                client->respcode = 206;
-            }
-            else
-            {
-                // ignore ranges on streams, treat as full
-                client->connection.discon.offset = 0;
-                client->intro_offset = 0;
-                client->flags &= ~CLIENT_RANGE_END;
-                len = 0;
-            }
-            length = len;
-            if (length)
-            {
-                bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
-                        "%s: %s\r\n"
-                        "Accept-Ranges: bytes\r\n"
-                        "Content-Length: %" PRIu64 "\r\n"
-                        "Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%s\r\n",
-                        protocol, contenttypehdr,
-                        contenttype ? contenttype : "application/octet-stream",
-                        len, (uint64_t)client->intro_offset,
-                        client->connection.discon.offset, total_size);
-                client->respcode = 206;
-            }
-            if (client->parser->req_type != httpp_req_head && length < 100 && (client->flags & CLIENT_RANGE_END) && fs == NULL)
-            {
-                refbuf_t *r = refbuf_new (length);
-                memset (r->data, 255, length);
-                refbuf_release (client->refbuf->next); // truncate any, maybe intro content
-                client->refbuf->next = r;
-                r->flags |= WRITE_BLOCK_GENERIC;
-                plugin = NULL;
-                client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
-                DEBUG2 ("wrote %d bytes for partial request from %s", (int)length, &client->connection.ip[0]);
-            }
-        }
-        if (client->respcode == 0)
-        {
-            char datebuf [100] = "\0";
-            struct tm result;
-
-            if (gmtime_r (&client->worker->current_time.tv_sec, &result))
-            {
-                if (strftime (datebuf, sizeof(datebuf), "Date: %a, %d %b %Y %X GMT\r\n", &result) == 0)
-                {
-                    datebuf[0] = '\0';
-                    sock_set_error (0);
-                }
-            }
-
-            if (contenttype == NULL)
-                contenttype = "application/octet-stream";
-            if (length)
-            {
-                client->respcode = 200;
-                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n"
-                        "Content-Length: %" PRIu64 "\r\n"
-                        "%s: %s\r\n%s", protocol, length, contenttypehdr, contenttype, datebuf);
-            }
-            else
-            {
-                int chunked = 0;
-                const char *TE = "";
-
-                if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
-                {
-                    chunked = (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
-                }
-                if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
-                {
-                    client->flags |= CLIENT_CHUNKED;
-                    TE = "Transfer-Encoding: chunked\r\n";
-                }
-                client->flags &= ~CLIENT_KEEPALIVE;
-                client->respcode = 200;
-
-                bytes = snprintf (ptr, remaining, "%s 200 OK\r\n%s"
-                        "%s: %s\r\n%s", protocol, TE, contenttypehdr, contenttype, datebuf);
-            }
-        }
-        remaining -= bytes;
-        ptr += bytes;
-    }
-
-    if (plugin && plugin->parser)
-    {
-        /* iterate through source http headers and send to client */
-        avl_tree_rlock (plugin->parser->vars);
-        node = avl_get_first (plugin->parser->vars);
-        while (node)
-        {
-            int next = 1;
-            http_var_t *var = (http_var_t *)node->key;
-            bytes = 0;
-            if (!strcasecmp (var->name, "ice-audio-info"))
-            {
-                /* convert ice-audio-info to icy-br */
-                char *brfield = NULL;
-                unsigned int bitrate;
-
-                if (bitrate_filtered == 0)
-                    brfield = strstr (var->value, "bitrate=");
-                if (brfield && sscanf (brfield, "bitrate=%u", &bitrate))
-                {
-                    bytes = snprintf (ptr, remaining, "icy-br:%u\r\n", bitrate);
-                    next = 0;
-                    bitrate_filtered = 1;
-                }
-                else
-                    /* show ice-audio_info header as well because of relays */
-                    bytes = snprintf (ptr, remaining, "%s: %s\r\n", var->name, var->value);
-            }
-            else
-            {
-                if (strcasecmp (var->name, "ice-password") &&
-                        strcasecmp (var->name, "icy-metaint") &&
-                        strncasecmp (var->name, "Access-control-", 15))
-                {
-                    if (!strncasecmp ("ice-", var->name, 4))
-                    {
-                        if (!strcasecmp ("ice-public", var->name))
-                            bytes = snprintf (ptr, remaining, "icy-pub:%s\r\n", var->value);
-                        else
-                            if (!strcasecmp ("ice-bitrate", var->name))
-                                bytes = snprintf (ptr, remaining, "icy-br:%s\r\n", var->value);
-                            else
-                                bytes = snprintf (ptr, remaining, "icy%s:%s\r\n",
-                                        var->name + 3, var->value);
-                    }
-                    else 
-                        if (!strncasecmp ("icy-", var->name, 4))
-                        {
-                            bytes = snprintf (ptr, remaining, "icy%s:%s\r\n",
-                                    var->name + 3, var->value);
-                        }
-                }
-            }
-
-            remaining -= bytes;
-            ptr += bytes;
-            if (next)
-                node = avl_get_next (node);
-        }
-        avl_tree_unlock (plugin->parser->vars);
-    }
-
-    config = config_get_config();
-    bytes = snprintf (ptr, remaining, "Server: %s\r\n", config->server_id);
-    config_release_config();
-    remaining -= bytes;
-    ptr += bytes;
-
-    bytes = snprintf (ptr, remaining, "Cache-Control: no-cache, no-store\r\n"
-            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n"
-            "%s\r\n", client_keepalive_header (client));
-    remaining -= bytes;
-    ptr += bytes;
-    bytes = client_add_cors (client, ptr, remaining);
-    remaining -= bytes;
-    ptr += bytes;
-    client->refbuf->len = 4096 - remaining;
-    client->refbuf->flags |= WRITE_BLOCK_GENERIC;
-    return 0;
-}
-#else
-
 #define FMT_RETURN_ICY          1
 #define FMT_LOWERCASE_TYPE      2
 #define FMT_FORCE_AAC           4
@@ -580,7 +307,6 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
     int fmtcode = 0, http_flags = 0;
     uint64_t length = 0;
 
-    //client_http_headers_t http;
     do {
         if (opt)
         {
@@ -617,6 +343,21 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
         contenttypehdr = "content-type";
     if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
         contenttype = "audio/aac";
+
+    /* hack for flash player, it wants a length. */
+    if (httpp_getvar (client->parser, "x-flash-version"))
+        length = 221183499;
+    else
+    {   // flash may not send above header, so check for swf in referer
+        const char *referer = httpp_getvar (client->parser, "referer");
+        if (referer)
+        {
+            int len = strcspn (referer, "?");
+            if (len >= 4 && strncmp (referer+len-4, ".swf", 4) == 0)
+                length = 221183499;
+        }
+    }
+
     if (fs)
     {
         uint64_t len = (uint64_t)-1;
@@ -641,24 +382,12 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
         if (fs) // allow range on files
         {
             snprintf (total_size, sizeof total_size, "%" PRIu64, length);
-            //client->respcode = 206;
             client_http_setup (http, client, 206, NULL);
             client_http_apply_fmt (http, 0, "Accept-Ranges", "bytes");
             client_http_apply_fmt (http, 0, "Content-Range", "bytes %" PRIu64 "-%" PRIu64 "/%s",
                     (uint64_t)client->intro_offset, client->connection.discon.offset, total_size );
-            //client_http_apply_fmt (&http, 0, "Content-Length", "%" PRIu64, len);
             http->in_length = range;
             http->flags |= CLIENT_HTTPHDRS_USES_FILE;
-            //bytes = snprintf (ptr, remaining, "%s 206 Partial Content\r\n"
-                    //"%s: %s\r\n"
-                    //"Accept-Ranges: bytes\r\n"
-                    //"Content-Length: %" PRIu64 "\r\n"
-                    //"Content-Range: bytes %" PRIu64 "-%" PRIu64 "/%s\r\n",
-                    //protocol, contenttypehdr,
-                    //contenttype ? contenttype : "application/octet-stream",
-                    //len, (uint64_t)client->intro_offset,
-                    //client->connection.discon.offset, total_size);
-            //client->respcode = 206;
         }
         else
         {
@@ -667,43 +396,22 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
             client->intro_offset = 0;
             client->flags &= ~CLIENT_RANGE_END;
             length = -1;
-#if 0
-            if (client->parser->req_type != httpp_req_head && range < 100 && range > 0) // (client->flags & CLIENT_RANGE_END) && fs == NULL)
-            {
-                short_block = refbuf_new (range);
-                memset (short_block->data, 255, range);
-                refbuf_release (client->refbuf->next); // truncate any, maybe intro content
-                client->refbuf->next = short_block;
-                //r->flags |= WRITE_BLOCK_GENERIC;
-                plugin = NULL;
-                client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
-                DEBUG2 ("wrote %" PRIu64 " bytes for partial request from %s", range, &client->connection.ip[0]);
-            }
-#endif
         }
     }
     if (client->respcode == 0)
     {
         client_http_setup_flags (http, client, 200, http_flags, NULL);
         http->in_length = (off_t)((fs) ? length : -1);
-        //if (length == 0)
-        {
-            int chunked = 0;
-            //const char *TE = "";
+        int chunked = 0;
 
-            if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
-            {
-                //chunked = (ver == NULL || strcmp (ver, "1.0") == 0) ? 0 : 1;
-                chunked = (http->in_major == 1 && http->in_minor == 1) ? 1 : 0;
-            }
-            if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
-            {
-                client->flags |= CLIENT_CHUNKED;
-                client_http_apply_fmt (http, 0, "Transfer-Encoding", "chunked");
-                //TE = "Transfer-Encoding: chunked\r\n";
-            }
-            client->flags &= ~CLIENT_KEEPALIVE;
+        if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
+            chunked = (http->in_major == 1 && http->in_minor == 1) ? 1 : 0;
+        if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
+        {
+            client->flags |= CLIENT_CHUNKED;
+            client_http_apply_fmt (http, 0, "Transfer-Encoding", "chunked");
         }
+        client->flags &= ~CLIENT_KEEPALIVE;
     }
     client_http_apply_fmt (http, 0, contenttypehdr, "%s", contenttype);
 
@@ -711,13 +419,11 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
 }
 
 
-int format_general_headers (format_plugin_t *plugin, client_t *client)
+int format_client_headers (format_plugin_t *plugin, client_http_headers_t *http, client_t *client)
 {
     avl_node *node;
-    client_http_headers_t http;
-    //if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
 
-    apply_client_tweaks (&http, plugin, client);
+    apply_client_tweaks (http, plugin, client);
 
     if (plugin && plugin->parser)
     {
@@ -726,10 +432,9 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
         node = avl_get_first (plugin->parser->vars);
         while (node)
         {
-            //int next = 1;
             http_var_t *var = (http_var_t *)node->key;
             node = avl_get_next (node);
-            //bytes = 0;
+
             if (strcasecmp (var->name, "ice-audio-info") == 0)
             {
                 /* convert ice-audio-info to icy-br */
@@ -737,81 +442,45 @@ int format_general_headers (format_plugin_t *plugin, client_t *client)
                 unsigned int bitrate;
 
                 brfield = strstr (var->value, "bitrate=");
-                if (brfield && sscanf (brfield, "bitrate=%u", &bitrate))
-                {
-                    client_http_apply_fmt (&http, 0, "icy-br", "%u", bitrate);
-                    //bytes = snprintf (ptr, remaining, "icy-br:%u\r\n", bitrate);
-                    //next = 0;
-                    //bitrate_filtered = 1;
-                }
-                client_http_apply_fmt (&http, 0, var->name, "%s", var->value);
+                if (brfield && sscanf (brfield, "bitrate=%u", &bitrate) == 1)
+                    client_http_apply_fmt (http, 0, "icy-br", "%u", bitrate);
+                client_http_apply_fmt (http, 0, var->name, "%s", var->value);
                 continue;
-                //else
-                    /* show ice-audio_info header as well because of relays */
-                    //bytes = snprintf (ptr, remaining, "%s: %s\r\n", var->name, var->value);
             }
-            //else
+            if (strcasecmp (var->name, "ice-password") == 0) continue;
+            if (strcasecmp (var->name, "icy-metaint") == 0) continue;
+            if (strncasecmp (var->name, "Access-control-", 15) == 0) continue;
+            if (strncasecmp ("ice-", var->name, 4) == 0)
             {
-                if (strcasecmp (var->name, "ice-password") == 0) continue;
-                if (strcasecmp (var->name, "icy-metaint") == 0) continue;
-                if (strncasecmp (var->name, "Access-control-", 15) == 0) continue;
-                //{
-                if (strncasecmp ("ice-", var->name, 4) == 0)
-                {
-                    if (!strcasecmp ("ice-public", var->name))
-                        client_http_apply_fmt (&http, 0, "icy-pub", "%s", var->value);
-                        //bytes = snprintf (ptr, remaining, "icy-pub:%s\r\n", var->value);
+                if (!strcasecmp ("ice-public", var->name))
+                    client_http_apply_fmt (http, 0, "icy-pub", "%s", var->value);
+                else
+                    if (strcasecmp ("ice-bitrate", var->name) == 0)
+                        client_http_apply_fmt (http, 0, "icy-br", "%s", var->value);
                     else
-                        if (strcasecmp ("ice-bitrate", var->name) == 0)
-                            client_http_apply_fmt (&http, 0, "icy-br", "%s", var->value);
-                            //bytes = snprintf (ptr, remaining, "icy-br:%s\r\n", var->value);
-                        else
-                        {
-                            char icyname[1000];
-                            snprintf (icyname, sizeof icyname, "icy%s", var->name + 3);
-                            client_http_apply_fmt (&http, 0, icyname, "%s", var->value);
-                            //bytes = snprintf (ptr, remaining, "icy%s:%s\r\n", var->name + 3, var->value);
-                        }
-                    continue;
-                }
-                //else 
-                    if (!strncasecmp ("icy-", var->name, 4))
                     {
-                        client_http_apply_fmt (&http, 0, var->name, "%s", var->value);
-                        //bytes = snprintf (ptr, remaining, "icy%s:%s\r\n", var->name + 3, var->value);
+                        char icyname[1000];
+                        snprintf (icyname, sizeof icyname, "icy%s", var->name + 3);
+                        client_http_apply_fmt (http, 0, icyname, "%s", var->value);
                     }
-                //}
+                continue;
             }
-
-            //remaining -= bytes;
-            //ptr += bytes;
-            //if (next)
-                //node = avl_get_next (node);
+            if (!strncasecmp ("icy-", var->name, 4))
+                client_http_apply_fmt (http, 0, var->name, "%s", var->value);
         }
         avl_tree_unlock (plugin->parser->vars);
     }
 
-    refbuf_t *short_block = NULL;
-    uint64_t range = client->respcode == 206 ? http.in_length : 0;
-    if (client->parser->req_type != httpp_req_head && (http.flags & CLIENT_HTTPHDRS_USES_FILE) == 0 && range > 0 && range < 100)
+    uint64_t range = client->respcode == 206 ? http->in_length : 0;
+    if (client->parser->req_type != httpp_req_head && (http->flags & CLIENT_HTTPHDRS_USES_FILE) == 0 && range > 0 && range < 100)
     {
         char line [range+1];
         memset (line, 'A', range);
         line[range] = 0;
-        //short_block = refbuf_new (range);
-        //memset (short_block->data, 255, range);
-        //client_set_queue (client, NULL);
-        client_http_apply_fmt (&http, 0, NULL, "%s", line);
-        // refbuf_release (client->refbuf->next); // truncate any, maybe intro content
-        //client->refbuf->next = short_block;
-        //r->flags |= WRITE_BLOCK_GENERIC;
-        //plugin = NULL;
+        client_http_apply_fmt (http, 0, NULL, "%s", line);
         client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
         DEBUG2 ("wrote %" PRIu64 " bytes for partial request from %s", range, &client->connection.ip[0]);
     }
-    client_http_complete (&http, short_block);
-    client_http_clear (&http);
     return 0;
 }
-#endif
 

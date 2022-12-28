@@ -147,7 +147,6 @@ typedef struct
 {
     int status;
     const char *msg;
-    _status_callback_func callback;
 } client_http_status_t;
 
 typedef struct  _client_http_headers_t {
@@ -158,6 +157,7 @@ typedef struct  _client_http_headers_t {
     char respcode[4];
     char *msg;
 
+    uint32_t block_total;
     // placeholders quick lookup
     uint8_t in_major;
     uint8_t in_minor;
@@ -187,9 +187,10 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
 int  client_http_apply_cfg (client_http_headers_t *http, struct _config_http_header_tag *h);
 int  client_http_apply (client_http_headers_t *http, const client_http_header_t *header);
 int  client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...) __attribute__ ((format (printf, 4, 5)));
+int  client_http_apply_block (client_http_headers_t *http, refbuf_t *ref);
 void client_http_clear (client_http_headers_t *http);
-int  client_http_complete (client_http_headers_t *http, ...);
-int  client_http_send (client_http_headers_t *http, ...);
+int  client_http_complete (client_http_headers_t *http);
+int  client_http_send (client_http_headers_t *http);
 int  client_send_m3u (client_t *client, const char *path);
 
 

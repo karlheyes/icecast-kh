@@ -54,7 +54,7 @@ struct ebml_st {
 
     char *cluster_id;
     int cluster_start;
-    
+
     int position;
     unsigned char *input_buffer;
     unsigned char *buffer;
@@ -71,7 +71,7 @@ static void ebml_free_plugin (format_plugin_t *plugin, client_t *client);
 static refbuf_t *ebml_get_buffer (source_t *source);
 static int  ebml_write_buf_to_client (client_t *client);
 static void  ebml_write_buf_to_file (source_t *source, refbuf_t *refbuf);
-static int  ebml_create_client_data (format_plugin_t *format, client_t *client);
+static int  ebml_create_client_data (format_plugin_t *format, client_http_headers_t *http, client_t *client);
 static void ebml_free_client_data (client_t *client);
 static void ebml_apply_client (format_plugin_t *plugin, client_t *client);
 
@@ -229,13 +229,11 @@ static refbuf_t *ebml_get_buffer (source_t *source)
     }
 }
 
-static int ebml_create_client_data (format_plugin_t *format, client_t *client)
+static int ebml_create_client_data (format_plugin_t *format, client_http_headers_t *http, client_t *client)
 {
 
     ebml_client_data_t *ebml_client_data = calloc(1, sizeof(ebml_client_data_t));
     ebml_source_state_t *ebml_source_state = format->_state;
-
-    int ret = 0;
 
     if ((ebml_client_data) && (ebml_source_state->header))
     {
@@ -247,12 +245,7 @@ static int ebml_create_client_data (format_plugin_t *format, client_t *client)
 
     if (client->refbuf == NULL)
         client->refbuf = refbuf_new (4096);
-    client->refbuf->len = 0;
-    if (format_general_headers (format, client) < 0)
-        return -1;
-
-    return ret;
-
+    return format_client_headers (format, http, client);
 }
 
 

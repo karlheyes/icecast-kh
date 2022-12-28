@@ -1000,21 +1000,21 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         thread_mutex_lock (&fh->lock);
     }
     client->mount = fh->finfo.mount;
+    client_http_headers_t http = { .headers = NULL };
     if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
     {
         if (client->respcode == 0)
-        {
-            client->refbuf->len = 0;
-            ret = format_general_headers (fh->format, client);
-        }
+            ret = format_client_headers (fh->format, &http,  client);
     }
     else
     {
         if (fh->format->create_client_data && client->format_data == NULL)
-            ret = fh->format->create_client_data (fh->format, client);
+            ret = fh->format->create_client_data (fh->format, &http, client);
         if (fh->format->write_buf_to_client)
             client->check_buffer = fh->format->write_buf_to_client;
     }
+    client_http_complete (&http);
+    client_http_clear (&http);
     if (ret < 0)
     {
         thread_mutex_unlock (&fh->lock);

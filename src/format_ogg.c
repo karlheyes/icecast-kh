@@ -54,7 +54,7 @@
 struct _ogg_state_tag;
 
 static void format_ogg_free_plugin (format_plugin_t *plugin, client_t *client);
-static int  create_ogg_client_data(format_plugin_t *plugin, client_t *client);
+static int  create_ogg_client_data(format_plugin_t *plugin, client_http_headers_t*,client_t *client);
 static void free_ogg_client_data (client_t *client);
 
 static int get_image (client_t *client, struct _format_plugin_tag *format);
@@ -496,7 +496,7 @@ static refbuf_t *ogg_get_buffer (source_t *source)
 }
 
 
-static int create_ogg_client_data (format_plugin_t *plugin, client_t *client) 
+static int create_ogg_client_data (format_plugin_t *plugin, client_http_headers_t *http, client_t *client)
 {
     struct ogg_client *client_data = calloc (1, sizeof (struct ogg_client));
     int ret = -1;
@@ -510,7 +510,7 @@ static int create_ogg_client_data (format_plugin_t *plugin, client_t *client)
             client->refbuf = refbuf_new (4096);
         client->refbuf->len = 0;
         httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack to avoid chunk
-        ret = format_general_headers (plugin, client);
+        ret = format_client_headers (plugin, http, client);
     }
     return ret;
 }

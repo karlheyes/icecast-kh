@@ -507,11 +507,11 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
             client_http_apply_fmt (&http, 0, "content-disposition", "attachment; filename=\"%s\"", cache[idx].disposition);
 
         thread_rwlock_unlock (&xslt_lock);
-        client_set_queue (client, NULL);
+        client_http_apply_block (&http, content);
     }
     xmlFreeDoc(res);
     xmlFreeDoc(doc);
-    return client_http_send (&http, content);
+    return client_http_send (&http);
 }
 
 

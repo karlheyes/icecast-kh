@@ -412,6 +412,7 @@ int client_http_apply (client_http_headers_t *http, const client_http_header_t *
 
 void client_http_clear (client_http_headers_t *http)
 {
+    if (http->headers == NULL) return;  // means nothing set
     while (http->headers)
     {
         client_http_header_t *hdr = http->headers;
@@ -429,19 +430,39 @@ void client_http_clear (client_http_headers_t *http)
 }
 
 
+int client_http_apply_block (client_http_headers_t *http, refbuf_t *ref)
+{
+    if (ref)
+    {
+        client_t *client = http->client;
+        refbuf_t **rp = &client->refbuf;
+
+        while (*rp)
+            rp = &((*rp)->next);
+        *rp = ref;
+        http->block_total += ref->len;
+    }
+    return 0;
+}
+
 //
 int client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...)
 {
-    char content [4096];
-    client_http_header_t hdr = { .next = NULL, .name = (char*)name, .value = content, .flags = flags };
-    va_list ap;
+    int ret = 1023;
+    do {
+        va_list ap;
+        char content [ret + 1];
+        va_start(ap, fmt);
+        ret = vsnprintf (content, sizeof content, fmt, ap);
+        va_end(ap);
 
-    va_start(ap, fmt);
-    int ret = vsnprintf (content, sizeof content, fmt, ap);
-    va_end(ap);
-    if (ret > 0 && ret < sizeof content)
-        return client_http_apply (http, &hdr);
-    WARN1 ("truncated content %.100s", content);
+        if (ret > 0 && ret < sizeof content)
+        {
+            client_http_header_t hdr = { .next = NULL, .name = (char*)name, .value = content, .flags = flags };
+            return client_http_apply (http, &hdr);
+        }
+    } while (ret < 8000);        // loop to retry with a larger size, although not silly
+    WARN1 ("header content too large for %s", CONN_ADDR (http->client));
     return -1;
 }
 
@@ -461,48 +482,30 @@ int  client_http_apply_cfg (client_http_headers_t *http, ice_config_http_header_
 }
 
 
-static int send_200 (client_http_headers_t *http, va_list ap)
-{
-    refbuf_t *t = va_arg (ap, refbuf_t *);
-
-    http->client->refbuf = t;
-    return 0;
-}
-
-
 int client_http_status_lookup (int status, client_http_status_t *s)
 {
-#define RetX(A,B,C) (*s = (client_http_status_t){.status=A, .msg=B, .callback=C })
+#define RetX(A,B) (*s = (client_http_status_t){.status=A, .msg=B })
     switch (status)
     {
-        case 200: RetX (200, "OK", send_200); break;
-        case 204: RetX (204, "No Content", NULL); break;
-        case 206: RetX (206, "Partial Content", NULL); break;
-        case 302: RetX (302, "Found", NULL); break;
-        case 403: RetX (403, "Forbidden", NULL); break;
-        case 401: RetX (401, "Authentication Required", NULL); break;
-        case 404: RetX (404, "File Not Found", NULL); break;
+        case 200: RetX (200, "OK"); break;
+        case 204: RetX (204, "No Content"); break;
+        case 206: RetX (206, "Partial Content"); break;
+        case 302: RetX (302, "Found"); break;
+        case 401: RetX (401, "Authentication Required"); break;
+        case 403: RetX (403, "Forbidden"); break;
+        case 404: RetX (404, "File Not Found"); break;
+        case 416: RetX (416, "Request Range Not Satisfiable"); break;
+        case 501: RetX (501, "Not Implemented"); break;
 #if 0
         case 100: *s = (X){ .status = 100, .msg = "Continue" }; break;
         case 101: statusmsg = "Switching Protocols"; break;
-        case 204: statusmsg = "No Content"; break;
-        case 206: statusmsg = "Partial Content"; break;
-        case 300: statusmsg = "Multiple Choices"; break;
-        case 301: statusmsg = "Moved Permanently"; break;
-        case 303: statusmsg = "See Other"; break;
-        case 304: statusmsg = "Not Modified"; break;
-        case 305: statusmsg = "Use Proxy"; break;
-        case 307: statusmsg = "Temporary Redirect"; break;
-        case 308: statusmsg = "Permanent Redirect"; break;
         case 405: statusmsg = "Method Not Allowed"; break;
         case 409: statusmsg = "Conflict"; break;
         case 415: statusmsg = "Unsupported Media Type"; break;
-        case 416: statusmsg = "Request Range Not Satisfiable"; break;
-        case 422: statusmsg = "Unprocessable Entity"; break;
         case 426: statusmsg = "Upgrade Required"; break;
         case 429: statusmsg = "Too Many Requests"; break;
 #endif
-        default:  RetX (400, "Bad Request", NULL); break;
+        default:  RetX (400, "Bad Request"); break;
     }
     return 0;
 }
@@ -560,19 +563,15 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
 }
 
 
-int  client_http_vcomplete (client_http_headers_t *http, va_list va)
+int  client_http_complete (client_http_headers_t *http)
 {
     if (http == NULL || http->headers == NULL)
         return -1;
-    if (http->conn.callback)
-    {
-        http->conn.callback (http, va);
-    }
 
     client_t *cl = http->client;
     const char *msg = (http->msg) ? http->msg : "";
     int remain = strlen (msg);
-    uint64_t msglen = remain + ((cl && cl->refbuf) ? cl->refbuf->len : 0);
+    uint64_t msglen = remain + http->block_total;
 
     if (http->in_length > 0)
         client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, http->in_length);
@@ -605,23 +604,10 @@ int  client_http_vcomplete (client_http_headers_t *http, va_list va)
     return 0;
 }
 
-int  client_http_complete (client_http_headers_t *http, ...)
+
+int client_http_send (client_http_headers_t *http)
 {
-    va_list va;
-    va_start (va, http);
-    int r = client_http_vcomplete (http, va);
-    va_end (va);
-    return r;
-}
-
-
-int client_http_send (client_http_headers_t *http, ...)
-{
-    va_list ap;
-    va_start (ap, http);
-    client_http_vcomplete (http, ap);
-    va_end(ap);
-
+    client_http_complete (http);
     client_t *client = http->client;
     http->client = NULL;
     client_http_clear (http);
@@ -632,7 +618,6 @@ int client_http_send (client_http_headers_t *http, ...)
 int client_send_302(client_t *client, const char *location)
 {
     if (location == NULL) return -1;
-    //client_set_queue (client, NULL);
     client_http_headers_t http;
     client_http_setup (&http, client, 302, NULL);
     client_http_apply_fmt (&http, 0, "Location", "%s", location);
@@ -642,7 +627,6 @@ int client_send_302(client_t *client, const char *location)
 
 int client_send_400(client_t *client, const char *message)
 {
-    //client_set_queue (client, NULL);
     client_http_headers_t http;
     client_http_setup (&http, client, 400, NULL);
     client_http_apply_fmt (&http, 0, NULL, message);
@@ -658,20 +642,18 @@ int client_send_403redirect (client_t *client, const char *mount, const char *re
     return client_send_403 (client, reason);
 }
 
-int client_send_401(client_t *client, const char *realm)
+
+int client_send_401 (client_t *client, const char *realm)
 {
-    //client_set_queue (client, NULL);
     client_http_headers_t http;
-    char line [512];
     if (client_http_setup (&http, client, 401, NULL) < 0) return -1;
-    snprintf (line, sizeof line, "Basic realm=\"%.490s\"", realm ? realm : http.in_realm);
-    client_http_apply_fmt (&http, 0, "WWW-Authenticate", "%s", line);
+    client_http_apply_fmt (&http, 0, "WWW-Authenticate", "Basic realm=\"%s\"", (realm ? realm : http.in_realm));
     return client_http_send (&http);
 }
 
+
 int client_send_403 (client_t *client, const char *reason)
 {
-    //client_set_queue (client, NULL);
     client_http_headers_t http;
     if (client_http_setup (&http, client, 403, reason) < 0) return -1;
     return client_http_send (&http);
@@ -679,7 +661,6 @@ int client_send_403 (client_t *client, const char *reason)
 
 int client_send_404 (client_t *client, const char *message)
 {
-    //client_set_queue (client, NULL);
     client_http_headers_t http;
     if (client_http_setup (&http, client, 404, NULL) < 0) return -1;
     client_http_apply_fmt (&http, 0, NULL, message);
@@ -689,50 +670,22 @@ int client_send_404 (client_t *client, const char *message)
 
 int client_send_416(client_t *client)
 {
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.0 416 Request Range Not Satisfiable\r\n\r\n");
-    client->respcode = 416;
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 416, NULL) < 0) return -1;
+    return client_http_send (&http);
 }
 
 
 int client_send_501(client_t *client)
 {
-    client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-    snprintf (client->refbuf->data, PER_CLIENT_REFBUF_SIZE,
-            "HTTP/1.0 501 Not Implemented\r\n\r\n");
-    client->respcode = 501;
-    client->refbuf->len = strlen (client->refbuf->data);
-    return fserve_setup_client (client);
+    client_http_headers_t http;
+    if (client_http_setup (&http, client, 501, NULL) < 0) return -1;
+    return client_http_send (&http);
 }
 
-
-#if 0
-int client_add_cors (client_t *client, char *buf, int remain)
-{
-    int bytes = 0;
-    const char *cred = "", *origin = httpp_getvar (client->parser, "origin");
-    if (origin)
-        cred = "Access-Control-Allow-Credentials: true\r\n";
-    else
-        origin = "*";
-
-    bytes = snprintf (buf, remain,
-            "Access-Control-Allow-Origin: %s\r\n%s"
-            "Access-Control-Allow-Headers: Origin, Accept, X-Requested-With, Content-Type, Icy-MetaData\r\n"
-            "Access-Control-Allow-Methods: GET, OPTIONS, SOURCE, PUT, HEAD, STATS\r\n\r\n",
-            origin, cred);
-    return bytes;
-}
-#endif
 
 int client_send_options(client_t *client)
 {
-    //client_set_queue (client, NULL);
     client_http_headers_t http;
     if (client_http_setup (&http, client, 204, NULL) < 0) return -1;
     return client_http_send (&http);
@@ -834,7 +787,7 @@ int client_send_m3u (client_t *client, const char *path)
         client_http_apply_fmt (&http, 0, "Content-Type", "%s", "audio/x-mpegurl");
         client_http_apply_fmt (&http, 0, "Content-Disposition", "%s", "attachment; filename=\"listen.m3u\"");
         client_http_apply_fmt (&http, 0, NULL, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
-        client_http_complete (&http, NULL);
+        client_http_complete (&http);
         client_http_clear (&http);
         free (sourceuri);
         return fserve_setup_client_fb (client, NULL);

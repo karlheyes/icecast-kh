@@ -55,7 +55,7 @@ static void format_mp3_free_plugin(format_plugin_t *plugin, client_t *client);
 static refbuf_t *mp3_get_filter_meta (source_t *source);
 static refbuf_t *mp3_get_no_meta (source_t *source);
 
-static int  format_mp3_create_client_data (format_plugin_t *plugin, client_t *client);
+static int  format_mp3_create_client_data (format_plugin_t *plugin, client_http_headers_t *, client_t *client);
 static void free_mp3_client_data (client_t *client);
 static int  format_mp3_write_buf_to_client(client_t *client);
 static int  write_mpeg_buf_to_client (client_t *client);
@@ -1094,19 +1094,15 @@ static refbuf_t *mp3_get_filter_meta (source_t *source)
 }
 
 
-static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *client)
+static int format_mp3_create_client_data (format_plugin_t *plugin, client_http_headers_t *http, client_t *client)
 {
     mp3_client_data *client_mp3;
     mp3_state *source_mp3 = plugin->_state;
     const char *metadata;
-    size_t  remaining;
-    char *ptr;
-    int bytes;
 
     if (client->flags & CLIENT_WANTS_FLV)
     {
-        flv_create_client_data (plugin, client); // special case
-        return 0;
+        return flv_create_client_data (plugin, http, client); // special case
     }
     client->free_client_data = free_mp3_client_data;
     client_mp3 = calloc(1,sizeof(mp3_client_data));
@@ -1135,22 +1131,16 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
     if (metadata && atoi(metadata))
         httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack force 1.0 if icy metadata requested
 
-    if (format_general_headers (plugin, client) < 0)
+    if (format_client_headers (plugin, http, client) < 0)
         return -1;
 
     if ((client->flags & CLIENT_AUTHENTICATED) == 0)
         return 0;
 
-    client->refbuf->len -= 2;
-    remaining = 4096 - client->refbuf->len;
-    ptr = client->refbuf->data + client->refbuf->len;
-
     if (httpp_getvar (client->parser, "iceblocks"))
     {
         client->flags |= CLIENT_WANTS_META;
-        bytes = snprintf (ptr, remaining, "IceBlocks: 1.1\r\n");
-        remaining -= bytes;
-        ptr += bytes;
+        client_http_apply_fmt (http, 0, "IceBlocks", "1.1");
     }
     else
     {
@@ -1159,23 +1149,9 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_t *cli
         {
             client_mp3->interval = source_mp3->icy_interval;
             if (client_mp3->interval)
-            {
-                bytes = snprintf (ptr, remaining, "icy-metaint:%u\r\n",
-                        client_mp3->interval);
-                if (bytes > 0)
-                {
-                    remaining -= bytes;
-                    ptr += bytes;
-                }
-            }
+                client_http_apply_fmt (http, 0, "icy-metaint", "%u", client_mp3->interval);
         }
     }
-    bytes = snprintf (ptr, remaining, "\r\n");
-    remaining -= bytes;
-    ptr += bytes;
-
-    client->refbuf->len = 4096 - remaining;
-
     return 0;
 }
 
