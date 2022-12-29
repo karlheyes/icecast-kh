@@ -358,18 +358,21 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 }
 
 
+static void _clear_http_header_contents (ice_config_http_header_t *header)
+{
+    xmlFree (header->field.name);
+    xmlFree (header->field.value);
+    xmlFree (header->field.status);
+}
+
+
 ice_config_http_header_t *config_clear_http_header (ice_config_http_header_t *header)
 {
-    ice_config_http_header_t *ret = NULL;
-
-    if (header)
-    {
-        ret = header->next;
-        xmlFree (header->field.name);
-        xmlFree (header->field.value);
-        xmlFree (header->field.status);
-        free (header);
-    }
+    if (header == NULL)
+        return header;
+    ice_config_http_header_t *ret = header->next;
+    _clear_http_header_contents (header);
+    free (header);
     return ret;
 }
 
@@ -1110,24 +1113,24 @@ static int _add_http_header (ice_config_http_header_t **top, const ice_config_ht
                 return -1;    // no change allowed.
             if (hdr->flags & CFG_HTTPHDR_MULTI)
                 hdr = NULL;
+            _clear_http_header_contents (hdr);
             hdr->field = src->field;
             break;
         }
         trail = &hdr->next;
         hdr = *trail;
     }
-    if (hdr == NULL)        // a new one
+    if (hdr == NULL)    // a new one
     {
         hdr = malloc (sizeof (*hdr));
         *hdr = *src;
         hdr->next = *trail;
         *trail = hdr;
     }
-    if ((src->flags & CFG_HTTPHDR_NOCOPY) == 0)
+    if ((src->flags & CFG_HTTPHDR_NOCOPY) == 0) // we usually make copies here
     {
         hdr->field.name =   (char*)xmlCharStrdup (src->field.name);
         hdr->field.value =  (char*)xmlCharStrdup (src->field.value);
-        //hdr->callback = src->callback;
         hdr->field.status = (char*)xmlCharStrdup (src->field.status);
     }
     DEBUG4 ("Adding %s name %s status %s (%d)", hdr->field.name, hdr->field.value, hdr->field.status, (hdr->field.callback)?1:0);

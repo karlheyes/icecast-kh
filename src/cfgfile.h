@@ -98,8 +98,6 @@ typedef struct _config_options {
 } config_options_t;
 
 
-
-
 typedef struct _config_http_header_tag {
     /* link to the next list element */
     struct _config_http_header_tag *next;

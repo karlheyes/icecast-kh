@@ -470,12 +470,9 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
     if (res == NULL || xslt_SaveResultToBuf (&content, &len, res, cur) < 0)
     {
         thread_rwlock_unlock (&xslt_lock);
-        xmlFreeDoc (res);
-        xmlFreeDoc (doc);
         WARN1 ("problem applying stylesheet \"%s\"", cache [idx].filename);
 
         client_http_setup (&http, client, 404, NULL);
-        return client_http_send (&http);
     }
     else
     {

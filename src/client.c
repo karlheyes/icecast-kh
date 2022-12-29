@@ -211,7 +211,7 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
 }
 
 
-int _date_hdr (client_http_headers_t * http, client_http_header_t *curr)
+static int _date_hdr (client_http_headers_t * http, client_http_header_t *curr)
 {
     client_t *cl = http->client;
 
@@ -230,7 +230,7 @@ int _date_hdr (client_http_headers_t * http, client_http_header_t *curr)
 }
 
 
-int _connection_hdr (client_http_headers_t * http, client_http_header_t *curr)
+static int _connection_hdr (client_http_headers_t * http, client_http_header_t *curr)
 {
     if (http->in_major == 1 && http->in_minor == 1)
     {
@@ -245,28 +245,7 @@ int _connection_hdr (client_http_headers_t * http, client_http_header_t *curr)
 }
 
 
-int _length_hdr (client_http_headers_t * http, client_http_header_t *curr)
-{
-    if (http->in_major == 1)
-    {
-        char *v = NULL;
-        if (http->flags & CLIENT_HTTPHDRS_USES_FILE)
-        {
-            char buf[24];
-            uint64_t len = http->msg ? strlen(http->msg) : 0;
-            if (http->client->refbuf)
-                len += http->client->refbuf->len;
-            snprintf (buf, sizeof (buf), "%" PRIu64, len);
-            v = strdup (buf);
-        }
-        curr->value = v;
-        return 0;
-    }
-    return -1;
-}
-
-
-int _send_cors_hdr (client_http_headers_t * http, client_http_header_t *curr)
+static int _send_cors_hdr (client_http_headers_t * http, client_http_header_t *curr)
 {
     if (http->in_origin == NULL)
     {
@@ -287,31 +266,6 @@ int _send_cors_hdr (client_http_headers_t * http, client_http_header_t *curr)
         return -1;
     return 0;
 }
-
-
-ice_config_http_header_t default_headers[] =
-{
-    { .field = { .status = "2*",     .name = "Server",               .value = "Icecast" } },
-    { .field = { .status = "[24]*",  .name = "Connection",           .value = "Close",       .callback = _connection_hdr } },
-    { .field = { .status = "2*",     .name = "Pragma",               .value = "no-cache" } },
-    { .field = { .status = "2*",     .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
-    { .field = { .status = "2*",     .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
-    { .field = { .status = "2*",     .name = "Vary",                 .value = "Origin" } },
-    { .field = { .status = "2*",     .name = "Access-Control-Allow-Origin",
-                                .value = "*",
-                                .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",     .name = "Access-Control-Allow-Credentials",
-                                .value = "True", .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",     .name = "Access-Control-Allow-Headers",
-                                .value = "Origin, Icy-MetaData, Range, icy-br, icy-description, icy-genre, icy-name, icy-pub, icy-url",
-                                .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",     .name = "Access-Control-Allow-Methods",
-                                .value = "GET, OPTIONS, SOURCE, PUT, HEAD, STATS",
-                                .callback = _send_cors_hdr } },
-    { .field = { .status = "*",      .name = "Date",                 .callback = _date_hdr } },
-    { .field = { .status = "*",      .name = "Content-Type",         .value = "text/html" } },
-    { .field = { .name = NULL }}
-};
 
 
 static int _client_http_apply (client_http_headers_t *http, const client_http_header_t *header)
@@ -445,6 +399,7 @@ int client_http_apply_block (client_http_headers_t *http, refbuf_t *ref)
     return 0;
 }
 
+
 //
 int client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...)
 {
@@ -497,8 +452,7 @@ int client_http_status_lookup (int status, client_http_status_t *s)
         case 416: RetX (416, "Request Range Not Satisfiable"); break;
         case 501: RetX (501, "Not Implemented"); break;
 #if 0
-        case 101: statusmsg = "Switching Protocols"; break;
-        case 405: statusmsg = "Method Not Allowed"; break;
+        case 101:
 #endif
         default:  RetX (400, "Bad Request"); break;
     }
@@ -547,7 +501,7 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
 
     ice_config_t *config = config_get_config();
     if (client->respcode == 401)        http->in_realm = strdup (config->server_id);
-    mount_proxy *mountinfo = config_find_mount (config, client->mount);
+    mount_proxy *mountinfo = client->mount ? config_find_mount (config, client->mount) : NULL;
     if (mountinfo && mountinfo->http_headers)
         client_http_apply_cfg (http, mountinfo->http_headers);
     else
@@ -1352,4 +1306,30 @@ void worker_logger (int stop)
     }
     thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
 }
+
+
+ice_config_http_header_t default_headers[] =
+{
+    { .field = { .status = "2*",        .name = "Server",               .value = "Icecast" } },
+    { .field = { .status = "[24]*",     .name = "Connection",           .value = "Close",
+                                        .callback = _connection_hdr } },
+    { .field = { .status = "2*",        .name = "Pragma",               .value = "no-cache" } },
+    { .field = { .status = "2*",        .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
+    { .field = { .status = "2*",        .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
+    { .field = { .status = "2*",        .name = "Vary",                 .value = "Origin" } },
+    { .field = { .status = "2*",        .name = "Access-Control-Allow-Origin",
+                                        .value = "*",
+                                        .callback = _send_cors_hdr } },
+    { .field = { .status = "2*",        .name = "Access-Control-Allow-Credentials",
+                                        .value = "True", .callback = _send_cors_hdr } },
+    { .field = { .status = "2*",        .name = "Access-Control-Allow-Headers",
+                                        .value = "Origin, Icy-MetaData, Range, icy-br, icy-description, icy-genre, icy-name, icy-pub, icy-url",
+                                        .callback = _send_cors_hdr } },
+    { .field = { .status = "2*",        .name = "Access-Control-Allow-Methods",
+                                        .value = "GET, OPTIONS, SOURCE, PUT, HEAD, STATS",
+                                        .callback = _send_cors_hdr } },
+    { .field = { .status = "*",         .name = "Date",                 .callback = _date_hdr } },
+    { .field = { .status = "*",         .name = "Content-Type",         .value = "text/html" } },
+    { .field = { .name = NULL }}
+};
 
