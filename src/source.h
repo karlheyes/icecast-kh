@@ -109,6 +109,7 @@ typedef struct source_tag
 #define SOURCE_LISTENERS_SYNC       (1<<5)
 #define SOURCE_TIMEOUT              (1<<6)
 #define SOURCE_RESERVED             (1<<7)
+#define SOURCE_SWITCHOVER           (1<<8)
 
 #define source_available(x)     (((x)->flags & (SOURCE_RUNNING|SOURCE_ON_DEMAND)) && ((x)->flags & SOURCE_LISTENERS_SYNC) == 0)
 #define source_running(x)       (((x)->flags & (SOURCE_TERMINATING|SOURCE_RUNNING)) == SOURCE_RUNNING)

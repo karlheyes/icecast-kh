@@ -96,8 +96,6 @@ void format_apply_client (format_plugin_t *format, client_t *client)
     }
     if (format->apply_client)
         format->apply_client (format, client);
-    format->read_bytes = 0;
-    format->sent_bytes = 0;
 }
 
 

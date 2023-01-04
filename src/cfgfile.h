@@ -261,6 +261,7 @@ typedef struct _relay_server
     unsigned char flags;
     char *localmount;
     relay_server_host *hosts, *in_use;
+    time_t recheck_hosts;
     char *username;
     char *password;
 } relay_server;
