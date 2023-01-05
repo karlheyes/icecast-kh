@@ -48,12 +48,21 @@ struct metadata_block
     refbuf_t *id3;
 };
 
+typedef struct {
+    refbuf_t *read_data;
+    uint32_t read_count;
+    uint16_t build_metadata_len;
+    uint16_t build_metadata_offset;
+    uint32_t offset;
+    uint32_t interval;
+    mpeg_sync sync;
+    char build_metadata[4081];
+} icy_client_in;
+
 
 typedef struct {
     /* These are for inline metadata */
-    int32_t inline_metadata_interval;
-    int32_t interval;
-    int32_t offset;
+    int32_t icy_interval;
     short update_metadata;
 
     char *url_artist;
@@ -63,14 +72,9 @@ typedef struct {
     char *extra_icy_meta;
 
     struct metadata_block *metadata;
-    refbuf_t *read_data;
-    int read_count;
     unsigned short qblock_sz;
     unsigned short max_send_size;
 
-    unsigned short build_metadata_len;
-    unsigned build_metadata_offset;
-    char build_metadata[4081];
 } mp3_state;
 
 int format_mp3_get_plugin (format_plugin_t *plugin);
