@@ -360,6 +360,7 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 
 relay_server *config_clear_relay (relay_server *relay)
 {
+    if (relay == NULL) return NULL;
     relay_server *next = relay->new_details;
     while (relay->hosts)
     {
@@ -1210,7 +1211,7 @@ static int _parse_mount (xmlNodePtr node, void *arg)
 static int _relay_host (xmlNodePtr node, void *arg)
 {
     relay_server *relay = arg;
-    relay_server_host *last, *host = calloc (1, sizeof (relay_server_host));
+    relay_server_host *host = calloc (1, sizeof (relay_server_host));
 
     struct cfg_tag icecast_tags[] =
     {
@@ -1220,6 +1221,7 @@ static int _relay_host (xmlNodePtr node, void *arg)
         { "mount",          config_get_str,     &host->mount },
         { "bind",           config_get_str,     &host->bind },
         { "timeout",        config_get_int,     &host->timeout },
+        { "priority",       config_get_int,     &host->priority },
         { NULL, NULL, NULL },
     };
 
@@ -1238,10 +1240,17 @@ static int _relay_host (xmlNodePtr node, void *arg)
         host->timeout = 4;
 
     /* place new details at the end of the list */
-    last = relay->hosts;
-    while (last->next)
-        last = last->next;
-    last->next = host;
+    relay_server_host *pre = relay->hosts, *chk;
+    while ((chk = pre->next))
+    {
+        if (host->priority && (chk->priority > host->priority))
+            break;
+        pre = pre->next;
+    }
+    pre->next = host;
+    host->next = chk;
+    if (host->priority == 0)
+        host->priority = pre->priority + 1;
 
     return 0;
 }

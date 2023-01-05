@@ -216,6 +216,7 @@ typedef struct _relay_server_host
     char *ip;
     char *bind;
     char *mount;
+    int priority;
     int port;
     int timeout;
     int skip;
