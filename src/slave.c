@@ -157,6 +157,10 @@ relay_server *relay_copy (relay_server *r)
                 to->bind = (char *)xmlCharStrdup (from->bind);
             to->port = from->port;
             to->timeout = from->timeout;
+            to->skip = from->skip;
+            to->priority = from->priority;
+            if (r->in_use && r->in_use == from)
+                copy->in_use = to;
             *insert = to;
             from = from->next;
             insert = &to->next;
@@ -171,7 +175,7 @@ relay_server *relay_copy (relay_server *r)
         copy->flags |= RELAY_RUNNING;
         copy->interval = r->interval;
         copy->run_on = r->run_on;
-        r->source = NULL;
+        copy->updated = r->updated;
         DEBUG2 ("copy relay %s at %p", copy->localmount, copy);
     }
     return copy;
@@ -444,7 +448,6 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             INFO3 ("connecting to %s:%d for %s", server, port, relay->localmount);
 
         con->con_time = time (NULL);
-        relay->in_use = host;
         streamsock = sock_connect_wto_bind (server, port, bind, timeout);
         free (bind);
         if (connection_init (con, streamsock, server) < 0)
@@ -507,9 +510,12 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
                 break;
             }
             sock_set_blocking (streamsock, 0);
-            thread_rwlock_wlock (&relay->source->lock);
+            // no source is possible if doing a recheck
+            if (relay->source)
+                thread_rwlock_wlock (&relay->source->lock);
             client->parser = parser; // old parser will be free in the format clear
-            thread_rwlock_unlock (&relay->source->lock);
+            if (relay->source)
+                thread_rwlock_unlock (&relay->source->lock);
             client->connection.discon.time = 0;
             client->connection.con_time = time (NULL);
             client_set_queue (client, NULL);
@@ -527,7 +533,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         httpp_destroy (parser);
     connection_close (con);
     con->con_time = time (NULL); // sources count needs to drop in such cases
-    if (relay->in_use) relay->in_use->skip = 1;
+    host->skip = 1;
     return -1;
 }
 
@@ -561,6 +567,7 @@ int open_relay (relay_server *relay)
             WARN1 ("Failed to complete initialisation on %s", relay->localmount);
             continue;
         }
+        relay->in_use = host;
         return 1;
     } while ((host = host->next) && global.running == ICE_RUNNING);
     return -1;
