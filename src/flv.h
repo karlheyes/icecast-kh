@@ -3,8 +3,8 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2009-2010,     Karl Heyes <karl@xiph.org>
- * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>,
+ * Copyright 2009-2010,         Karl Heyes <karl@xiph.org>
+ * Copyright 2010-2022,         Karl Heyes <karl@kheyes.plus.com>
  */
 
 /* flv.c
@@ -20,11 +20,12 @@
 
 struct flv
 {
-    int prev_tagsize;
-    int block_pos;
+    uint32_t prev_tagsize;
+    uint32_t block_pos;
+    uint16_t flags;
+    uint16_t wrapper_offset;
     unsigned int samples_in_buffer;
-    int raw_offset;
-    refbuf_t *raw;
+    refbuf_t *wrapper;
     client_t *client;
     uint64_t prev_ms;
     int64_t samples;
@@ -35,6 +36,7 @@ struct flv
     unsigned char tag[30];
 };
 
+#define FLV_CHK_META                    1<<0
 
 int  write_flv_buf_to_client (client_t *client);
 void flv_create_client_data (format_plugin_t *plugin, client_t *client);
