@@ -1416,6 +1416,7 @@ static relay_server *get_relay_details (client_t *client)
 {
     relay_server *relay = client->shared_data;
 
+    if (relay == NULL) return NULL;
     avl_tree_rlock (global.relays);
     if (relay->new_details)
     {
@@ -1489,6 +1490,11 @@ int relay_source_reactivated (source_t *source)
 }
 
 
+// used for a intermediate stage when switching to a higher priority host. As a separate relay
+// is made to allow modifications, the existing relay is just removed from the global tree and
+// this routine just makes sure the relay client for that has seen it and now we can add the
+// copy into the tree.
+//
 static int relay_wait_on_switchover (client_t *client)
 {
     relay_server *relay = client->shared_data;  // a copy but not inserted yet
@@ -1498,7 +1504,7 @@ static int relay_wait_on_switchover (client_t *client)
     source_t *source = source_find_mount_raw (relay->localmount);
     if (source)
     {
-        thread_rwlock_rlock (&source->lock);
+        thread_rwlock_wlock (&source->lock);
         avl_tree_unlock (global.source_tree);
 
         if (source->flags & SOURCE_SWITCHOVER)  // still active, wait
@@ -1508,7 +1514,9 @@ static int relay_wait_on_switchover (client_t *client)
             client->schedule_ms += 100;
             return 0;
         }
-        relay->source = source;
+        client->queue_pos = source->client->queue_pos;
+        source->format->parser = client->parser;
+        DEBUG2 ("relay source %s, start pos %"PRIu64, source->mount, source->client->queue_pos);
         source->client = client;
         format_apply_client (source->format, client);
         thread_rwlock_unlock (&source->lock);
@@ -1570,14 +1578,13 @@ static void *relay_switch (void *arg)
         source_t *source = source_find_mount_raw (relay->localmount);
         if (source)
         {
+            relay->source = source;
             thread_rwlock_wlock (&source->lock);
             avl_tree_unlock (global.source_tree);
             source->flags |= SOURCE_SWITCHOVER;
-            client->queue_pos = source->client->queue_pos;
-            source->format->parser = client->parser;
             thread_rwlock_unlock (&source->lock);
 
-            DEBUG2 ("switchover relay %p, client %p stage 1, flagged and new client added ", relay, client);
+            DEBUG2 ("switchover relay %p, client %p, flagged and new client added ", relay, client);
             client->shared_data = relay;
             client->schedule_ms = timing_get_time() + 60;
             client->ops = &relay_switchover_ops;
@@ -1617,9 +1624,18 @@ static void *relay_switch (void *arg)
 static int relay_read (client_t *client)
 {
     relay_server *relay = get_relay_details (client);
+    if (relay == NULL) return -1;
+
     source_t *source = relay->source;
 
     thread_rwlock_wlock (&source->lock);
+    if (source->client != client)
+    {
+        DEBUG1 ("Detected change in client for %s, going away", source->mount);
+        thread_rwlock_unlock (&source->lock);
+        relay->source = NULL;       // client and relay goes, but not source
+        return -1;
+    }
     if (source_running (source))
     {
         if (relay->flags & RELAY_RUNNING)
@@ -1648,9 +1664,15 @@ static int relay_read (client_t *client)
                 source->flags &= ~SOURCE_SWITCHOVER;
                 INFO1 ("Detected switch over to another client for %s", source->mount);
                 thread_rwlock_unlock (&source->lock);
-                relay->source = NULL;
                 DEBUG2 ("switchover client %p on relay %p", client, relay);
-                return -1;
+                if (relay->flags & RELAY_IN_LIST)
+                {   // reset this relay, as it stays around, only the client goes
+                    relay_reset (relay);
+                    client->shared_data = NULL;
+                    return -1;
+                }
+                client->schedule_ms += 300;
+                return 0;       // keep around until the new client is actually attached
             }
         }
         else
@@ -1803,11 +1825,14 @@ static int relay_read (client_t *client)
 static void relay_release (client_t *client)
 {
     relay_server *relay = client->shared_data;
-    DEBUG2("freeing relay %s (%p)", relay->localmount, relay);
-    if (relay->source)
-        source_free_source (relay->source);
-    relay->source = NULL;
-    config_clear_relay (relay);
+    if (relay)
+    {
+        DEBUG2("freeing relay %s (%p)", relay->localmount, relay);
+        if (relay->source)
+            source_free_source (relay->source);
+        relay->source = NULL;
+        config_clear_relay (relay);
+    }
     client_destroy (client);
 }
 

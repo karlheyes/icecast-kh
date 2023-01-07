@@ -3043,15 +3043,6 @@ static int source_client_switch_wait (client_t *client)
     {
         if ((source->flags & SOURCE_SWITCHOVER) == 0)
         {
-            relay_server *relay = (relay_server *)client->aux_data;     // maybe null
-            if (relay)
-            {   // install relay, client installed on source client exit
-                avl_tree_wlock (global.relays);
-                relay->flags |= RELAY_IN_LIST;
-                avl_insert (global.relays, relay);
-                avl_tree_unlock (global.relays);
-                client->aux_data = 0;
-            }
             source->client = client;
             format_apply_client (source->format, client);
             return source_client_response (client, source);
@@ -3090,7 +3081,6 @@ static int  _source_client_startup (client_t *client)
         client->aux_data = 0;
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
-            //source_swap_client (source, client);
             source->flags |= SOURCE_SWITCHOVER;
             client->queue_pos = source->client->queue_pos;
             source->format->parser = client->parser;
@@ -3160,16 +3150,13 @@ int  source_client_startup (client_t *client)
                 client->schedule_ms += 10;
                 return 0;
             }
-            relay_server *r = relay_copy (result);
-            r->source = source;
-            detach_master_relay (result->localmount, 0);
             avl_tree_unlock (global.relays);
             source->flags |= SOURCE_SWITCHOVER;
             client->queue_pos = source->client->queue_pos;
             source->format->parser = client->parser;
             thread_rwlock_unlock (&source->lock);
+
             free (uri);
-            client->aux_data = (uintptr_t)r;
             client->shared_data = source;
             client->ops = &source_switchover_ops;
             client->schedule_ms += 50;

@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2000-2004, Jack Moffitt <jack@xiph.org, 
+ * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
@@ -28,9 +28,7 @@ void redirector_setup (ice_config_t *config);
 void redirector_update (struct _client_tag *client);
 relay_server *relay_free (relay_server *relay);
 int  relay_toggle (relay_server *relay);
-relay_server *relay_copy (relay_server *r);
 int  relay_source_reactivated (struct source_tag *source);
-void detach_master_relay (const char *localmount, int cleanup);
 int  fallback_count (ice_config_t *config, const char *mount);
 
 #endif  /* __SLAVE_H__ */
