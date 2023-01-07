@@ -771,19 +771,11 @@ static int write_mpeg_buf_to_client (client_t *client)
 }
 
 
-static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *client)
+static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *)
 {
     /* free the plugin instance */
     mp3_state *source_mp3 = plugin->_state;
 
-    if (client)
-    {
-        icy_client_in *in_icy = client->format_data;
-        refbuf_release (in_icy->read_data);
-        mpeg_cleanup (&in_icy->sync);
-        free (client->format_data);
-        client->format_data = NULL;
-    }
     free (source_mp3->url_artist);
     free (source_mp3->url_title);
     free (source_mp3->inline_url);
