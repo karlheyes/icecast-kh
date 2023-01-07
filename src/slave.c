@@ -668,7 +668,7 @@ static int _drop_relay_cleanup (void *a)
 
 
 
-static void detach_master_relay (const char *localmount, int cleanup)
+void detach_master_relay (const char *localmount, int cleanup)
 {
     relay_server find;
 
@@ -1450,6 +1450,45 @@ static void relay_reset (relay_server *relay)
 }
 
 
+int relay_source_reactivated (source_t *source)
+{
+    relay_server find = { .localmount = source->mount }, *result = NULL;
+    client_t *client = source->client;
+
+    avl_tree_wlock (global.relays);
+    int notfound = avl_get_by_key (global.relays, &find, (void*)&result);
+
+    if (notfound == 0 && result && result->source == source)
+    {
+        avl_tree_unlock (global.relays);
+        source->flags |= SOURCE_RUNNING;
+        INFO1 ("Detected a relay to restart on %s", source->mount);
+
+        client_t *relayclient = calloc (1, sizeof (client_t));
+        connection_init (&relayclient->connection, SOCK_ERROR, NULL);
+        relayclient->shared_data = result;
+        source->client = relayclient;
+        relayclient->queue_pos = client->queue_pos;
+        DEBUG2 ("relay %s pos %"PRIu64, source->mount, client->queue_pos);
+        source->format->parser = NULL;
+        thread_rwlock_unlock (&source->lock);
+
+        relayclient->flags |= CLIENT_ACTIVE;
+        relayclient->ops = &relay_startup_ops;
+        client_add_worker (relayclient);
+
+        global_lock ();
+        client_register (relayclient);
+        global_unlock ();
+
+        client->shared_data = NULL;
+        return 1;
+    }
+    avl_tree_unlock (global.relays);
+    return 0;
+}
+
+
 static int relay_wait_on_switchover (client_t *client)
 {
     relay_server *relay = client->shared_data;  // a copy but not inserted yet
@@ -1496,6 +1535,7 @@ struct _client_functions relay_switchover_ops =
     relay_release
 };
 
+
 static void *relay_switch (void *arg)
 {
     relay_server *relay = arg;
@@ -1537,7 +1577,7 @@ static void *relay_switch (void *arg)
             source->format->parser = client->parser;
             thread_rwlock_unlock (&source->lock);
 
-            DEBUG2 ("relay %p, client %p stage 1, flagged and new client added ", relay, client);
+            DEBUG2 ("switchover relay %p, client %p stage 1, flagged and new client added ", relay, client);
             client->shared_data = relay;
             client->schedule_ms = timing_get_time() + 60;
             client->ops = &relay_switchover_ops;
@@ -1602,14 +1642,15 @@ static int relay_read (client_t *client)
                         thread_spin_unlock (&relay_start_lock);
                     thread_rwlock_wlock (&source->lock);
                 }
-                if (source->flags & SOURCE_SWITCHOVER)
-                {       // stage 1 complete, other stream is ready to go, we back off
-                    source->flags &= ~SOURCE_SWITCHOVER;
-                    thread_rwlock_unlock (&source->lock);
-                    relay->source = NULL;
-                    DEBUG2 ("switchover exit on client %p on relay %p", client, relay);
-                    return -1;
-                }
+            }
+            if (source->flags & SOURCE_SWITCHOVER)
+            {       // stage 1 complete, other stream is ready to go, we back off
+                source->flags &= ~SOURCE_SWITCHOVER;
+                INFO1 ("Detected switch over to another client for %s", source->mount);
+                thread_rwlock_unlock (&source->lock);
+                relay->source = NULL;
+                DEBUG2 ("switchover client %p on relay %p", client, relay);
+                return -1;
             }
         }
         else

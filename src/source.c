@@ -835,6 +835,14 @@ static int source_client_read (client_t *client)
         }
         if (source_read (source) > 0)
             return 1;
+        if (source->flags & SOURCE_SWITCHOVER)
+        {
+            source->flags &= ~SOURCE_SWITCHOVER;
+            INFO1 ("Detected switch over to another client on %s", source->mount);
+            thread_rwlock_unlock (&source->lock);
+            client->shared_data = NULL;
+            return -1;
+        }
         if (source_running (source))
         {
             thread_rwlock_unlock (&source->lock);
@@ -843,6 +851,9 @@ static int source_client_read (client_t *client)
     }
     if ((source->flags & SOURCE_TERMINATING) == 0)
     {
+        if (relay_source_reactivated (source) > 0)
+            return -1;
+
         source_shutdown (source, 1);
 
         if (source->wait_time == 0)
@@ -1596,7 +1607,6 @@ void source_init (source_t *source)
             _parse_audio_info (source, str);
             stats_set_flags (source->stats, "audio_info", str, STATS_GENERAL);
         }
-        source->client->queue_pos = 0;
     }
     stats_release (source->stats);
     rate_free (source->in_bitrate);
@@ -2977,29 +2987,6 @@ int source_format_init (source_t *source)
 }
 
 
-static void source_swap_client (source_t *source, client_t *client)
-{
-    client_t *old_client = source->client;
-
-    INFO2 ("source %s hijacked by another client, terminating previous (at %"PRIu64")", source->mount, old_client->queue_pos);
-    client->shared_data = source;
-    source->client = client;
-
-    old_client->schedule_ms = client->worker->time_ms;
-    old_client->shared_data = NULL;
-    old_client->flags &= ~CLIENT_AUTHENTICATED;
-    old_client->connection.sent_bytes = source->format->read_bytes;
-    client->queue_pos = old_client->queue_pos;
-
-    source->format->read_bytes = 0;
-    source->format->parser = source->client->parser;
-    if (source->format->swap_client)
-        source->format->swap_client (client, old_client);
-
-    worker_wakeup (old_client->worker);
-}
-
-
 int source_startup (client_t *client, const char *uri)
 {
     client->aux_data = (uintptr_t)strdup(uri);
@@ -3015,21 +3002,84 @@ int source_startup (client_t *client, const char *uri)
 }
 
 
-int  source_client_startup (client_t *client)
+static int source_client_response (client_t *client, source_t *source)
 {
-    source_t *source = client->shared_data;     // usually not present unless partially done previously
+    client->respcode = 200;
+    client->shared_data = source;
+
+    mount_proxy *mountinfo = config_lock_mount (NULL, source->mount);
+    source_update_settings (NULL, source, mountinfo);
+    INFO1 ("source %s is ready to start", source->mount);
+    config_release_mount (mountinfo);
+
+    if (client->server_conn && client->server_conn->shoutcast_compat)
+    {
+        source->flags |= SOURCE_SHOUTCAST_COMPAT;
+        source_client_callback (client);
+    }
+    else
+    {
+        refbuf_t *ok = refbuf_new (PER_CLIENT_REFBUF_SIZE);
+        snprintf (ok->data, PER_CLIENT_REFBUF_SIZE,
+                "HTTP/1.0 200 OK\r\n\r\n");
+        ok->len = strlen (ok->data);
+        /* we may have unprocessed data read in, so don't overwrite it */
+        ok->associated = client->refbuf;
+        client->refbuf = ok;
+        client->intro_offset = client->pos;
+        client->pos = 0;
+        client->ops = &source_client_http_ops;
+        thread_rwlock_unlock (&source->lock);
+    }
+    return 0;
+}
+
+
+static int source_client_switch_wait (client_t *client)
+{
+    source_t *source = client->shared_data;     // get source link, should be always here
+
+    if (thread_rwlock_trywlock (&source->lock) == 0)
+    {
+        if ((source->flags & SOURCE_SWITCHOVER) == 0)
+        {
+            relay_server *relay = (relay_server *)client->aux_data;     // maybe null
+            if (relay)
+            {   // install relay, client installed on source client exit
+                avl_tree_wlock (global.relays);
+                relay->flags |= RELAY_IN_LIST;
+                avl_insert (global.relays, relay);
+                avl_tree_unlock (global.relays);
+                client->aux_data = 0;
+            }
+            source->client = client;
+            format_apply_client (source->format, client);
+            return source_client_response (client, source);
+        }
+        thread_rwlock_unlock (&source->lock);
+    }
+    client->schedule_ms += 20;
+    return 0;
+}
+
+
+static struct _client_functions source_switchover_ops =
+{
+    source_client_switch_wait,
+    client_destroy
+};
+
+
+static int  _source_client_startup (client_t *client)
+{
     char *uri = (char*)client->aux_data;
-
-    ice_config_t *config = config_get_config();
-    mount_proxy *mountinfo;
-    int rc = 1, source_limit = config->source_limit;
-
-    config_release_config();
+    int rc = 1;
+    source_t *source = client->shared_data;     // usually not present unless routine restarted
 
     if (source == NULL)
         rc = source_reserve (uri, &source, (client->flags & CLIENT_HIJACKER) ? 1 : 0);
     if (rc == 0)
-    {
+    {   // failed to get locks so retry again.
         client->shared_data = source;
         client->schedule_ms += 10;
         return 0;
@@ -3040,69 +3090,98 @@ int  source_client_startup (client_t *client)
         client->aux_data = 0;
         if ((client->flags & CLIENT_HIJACKER) && source_running (source))
         {
-            source_swap_client (source, client);
-        }
-        else
-        {
-            global_lock();
-            source->client = client;
-            if (global.sources >= source_limit)
-            {
-                int count = global.sources;
-
-                global_unlock();
-                WARN1 ("Request to add source when maximum source limit reached %d", count);
-                thread_rwlock_unlock (&source->lock);
-                source_free_source (source);
-                return client_send_403 (client, "too many streams connected");
-            }
-            if (source_format_init (source) < 0)
-            {
-                global_unlock();
-                source->client = NULL;
-                thread_rwlock_unlock (&source->lock);
-                source_free_source (source);
-                return client_send_403 (client, "content type not supported");
-            }
-            ++global.sources;
-            source->stats = stats_lock (source->stats, source->mount);
-            stats_release (source->stats);
-            INFO1 ("sources count is now %d", global.sources);
-            stats_event_args (NULL, "sources", "%d", global.sources);
-            global_unlock();
-        }
-        client->respcode = 200;
-        client->shared_data = source;
-
-        mountinfo = config_lock_mount (NULL, source->mount);
-        source_update_settings (NULL, source, mountinfo);
-        INFO1 ("source %s is ready to start", source->mount);
-        config_release_mount (mountinfo);
-
-        if (client->server_conn && client->server_conn->shoutcast_compat)
-        {
-            source->flags |= SOURCE_SHOUTCAST_COMPAT;
-            source_client_callback (client);
-        }
-        else
-        {
-            refbuf_t *ok = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-            snprintf (ok->data, PER_CLIENT_REFBUF_SIZE,
-                    "HTTP/1.0 200 OK\r\n\r\n");
-            ok->len = strlen (ok->data);
-            /* we may have unprocessed data read in, so don't overwrite it */
-            ok->associated = client->refbuf;
-            client->refbuf = ok;
-            client->intro_offset = client->pos;
-            client->pos = 0;
-            client->ops = &source_client_http_ops;
+            //source_swap_client (source, client);
+            source->flags |= SOURCE_SWITCHOVER;
+            client->queue_pos = source->client->queue_pos;
+            source->format->parser = client->parser;
             thread_rwlock_unlock (&source->lock);
+            client->shared_data = source;
+            client->ops = &source_switchover_ops;
+            client->schedule_ms += 50;
+            return 0;
         }
-        return 0;
+
+        ice_config_t *config = config_get_config();
+        int source_limit = config->source_limit;
+        config_release_config();
+
+        source->client = client;
+        global_lock();
+        if (global.sources >= source_limit)
+        {
+            int count = global.sources;
+
+            global_unlock();
+            WARN1 ("Request to add source when maximum source limit reached %d", count);
+            thread_rwlock_unlock (&source->lock);
+            source_free_source (source);
+            return client_send_403 (client, "too many streams connected");
+        }
+        if (source_format_init (source) < 0)
+        {
+            global_unlock();
+            source->client = NULL;
+            thread_rwlock_unlock (&source->lock);
+            source_free_source (source);
+            return client_send_403 (client, "content type not supported");
+        }
+        ++global.sources;
+        source->stats = stats_lock (source->stats, source->mount);
+        stats_release (source->stats);
+        INFO1 ("sources count is now %d", global.sources);
+        stats_event_args (NULL, "sources", "%d", global.sources);
+        global_unlock();
+        return source_client_response (client, source);
     }
-    // rc < 0
     WARN1 ("Mountpoint %s in use", uri);
+    free (uri);
+    client->aux_data = 0;
     return client_send_403 (client, "Mountpoint in use");
+}
+
+
+int  source_client_startup (client_t *client)
+{
+    char *uri = (char*)client->aux_data;
+
+    // check for relay being overridden initially, then check for a source only
+    //
+    avl_tree_wlock (global.relays);
+    relay_server find = { .localmount = uri }, *result = NULL;
+    int notfound = avl_get_by_key (global.relays, &find, (void*)&result);
+    if (notfound == 0 && result)
+    {
+        source_t *source = result->source;
+        if (source) // any flags for no override of relay
+        {
+            if (thread_rwlock_trywlock (&source->lock) < 0)
+            {
+                avl_tree_unlock (global.relays);
+                client->schedule_ms += 10;
+                return 0;
+            }
+            relay_server *r = relay_copy (result);
+            r->source = source;
+            detach_master_relay (result->localmount, 0);
+            avl_tree_unlock (global.relays);
+            source->flags |= SOURCE_SWITCHOVER;
+            client->queue_pos = source->client->queue_pos;
+            source->format->parser = client->parser;
+            thread_rwlock_unlock (&source->lock);
+            free (uri);
+            client->aux_data = (uintptr_t)r;
+            client->shared_data = source;
+            client->ops = &source_switchover_ops;
+            client->schedule_ms += 50;
+            return 0;
+        }
+        avl_tree_unlock (global.relays);
+        WARN1 ("Mountpoint %s in use by relay but not source", uri);
+        free (uri);
+        return client_send_403 (client, "Mountpoint in use");
+    }
+    avl_tree_unlock (global.relays);
+    return _source_client_startup (client);
 }
 
 
