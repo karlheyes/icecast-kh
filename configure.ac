@@ -79,6 +79,7 @@ then
 AC_CHECK_LIB(fnmatch, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-lfnmatch"])],
         [ AC_CHECK_LIB(iberty, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-liberty"])],
         [ICECAST_OPTIONAL="$ICECAST_OPTIONAL fnmatch.o"])])
+AC_DEFINE(HAVE_FNMATCH_H, 1, [Define if using a local fnmatch])
 fi
 AC_SEARCH_LIBS(nanosleep, rt posix4,
         AC_DEFINE(HAVE_NANOSLEEP, 1, [Define if you have nanosleep]))

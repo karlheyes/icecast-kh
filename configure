@@ -18719,6 +18719,9 @@ fi
 
 fi
 
+
+printf "%s\n" "#define HAVE_FNMATCH_H 1" >>confdefs.h
+
 fi
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for library containing nanosleep" >&5
 printf %s "checking for library containing nanosleep... " >&6; }

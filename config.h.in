@@ -48,7 +48,7 @@
 /* Define to 1 if you have the `fnmatch' function. */
 #undef HAVE_FNMATCH
 
-/* Define to 1 if you have the <fnmatch.h> header file. */
+/* Define if using a local fnmatch */
 #undef HAVE_FNMATCH_H
 
 /* Define to 1 if you have the `fork' function. */
