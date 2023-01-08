@@ -976,7 +976,8 @@ int cached_pattern_match (void *arg, const char *value, const char *pattern)
 #ifndef FNM_EXTMATCH
 #define FNM_EXTMATCH 0
 #endif
-    int x = fnmatch (pattern, value, FNM_NOESCAPE|FNM_EXTMATCH);
+    flags |= (FNM_NOESCAPE|FNM_EXTMATCH);
+    int x = fnmatch (pattern, value, flags);
     switch (x)
     {
         case FNM_NOMATCH:
