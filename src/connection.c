@@ -1499,6 +1499,7 @@ static void *connection_thread (void *arg)
     cached_file_init (&banned_ip,  config->banfile,   add_banned_ip, compare_banned_ip);
     cached_file_init (&allowed_ip, config->allowfile, NULL, NULL);
     cached_file_init (&useragents, config->agentfile, NULL, NULL);
+    cached_file_settings (&useragents, CACHED_IGNORECASE);
 
     connection_setup_sockets (config);
     header_timeout = config->header_timeout;

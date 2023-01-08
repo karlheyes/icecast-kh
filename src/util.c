@@ -38,6 +38,8 @@
 #endif
 #ifdef HAVE_FNMATCH_H
 #include <fnmatch.h>
+#else
+#define FNM_CASEFOLD    1
 #endif
 
 #include "net/sock.h"
@@ -966,10 +968,13 @@ int get_line(FILE *file, char *buf, size_t siz)
 }
 
 
-int cached_pattern_compare (const char *value, const char *pattern)
+int cached_pattern_match (void *arg, const char *value, const char *pattern)
 {
+    cache_file_contents *c = arg;
+    int flags = (c) ? c->flags_cmp : 0;
 #ifdef HAVE_FNMATCH_H
-    int x = fnmatch (pattern, value, FNM_NOESCAPE);
+    flags |= FNM_NOESCAPE;
+    int x = fnmatch (pattern, value, flags);
     switch (x)
     {
         case FNM_NOMATCH:
@@ -981,7 +986,8 @@ int cached_pattern_compare (const char *value, const char *pattern)
     }
     return -1;
 #else
-    return strcmp (pattern, value);
+    int (*cmp)(const char *p, const char *v) = flags ? strcasecmp : strcmp;
+    return (*cmp)(pattern, value);
 #endif
 }
 
@@ -1114,7 +1120,7 @@ int cached_pattern_search (cache_file_contents *cache, const char *line, time_t 
             struct cache_list_node *entry = cache->extra;
             while (entry)
             {
-                if (cached_pattern_compare (line, entry->content) == 0)
+                if (cached_pattern_match (cache, line, entry->content) == 0)
                 {
                     DEBUG1 ("%s matched pattern", line);
                     return 1;
@@ -1146,12 +1152,19 @@ void cached_file_clear (cache_file_contents *cache)
 }
 
 
+void cached_file_settings (cache_file_contents *cache, unsigned int flags)
+{
+    if (flags & CACHED_IGNORECASE) cache->flags_cmp |= FNM_CASEFOLD;
+}
+
+
 void cached_file_init (cache_file_contents *cache, const char *filename, cachefile_add_func add, cachefile_compare_func compare)
 {
     if (filename == NULL || cache == NULL)
         return;
     cache->filename = strdup (filename);
     cache->file_mtime = 0;
+    cache->flags_cmp = 0;
     cache->add = add ? add : add_generic_text;
     cache->compare = compare ? compare : cached_text_compare;
 }
