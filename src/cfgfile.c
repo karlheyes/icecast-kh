@@ -1149,6 +1149,10 @@ static int config_get_http_header (xmlNodePtr node, void *arg)
     {
         if (name == NULL || name[0] == '\0')
             break;
+        if (value == NULL)
+            value = (char*)xmlCharStrdup("");
+        if (code == NULL)
+            code = (char*)xmlCharStrdup("*");
         int len = 0;
         // verify provided xml
         if (sscanf (name, "%*[^]0x00-0x20()0x80-0xFF<>@,;:\\\"/[?={}]%n", &len) != 0 || len < 0 || name[len] != '\0')
