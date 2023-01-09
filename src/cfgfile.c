@@ -1155,9 +1155,9 @@ static int config_get_http_header (xmlNodePtr node, void *arg)
             code = (char*)xmlCharStrdup("*");
         int len = 0;
         // verify provided xml
-        if (sscanf (name, "%*[^]0x00-0x20()0x80-0xFF<>@,;:\\\"/[?={}]%n", &len) != 0 || len < 0 || name[len] != '\0')
+        if (sscanf (name, "%*[A-Za-z0-9!#$\%&'*+.^_'|~-]%n", &len) != 0 || len < 0 || name[len] != '\0')
         {
-            WARN1 ("header name invalid \"%100s\"", name);
+            WARN1 ("header name invalid \"%.100s\"", name);
             break;
         }
 
@@ -1171,7 +1171,7 @@ static int config_get_http_header (xmlNodePtr node, void *arg)
     xmlFree (code);
     xmlFree (value);
     xmlFree (name);
-    return -1;
+    return 0;
 }
 
 
