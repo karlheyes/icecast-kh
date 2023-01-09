@@ -771,7 +771,7 @@ static int write_mpeg_buf_to_client (client_t *client)
 }
 
 
-static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *)
+static void format_mp3_free_plugin (format_plugin_t *plugin, client_t *c)
 {
     /* free the plugin instance */
     mp3_state *source_mp3 = plugin->_state;
