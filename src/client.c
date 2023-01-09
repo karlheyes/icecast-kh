@@ -241,7 +241,8 @@ static int _connection_hdr (client_http_headers_t * http, client_http_header_t *
         }
         return 0;
     }
-    return -1;
+    curr->value = NULL;
+    return 0;
 }
 
 
