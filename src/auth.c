@@ -821,77 +821,23 @@ static int get_authenticator (auth_t *auth, config_options_t *options)
 }
 
 
-int auth_get_authenticator (xmlNodePtr node, void *x)
+int auth_get_authenticator (auth_t *auth, config_options_t *options)
 {
-    auth_t *auth = calloc (1, sizeof (auth_t));
-    config_options_t *options = NULL, **next_option = &options;
-    xmlNodePtr option;
-    int i;
-
-    if (auth == NULL)
-        return -1;
-
-    option = node->xmlChildrenNode;
-    while (option)
-    {
-        xmlNodePtr current = option;
-        option = option->next;
-        if (xmlStrcmp (current->name, XMLSTR("option")) == 0)
-        {
-            config_options_t *opt = calloc (1, sizeof (config_options_t));
-            opt->name = (char *)xmlGetProp (current, XMLSTR("name"));
-            if (opt->name == NULL)
-            {
-                free(opt);
-                continue;
-            }
-            opt->value = (char *)xmlGetProp (current, XMLSTR("value"));
-            if (opt->value == NULL)
-            {
-                xmlFree (opt->name);
-                free (opt);
-                continue;
-            }
-            *next_option = opt;
-            next_option = &opt->next;
-        }
-        else
-            if (xmlStrcmp (current->name, XMLSTR("text")) != 0)
-                WARN1 ("unknown auth setting (%s)", current->name);
-    }
-    auth->type = (char *)xmlGetProp (node, XMLSTR("type"));
     if (get_authenticator (auth, options) < 0)
-    {
-        xmlFree (auth->type);
-        free (auth);
-        auth = NULL;
-    }
-    else
-    {
-        auth->tailp = &auth->head;
-        thread_mutex_create (&auth->lock);
+        return -1;
+    auth->tailp = &auth->head;
+    thread_mutex_create (&auth->lock);
 
-        /* allocate N threads */
-        auth->handles = calloc (auth->handlers, sizeof (auth_thread_t));
-        auth->refcount = 1;
-        auth->flags |= (AUTH_RUNNING|AUTH_CLEAN_ENV);
-        for (i=0; i<auth->handlers; i++)
-        {
-            if (auth->alloc_thread_data)
-                auth->handles[i].data = auth->alloc_thread_data (auth);
-            auth->handles[i].id = thread_id++;
-            auth->handles[i].auth = auth;
-        }
-        *(auth_t**)x = auth;
-    }
-
-    while (options)
+    /* allocate N threads */
+    auth->handles = calloc (auth->handlers, sizeof (auth_thread_t));
+    auth->refcount = 1;
+    auth->flags |= (AUTH_RUNNING|AUTH_CLEAN_ENV);
+    for (int i=0; i<auth->handlers; i++)
     {
-        config_options_t *opt = options;
-        options = opt->next;
-        xmlFree (opt->name);
-        xmlFree (opt->value);
-        free (opt);
+        if (auth->alloc_thread_data)
+            auth->handles[i].data = auth->alloc_thread_data (auth);
+        auth->handles[i].id = thread_id++;
+        auth->handles[i].auth = auth;
     }
     return 0;
 }

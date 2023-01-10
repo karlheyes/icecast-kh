@@ -25,6 +25,7 @@
 
 struct _mount_proxy;
 struct ice_config_tag;
+struct _config_options;
 typedef struct _listener_t listener_t;
 
 #include "avl/avl.h"
