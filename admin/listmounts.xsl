@@ -7,7 +7,7 @@
 <html>
 <head>
 <title>Icecast Streaming Media Server</title>
-<link rel="stylesheet" type="text/css" href="/style.css" />
+<link rel="stylesheet" type="text/css" href="../style.css" />
 </head>
 <body>
 
@@ -15,7 +15,7 @@
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="/images/corner_topleft.jpg" class="corner" style="display: none" />
+<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
 </div>
 <div class="newscontent">
 <xsl:for-each select="source">
@@ -27,7 +27,7 @@
                 <td><h3>Mount Point <xsl:value-of select="@mount" /></h3></td>
                 <xsl:choose>
                     <xsl:when test="authenticator">
-                        <td align="right"><a class="auth" href="/auth.xsl">Login</a></td>
+                        <td align="right"><a class="auth" href="../auth.xsl">Login</a></td>
                     </xsl:when>
                     <xsl:otherwise>
                         <td align="right"> <a href="{@mount}.m3u">M3U</a> <a href="{@mount}.xspf">XSPF</a></td>
@@ -78,7 +78,7 @@
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
 <div class="roundbottom">
-<img src="/images/corner_bottomleft.jpg" class="corner" style="display: none" />
+<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
 </div>
 </div>
 <div class="poster">Support icecast development at <a class="nav" href="http://www.icecast.org">www.icecast.org</a></div>
