@@ -462,12 +462,32 @@ int client_http_status_lookup (int status, client_http_status_t *s)
 }
 
 
+static int client_http_setup_req (client_http_headers_t *http, unsigned int flags, const char *uri)
+{
+    if (uri == NULL || uri[0] == 0) return -1;
+    // special case, first line has blank name as it is different to the other headers
+    char line [1024];
+    client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
+    snprintf (line, sizeof(line), "GET %.1000s HTTP/1.1", uri);
+
+    http->len = 1;       // start with allowing for the nul
+    client_http_apply (http, &firsthdr);
+    ice_config_t *config = config_get_config();
+    client_http_apply_fmt (http, 0, "User-Agent", "%s", config->server_id);
+    config_release_config();
+    return 0;
+}
+
+
 int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int status, unsigned int flags, const char *statusmsg)
 {
     if (client && client->respcode) return -1;
     memset (http, 0, sizeof (*http));
     http->client = client;
     client_set_queue (client, NULL);
+    if (flags & CLIENT_HTTPHDRS_REQUEST)
+        return client_http_setup_req (http, flags, statusmsg);
+
     client_http_status_lookup (status, &http->conn);
     client->respcode = http->conn.status;
 
