@@ -18451,6 +18451,12 @@ then :
   printf "%s\n" "#define HAVE_FINDFIRSTFILE 1" >>confdefs.h
 
 fi
+ac_fn_c_check_func "$LINENO" "memmem" "ac_cv_func_memmem"
+if test "x$ac_cv_func_memmem" = xyes
+then :
+  printf "%s\n" "#define HAVE_MEMMEM 1" >>confdefs.h
+
+fi
 
 ac_fn_c_check_func "$LINENO" "fseeko" "ac_cv_func_fseeko"
 if test "x$ac_cv_func_fseeko" = xyes

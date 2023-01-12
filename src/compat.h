@@ -59,5 +59,9 @@
 #include <malloc.h>
 #endif
 
+#ifndef HAVE_MEMMEM
+void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
+#endif
+
 #endif /* __COMPAT_H__ */
 

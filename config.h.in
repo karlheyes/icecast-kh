@@ -102,6 +102,9 @@
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
 
+/* Define to 1 if you have the `memmem' function. */
+#undef HAVE_MEMMEM
+
 /* Define if you have nanosleep */
 #undef HAVE_NANOSLEEP
 

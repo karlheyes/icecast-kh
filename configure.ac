@@ -59,7 +59,7 @@ AC_TYPE_OFF_T
 AC_CHECK_TYPES([struct timespec])
 
 dnl Checks for library functions.
-AC_CHECK_FUNCS([localtime_r gmtime_r FindFirstFile])
+AC_CHECK_FUNCS([localtime_r gmtime_r FindFirstFile memmem])
 AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp strncasecmp])
 AC_CHECK_FUNCS([getrlimit gettimeofday ftime fsync glob pread pipe2 setresuid setresgid])
 AC_CHECK_TYPES([struct signalfd_siginfo],

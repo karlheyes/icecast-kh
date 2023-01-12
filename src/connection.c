@@ -1353,19 +1353,19 @@ static int http_client_request (client_t *client)
             do
             {
                 buf = refbuf->data;
-                ptr = strstr (buf, "\r\n\r\n");
+                ptr = memmem (buf, ret, "\r\n\r\n", 4); // standard and common case
                 if (ptr)
                 {
                     ptr += 4;
                     break;
                 }
-                ptr = strstr (buf, "\n\n");
+                ptr = memmem (buf, ret, "\n\n", 2);
                 if (ptr)
                 {
                     ptr += 2;
                     break;
                 }
-                ptr = strstr (buf, "\r\r\n\r\r\n");
+                ptr = memmem (buf, ret, "\r\r\n\r\r\n", 6);
                 if (ptr)
                 {
                     ptr += 6;
