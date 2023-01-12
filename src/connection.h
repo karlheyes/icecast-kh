@@ -94,7 +94,7 @@ int  connection_setup_sockets (struct ice_config_tag *config);
 int  connection_reset (connection_t *con, uint64_t time_ms);
 void connection_close(connection_t *con);
 int  connection_init (connection_t *con, sock_t sock, const char *addr);
-void connection_uses_ssl (connection_t *con);
+int  connection_uses_ssl (connection_t *con, int accept_state);
 void connection_add_banned_ip (const char *ip, int duration);
 void connection_release_banned_ip (const char *ip);
 void connection_stats (void);

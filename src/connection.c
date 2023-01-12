@@ -895,20 +895,26 @@ int connection_init (connection_t *con, sock_t sock, const char *addr)
 
 /* prepare connection for interacting over a SSL connection
  */
-void connection_uses_ssl (connection_t *con)
+int connection_uses_ssl (connection_t *con, int accept_state)
 {
 #ifdef HAVE_OPENSSL
+    int ret;
     if (ssl_ctx == NULL)
     {
         DEBUG1 ("Detected SSL on connection from %s, but SSL not defined", con->ip);
         con->error = 1;
-        return;
+        return -1;
     }
     con->ssl = SSL_new (ssl_ctx);
-    SSL_set_accept_state (con->ssl);
-    SSL_set_fd (con->ssl, con->sock);
+    ret = SSL_set_fd (con->ssl, con->sock);
+    if (accept_state)
+        SSL_set_accept_state (con->ssl);
+    else
+        SSL_set_connect_state (con->ssl);
     SSL_set_mode (con->ssl, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER|SSL_MODE_ENABLE_PARTIAL_WRITE);
-    DEBUG1 ("Detected SSL on connection from %s", con->ip);
+    return ret > 0 ? 0 : -1;
+#else
+    return -1;
 #endif
 }
 
@@ -925,7 +931,8 @@ int connection_peek (connection_t *con)
             {
                 sock_set_cork (con->sock, 0);   // make sure this is off, leave curl to decide
                 sock_set_nodelay (con->sock);
-                connection_uses_ssl (con);
+                if (connection_uses_ssl (con, 1) == 0)
+                    DEBUG1 ("Detected SSL on connection from %s", con->ip);
             }
             else if (sock_set_cork (con->sock, 1) < 0)
                 sock_set_nodelay (con->sock);
