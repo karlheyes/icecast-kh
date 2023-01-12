@@ -32,6 +32,7 @@ char *util_get_path_from_uri(char *uri);
 char *util_get_path_from_normalised_uri(const char *uri, int use_admin);
 char *util_normalise_uri(const char *uri);
 char *util_base64_encode(const char *data);
+char *util_base64_encode_len (const char *data, int len);
 char *util_base64_decode(const char *input);
 char *util_bin_to_hex(unsigned char *data, int len);
 

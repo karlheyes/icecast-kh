@@ -448,9 +448,8 @@ char *util_bin_to_hex(unsigned char *data, int len)
 }
 
 /* This isn't efficient, but it doesn't need to be */
-char *util_base64_encode(const char *data)
+char *util_base64_encode_len (const char *data, int len)
 {
-    int len = strlen(data);
     char *out = malloc(len*4/3 + 4);
     char *result = out;
     int chunk;
@@ -480,6 +479,13 @@ char *util_base64_encode(const char *data)
 
     return result;
 }
+
+
+char *util_base64_encode (const char *data)
+{
+     return util_base64_encode_len (data, strlen(data));
+}
+
 
 char *util_base64_decode(const char *data)
 {
