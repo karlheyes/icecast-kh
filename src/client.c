@@ -405,6 +405,7 @@ int client_http_apply_block (client_http_headers_t *http, refbuf_t *ref)
 int client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...)
 {
     int ret = 1023;
+    if (fmt == NULL) return -1;
     do {
         va_list ap;
         char content [ret + 1];
@@ -613,7 +614,8 @@ int client_send_404 (client_t *client, const char *message)
 {
     client_http_headers_t http;
     if (client_http_setup (&http, client, 404, NULL) < 0) return -1;
-    client_http_apply_fmt (&http, 0, NULL, message);
+    if (message)
+        client_http_apply_fmt (&http, 0, NULL, message);
     return client_http_send (&http);
 }
 
