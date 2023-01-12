@@ -204,6 +204,7 @@ int  client_send_400(client_t *client, const char *message);
 int  client_send_302(client_t *client, const char *location);
 int  client_send_bytes (client_t *client, const void *buf, unsigned len);
 int  client_send_buffer_callback (client_t *client, int(*callback)(client_t*));
+int  client_send_buffer (client_t *client);
 int  client_read_bytes (client_t *client, void *buf, unsigned len);
 void client_set_queue (client_t *client, refbuf_t *refbuf);
 int  client_compare (void *compare_arg, void *a, void *b);

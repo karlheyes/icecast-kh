@@ -682,7 +682,7 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
 }
 
 
-static int client_send_buffer (client_t *client)
+int client_send_buffer (client_t *client)
 {
     const char *buf = client->refbuf->data + client->pos;
     int len = client->refbuf->len - client->pos;
@@ -690,9 +690,9 @@ static int client_send_buffer (client_t *client)
 
     if (ret > 0)
         client->pos += ret;
-    if (client->connection.error == 0 && client->pos >= client->refbuf->len)
+    if (client->connection.error == 0 && client->pos >= client->refbuf->len && client->aux_data)
     {
-        int (*callback)(client_t *) = client->format_data;
+        int (*callback)(client_t *) = (void *)client->aux_data;
         return callback (client);
     }
     return ret;
@@ -708,7 +708,7 @@ struct _client_functions client_buffer_ops =
 
 int client_send_buffer_callback (client_t *client, int(*callback)(client_t*))
 {
-    client->format_data = callback;
+    client->aux_data = (uintptr_t)callback;
     client->ops = &client_buffer_ops;
     return 0;
 }
