@@ -246,7 +246,8 @@ typedef struct _relay_server_host
     int priority;
     int port;
     int timeout;
-    int skip;
+    uint8_t    skip;
+    uint8_t    secure;
 } relay_server_host;
 
 

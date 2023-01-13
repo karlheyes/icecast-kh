@@ -110,52 +110,6 @@ int util_timed_wait_for_fd(sock_t fd, int timeout)
 #endif
 }
 
-int util_read_header(sock_t sock, char *buff, unsigned long len, int entire)
-{
-    int read_bytes, ret;
-    unsigned long pos;
-    char c;
-    ice_config_t *config;
-    int header_timeout;
-
-    config = config_get_config();
-    header_timeout = config->header_timeout;
-    config_release_config();
-
-    read_bytes = 1;
-    pos = 0;
-    ret = 0;
-
-    while ((read_bytes == 1) && (pos < (len - 1))) {
-        read_bytes = 0;
-
-        if (util_timed_wait_for_fd(sock, header_timeout*1000) > 0) {
-
-            if ((read_bytes = recv(sock, &c, 1, 0)) > 0) {
-                if (c != '\r') buff[pos++] = c;
-                if (entire) {
-                    if ((pos > 1) && (buff[pos - 1] == '\n' && 
-                                      buff[pos - 2] == '\n')) {
-                        ret = 1;
-                        break;
-                    }
-                }
-                else {
-                    if ((pos > 1) && (buff[pos - 1] == '\n')) {
-                        ret = 1;
-                        break;
-                    }
-                }
-            }
-        } else {
-            break;
-        }
-    }
-
-    if (ret) buff[pos] = '\0';
-    
-    return ret;
-}
 
 char *util_get_extension(const char *path) {
     char *ext = strrchr(path, '.');

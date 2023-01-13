@@ -158,6 +158,7 @@ relay_server *relay_copy (relay_server *r)
             to->port = from->port;
             to->timeout = from->timeout;
             to->skip = from->skip;
+            to->secure = from->secure;
             to->priority = from->priority;
             if (r->in_use && r->in_use == from)
                 copy->in_use = to;
@@ -346,62 +347,63 @@ int redirect_client (const char *mountpoint, client_t *client)
 }
 
 
-
-static http_parser_t *get_relay_response (connection_t *con, const char *mount,
-        const char *server, const char *headers)
+static char *encode_userpass (const char *user, const char *pass)
 {
-    ice_config_t *config = config_get_config ();
-    char *server_id = strdup (config->server_id);
-    http_parser_t *parser = NULL;
-    char response [4096];
-
-    config_release_config ();
-
-    /* At this point we may not know if we are relaying an mp3 or vorbis
-     * stream, but only send the icy-metadata header if the relay details
-     * state so (the typical case).  It's harmless in the vorbis case. If
-     * we don't send in this header then relay will not have mp3 metadata.
-     */
-    sock_write (con->sock, "GET %s HTTP/1.0\r\n"
-            "User-Agent: %s\r\n"
-            "Host: %s\r\n"
-            "%s"
-            "\r\n",
-            mount,
-            server_id,
-            server,
-            headers ? headers : "");
-
-    free (server_id);
-    memset (response, 0, sizeof(response));
-    if (util_read_header (con->sock, response, 4096, READ_ENTIRE_HEADER) == 0)
+    if (user && pass)
     {
-        WARN2 ("Header read failure from %s %s", server, mount);
-        return NULL;
+        char userpass [1024];
+        int ret = snprintf (userpass, sizeof userpass, "%s:%s", user, pass);
+        if (ret >= 0 && ret < sizeof userpass)
+            return util_base64_encode (userpass);
     }
-    parser = httpp_create_parser();
-    httpp_initialize (parser, NULL);
-    if (! httpp_parse_response (parser, response, strlen(response), mount))
-    {
-        INFO0 ("problem parsing response from relay");
-        httpp_destroy (parser);
-        return NULL;
-    }
-    return parser;
+    return NULL;
 }
 
 
-
-static void encode_auth_header (char *userpass, unsigned int remain)
+static http_parser_t *relay_get_response (client_t *client)
 {
-    if (userpass && userpass[0])
-    {
-        char *esc_authorisation = util_base64_encode (userpass);
+    http_parser_t *parser = NULL;
+    client->aux_data = 0;
+    do {
+        client_send_buffer (client);
+        if (client->connection.error)
+            return NULL;
+        if (client->pos >= client->refbuf->len)
+            break;
+        thread_sleep (100);
+    } while (1);
 
-        if (snprintf (userpass, remain, "Authorization: Basic %s\r\n", esc_authorisation) < 0)
-            userpass[0] = '\0';
-        free (esc_authorisation);
-    }
+    client_set_queue (client, NULL);
+    char storage [8196], *b = storage;
+    int remain = sizeof storage;
+    do {
+        int len = client_read_bytes (client, b, remain);
+        if (len <= 0)
+        {
+            global_lock();
+            int running = global.running;
+            global_unlock();
+            if (running != ICE_RUNNING || client->connection.error)
+                return NULL;
+            thread_sleep (100);
+            continue;
+        }
+        b += len;
+        remain -= len;
+        client->pos += len;
+        if (memmem (storage, client->pos, "\r\n\r\n", 4))
+        {
+            parser = httpp_create_parser();
+            httpp_initialize (parser, NULL);
+            if ( ! httpp_parse_response (parser, storage, client->pos, client->mount))
+            {
+                httpp_destroy (parser);
+                parser = NULL;
+            }
+            break;
+        }
+    } while (remain > 0);
+    return parser;
 }
 
 
@@ -415,18 +417,13 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     connection_t *con = &client->connection;
     char *server = strdup (host->ip);
     char *mount = strdup (host->mount);
-    int port = host->port, timeout = host->timeout, remain;
-    char *p, headers[4096] = "";
+    int port = host->port, timeout = host->timeout, secure = host->secure;
 
-    remain = sizeof (headers);
-    if (relay->flags & RELAY_ICY_META)
-        remain -= snprintf (headers, remain, "Icy-MetaData: 1\r\n");
-    p = headers + strlen (headers);
+    char *auth = NULL;
     if (relay->username && relay->password)
     {
         INFO2 ("using username %s for %s", relay->username, relay->localmount);
-        snprintf (p, remain, "%s:%s", relay->username, relay->password);
-        encode_auth_header (p, remain);
+        auth = encode_userpass (relay->username, relay->password);
     }
     while (1)
     {
@@ -443,9 +440,9 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             bind = strdup (host->bind);
 
         if (bind)
-            INFO4 ("connecting to %s:%d for %s, bound to %s", server, port, relay->localmount, bind);
+            INFO4 ("connecting %s to %s:%d, bound to %s", relay->localmount, server, port, bind);
         else
-            INFO3 ("connecting to %s:%d for %s", server, port, relay->localmount);
+            INFO3 ("connecting %s to %s:%d", relay->localmount, server, port);
 
         con->con_time = time (NULL);
         streamsock = sock_connect_wto_bind (server, port, bind, timeout);
@@ -455,9 +452,20 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             WARN2 ("Failed to connect to %s:%d", server, port);
             break;
         }
+        if (secure && connection_uses_ssl (&client->connection, 0) < 0)
+            break;
 
-        parser = get_relay_response (con, mount, server, headers);
+        client_http_headers_t http;
+        client_http_setup_flags (&http, client, 0, CLIENT_HTTPHDRS_REQUEST, mount);
+        if (relay->flags & RELAY_ICY_META)
+            client_http_apply_fmt (&http, 0, "Icy-MetaData", "1");
+        if (auth)
+            client_http_apply_fmt (&http, 0, "Authorization", "Basic %s", auth);
+        client_http_apply_fmt (&http, 0, "Host", "%s:%d", server, port);
+        client_http_complete (&http);
+        client_http_clear (&http);
 
+        parser = relay_get_response (client);
         if (parser == NULL)
         {
             ERROR4 ("Problem trying to start relay on %s (%s:%d%s)", relay->localmount,
@@ -469,12 +477,17 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             /* better retry the connection again but with different details */
             const char *uri, *mountpoint;
             int len;
-
+            char protocol [10];
             uri = httpp_getvar (parser, "location");
             INFO2 ("redirect received on %s : %s", relay->localmount, uri);
-            if (strncmp (uri, "http://", 7) != 0)
+
+            if (sscanf (uri, "%8[^:]://%n", protocol, &len) != 1)
                 break;
-            uri += 7;
+            if (strcmp (protocol, "http") == 0) secure = 0;
+            else if (strcmp (protocol, "https") == 0) secure = 1;
+            else break;
+
+            uri += len;
             mountpoint = strchr (uri, '/');
             free (mount);
             if (mountpoint)
@@ -485,48 +498,51 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             len = strcspn (uri, "@/");
             if (uri [len] == '@')
             {
-                snprintf (p, remain, "%.*s", len, uri);
-                encode_auth_header (p, remain);
+                auth = util_base64_encode_len (uri, len);
                 uri += len + 1;
             }
             len = strcspn (uri, ":/");
             port = 80;
             if (uri [len] == ':')
+            {
                 port = atoi (uri+len+1);
+                if (port < 1 || port > 65536)
+                    break;
+            }
+
             free (server);
             server = calloc (1, len+1);
             strncpy (server, uri, len);
             connection_close (con);
             httpp_destroy (parser);
             parser = NULL;
+            redirects++;
+            continue;
         }
-        else
+        if (httpp_getvar (parser, HTTPP_VAR_ERROR_MESSAGE))
         {
-            if (httpp_getvar (parser, HTTPP_VAR_ERROR_MESSAGE))
-            {
-                ERROR3 ("Error from relay request on %s (%s %s)", relay->localmount,
-                        host->mount, httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
-                client->parser = NULL;
-                break;
-            }
-            sock_set_blocking (streamsock, 0);
-            // no source is possible if doing a recheck
-            if (relay->source)
-                thread_rwlock_wlock (&relay->source->lock);
-            client->parser = parser; // old parser will be free in the format clear
-            if (relay->source)
-                thread_rwlock_unlock (&relay->source->lock);
-            client->connection.discon.time = 0;
-            client->connection.con_time = time (NULL);
-            client_set_queue (client, NULL);
-            free (server);
-            free (mount);
-
-            return 0;
+            ERROR3 ("Error from relay request on %s (%s %s)", relay->localmount,
+                    mount, httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
+            client->parser = NULL;
+            break;
         }
-        redirects++;
+        sock_set_blocking (streamsock, 0);
+        // no source is possible if doing a recheck
+        if (relay->source)
+            thread_rwlock_wlock (&relay->source->lock);
+        client->parser = parser; // old parser will be free in the format clear
+        if (relay->source)
+            thread_rwlock_unlock (&relay->source->lock);
+        client->connection.discon.time = 0;
+        client->connection.con_time = time (NULL);
+        client_set_queue (client, NULL);
+        free (server);
+        free (mount);
+
+        return 0;
     }
     /* failed, better clean up */
+    free (auth);
     free (server);
     free (mount);
     if (parser)
@@ -757,6 +773,11 @@ static relay_server *create_master_relay (const char *local, const char *remote,
     m = calloc (1, sizeof (relay_server_host));
     m->ip = (char *)xmlStrdup (XMLSTR(master->server));
     m->port = master->port;
+    if (master->ssl_port)
+    {
+        m->secure = 1;
+        m->port = master->ssl_port;
+    }
     if (master->bind)
         m->bind = (char *)xmlStrdup (XMLSTR(master->bind));
     // may need to add the admin link later instead of assuming mount is as-is
@@ -1076,8 +1097,8 @@ static void update_from_master (ice_config_t *config)
     streamlister = 1;
     details = calloc (1, sizeof (*details));
     details->server = strdup (config->master_server);
-    details->port = config->master_server_port; 
-    details->ssl_port = config->master_ssl_port; 
+    details->port = config->master_server_port;
+    details->ssl_port = config->master_ssl_port;
     details->username = strdup (config->master_username);
     details->password = strdup (config->master_password);
     details->send_auth = config->master_relay_auth;

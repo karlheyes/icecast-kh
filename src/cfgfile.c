@@ -1481,6 +1481,7 @@ static int _relay_host (cfg_xml *cfg, void *arg)
 {
     relay_server *relay = arg;
     relay_server_host *host = calloc (1, sizeof (relay_server_host));
+    int secure = 0;
 
     struct cfg_tag icecast_tags[] =
     {
@@ -1488,6 +1489,8 @@ static int _relay_host (cfg_xml *cfg, void *arg)
         { "server",         config_get_str,     &host->ip },
         { "port",           config_get_port,    &host->port },
         { "mount",          config_get_str,     &host->mount },
+        { "ssl",            config_get_bool,    &secure },
+        { "tls",            config_get_bool,    &secure },
         { "bind",           config_get_str,     &host->bind },
         { "timeout",        config_get_int,     &host->timeout },
         { "priority",       config_get_int,     &host->priority },
@@ -1518,6 +1521,7 @@ static int _relay_host (cfg_xml *cfg, void *arg)
     }
     pre->next = host;
     host->next = chk;
+    if (secure) host->secure = 1;
     if (host->priority == 0)
         host->priority = pre->priority + 1;
 
