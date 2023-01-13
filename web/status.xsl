@@ -17,7 +17,7 @@
 <xsl:for-each select="source">
 <div class="roundcont">
 <div class="roundtop">
-<img src="/images/corner_topleft.jpg" class="corner" style="display: none" alt=""/>
+<img src="./images/corner_topleft.jpg" class="corner" style="display: none" alt=""/>
 </div>
 <div class="newscontent">
     <div class="streamheader">
@@ -28,10 +28,10 @@
                 <td><h3>Mount Point <xsl:value-of select="@mount" /></h3></td>
                 <xsl:choose>
                     <xsl:when test="authenticator">
-                        <td align="right"><a class="auth" href="/auth.xsl">Login</a></td>
+                        <td align="right"><a class="auth" href="./auth.xsl">Login</a></td>
                     </xsl:when>
                     <xsl:otherwise>
-                        <td align="right"> <a href="{@mount}.m3u">M3U</a> <a href="{@mount}.xspf">XSPF</a></td>
+                        <td align="right"> <a href=".{@mount}.m3u">M3U</a> <a href=".{@mount}.xspf">XSPF</a></td>
                     </xsl:otherwise>
                 </xsl:choose>
         </tr></table>
@@ -94,7 +94,7 @@
 </table>
 </div>
 <div class="roundbottom">
-<img src="/images/corner_bottomleft.jpg" class="corner" style="display: none" alt="" />
+<img src="./images/corner_bottomleft.jpg" class="corner" style="display: none" alt="" />
 </div>
 </div>
 <br />

@@ -7,7 +7,7 @@
 <html>
 <head>
 <title>Icecast Streaming Media Server</title>
-<link rel="stylesheet" type="text/css" href="/style.css" />
+<link rel="stylesheet" type="text/css" href="../style.css" />
 </head>
 <body bgcolor="#000" topmargin="0" leftmargin="0" rightmargin="0" bottommargin="0">
 
@@ -16,7 +16,7 @@
 <xsl:variable name = "currentmount" ><xsl:value-of select="current_source" /></xsl:variable>
 <div class="roundcont">
 <div class="roundtop">
-<img src="/images/corner_topleft.jpg" class="corner" style="display: none" />
+<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
 </div>
 <div class="newscontent">
 <h3>Move to which mountpoint ?</h3>
@@ -34,7 +34,7 @@
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
 <div class="roundbottom">
-<img src="/images/corner_bottomleft.jpg" class="corner" style="display: none" />
+<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
 </div>
 </div>
 <div class="poster">Support icecast development at <a class="nav" href="http://www.icecast.org">www.icecast.org</a></div>
