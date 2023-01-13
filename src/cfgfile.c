@@ -422,11 +422,15 @@ relay_server *config_clear_relay (relay_server *relay)
     {
         relay_server_host *host = relay->hosts;
         relay->hosts = host->next;
+        while (host->http_hdrs)
+            host->http_hdrs = config_clear_http_header (host->http_hdrs);
         if (host->ip) xmlFree (host->ip);
         if (host->bind) xmlFree (host->bind);
         if (host->mount) xmlFree (host->mount);
         free (host);
     }
+    while (relay->http_hdrs)
+        relay->http_hdrs = config_clear_http_header (relay->http_hdrs);
     if (relay->localmount)  xmlFree (relay->localmount);
     if (relay->username)    xmlFree (relay->username);
     if (relay->password)    xmlFree (relay->password);
@@ -1476,6 +1480,7 @@ static int _relay_host (cfg_xml *cfg, void *arg)
         { "tls",            config_get_bool,    &secure },
         { "bind",           config_get_str,     &host->bind },
         { "timeout",        config_get_int,     &host->timeout },
+        { "http-headers",   _parse_http_headers,     &host->http_hdrs },
         { "priority",       config_get_int,     &host->priority },
         { NULL, NULL, NULL },
     };
@@ -1521,8 +1526,8 @@ static int _parse_relay (cfg_xml *cfg, void *arg)
 
     struct cfg_tag icecast_tags[] =
     {
-        { "master",                     _relay_host,        relay },
-        { "host",                       _relay_host,        relay },
+        { "master",                     _relay_host,        relay,      .flags = CFG_TAG_NOTATTR },
+        { "host",                       _relay_host,        relay,      .flags = CFG_TAG_NOTATTR },
         { "server",                     config_get_str,     &host->ip },
         { "ip",                         config_get_str,     &host->ip },
         { "bind",                       config_get_str,     &host->bind },
@@ -1532,6 +1537,7 @@ static int _parse_relay (cfg_xml *cfg, void *arg)
         { "local-mount",                config_get_str,     &relay->localmount },
         { "on-demand",                  config_get_bool,    &on_demand },
         { "run-on",                     config_get_int,     &relay->run_on },
+        { "http-headers",               _parse_http_headers,  &relay->http_hdrs,   .flags = CFG_TAG_NOTATTR },
         { "retry-delay",                config_get_int,     &relay->interval },
         { "relay-icy-metadata",         config_get_bool,    &icy_metadata },
         { "relay-shoutcast-metadata",   config_get_bool,    &icy_metadata },

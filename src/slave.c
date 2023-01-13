@@ -160,6 +160,7 @@ relay_server *relay_copy (relay_server *r)
             to->skip = from->skip;
             to->secure = from->secure;
             to->priority = from->priority;
+            config_http_copy (from->http_hdrs, &to->http_hdrs);
             if (r->in_use && r->in_use == from)
                 copy->in_use = to;
             *insert = to;
@@ -172,6 +173,7 @@ relay_server *relay_copy (relay_server *r)
             copy->username = (char *)xmlStrdup (XMLSTR(r->username));
         if (r->password)
             copy->password = (char *)xmlStrdup (XMLSTR(r->password));
+        config_http_copy (r->http_hdrs, &copy->http_hdrs);
         copy->flags = r->flags;
         copy->flags |= RELAY_RUNNING;
         copy->interval = r->interval;
@@ -462,6 +464,8 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         if (auth)
             client_http_apply_fmt (&http, 0, "Authorization", "Basic %s", auth);
         client_http_apply_fmt (&http, 0, "Host", "%s:%d", server, port);
+        client_http_apply_cfg (&http, relay->http_hdrs);
+        client_http_apply_cfg (&http, host->http_hdrs);
         client_http_complete (&http);
         client_http_clear (&http);
 
