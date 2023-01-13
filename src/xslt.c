@@ -499,7 +499,7 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
         else
             client_http_apply_fmt (&http, 0, "Content-Type", "%s", mediatype);
 
-        client_http_apply_fmt (&http, 0, "Content-Length", "%d", len);
+        http.in_length = len;
         if (cache[idx].disposition)
             client_http_apply_fmt (&http, 0, "content-disposition", "attachment; filename=\"%s\"", cache[idx].disposition);
 
