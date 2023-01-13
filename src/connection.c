@@ -1264,7 +1264,7 @@ int setup_source_client_callback (client_t *client)
 {
     refbuf_t *buf = client->refbuf;
 
-    if (client->format_data == NULL)
+    if (client->aux_data == 0)
     {
         const char *expect = httpp_getvar (client->parser, "expect");
         int len = buf->len - client->pos;
@@ -1284,7 +1284,7 @@ int setup_source_client_callback (client_t *client)
                DEBUG0 ("client expects 100 continue");
                snprintf (buf->data, PER_CLIENT_REFBUF_SIZE, "HTTP/1.1 100 Continue\r\n\r\n");
                buf->len = strlen (buf->data);
-               client->format_data = buf;
+               client->aux_data = (uintptr_t)buf;
                client->pos = 0;
                client_send_buffer_callback (client, setup_source_client_callback);
                return 0;  // need to send this straight away
@@ -1297,7 +1297,7 @@ int setup_source_client_callback (client_t *client)
     refbuf_release (client->refbuf);
     client->refbuf = buf;
     client->pos = 0;
-    client->format_data = NULL;
+    client->aux_data = 0;
     client->ops = &http_req_source_ops;
     return 0;
 }
