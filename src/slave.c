@@ -376,8 +376,8 @@ static http_parser_t *relay_get_response (client_t *client)
     } while (1);
 
     client_set_queue (client, NULL);
-    char storage [8196], *b = storage;
-    int remain = sizeof storage;
+    char storage [8192], *b = storage;
+    int remain = sizeof storage, data_len = 0;
     do {
         int len = client_read_bytes (client, b, remain);
         if (len <= 0)
@@ -398,12 +398,14 @@ static http_parser_t *relay_get_response (client_t *client)
         {
             p += 4;
             int headers_len = p - storage; // length of header block
-            int data_len = client->pos - headers_len;
+            data_len = client->pos - headers_len;
+            DEBUG1 ("found %d bytes of header", headers_len);
             parser = httpp_create_parser();
             httpp_initialize (parser, NULL);
             if ( ! httpp_parse_response (parser, storage, headers_len, client->mount))
             {
                 httpp_destroy (parser);
+                data_len = 0;
                 parser = NULL;
                 break;
             }
@@ -412,11 +414,14 @@ static http_parser_t *relay_get_response (client_t *client)
             {
                 memcpy (r->data, p, data_len);
                 DEBUG1 ("found %d bytes of data after header, queueing", data_len);
+                client->refbuf = r;
+                client->pos = 0;
             }
-            client_set_queue (client, r);
             break;
         }
     } while (remain > 0);
+    if (data_len == 0)
+        client_set_queue (client, NULL);
     return parser;
 }
 

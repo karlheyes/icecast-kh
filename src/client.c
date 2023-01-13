@@ -193,7 +193,10 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
         if (remaining > len)
             remaining = len;
         memcpy (buf, client->refbuf->data + client->pos, remaining);
+        if (remaining > 2)
+            {unsigned char*b = buf; DEBUG4 ("transferring %d (%2x %2x %2x) bytes previously stored", remaining, b[0], b[1], b[2]);}
         client->pos += remaining;
+        DEBUG2 ("list, %d, %d", client->pos, client->refbuf->len);
         if (client->pos >= client->refbuf->len)
             client_set_queue (client, NULL);
         return remaining;
