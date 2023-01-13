@@ -48,6 +48,10 @@ This section will describe each section of the config file and is grouped into t
 <h4>clients</h4>
 <div class="indentedbox">
 Total number of concurrent clients supported by the server.  Listeners are considered clients, but so is accesses to any static content (i.e. fileserved content) and also any requests to gather stats.  These are max *concurrent* connections for the entire server (not per mountpoint).
+Using this to prevent some sort of out of control situation for server stability is fine, but do not use this to limit say listeners. It
+is usuallly best to set this to higher than the expected number of server wide listeners, sources and to allow for web requests etc.
+Ypu may occasionally see the clients count go above this limit which is because certain types of clients are not capped by this eg
+relays.
 </div>
 <h4>sources</h4>
 <div class="indentedbox">
@@ -81,6 +85,8 @@ that has already been sent so adds latency between the source and player, this i
 for most people as the listeners only hear the player component.  The default is 64kbytes which
 is a typical size used by most clients so changing it is not usually required.  This setting
 applies to all mountpoints, unless overridden in the mount settings.
+It is possible to set this to seconds as well, eg 4s, the actual size of course adjusts as bitrates
+affect how much that actually works out at.
 </div>
 <p>
 <br />
@@ -170,12 +176,18 @@ The URL which icecast2 uses to communicate with the Directory server.  The value
 
     &lt;fileserve&gt;1&lt;/fileserve&gt;
     &lt;shoutcast-mount&gt;/live.nsv&lt;/shoutcast-mount&gt;
+
+    &lt;http-headers&gt;
+        &lt;header name="Custom-header1" value="some-value" status="[24]*" /&gt;
+        &lt;header name="Custom-header2" value="some-other-value" status="2*" /&gt;
+    &lt;/http-headers&gt;
+
 </pre>
 <p>This section contains miscellaneous server settings.  Note that multiple listen-socket
 sections may be configured in order to have icecast2 listen on multiple network interfaces.
 If a bind-address is not specified for a particular listen-socket, then the socket will be
 bound to all interfaces. Generally, you won't need to set bind-address.
-<p>One example where multiple ports are used is when shoutcast source clients are used to 
+<p>One example where multiple ports are used is when shoutcast source clients are used to
 stream data to icecast.  Shoutcast source clients use a limited protocol, they require two
 sequential ports. The base port acts like a normal web servre type port used for metadata
 updates but the second has an unusual protocol which has stream data sent to it.
@@ -222,6 +234,11 @@ An optional mountpoint to use when shoutcast DSP compatible clients connect. The
 be overridden here to use an alternative name which may include an extension that some clients require for
 certain formats.
 </div>
+<h4>http-headers</h4>
+<div class="indentedbox">
+This is to define a selection for http headers to send to listeners for all streams/files on this server. It follows
+the same rules as the same named block in the mount block.
+</div>
 <p>
 <br />
 <br />
@@ -243,7 +260,6 @@ other changes which will be identified.
         &lt;password&gt;soap&lt;/password&gt;
         &lt;relay-shoutcast-metadata&gt;0&lt;/relay-shoutcast-metadata&gt;
         &lt;on-demand&gt;0&lt;/on-demand&gt;
-        &lt;enable&gt;1&lt;/enable&gt;
     &lt;/relay&gt;
 
 </pre>
@@ -352,22 +368,38 @@ A server is configured as a Specific Mountpoint Server relay by specifying a &lt
 
 <pre>
     &lt;relay&gt;
+        &lt;local-mount&gt;/different.ogg&lt;/local-mount&gt;
         &lt;server&gt;127.0.0.1&lt;/server&gt;
         &lt;port&gt;8001&lt;/port&gt;
         &lt;mount&gt;/example.ogg&lt;/mount&gt;
-        &lt;local-mount&gt;/different.ogg&lt;/local-mount&gt;
+        &lt;http-headers&gt;
+                &lt;header name="Custom-header1" value="some-value" /&gt;
+                &lt;header name="Custom-header2" value="some-other-value" /&gt;
+        &lt;/http-headers&gt;
+        &lt;host&gt;
+            &lt;server&gt;master1&lt;/server&gt;
+            &lt;port&gt;8000&lt;/port&gt;
+            &lt;mount&gt;joe&lt;/mount&gt;
+            &lt;tls&gt;yes&lt;/tls&gt;
+            &lt;priority&gt;3&lt;/priority&gt;
+        &lt;/host&gt;
+        &lt;enable&gt;1&lt;/enable&gt;
         &lt;username&gt;joe&lt;/username&gt;
         &lt;password&gt;soap&lt;/password&gt;
         &lt;relay-shoutcast-metadata&gt;0&lt;/relay-shoutcast-metadata&gt;
         &lt;on-demand&gt;1&lt;/on-demand&gt;
-        &lt;enable&gt;1&lt;/enable&gt;
     &lt;/relay&gt;
 </pre>
 
 
 <h4>server</h4>
+<h4>local-mount</h4>
 <div class="indentedbox">
-This is the IP for the server which contains the mountpoint to be relayed.
+The name to use for the local mountpoint on this server.  This is what the mount will be named on the RELAY SERVER.
+While it can appear at any part of the XML block, it would be best listed at the beginning
+</div>
+<div class="indentedbox">
+This is the IP/name for the server which contains the mountpoint to be relayed.
 </div>
 <h4>port</h4>
 <div class="indentedbox">
@@ -375,11 +407,7 @@ This is the TCP Port for the server which contains the mountpoint to be relayed.
 </div>
 <h4>mount</h4>
 <div class="indentedbox">
-The mountpoint located on the remote server.  If you are relaying a shoutcast stream, this must be '/'.
-</div>
-<h4>local-mount</h4>
-<div class="indentedbox">
-The name to use for the local mountpoint.  This is what the mount will be named on the RELAY SERVER.
+The mountpoint located on the remote server.  If you are relaying a shoutcast stream, this is probably '/'.
 </div>
 <h4>username</h4>
 <div class="indentedbox">
@@ -391,7 +419,9 @@ The source of the relay may require authentication itself, if so state the passw
 </div>
 <h4>relay-shoutcast-metadata</h4>
 <div class="indentedbox">
-If you are relaying a Shoutcast stream, you need to specify this indicator to also relay the metadata (song titles) that is part of the Shoutcast stream (1=enabled, 0=disabled).
+Traditional streams can have ICY metadata in them which is used to update metadata in near realtime but the sender
+and receiver need to agree an interval so that they can be filtered out before playback.  By default icecast has always
+requested these as they are useful, but this option allows for you to not request them.
 </div>
 <h4>on-demand</h4>
 <div class="indentedbox">
@@ -402,37 +432,78 @@ If you are relaying a Shoutcast stream, you need to specify this indicator to al
 <h4>enable</h4>
 <div class="indentedbox">
     <p>The default setting is 1 which means that the relay is active, so it connection
-    attempts occur when they need to etc. If enable is 0 then the mountpoint name is 
+    attempts occur when they need to etc. If enable is 0 then the mountpoint name is
     reserved but nothing else occurs, so it is useful if a source of the relay is known
     to be having problems. Can be updated over HUP or via the admin pages.
     </p>
 </div>
+<br />
+<h4>http-headers</h4>
+<div class="indentedbox">
+<p>The headers specified here just require the name and value elements and these are sent to the relay host when
+connected.  The same block can be specified in the host block if you need to have different headers for different
+hosts, eg cookies or similar.</p>
+</div>
 
-<p>In this build, it is also possible to specify multiple locations of where to get content from.
-This may be because you want to allow for high availability, so that if one master becomes
-inaccessible from this relay then an alternative one can be tried.</p>
+<h4>host</h4>
+<div class="indentedbox">
+<p>The host sub-blocks are unique in the kh series but are often quite useful in situations where you can switch
+between feeds without affecting the connected listeners. You always have at least 1 host really even if the XML
+does not show it.<br>
+The most obvious layout is one above which is where each host stipulates the details for each entry. A
+priority 1 host would be tried before priority 2 etc, hosts with same priority have no requirment. Hosts that
+do not state the priority use the largest +1, that way the order in the xml is maintained. The priority value has
+no other significance other than the ordering of hosts.<br>
+You can shorten the listing, if you have a common theme eg 3 hosts each have icecast on port 8000 with same mountpoint
+can be defined like
+</p>
 <pre>
 
   &lt;relay&gt;
       &lt;local-mount&gt;/stream&lt;/local-mount&gt;
       &lt;retry-delay&gt;60&lt;/retry-delay&gt;
+      &lt;port&gt;8000&lt;/port&gt;
+      &lt;mount&gt;/feed&lt;/mount&gt;
       &lt;host&gt;
          &lt;server&gt;a.b.c.d&lt;/server&gt;
-         &lt;port&gt;8000&lt;/port&gt;
-         &lt;mount&gt;/feed-1&lt;/mount&gt;
       &lt;/host&gt;
       &lt;host&gt;
          &lt;server&gt;e.f.g.h&lt;/server&gt;
-         &lt;port&gt;9000&lt;/port&gt;
-         &lt;mount&gt;/feed-2&lt;/mount&gt;
+      &lt;/host&gt;
+      &lt;host&gt;
+         &lt;server&gt;s.t.u.v&lt;/server&gt;
       &lt;/host&gt;
   &lt;/relay&gt;
 
 </pre>
-<p>The first one listed is tried first and if that fails for any reason then the second one is
+<p>The highest priority is tried first and if that fails for any reason then the second highest is
 tried and so on. If a particular feed connects but terminates after a short time then it is treated
-as failed so the next is tried.  If all feeds have failed then a a complete retry is attempted after
-some time has elapsed.</p>
+as failed so the next is tried.  If all feeds have failed then a fresh retry on all is attempted after
+some time has elapsed (retry-delay), but if a stream has been running soem time then stops, then all
+are retried again. If all have been determined to of failed then any listeners are subject to fallback
+or being dropped.</p>
+<p>The priority of the host ordering is determined by the priority value on the host defintition. If
+none are specified then the order is as listed in the XML. A priority value of 1 is the highest priority</p>
+<p>A recent update to the relay code allowed for the restart of higher priority hosts to kick off, and
+if established then jumps in as the feed for the existing listeners.  As always, like with fallback
+handling, the different streams from the hosts should have the same stream format if playback is to be
+maintained. While certain variances can be possible (eg differences in bitrate), the more changes to
+the format, the less compatability there will be with players.</p>
+</div>
+<h4>Additional Information</h4>
+<div class="indentedbox">
+<p>A Recent feature for the relay is the ability for a connecting source client to use the same mount
+point as the relay and the relay feed effectively stops but allows for the source to take over, much
+like the previous section talks of a higher priority host taking over.  The overall effect of this is
+that you have a different type of fallback defined.</p>
+<p>What you have here then is a source client feed with a fallback which can be a multi-host relay. One
+where listeners are anchored in one place as no fallback is specfied.  In a few situations people have
+defined streams A and B to fallback to stream C. A listener join A and at some point falls back to C but
+if B connects then the listener ends up on B which may not be intended.  This new approach allows for A
+and B to be relays of C (no fallback defined) and the source for A and B connect as needed and the
+listeners stay where they started from.</p>
+</div>
+
 <br />
 <br />
 </p>
@@ -444,6 +515,10 @@ some time has elapsed.</p>
         &lt;username&gt;othersource&lt;/username&gt;
         &lt;password&gt;hackmemore&lt;/password&gt;
         &lt;max-listeners&gt;1&lt;/max-listeners&gt;
+        &lt;http-headers&gt;
+                &lt;header name="Custom-header1" value="some-value" status="[24]*" /&gt;
+                &lt;header name="Custom-header2" value="some-other-value" status="2*" /&gt;
+        &lt;/http-headers&gt;
         &lt;max-listener-duration&gt;3600&lt;/max-listener-duration&gt;
         &lt;dump-file&gt;/tmp/dump-example1.ogg&lt;/dump-file&gt;
         &lt;intro&gt;/intro.ogg&lt;/intro&gt;
@@ -500,6 +575,17 @@ An optional value which will set the password that a source must use to connect 
 <h4>max-listeners</h4>
 <div class="indentedbox">
 An optional value which will set the maximum number of listeners that can be attached to this mountpoint.
+</div>
+<h4>http-headers</h4>
+<div class="indentedbox">
+<p>A sub-block to allow for having customized headers to be sent to listeners on this stream.  The name and
+value elements are required to be specified, the status defaults to all return codes. This allows you to
+add or replace headers sent to players which may be important. You can specify CORS headers here or cookies.
+These headers do not have any effect on the icecast processing of the stream but can override ones from the
+source or some of the internally generated one like user agent.</p>
+<p>The same block defined globally is applied first and then this is applied. At the moment, duplicate headers
+are not provided for or to have a fixed global one which cannot be changed but that sort of thing could be
+made to work.</p>
 </div>
 <h4>max-listener-duration</h4>
 <div class="indentedbox">
