@@ -122,7 +122,7 @@ struct cfg_tag
 static xmlChar *cfg_get_string (cfg_xml *cfg)
 {
     if (cfg == NULL) return NULL;
-    if (cfg->flag) return cfg->attrval;
+    if (cfg->flag) return cfg->attrval ? xmlStrdup (cfg->attrval) : NULL;
     xmlNodePtr node = cfg->node;
     if (xmlIsBlankNode (node)) return NULL;
     return xmlNodeListGetString (node->doc, node->xmlChildrenNode, 1);
@@ -202,7 +202,6 @@ int config_get_str (cfg_xml *cfg, void *x)
         xmlChar *old = *(xmlChar**)x;
         if (old) xmlFree (old);
         *(xmlChar **)x = str;
-        if (cfg->flag) cfg->attrval = NULL; // string passed in so avoid freeup
     }
     return str ? 0 : 1;
 }
@@ -240,7 +239,6 @@ int config_get_port (cfg_xml *cfg, void *x)
 
     if (ret == 0)
     {
-        cfg->attrval = NULL;
         if (val < 0 || val > 65535)
         {
             xmlNodePtr node = cfg->node;
@@ -1264,22 +1262,6 @@ static int _parse_http_headers (cfg_xml *cfg, void *arg)
 }
 
 
-static int _parse_mount_http_headers (cfg_xml *cfg, void *arg)
-{
-    mount_proxy *mount = arg;
-    // populate from global set first, then apply local definitions.
-    config_http_copy (cfg->config->http_headers, &mount->http_headers);
-    return _parse_http_headers (cfg, &mount->http_headers);
-}
-
-
-static int _parse_global_http_headers (cfg_xml *cfg, void *arg)
-{
-   ice_config_t *config = cfg->config;
-   return _parse_http_headers (cfg, &config->http_headers);
-}
-
-
 config_options_t *config_clear_option (config_options_t *opt)
 {
     if (opt == NULL) return NULL;
@@ -1375,7 +1357,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "max-send-size",      config_get_int,     &mount->max_send_size },
         { "redirect",           config_get_str,     &redirect },
         { "redirect-to",        config_get_str,     &mount->redirect },
-        { "http-headers",       _parse_mount_http_headers,      mount,          .flags = CFG_TAG_NOTATTR },
+        { "http-headers",       _parse_http_headers,      &mount->http_headers,          .flags = CFG_TAG_NOTATTR },
         { "metadata-interval",  config_get_int,     &mount->mp3_meta_interval },
         { "mp3-metadata-interval",
                                 config_get_int,     &mount->mp3_meta_interval },
@@ -1430,6 +1412,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
     mount->preroll_log.logid = -1;
     mount->preroll_log.display = 50;
     mount->preroll_log.archive = -1;
+    config_http_copy (config->http_headers, &mount->http_headers);
 
     if (parse_xml_tags (cfg, icecast_tags))
         return -1;
@@ -1782,7 +1765,7 @@ static int _parse_root (cfg_xml *cfg, void *p)
         { "shoutcast-mount",    config_get_str,     &config->shoutcast_mount },
         { "listen-socket",      _parse_listen_sock,             .flags = CFG_TAG_NOTATTR },
         { "limits",             _parse_limits,                  .flags = CFG_TAG_NOTATTR },
-        { "http-headers",       _parse_global_http_headers,     .flags = CFG_TAG_NOTATTR },
+        { "http-headers",       _parse_http_headers,            .flags = CFG_TAG_NOTATTR },
         { "relay",              _parse_relay,                   .flags = CFG_TAG_NOTATTR },
         { "mount",              _parse_mount,                   .flags = CFG_TAG_NOTATTR },
         { "master",             _parse_master,                  .flags = CFG_TAG_NOTATTR },
