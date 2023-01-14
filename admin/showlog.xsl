@@ -9,7 +9,7 @@
 </head>
 <body bgcolor="#656565" style="color: white; font-size: 90%">
 <table>
-<tr><td><pre> 
+<tr><td><pre>
 <xsl:for-each select="/icestats"> <xsl:for-each select="log"> <xsl:value-of select="." /> </xsl:for-each></xsl:for-each>
 </pre></td></tr>
 </table>
