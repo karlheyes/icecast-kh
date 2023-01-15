@@ -136,6 +136,8 @@ typedef struct _mount_proxy {
     /* whether to allow matching files to work with http ranges */
     int file_seekable;
 
+    int priority;
+
     int fallback_when_full; /* switch new listener to fallback source
                                when max listeners reached */
     /* Max bandwidth (kbps)  for this mountpoint only. -1 (default) is not specified */

@@ -1338,6 +1338,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
     struct cfg_tag icecast_tags[] =
     {
         { "mount-name",         config_get_str,     &mount->mountname },
+        { "priority",           config_get_int,     &mount->priority },
         { "source-timeout",     config_get_int,     &mount->source_timeout },
         { "queue-size",         config_get_qsizing, &mount->queue_size_limit },
         { "burst-size",         config_get_qsizing, &mount->burst_size},
@@ -1398,6 +1399,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
 
     /* default <mount> settings */
     mount->_refcount = 1;
+    mount->priority = INT_MAX;
     mount->max_listeners = -1;
     mount->max_bandwidth = -1;
     mount->burst_size = config->burst_size;
@@ -1427,6 +1429,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         config_clear_mount (mount, 0);
         return -1;
     }
+    if (mount->priority < 0) mount->priority = INT_MAX;
     if (redirect)
     {
         char patt[] = "/${mount}";
@@ -1453,9 +1456,15 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
 
     if (config_mount_template (mount->mountname))
     {
+        mount_proxy *m = config->mounts, **trail = &config->mounts;
+        while (m && m->priority < mount->priority)
+        {
+            trail = &m->next;
+            m = *trail;
+        }
         // may need some priority order imposed at some point
-        mount->next = config->mounts;
-        config->mounts = mount;
+        mount->next = m;
+        *trail = mount;
     }
     else
         avl_insert (config->mounts_tree, mount);
@@ -1843,17 +1852,16 @@ mount_proxy *config_find_mount (ice_config_t *_c, const char *mount)
         mountinfo = config->mounts;
         while (mountinfo)
         {
+            if (to_return && to_return->priority < mountinfo->priority)
+                break;
             if (fnmatch (mountinfo->mountname, mount, 0) == 0)
                 to_return = mountinfo;
             mountinfo = mountinfo->next;
         }
-        if (mountinfo == NULL)
-            mountinfo = to_return;
+        mountinfo = to_return;
     }
     else
         mountinfo = result;
-    if (_c == NULL)
-        config_release_config();
     return mountinfo;
 }
 
