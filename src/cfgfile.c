@@ -441,7 +441,7 @@ relay_server *config_clear_relay (relay_server *relay)
 
 int config_mount_template (const char *mount)
 {
-    int len = strcspn (mount, "*?[$");
+    int len = strcspn (mount, "*?[+!@$");
     return (mount[len]) ? 1 : 0;
 }
 
