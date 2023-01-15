@@ -739,7 +739,8 @@ int client_send_m3u (client_t *client, const char *path)
     if (host && strchr (host, ':') == NULL)
         host = NULL;
 
-    *dot = 0;
+    if (dot)
+        *dot = 0;
     do
     {
         if (client->username && client->password)
