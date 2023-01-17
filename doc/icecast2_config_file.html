@@ -515,6 +515,7 @@ listeners stay where they started from.</p>
         &lt;username&gt;othersource&lt;/username&gt;
         &lt;password&gt;hackmemore&lt;/password&gt;
         &lt;max-listeners&gt;1&lt;/max-listeners&gt;
+        &lt;priority&gt;1&lt;/priority&gt;
         &lt;http-headers&gt;
                 &lt;header name="Custom-header1" value="some-value" status="[24]*" /&gt;
                 &lt;header name="Custom-header2" value="some-other-value" status="2*" /&gt;
@@ -562,7 +563,8 @@ re-read even on active streams, however some only apply when the stream starts o
 The name of the mount point for which these settings apply.  In this build you can use wildcards to
 apply the same settings to a range of mounts that are similar, eg /*.mp3 would be valid.  One thing
 to be careful of with wildcards is the order if multiple patterns would match. A /* would match all,
-so the order is important if you also wanted /*.mp3
+so the order is important if you also wanted /*.mp3, the priority tag described below may be helpful
+in these situations.
 </div>
 <h4>username</h4>
 <div class="indentedbox">
@@ -576,13 +578,26 @@ An optional value which will set the password that a source must use to connect 
 <div class="indentedbox">
 An optional value which will set the maximum number of listeners that can be attached to this mountpoint.
 </div>
+<h4>priority</h4>
+<div class="indentedbox">
+<p>This is optional but defaults to the lowest priority. When you have multiple mount points defined then you
+may have multiple mount points matching a request if at least one is a pattern eg (/*.mp3). The selection
+was of the mount point was determined by the order in the XML which is difficult for some as the XML can be
+generated.</p>
+<p>To help define a search order, we look through explicitly defined mounts (no pattern) first, then high
+priority patterns proceeding to lowest. mount points with no priority defined are in the lowest category,
+and multiple mount points of the same priority pick the last listed in the xml to match existing setups.
+The last one found with the highest priority is selcted</p>
+<p>Ideally you want wide ranging patterns eg /* to be the lowest prirority, then say /*.mp3 higher than that.
+The priority can then be defined without a concern for the layout of the xml.</p>
+</div>
 <h4>http-headers</h4>
 <div class="indentedbox">
 <p>A sub-block to allow for having customized headers to be sent to listeners on this stream.  The name and
 value elements are required to be specified, the status defaults to all return codes. This allows you to
 add or replace headers sent to players which may be important. You can specify CORS headers here or cookies.
 These headers do not have any effect on the icecast processing of the stream but can override ones from the
-source or some of the internally generated one like user agent.</p>
+source or some of the internally generated one like Date.</p>
 <p>The same block defined globally is applied first and then this is applied. At the moment, duplicate headers
 are not provided for or to have a fixed global one which cannot be changed but that sort of thing could be
 made to work.</p>
