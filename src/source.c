@@ -1575,7 +1575,6 @@ void source_init (source_t *source)
     stats_set_flags (source->stats, "listener_peak", "0", STATS_COUNTERS);
     stats_set_args (source->stats, "listener_peak", "%lu", source->peak_listeners);
     stats_set_flags (source->stats, "listener_connections", "0", STATS_COUNTERS);
-    stats_set_time (source->stats, "stream_start", STATS_COUNTERS, source->client->worker->current_time.tv_sec);
     stats_set_flags (source->stats, "total_mbytes_sent", "0", STATS_COUNTERS);
     stats_set_flags (source->stats, "total_bytes_sent", "0", STATS_COUNTERS);
     stats_set_flags (source->stats, "total_bytes_read", "0", STATS_COUNTERS);
@@ -1586,6 +1585,7 @@ void source_init (source_t *source)
     stats_set_flags (source->stats, "source_ip", source->client->connection.ip, STATS_COUNTERS);
 
     source->last_read = time(NULL);
+    stats_set_time (source->stats, "stream_start", STATS_COUNTERS, source->last_read);
     source->prev_listeners = -1;
     source->bytes_sent_at_update = 0;
     source->stats_interval = 5;
