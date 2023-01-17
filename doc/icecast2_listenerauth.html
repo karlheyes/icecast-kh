@@ -90,6 +90,8 @@ config file.  The following shows the list of options available :</p>
             &lt;option name="mount_remove" value="http://myauthserver.com/stream_end.php"/&gt;
             &lt;option name="listener_add" value="http://myauthserver.com/listener_joined.php"/&gt;
             &lt;option name="listener_remove" value="http://myauthserver.com/listener_left.php"/&gt;
+            &lt;option name="headers" value="user-agent,ETag,Custom1-Tag"/&gt;
+            &lt;option name="headers_prefix" value="Client-"/&gt;
             &lt;option name="username" value="user"/&gt;
             &lt;option name="password" value="pass"/&gt;
             &lt;option name="auth_header" value="icecast-auth-user: 1"/&gt;
@@ -140,6 +142,11 @@ is the listeners IP address and agent is the Useragent from the listeners player
 query parameters, so for instance the requested URL can be /stream.ogg&amp;session=xyz, but
 note that each option data is escaped before being passed via POST
 </p>
+<p>If you specify the headers option, then extra POST is added to detail items passed by the
+client via those headers but to avoid name clashes these are prefixed with some pre-determined
+tag so that you can easily identify them.  The default prefix is ClientHeader- so if you listed
+something like MyCookie in the headers list, and it is present in the client connecting then
+you would see in the POST a tag ClientHeader-MyCookie=
 <h3>listener_remove</h3>
 <p>This URL is for when a listener connection closes.</p>
 <p>POST details are</p>
