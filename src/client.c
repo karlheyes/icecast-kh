@@ -478,6 +478,7 @@ static int client_http_setup_req (client_http_headers_t *http, unsigned int flag
     ice_config_t *config = config_get_config();
     client_http_apply_fmt (http, 0, "User-Agent", "%s", config->server_id);
     config_release_config();
+    client_http_apply_fmt (http, 0, "Connection", "Close");
     return 0;
 }
 
