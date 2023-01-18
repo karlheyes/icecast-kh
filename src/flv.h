@@ -36,7 +36,7 @@ struct flv
     unsigned char tag[30];
 };
 
-#define FLV_CHK_META                    1<<0
+#define FLV_CHK_META                    (1<<0)
 
 int  write_flv_buf_to_client (client_t *client);
 int  flv_create_client_data (format_plugin_t *plugin, client_http_headers_t *http, client_t *client);

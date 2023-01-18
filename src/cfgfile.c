@@ -286,7 +286,7 @@ int config_get_loglevel (cfg_xml *cfg, void *x)
         v = atoi (str);
     } while (0);
     if (str) xmlFree ((xmlChar*)str);
-    *p = (v > 0 || v < 5) ? v : 2;  // set to default if invalid setting provided
+    *p = (v > 0 && v < 5) ? v : 2;  // set to default if invalid setting provided
     // WARN1 ("log level set to %d", *p);
     return 0;
 }

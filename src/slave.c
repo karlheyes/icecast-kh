@@ -1646,7 +1646,7 @@ static void *relay_switch (void *arg)
     } while ((host = host->next));
 
     snprintf (msg+n, remain, "complete");
-    DEBUG0 (msg);
+    DEBUG1 ("%s", msg);
     if (client)
     {   // if still set then we need to clean up here.
         connection_close (&client->connection);

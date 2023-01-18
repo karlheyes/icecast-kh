@@ -604,7 +604,7 @@ int client_send_400(client_t *client, const char *message)
 {
     client_http_headers_t http;
     client_http_setup (&http, client, 400, NULL);
-    client_http_apply_fmt (&http, 0, NULL, message);
+    client_http_apply_fmt (&http, 0, NULL, "%s", message);
     return client_http_send (&http);
 
 }
@@ -639,7 +639,7 @@ int client_send_404 (client_t *client, const char *message)
     client_http_headers_t http;
     if (client_http_setup (&http, client, 404, NULL) < 0) return -1;
     if (message)
-        client_http_apply_fmt (&http, 0, NULL, message);
+        client_http_apply_fmt (&http, 0, NULL, "%s", message);
     return client_http_send (&http);
 }
 
