@@ -18,6 +18,54 @@ Feature differences from Xiph release
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0.kh17
+. HTTP handling update. A lot of this is internal but the mechanism allows for
+  updating http headers from the XML using the http-headers block at the global
+  level or per mount point.  The same sort of block can be used within the relay
+  for specifying any headers sent to a relay.
+
+. XML parsing updates. This allows for simple tags to be embedded into the parent
+  tag.  examples include
+
+  <listen-socket port="8000" />
+  <mount mount-name="/stream">
+     ...
+  </mount>
+  <relay local-mount="/stream" on-demand="true">
+    <host server="master1" port="8000" mount="/feed-1" />
+    <host server="master2" port="9000" mount="/feed-2" />
+  </relay>
+
+. Relay hijack capability. Two possible use cases
+
+  - In the multiple host relay situation, every relay-delay seconds, the previously
+  failed but higher priority hosts are re-tried and if one works then switches in
+  to provide the feed for the stream. listeners are not moved.
+
+  - source client can override relay without moving listeners. This effectively
+  shuts down the pulling part of the relay but stays around until the source
+  client exits, at which point the relay restarts.  This can be seen as another
+  type of fallback, one without the issue of shared fallback mounts causing
+  listeners to end up on unexpected mount points. As the listeners stay in one
+  place then things like stats are more consistent.
+
+. SSL can be used on relay feed. Use boolean tag ssl or tls on the above host. The
+  relay can redirect to https to achieve the same thing.
+
+. priority tag on relay to allow for order host startup different to the order in
+  the XML. 1 is highest order, unspecified implies ordered per XML.
+
+. add ignore case for user agent matching.
+
+. priority tag on mount to allow for search order when you can match multiple mount
+  blocks (due to wildcard).
+
+. Small update to CORS handling, interaction with http work.
+. fnmatch (wildcard handling was broken in windows now fixed) and can use extended
+  settings like @ etc
+. Minor web page update
+. Document updates.
+
 2.4.0.kh16
 . Locking updates. Mostly for the config, mount lookup and client processing.
 . Add redirect_limit to auth URL options, default 1 but 0-10 allowed.

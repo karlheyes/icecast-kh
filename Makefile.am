@@ -26,6 +26,10 @@ FORCE:
 debug:
 	$(MAKE) all CFLAGS="-Wno-unused-parameter @DEBUG@"
 
+win64:
+	$(MAKE) all CFLAGS="-O2 -s" CXXFLAGS="-O2 -s"
+win32:
+	$(MAKE) all CFLAGS="-O2 -s" CXXFLAGS="-O2 -s"
 profile:
 	$(MAKE) all CFLAGS="@PROFILE@"
 
