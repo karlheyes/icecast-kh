@@ -1780,7 +1780,7 @@ static int _parse_root (cfg_xml *cfg, void *p)
         { "shoutcast-mount",    config_get_str,     &config->shoutcast_mount },
         { "listen-socket",      _parse_listen_sock,             .flags = CFG_TAG_NOTATTR },
         { "limits",             _parse_limits,                  .flags = CFG_TAG_NOTATTR },
-        { "http-headers",       _parse_http_headers,            .flags = CFG_TAG_NOTATTR },
+        { "http-headers",       _parse_http_headers,    &config->http_headers,  .flags = CFG_TAG_NOTATTR },
         { "relay",              _parse_relay,                   .flags = CFG_TAG_NOTATTR },
         { "mount",              _parse_mount,                   .flags = CFG_TAG_NOTATTR },
         { "master",             _parse_master,                  .flags = CFG_TAG_NOTATTR },
