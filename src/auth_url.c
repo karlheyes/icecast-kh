@@ -175,7 +175,7 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
     auth_thread_data *atd = auth_user->thread_data;
     char *header = (char *)ptr, *header_data;
 
-    if (bytes <= 1 || client == NULL)
+    if (bytes <= 1 || client == NULL || client->respcode)
         return bytes;
     do
     {
