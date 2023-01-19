@@ -280,7 +280,7 @@ static size_t handle_returned_header (void *ptr, size_t size, size_t nmemb, void
 
             if (client->refbuf && (type == FORMAT_TYPE_AAC || type == FORMAT_TYPE_MPEG))
             {
-                struct build_intro_contents *x = (void*)client->refbuf->data;
+                struct build_intro_contents *x = (struct build_intro_contents*)client->aux_data;
                 x->type = type;
                 mpeg_setup (&x->sync, client->connection.ip);
             }
@@ -304,7 +304,7 @@ static size_t handle_returned_data (void *ptr, size_t size, size_t nmemb, void *
          auth_user->flags & CLIENT_HAS_INTRO_CONTENT)
     {
         refbuf_t *n;
-        struct build_intro_contents *x = (void*)r->data;
+        struct build_intro_contents *x = (struct build_intro_contents*)client->aux_data;
 
         n = refbuf_new (bytes);
         memcpy (n->data, ptr, bytes);
@@ -452,7 +452,6 @@ static auth_result url_add_listener (auth_client *auth_user)
     auth_thread_data *atd = auth_user->thread_data;
 
     int res = 0, ret = AUTH_FAILED, poffset = 0;
-    struct build_intro_contents *x;
     char *userpwd = NULL, post [8192];
 
     if (url->addurl == NULL || client == NULL)
@@ -589,15 +588,13 @@ static auth_result url_add_listener (auth_client *auth_user)
     free (atd->location);
     atd->location = NULL;
     /* setup in case intro data is returned */
-    x = (void *)client->refbuf->data;
-    x->type = 0;
-    x->head = NULL;
-    x->intro_len = 0;
-    x->tailp = &x->head;
+    struct build_intro_contents intro = { .type = 0, .head = NULL, .intro_len = 0, .tailp = &intro.head }, *x = &intro;
+    client->aux_data = (uintptr_t)&intro;
 
     DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     res = curl_easy_perform (atd->curl);
     DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
+    client->aux_data = (uintptr_t)0;
 
     free (userpwd);
 
@@ -884,6 +881,7 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
     url_info = calloc(1, sizeof(auth_url));
     url_info->auth_header = strdup ("icecast-auth-user:");
     url_info->timelimit_header = strdup ("icecast-auth-timelimit:");
+    url_info->header_chk_prefix = strdup ("ClientHeader-");
     url_info->timeout = 5;
     url_info->redir_limit = 1;
     url_info->stop_req_duration = 60;
