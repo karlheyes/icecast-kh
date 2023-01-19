@@ -295,7 +295,7 @@ static int _client_http_apply (client_http_headers_t *http, const client_http_he
 
     while (chdr)
     {
-        if (strcasecmp (chdr->name, header->name) == 0)
+        if (header->name[0] && strcasecmp (chdr->name, header->name) == 0)
         {
             matched = *chdr;
             if (chdr->flags & CFG_HTTPHDR_MULTI)
@@ -416,7 +416,7 @@ int client_http_apply_fmt (client_http_headers_t *http, int flags, const char *n
         ret = vsnprintf (content, sizeof content, fmt, ap);
         va_end(ap);
 
-        if (ret > 0 && ret < sizeof content)
+        if (ret >= 0 && ret < sizeof content)
         {
             client_http_header_t hdr = { .next = NULL, .name = (char*)name, .value = content, .flags = flags };
             return client_http_apply (http, &hdr);
@@ -469,12 +469,16 @@ static int client_http_setup_req (client_http_headers_t *http, unsigned int flag
 {
     if (uri == NULL || uri[0] == 0) return -1;
     // special case, first line has blank name as it is different to the other headers
-    char line [1024];
-    client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
-    snprintf (line, sizeof(line), "GET %.1000s HTTP/1.1", uri);
+    if (http->headers == NULL)
+    {
+        char line [1024];
+        client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
+        snprintf (line, sizeof(line), "GET %.1000s HTTP/1.1", uri);
 
-    http->len = 1;       // start with allowing for the nul
-    client_http_apply (http, &firsthdr);
+        http->len = 1;       // start with allowing for the nul
+        http->in_major = http->in_minor = 1;
+        client_http_apply (http, &firsthdr);
+    }
     ice_config_t *config = config_get_config();
     client_http_apply_fmt (http, 0, "User-Agent", "%s", config->server_id);
     config_release_config();
