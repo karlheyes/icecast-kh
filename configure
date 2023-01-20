@@ -20774,7 +20774,6 @@ then :
 
 fi
 
-        ICECAST_OPTIONAL="$ICECAST_OPTIONAL auth_url.o"
         enable_curl="yes"
 
 for arg in $CURL_CFLAGS

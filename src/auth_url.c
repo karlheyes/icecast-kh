@@ -93,6 +93,7 @@
 #include "logging.h"
 #define CATMODULE "auth_url"
 
+#ifdef HAVE_CURL
 typedef struct
 {
     int id;
@@ -870,10 +871,12 @@ static void release_thread_data (auth_t *auth, void *thread_data)
     free (atd);
     DEBUG1 ("...handler destroyed for %s", auth->mount);
 }
+#endif // HAVE_CURL
 
 
 int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
 {
+#ifdef HAVE_CURL
     auth_url *url_info;
     char *pass_headers = NULL;
 
@@ -1009,5 +1012,9 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
 
     authenticator->state = url_info;
     return 0;
+#else
+    ERROR0 ("Auth URL disabled, no libcurl support");
+    return -1;
+#endif
 }
 

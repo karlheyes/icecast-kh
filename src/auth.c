@@ -770,14 +770,9 @@ static int get_authenticator (auth_t *auth, config_options_t *options)
 
         if (strcmp (auth->type, "url") == 0)
         {
-#ifdef HAVE_AUTH_URL
             if (auth_get_url_auth (auth, options) < 0)
                 return -1;
             break;
-#else
-            ERROR0 ("Auth URL disabled, no libcurl support");
-            return -1;
-#endif
         }
         if (strcmp (auth->type, "command") == 0)
         {
