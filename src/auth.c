@@ -823,14 +823,14 @@ static int get_authenticator (auth_t *auth, config_options_t *options)
 
 int auth_get_authenticator (auth_t *auth, config_options_t *options)
 {
+    thread_mutex_create (&auth->lock);
+    auth->refcount = 1;
     if (get_authenticator (auth, options) < 0)
         return -1;
     auth->tailp = &auth->head;
-    thread_mutex_create (&auth->lock);
 
     /* allocate N threads */
     auth->handles = calloc (auth->handlers, sizeof (auth_thread_t));
-    auth->refcount = 1;
     auth->flags |= (AUTH_RUNNING|AUTH_CLEAN_ENV);
     for (int i=0; i<auth->handlers; i++)
     {

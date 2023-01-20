@@ -545,7 +545,6 @@ aliases* config_clear_alias (aliases *alias)
 void config_clear(ice_config_t *c)
 {
     ice_config_dir_t *dirnode, *nextdirnode;
-    int i;
 
     free(c->config_filename);
 
@@ -623,7 +622,7 @@ void config_clear(ice_config_t *c)
         dirnode = nextdirnode;
     }
 #ifdef USE_YP
-    i = 0;
+    int i = 0;
     while (i < c->num_yp_directories)
     {
         if (c->yp_url[i]) xmlFree (c->yp_url[i]);
@@ -1316,7 +1315,7 @@ static int _parse_mount_auth (cfg_xml *cfg, void *arg)
             break;
         if (auth_get_authenticator (auth, opt) < 0)
         {
-            auth->refcount = 1;
+            thread_mutex_lock (&auth->lock);
             auth_release (auth);
             break;
         }
