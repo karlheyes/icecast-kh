@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <curl/curl.h>
 
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
@@ -27,6 +26,7 @@
 
 #include "thread/thread.h"
 
+#include "curl_ice.h"
 #include "connection.h"
 #include "refbuf.h"
 #include "client.h"
@@ -326,7 +326,7 @@ void yp_recheck_config (ice_config_t *config)
             server->url = strdup (config->yp_url[i]);
             server->url_timeout = config->yp_url_timeout[i];
             server->touch_interval = config->yp_touch_interval[i];
-            server->curl = curl_easy_init();
+            server->curl = icecurl_easy_init();
             if (server->curl == NULL)
             {
                 destroy_yp_server (server);

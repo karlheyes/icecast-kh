@@ -778,6 +778,60 @@ static int relay_installed (relay_server *relay)
 
 
 #ifdef HAVE_CURL
+
+#ifdef CURLOPT_PASSWDFUNCTION
+/* has now been removed but in case older libcurl is used, make sure that prompting at the console does not occur */
+static int icecurl_getpass(void *client, char *prompt, char *buffer, int buflen)
+{
+    buffer[0] = '\0';
+    return 0;
+}
+#endif
+
+#if LIBCURL_VERSION_NUM >= 0x072000
+size_t icecurl_server_running (void *clientp, curl_off_t dltotal, curl_off_t dlnow,
+        curl_off_t ultotal, curl_off_t ulnow)
+{
+    static time_t shutdown_time = (time_t)0;
+    global_lock ();
+    int down = (global.running != ICE_RUNNING) ? 1 : 0;
+    if (down)
+    {
+        if (shutdown_time == (time_t)0)
+        {
+            shutdown_time = time (NULL) + 15; // start the clock, allow for short period in secs
+            INFO0 ("Starting clock for curl request completion");
+            down = 0;
+        }
+        else
+            if (shutdown_time > time (NULL))
+                down = 0;
+            else if (clientp) // log message if message passed
+                WARN1 ("Aborting curl request%s", (char *)clientp);
+    }
+    global_unlock ();
+    return down;
+}
+#endif
+
+CURL *icecurl_easy_init ()
+{
+    CURL *c = curl_easy_init();
+    if (c)
+    {
+#ifdef CURLOPT_PASSWDFUNCTION
+        curl_easy_setopt (c, CURLOPT_PASSWDFUNCTION, icecurl_getpass);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x072000
+        curl_easy_setopt (c, CURLOPT_XFERINFOFUNCTION, icecurl_server_running);
+        curl_easy_setopt (c, CURLOPT_NOPROGRESS, 0L);
+#endif
+        curl_easy_setopt (c, CURLOPT_CONNECTTIMEOUT, 3L);
+    }
+    return c;
+}
+
+
 static relay_server *create_master_relay (const char *local, const char *remote, format_type_t t, struct master_conn_details *master)
 {
     relay_server *relay;
@@ -1005,7 +1059,7 @@ static void *streamlist_thread (void *arg)
     snprintf (auth, sizeof (auth), "%s:%s", master->username, master->password);
     snprintf (url, sizeof (url), "%s://%s:%d/admin/streams%s",
             protocol, master->server, port, master->args);
-    handle = curl_easy_init ();
+    handle = icecurl_easy_init ();
     curl_easy_setopt (handle, CURLOPT_USERAGENT, master->server_id);
     curl_easy_setopt (handle, CURLOPT_URL, url);
     curl_easy_setopt (handle, CURLOPT_HEADERFUNCTION, streamlist_header);

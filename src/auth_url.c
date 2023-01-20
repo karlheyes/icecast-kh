@@ -80,8 +80,7 @@
 #endif
 #include <ctype.h>
 
-#include <curl/curl.h>
-
+#include "curl_ice.h"
 #include "auth.h"
 #include "source.h"
 #include "client.h"
@@ -428,6 +427,11 @@ static auth_result url_remove_listener (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, post);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
+#if LIBCURL_VERSION_NUM >= 0x072000
+    char msg [100];
+    snprintf (msg, sizeof msg, ", listener remove on %s", &client->connection.ip[0]);
+    curl_easy_setopt (atd->curl, CURLOPT_XFERINFODATA, msg);
+#endif
 
     DEBUG2 ("...handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     if (curl_easy_perform (atd->curl))
@@ -584,6 +588,11 @@ static auth_result url_add_listener (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, post);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
+#if LIBCURL_VERSION_NUM >= 0x072000
+    char msg [100];
+    snprintf (msg, sizeof msg, ", listener add on %s", &client->connection.ip[0]);
+    curl_easy_setopt (atd->curl, CURLOPT_XFERINFODATA, msg);
+#endif
     atd->errormsg[0] = '\0';
     free (atd->location);
     atd->location = NULL;
@@ -834,15 +843,12 @@ static void *alloc_thread_data (auth_t *auth)
     auth_url *url = auth->state;
     atd->server_id = strdup (config->server_id);
 
-    atd->curl = curl_easy_init ();
+    atd->curl = icecurl_easy_init ();
     curl_easy_setopt (atd->curl, CURLOPT_USERAGENT, atd->server_id);
     curl_easy_setopt (atd->curl, CURLOPT_HEADERFUNCTION, handle_returned_header);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEFUNCTION, handle_returned_data);
     curl_easy_setopt (atd->curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->timeout);
-#ifdef CURLOPT_PASSWDFUNCTION
-    curl_easy_setopt (atd->curl, CURLOPT_PASSWDFUNCTION, my_getpass);
-#endif
     curl_easy_setopt (atd->curl, CURLOPT_ERRORBUFFER, &atd->errormsg[0]);
     curl_easy_setopt (atd->curl, CURLOPT_FOLLOWLOCATION, 1);
     curl_easy_setopt (atd->curl, CURLOPT_MAXREDIRS, (long)url->redir_limit);
