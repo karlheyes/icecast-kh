@@ -300,6 +300,7 @@ int admin_mount_request (client_t *client)
         worker_t *worker = client->worker;
         DEBUG0 ("client passed auth, but on different thread to src, reschedule on worker");
         client->mount = httpp_get_query_param (client->parser, "mount");
+        client->ops = &admin_mount_ops;
         client->flags |= CLIENT_ACTIVE;
         worker_wakeup (worker);
         return 0;
@@ -319,6 +320,8 @@ int admin_mount_request (client_t *client)
             return fserve_kill_client (client, mount, cmd->response);
         WARN1("Admin command on non-existent source %s", mount);
         free (uri);
+        client->aux_data = 0;
+        client->mount = NULL;
         return client_send_400 (client, "Source does not exist");
     }
     else
