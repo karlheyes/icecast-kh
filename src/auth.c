@@ -129,7 +129,8 @@ static auth_client *auth_client_setup (const char *mount, client_t *client)
     if (client)
     {
         auth_user->flags = (client->flags & (~CLIENT_ACTIVE));
-        client->mount = auth_user->mount;
+        if (client->mount == NULL)
+            client->mount = auth_user->mount;
     }
     return auth_user;
 }
@@ -308,10 +309,7 @@ static void stream_auth_callback (auth_client *auth_user)
     client->flags = auth_user->flags;
     thread_spin_unlock (&client->worker->lock);
 
-    if (auth_user->flags & CLIENT_AUTHENTICATED)
-        auth_postprocess_source (auth_user);
-    else
-        WARN1 ("Failed auth for source \"%s\"", auth_user->mount);
+    auth_postprocess_source (auth_user);
 }
 
 
@@ -328,7 +326,8 @@ static void stream_start_callback (auth_client *auth_user)
     {
         client_t *client = auth_user->client;
         free (client->connection.ip);
-        free (client->shared_data); // useragent
+        refbuf_release (client->refbuf);
+        free ((void*)client->aux_data); // useragent
         free (client);
         auth_user->client = NULL;
     }
@@ -348,6 +347,7 @@ static void stream_end_callback (auth_client *auth_user)
     {
         client_t *client = auth_user->client;
         free (client->connection.ip);
+        refbuf_release (client->refbuf);
         free (client->shared_data); // useragent
         free (client);
         auth_user->client = NULL;
@@ -586,24 +586,26 @@ static int auth_postprocess_listener (auth_client *auth_user)
  */
 void auth_postprocess_source (auth_client *auth_user)
 {
-    client_t *client = auth_user->client;
-    const char *mount = auth_user->mount;
-    const char *req = httpp_getvar (client->parser, HTTPP_VAR_URI);
+    if (auth_user->flags & CLIENT_AUTHENTICATED)
+    {
+        client_t *client = auth_user->client;
+        const char *mount = auth_user->mount;
+        const char *req = httpp_getvar (client->parser, HTTPP_VAR_URI);
 
-    auth_user->client = NULL;
-    if (strcmp (req, "/admin.cgi") == 0 || strncmp ("/admin/metadata", req, 15) == 0)
-    {
-        DEBUG2 ("metadata request (%s, %s)", req, mount);
-        client->mount = mount;
-        if (client->aux_data == 0)
-            client->aux_data = (uintptr_t)strdup("metadata");
-        admin_mount_request (client);
+        auth_user->client = NULL;
+        if (strcmp (req, "/admin.cgi") == 0 || strncmp ("/admin/metadata", req, 15) == 0)
+        {
+            DEBUG2 ("metadata request (%s, %s)", req, mount);
+            admin_mount_request (client);
+        }
+        else
+        {
+            DEBUG1 ("on mountpoint %s", mount);
+            source_startup (client, mount);
+        }
+        return;
     }
-    else
-    {
-        DEBUG1 ("on mountpoint %s", mount);
-        source_startup (client, mount);
-    }
+    WARN1 ("Failed auth attempt for source \"%s\"", auth_user->mount);
 }
 
 
@@ -880,7 +882,7 @@ void auth_stream_start (mount_proxy *mountinfo, source_t *source)
         auth_user->client = calloc (1, sizeof (client_t));
         auth_user->client->connection.ip = strdup (client->connection.ip);
         if (agent)
-            auth_user->client->shared_data = strdup (agent);
+            auth_user->client->aux_data = (uintptr_t)strdup (agent);
         INFO1 ("request stream startup for \"%s\"", mount);
 
         queue_auth_client (auth_user, mountinfo);

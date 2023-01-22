@@ -282,10 +282,24 @@ int admin_mount_request (client_t *client)
 {
     source_t *source;
     const char *mount = client->mount;
-    char *uri = (void*)client->aux_data;
 
+    client->ops = &admin_mount_ops;
+    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker so kick it back to worker.
+    {
+        worker_t *worker = client->worker;
+        DEBUG0 ("client on auth thread, reschedule on worker");
+        client->flags |= CLIENT_ACTIVE;
+        worker_wakeup (worker);
+        return 0;
+    }
+    if ((client->flags & CLIENT_AUTHENTICATED) == 0)
+    {
+        WARN1 ("Failed auth for source \"%s\"", client->mount);
+        return client_send_401 (client, NULL);
+    }
+
+    const char *uri = httpp_getvar (client->parser, "__admin_cmd");
     struct admin_command *cmd = find_admin_command (admin_mount, uri);
-
     if (cmd == NULL)
         return command_stats (client, uri);
 
@@ -294,18 +308,6 @@ int admin_mount_request (client_t *client)
         INFO0("mount request not recognised");
         return client_send_400 (client, "unknown request");
     }
-
-    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker so kick it back to worker.
-    {
-        worker_t *worker = client->worker;
-        DEBUG0 ("client passed auth, but on different thread to src, reschedule on worker");
-        client->mount = httpp_get_query_param (client->parser, "mount");
-        client->ops = &admin_mount_ops;
-        client->flags |= CLIENT_ACTIVE;
-        worker_wakeup (worker);
-        return 0;
-    }
-
     avl_tree_rlock(global.source_tree);
     source = source_find_mount_raw(mount);
 
@@ -319,15 +321,10 @@ int admin_mount_request (client_t *client)
         if (strncmp (cmd->request, "killclient", 10) == 0)
             return fserve_kill_client (client, mount, cmd->response);
         WARN1("Admin command on non-existent source %s", mount);
-        free (uri);
-        client->aux_data = 0;
-        client->mount = NULL;
         return client_send_400 (client, "Source does not exist");
     }
     else
     {
-        int ret = 0;
-
         thread_rwlock_wlock (&source->lock);
         avl_tree_unlock (global.source_tree);
 
@@ -335,23 +332,20 @@ int admin_mount_request (client_t *client)
         worker_t *src_worker = source->client->worker;
         if (src_worker != client->worker)
         {
-            client->ops = &admin_mount_ops;
             thread_rwlock_rlock (&workers_lock);
             thread_rwlock_unlock (&source->lock);
             // DEBUG0 (" moving admin request to alternate worker");
-            ret = client_change_worker (client, src_worker);
+            int ret = client_change_worker (client, src_worker);
             thread_rwlock_unlock (&workers_lock);
             return ret;
         }
-        free (uri);
         if (source_available (source) == 0)
         {
             thread_rwlock_unlock (&source->lock);
             INFO1("Received admin command on unavailable mount \"%s\"", mount);
             return client_send_400 (client, "Source is not available");
         }
-        ret = cmd->handle.source (client, source, cmd->response);
-        return ret;
+        return cmd->handle.source (client, source, cmd->response);
     }
 }
 
@@ -416,7 +410,8 @@ int admin_handle_request (client_t *client, const char *uri)
     {
         xmlSetStructuredErrorFunc ((char*)mount, config_xml_parse_failure);
         client->mount = mount;
-        client->aux_data = (uintptr_t)strdup (uri);
+        // install a command copy in parser in case delayed auth needs it. It may of been aliased
+        httpp_setvar (client->parser, "__admin_cmd", uri);
 
         /* no auth/stream required for this */
         if (strcmp (uri, "buildm3u") == 0)
@@ -435,7 +430,6 @@ int admin_handle_request (client_t *client, const char *uri)
                     INFO1("Bad or missing password on mount modification "
                             "admin request (%s)", uri);
                     return client_send_401 (client, NULL);
-                    /* fall through */
                 case 1:
                     return 0;
             }

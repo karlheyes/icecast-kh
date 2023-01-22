@@ -678,8 +678,8 @@ static void url_stream_start (auth_client *auth_user)
     {
         if (client->connection.ip)
             ipaddr = util_url_escape (client->connection.ip);
-        if (client->shared_data)
-            agent = util_url_escape (client->shared_data);
+        if (client->aux_data)
+            agent = util_url_escape ((const char*)client->aux_data);
     }
     if (ipaddr == NULL) ipaddr = strdup("");
     if (agent == NULL) agent = strdup("");
@@ -732,8 +732,8 @@ static void url_stream_end (auth_client *auth_user)
     {
         if (client->connection.ip)
             ipaddr = util_url_escape (client->connection.ip);
-        if (client->shared_data)
-            agent = util_url_escape (client->shared_data);
+        if (client->aux_data)
+            agent = util_url_escape ((const char*)client->aux_data);
     }
     if (ipaddr == NULL) ipaddr = strdup("");
     if (agent == NULL) agent = strdup("");
