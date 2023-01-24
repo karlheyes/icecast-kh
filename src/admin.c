@@ -314,6 +314,7 @@ int admin_mount_request (client_t *client)
     if (source == NULL)
     {
         avl_tree_unlock(global.source_tree);
+        client->mount = NULL;
         if (strncmp (cmd->request, "stats", 5) == 0)
             return command_stats (client, uri);
         if (strncmp (cmd->request, "listclients", 11) == 0)
