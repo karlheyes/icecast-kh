@@ -1267,13 +1267,13 @@ int setup_source_client_callback (client_t *client)
     if (client->aux_data == 0)
     {
         const char *expect = httpp_getvar (client->parser, "expect");
-        int len = buf->len - client->pos;
+        int len = buf->len - client->pos; // anything after the headers
 
         if (len)
         {
             refbuf_t *stream = refbuf_new (len);
             memcpy (stream->data, buf->data+client->pos, len);
-            buf->associated = stream;
+            buf->next = stream;
             buf->len -= len;
             DEBUG1 ("found %d bytes of stream data after headers", len);
         }
@@ -1281,10 +1281,16 @@ int setup_source_client_callback (client_t *client)
         {
            if (strcasecmp (expect, "100-continue") == 0)
            {
+               refbuf_t *surplus = client->refbuf;
+               if (surplus)
+                   client->refbuf = surplus->next;
+               refbuf_release (surplus);
+
+               client_http_headers_t http;
+               client_http_setup (&http, client, 100, NULL);
+               client_http_complete (&http);
+
                DEBUG0 ("client expects 100 continue");
-               snprintf (buf->data, PER_CLIENT_REFBUF_SIZE, "HTTP/1.1 100 Continue\r\n\r\n");
-               buf->len = strlen (buf->data);
-               client->aux_data = (uintptr_t)buf;
                client->pos = 0;
                client_send_buffer_callback (client, setup_source_client_callback);
                return 0;  // need to send this straight away
@@ -1292,9 +1298,8 @@ int setup_source_client_callback (client_t *client)
            INFO1 ("Received Expect header: %s", expect);
         }
     }
-    buf = buf->associated;
-    client->refbuf->associated = NULL;
-    refbuf_release (client->refbuf);
+    buf = buf->next;
+    refbuf_release (client->refbuf);    // drop either the incoming headers or 100 continue
     client->refbuf = buf;
     client->pos = 0;
     client->aux_data = 0;
@@ -1382,6 +1387,7 @@ static int http_client_request (client_t *client)
             if (httpp_parse (client->parser, refbuf->data, refbuf->len))
             {
                 const char *str;
+                client->pos = ptr - refbuf->data;
 
                 str = httpp_getvar (client->parser, "x-forwarded-for");
                 if (str)
@@ -1429,30 +1435,31 @@ static int http_client_request (client_t *client)
                     return -1;
                 }
 
+                client->counter = 0;
                 auth_check_http (client);
                 switch (client->parser->req_type)
                 {
                     case httpp_req_head:
                     case httpp_req_get:
-                        refbuf->len = PER_CLIENT_REFBUF_SIZE;
+                        client_set_queue (client, NULL);
                         client->ops = &http_req_get_ops;
                         break;
                     case httpp_req_source:
                     case httpp_req_put:
-                        client->pos = ptr - refbuf->data;
                         setup_source_client_callback (client);
                         break;
                     case httpp_req_stats:
-                        refbuf->len = PER_CLIENT_REFBUF_SIZE;
+                        client_set_queue (client, NULL);
                         client->ops = &http_req_stats_ops;
                         break;
                     case httpp_req_options:
+                        client_set_queue (client, NULL);
                         return client_send_options (client);
                     default:
                         WARN1("unhandled request type from %s", client->connection.ip);
+                        client_set_queue (client, NULL);
                         return client_send_501 (client);
                 }
-                client->counter = 0;
                 return client->ops->process(client);
             }
             /* invalid http request */

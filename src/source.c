@@ -1211,7 +1211,7 @@ static int http_source_listener (client_t *client)
     source_t *source = client->shared_data;
     int ret;
 
-    if (refbuf == NULL || client->pos == refbuf->len)
+    if (refbuf && client->pos == refbuf->len)
     {
         client->check_buffer = http_source_intro;
         return http_source_intro (client);
@@ -2814,12 +2814,6 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     {
         thread_rwlock_unlock (&source->lock);
         return fserve_setup_client (client);
-    }
-
-    if (client->respcode == 0)
-    {
-        client->refbuf->len = PER_CLIENT_REFBUF_SIZE;
-        memset (client->refbuf->data, 0, PER_CLIENT_REFBUF_SIZE);
     }
 
     global_lock();

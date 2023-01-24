@@ -448,6 +448,7 @@ int client_http_status_lookup (int status, client_http_status_t *s)
 #define RetX(A,B) (*s = (client_http_status_t){.status=A, .msg=B })
     switch (status)
     {
+        case 100: RetX (100, "Continue"); break;
         case 200: RetX (200, "OK"); break;
         case 204: RetX (204, "No Content"); break;
         case 206: RetX (206, "Partial Content"); break;

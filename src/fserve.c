@@ -479,6 +479,8 @@ int fserve_client_create (client_t *httpclient, const char *path)
     if (strcmp (util_get_extension (fullpath), "xspf") == 0)
         xspf_requested = 1;
 
+    client_set_queue (httpclient, NULL);
+
     /* check for the actual file */
     if (stat (fullpath, &file_buf) != 0)
     {
@@ -497,8 +499,6 @@ int fserve_client_create (client_t *httpclient, const char *path)
         m3u_file_available = 0;
         xspf_file_available = 0;
     }
-
-    client_set_queue (httpclient, NULL);
 
     if (m3u_requested && m3u_file_available == 0)
     {

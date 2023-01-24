@@ -1115,10 +1115,6 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, client_http_h
     else
         client_mp3->max_send_size = 24000; // largest single write, block very unlikely to be larger
 
-    if (client->refbuf == NULL)
-        client->refbuf = refbuf_new (4096);
-    client->refbuf->len = 0;
-
     metadata = httpp_getvar(client->parser, "icy-metadata");
     if (metadata && atoi(metadata))
         httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack force 1.0 if icy metadata requested
