@@ -284,12 +284,22 @@ static void auth_remove_listener (auth_client *auth_user)
     if (auth_user->client)
     {
         client_t *client = auth_user->client;
-        client->flags &= ~CLIENT_AUTHENTICATED;
+        auth_user->flags &= ~CLIENT_AUTHENTICATED;
         DEBUG1 ("client #%" PRIu64 " completed", client->connection.id);
-        if (client->worker)
+        thread_rwlock_rlock (&workers_lock);
+        worker_t *worker = client->worker;
+        if (worker)
+        {
+            auth_user->flags |= CLIENT_ACTIVE;
             client_send_404 (client, NULL);
+            thread_spin_lock (&client->worker->lock);
+            client->flags = auth_user->flags;
+            thread_spin_unlock (&client->worker->lock);
+            worker_wakeup (worker);
+        }
         else
             client_destroy (auth_user->client);
+        thread_rwlock_unlock (&workers_lock);
         auth_user->client = NULL;
     }
 }
