@@ -42,6 +42,7 @@ typedef struct auth_client_tag
     int         port;
     int         handler;
     uint32_t     flags;
+    unsigned char state;
     client_t    *client;
     struct auth_tag *auth;
     void        *thread_data;
