@@ -556,6 +556,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             thread_rwlock_unlock (&relay->source->lock);
         client->connection.discon.time = 0;
         client->connection.con_time = time (NULL);
+        relay->recheck_hosts = client->connection.con_time + relay->interval;
         free (server);
         free (mount);
 
