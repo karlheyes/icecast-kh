@@ -285,11 +285,10 @@ static int _client_http_apply (client_http_headers_t *http, const client_http_he
         return 0;
     }
     if (header->callback == NULL && header->value == NULL) return -1; // error case
-    if (header->name[0] == '\0' && http->headers)
-        return -1;      // special case first header (empty string) for the status line
 
     // calc lengths of strings, but allow extra space for chars ': ' and '\r\n'
-    int nlen = strlen (header->name) + 2, vlen;
+    int nlen = strlen (header->name), vlen;
+    if (nlen) nlen += http->entry_div_len;
 
     client_http_header_t matched = { .name = NULL };
 
@@ -329,11 +328,13 @@ static int _client_http_apply (client_http_headers_t *http, const client_http_he
     chdr->name = strdup (header->name);
     if (chdr->value == NULL)
         chdr->value = strdup (header->value ? header->value : "");
+    else if (header->flags & CLIENT_POST_ENC)
+        chdr->value = util_url_escape (header->value);
     else if (chdr->value == header->value)
         chdr->value = strdup (header->value);
 
     chdr->flags = (header->flags & ~CFG_HTTPHDR_NOCOPY);
-    vlen = strlen (chdr->value) + 2;
+    vlen = strlen (chdr->value) + http->entry_end_len;
     chdr->callback = header->callback;
     chdr->value_len = vlen;
     chdr->name_len = nlen;
@@ -456,9 +457,6 @@ int client_http_status_lookup (int status, client_http_status_t *s)
         case 404: RetX (404, "File Not Found"); break;
         case 416: RetX (416, "Request Range Not Satisfiable"); break;
         case 501: RetX (501, "Not Implemented"); break;
-#if 0
-        case 101:
-#endif
         default:  RetX (400, "Bad Request"); break;
     }
     return 0;
@@ -492,7 +490,8 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
     if (client && client->respcode) return -1;
     memset (http, 0, sizeof (*http));
     http->client = client;
-    client_set_queue (client, NULL);
+    http->entry_end_len = snprintf (&http->entry_end[0], sizeof (http->entry_end), "\r\n");
+    http->entry_div_len = snprintf (&http->entry_div[0], sizeof (http->entry_div), ": ");
     if (flags & CLIENT_HTTPHDRS_REQUEST)
         return client_http_setup_req (http, flags, statusmsg);
 
@@ -519,7 +518,6 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
     http->in_connection = httpp_getvar (client->parser, "connection");
     http->in_origin = httpp_getvar (client->parser, "origin");
 
-    // special case, first line has blank name as it is different to the other headers
     char line [1024];
     client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
     if (statusmsg == NULL)
@@ -530,66 +528,104 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
     client_http_apply (http, &firsthdr);
 
     ice_config_t *config = config_get_config();
-    if (client->respcode == 401)        http->in_realm = strdup (config->server_id);
+    const char *realm = config->server_id;
     mount_proxy *mountinfo = client->mount ? config_find_mount (config, client->mount) : NULL;
-    if (mountinfo && mountinfo->http_headers)
-        client_http_apply_cfg (http, mountinfo->http_headers);
+    if (mountinfo)
+    {
+        if (mountinfo->auth && mountinfo->auth->realm)
+            realm = mountinfo->auth->realm;
+        if (mountinfo->http_headers)
+            client_http_apply_cfg (http, mountinfo->http_headers);
+    }
     else
         client_http_apply_cfg (http, config->http_headers);
+    if (client->respcode == 401)        http->in_realm = strdup (realm);
     config_release_config();
 
     return 0;
 }
 
 
+int  client_post_setup (client_http_headers_t *http, unsigned int flags)
+{
+    memset (http, 0, sizeof (*http));
+    http->entry_end_len = snprintf (&http->entry_end[0], sizeof (http->entry_end), "&");
+    http->entry_div_len = snprintf (&http->entry_div[0], sizeof (http->entry_div), "=");
+
+    http->len = 1;       // start with allowing for the nul
+    http->in_length = -1;
+    return 0;
+}
+
+
+static int _client_headers_complete (client_http_headers_t *http, refbuf_t *rb)
+{
+    client_http_header_t *h = http->headers;
+    unsigned int remain = rb->len;
+    char *p = rb->data;
+    while (h)
+    {
+        const char *divider = h->name[0] ? &http->entry_div[0] : "";
+        const char *endtag  = h->next    ? &http->entry_end[0] : "";
+        int r = snprintf (p, remain, "%s%s%s%s", h->name, divider, h->value, endtag);
+        if (r < 0 || r >= remain) return -1;
+        p += r;
+        remain -= r;
+        h = h->next;
+    }
+    return p - rb->data;
+}
+
+
 int  client_http_complete (client_http_headers_t *http)
 {
-    if (http == NULL || http->headers == NULL)
-        return -1;
+    if (http == NULL || http->headers == NULL) return -1;
 
-    client_t *cl = http->client;
     const char *msg = (http->msg) ? http->msg : "";
     int remain = strlen (msg);
     uint64_t msglen = remain + http->block_total;
 
     if (http->in_length > 0)
-        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, http->in_length);
+        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, http->in_length);  // forward notification
     else if (http->in_length == 0)
-        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, msglen);
+        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, msglen);  // headers + simple message
 
-    remain += http->len;
+    _client_http_apply (http, &(client_http_header_t){ .name = "", .value = "\r\n" });
+
+    remain += http->len;  // starts with space for nul char
     refbuf_t *rb = refbuf_new (remain);
-    rb->next = cl->refbuf;
-    cl->refbuf = rb;
-    char *p = rb->data;
-
-    client_http_header_t *h = http->headers;
-    int c = 0;
-    const char *sep = "";
-    while (h)
+    int written = _client_headers_complete (http, rb);
+    if (written >= 0)
     {
-        int r = snprintf (p, remain, "%s%s%s\r\n", h->name, sep, h->value);
-        if (r < 0) return -1;
-        sep = ": ";
-        p += r;
-        c += r;
-        remain -= r;
-        h = h->next;
+        client_t *cl = http->client;
+        rb->next = cl->refbuf;
+        cl->refbuf = rb;
+        char *p = rb->data + written;
+        written += snprintf (p, (rb->len - written), "%s", msg);
+        rb->len = written; // don't send the last nul
     }
-    if ((c + 3) != http->len) WARN3 ("verify check %d vs %d (%s)", c, http->len, rb->data);
-    c += snprintf (p, remain, "\r\n%s", msg);
-    http->client->refbuf = rb;
-    rb->len = c;
-    return 0;
+    client_http_clear (http);
+    return written < 0 ? -1 : 0;
+}
+
+
+refbuf_t *client_post_complete (client_http_headers_t *http)
+{
+    if (http == NULL || http->headers == NULL) return NULL;
+    uint64_t remain = http->block_total + http->len;
+    refbuf_t *rb = refbuf_new (remain);
+    int written = _client_headers_complete (http, rb);
+    if (written >= 0)
+        rb->len = written; // do not include the last null even though it is there
+    client_http_clear (http);
+    return rb;
 }
 
 
 int client_http_send (client_http_headers_t *http)
 {
-    client_http_complete (http);
     client_t *client = http->client;
-    http->client = NULL;
-    client_http_clear (http);
+    client_http_complete (http);
     return fserve_setup_client (client);
 }
 
@@ -769,7 +805,6 @@ int client_send_m3u (client_t *client, const char *path)
         client_http_apply_fmt (&http, 0, "Content-Disposition", "%s", "attachment; filename=\"listen.m3u\"");
         client_http_apply_fmt (&http, 0, NULL, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
         client_http_complete (&http);
-        client_http_clear (&http);
         free (sourceuri);
         return fserve_setup_client_fb (client, NULL);
     } while (0);

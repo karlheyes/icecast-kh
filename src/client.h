@@ -161,6 +161,13 @@ typedef struct  _client_http_headers_t {
     // placeholders quick lookup
     uint8_t in_major;
     uint8_t in_minor;
+
+    uint8_t  entry_end_len;
+    uint8_t  entry_div_len;
+
+    char entry_end[4];  // may need to increase in future but fine for now
+    char entry_div[4];
+
     off_t   in_length;
 
     const char *in_connection;
@@ -171,6 +178,9 @@ typedef struct  _client_http_headers_t {
     client_http_status_t  conn;
 
 } client_http_headers_t;
+
+//
+#define CLIENT_POST_ENC                                 (1<<10)
 
 // flags for http_headers_t
 #define CLIENT_HTTPHDRS_REQUEST                         (1<<0)
@@ -188,6 +198,8 @@ int  client_http_apply_block (client_http_headers_t *http, refbuf_t *ref);
 void client_http_clear (client_http_headers_t *http);
 int  client_http_complete (client_http_headers_t *http);
 int  client_http_send (client_http_headers_t *http);
+int  client_post_setup (client_http_headers_t *http, unsigned int flags);
+refbuf_t *client_post_complete (client_http_headers_t *http);
 int  client_send_m3u (client_t *client, const char *path);
 
 void client_register (client_t *client);
