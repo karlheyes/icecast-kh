@@ -505,7 +505,6 @@ int fserve_client_create (client_t *httpclient, const char *path)
         free (fullpath);
         return client_send_m3u (httpclient, path);
     }
-    httpclient->refbuf = refbuf_new (4096);
     if (xspf_requested && xspf_file_available == 0)
     {
         xmlDocPtr doc;
@@ -957,7 +956,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             client->check_buffer = fh->format->write_buf_to_client;
     }
     client_http_complete (&http);
-    client_http_clear (&http);
     if (ret < 0)
     {
         thread_mutex_unlock (&fh->lock);
