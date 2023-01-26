@@ -283,7 +283,7 @@ static size_t handle_url_header (void *ptr, size_t size, size_t nmemb, void *str
         {
             format_type_t type = format_get_type (hvalue);
 
-            if (type == FORMAT_TYPE_AAC || type == FORMAT_TYPE_MPEG)
+            if (client->aux_data && (type == FORMAT_TYPE_AAC || type == FORMAT_TYPE_MPEG))
             {
                 struct build_intro_contents *x = (struct build_intro_contents*)client->aux_data;
                 x->type = type;
