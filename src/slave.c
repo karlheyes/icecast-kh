@@ -569,6 +569,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     if (parser)
         httpp_destroy (parser);
     connection_close (con);
+    client_set_queue (client, NULL);
     con->con_time = time (NULL); // sources count needs to drop in such cases
     host->skip = 1;
     return -1;
