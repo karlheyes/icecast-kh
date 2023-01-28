@@ -1359,6 +1359,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "skip-accesslog",     config_get_bool,    &mount->skip_accesslog },
         { "charset",            config_get_str,     &mount->charset },
         { "max-send-size",      config_get_int,     &mount->max_send_size },
+        { "linger-for",         config_get_int,     &mount->linger_duration },
         { "redirect",           config_get_str,     &redirect },
         { "redirect-to",        config_get_str,     &mount->redirect },
         { "http-headers",       _parse_http_headers,      &mount->http_headers,          .flags = CFG_TAG_NOTATTR },

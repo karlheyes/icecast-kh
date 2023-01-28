@@ -169,6 +169,7 @@ typedef struct _mount_proxy {
     int admin_comments_only; /* enable to only show comments set from the admin page */
     int skip_accesslog;         /* skip logging client to access log */
     int intro_skip_replay;      /* duration to cache IPs, for intro playing */
+    int linger_duration;        /* duration to keep source around */
 
     int64_t limit_rate;
 

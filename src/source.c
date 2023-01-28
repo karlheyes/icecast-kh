@@ -596,75 +596,16 @@ void source_add_queue_buffer (source_t *source, refbuf_t *r)
 }
 
 
-/* get some data from the source. The stream data is placed in a refbuf
- * and sent back, however NULL is also valid as in the case of a short
- * timeout and there's no data pending.
- */
-int source_read (source_t *source)
+static int _source_read (source_t *source)
 {
     client_t *client = source->client;
+    time_t current = client->worker->current_time.tv_sec;
     refbuf_t *refbuf = NULL;
     int skip = 1, loop = 1;
-    time_t current = client->worker->current_time.tv_sec;
-    unsigned long queue_size_target = 0;
-    int fds = 0;
-
-    global_lock();
-    if (global.running != ICE_RUNNING)
-        source->flags &= ~SOURCE_RUNNING;
-    global_unlock();
     do
     {
-        source->wakeup = 0;
-        client->schedule_ms = client->worker->time_ms;
-        if (source->flags & SOURCE_LISTENERS_SYNC)
-        {
-            if (source->termination_count > 0)
-            {
-                if (client->timer_start + 1000 < client->worker->time_ms)
-                {
-                    source->flags &= ~(SOURCE_RUNNING|SOURCE_LISTENERS_SYNC);
-                    WARN1 ("stopping %s as sync mode lasted too long", source->mount);
-                }
-                client->schedule_ms += 30;
-                return 0;
-            }
-            if (source->fallback.mount)
-            {
-                DEBUG1 ("listeners have now moved to %s", source->fallback.mount);
-                free (source->fallback.mount);
-                source->fallback.mount = NULL;
-            }
-            source->flags &= ~SOURCE_LISTENERS_SYNC;
-        }
-        rate_add (source->out_bitrate, 0, client->worker->time_ms);
-        global_add_bitrates (global.out_bitrate, 0, client->worker->time_ms);
-
-        if (source->prev_listeners != source->listeners)
-        {
-            INFO2("listener count on %s now %lu", source->mount, source->listeners);
-            source->prev_listeners = source->listeners;
-            stats_lock (source->stats, source->mount);
-            stats_set_args (source->stats, "listeners", "%lu", source->listeners);
-            if (source->listeners > source->peak_listeners)
-            {
-                source->peak_listeners = source->listeners;
-                stats_set_args (source->stats, "listener_peak", "%lu", source->peak_listeners);
-            }
-            stats_release (source->stats);
-        }
-        if (current >= source->client_stats_update)
-        {
-            update_source_stats (source);
-            if (current - client->connection.con_time < source->stats_interval)
-                source->client_stats_update = current + 1;
-            else
-                source->client_stats_update = current + source->stats_interval;
-            if (source_change_worker (source, client))
-                return 1;
-        }
-
-        fds = util_timed_wait_for_fd (client->connection.sock, 0);
+        unsigned long queue_size_target = 0;
+        int fds = util_timed_wait_for_fd (client->connection.sock, 0);
         if (fds < 0)
         {
             if (! sock_recoverable (sock_error()))
@@ -779,6 +720,94 @@ int source_read (source_t *source)
 }
 
 
+/* get some data from the source. The stream data is placed in a refbuf
+ * and sent back, however NULL is also valid as in the case of a short
+ * timeout and there's no data pending.
+ */
+int source_read (source_t *source)
+{
+    client_t *client = source->client;
+    time_t current = client->worker->current_time.tv_sec;
+
+    global_lock();
+    if (global.running != ICE_RUNNING)
+        source->flags &= ~SOURCE_RUNNING;
+    global_unlock();
+    if (source_running (source) == 0)
+        return 0;
+    source->wakeup = 0;
+    client->schedule_ms = client->worker->time_ms;
+    if (source->flags & SOURCE_LISTENERS_SYNC)
+    {
+        if (source->termination_count > 0)
+        {
+            if (client->timer_start + 1000 < client->worker->time_ms)
+            {
+                source->flags &= ~(SOURCE_RUNNING|SOURCE_LISTENERS_SYNC);
+                WARN1 ("stopping %s as sync mode lasted too long", source->mount);
+            }
+            client->schedule_ms += 30;
+            return 0;
+        }
+        if (source->fallback.mount)
+        {
+            DEBUG1 ("listeners have now moved to %s", source->fallback.mount);
+            free (source->fallback.mount);
+            source->fallback.mount = NULL;
+        }
+        source->flags &= ~SOURCE_LISTENERS_SYNC;
+    }
+    rate_add (source->out_bitrate, 0, client->worker->time_ms);
+    global_add_bitrates (global.out_bitrate, 0, client->worker->time_ms);
+
+    if (source->prev_listeners != source->listeners)
+    {
+        INFO2("listener count on %s now %lu", source->mount, source->listeners);
+        source->prev_listeners = source->listeners;
+        stats_lock (source->stats, source->mount);
+        stats_set_args (source->stats, "listeners", "%lu", source->listeners);
+        if (source->listeners > source->peak_listeners)
+        {
+            source->peak_listeners = source->listeners;
+            stats_set_args (source->stats, "listener_peak", "%lu", source->peak_listeners);
+        }
+        stats_release (source->stats);
+    }
+    if (current >= source->client_stats_update)
+    {
+        update_source_stats (source);
+        if (current - client->connection.con_time < source->stats_interval)
+            source->client_stats_update = current + 1;
+        else
+            source->client_stats_update = current + source->stats_interval;
+        if (source_change_worker (source, client))
+            return 1;
+    }
+    if (source->linger_time)
+    {
+        if (source->linger_time > client->worker->current_time.tv_sec)
+            client->schedule_ms = client->worker->time_ms + 100;
+        else
+        {
+            INFO1 ("linger time expired on source %s", source->mount);
+            source->linger_time = 0;
+            source->flags &= ~SOURCE_RUNNING;
+        }
+        return 0;
+    }
+    _source_read (source);
+    if (source_running (source))
+        return 0;
+    if (source->linger_time == 0 && source->linger_duration > 0)
+    {
+        source->linger_time = time(NULL) + source->linger_duration;
+        source->flags |= SOURCE_RUNNING;
+        INFO2 ("setting source %s to linger for %d seconds", source->mount, source->linger_duration);
+    }
+    return 0;
+}
+
+
 void source_listeners_wakeup (source_t *source)
 {
     client_t *s = source->client;
@@ -839,10 +868,13 @@ static int source_client_read (client_t *client)
         {
             source->flags &= ~SOURCE_SWITCHOVER;
             INFO1 ("Detected switch over to another client on %s", source->mount);
+            source->linger_time = 0;
             thread_rwlock_unlock (&source->lock);
             client->shared_data = NULL;
             return -1;
         }
+        if (source_read (source) > 0)
+            return 1;
         if (source_running (source))
         {
             thread_rwlock_unlock (&source->lock);
@@ -2175,6 +2207,10 @@ static void source_apply_mount (source_t *source, ice_config_t *config, mount_pr
     if (mountinfo && mountinfo->min_queue_size)
         source->min_queue_len_value = mountinfo->min_queue_size;
 
+    source->linger_duration = 0;
+    if (mountinfo && mountinfo->linger_duration > 0)
+        source->linger_duration = mountinfo->linger_duration;
+
     source->wait_time = 0;
     if (mountinfo && mountinfo->wait_time)
         source->wait_time = (time_t)mountinfo->wait_time;
@@ -3039,6 +3075,7 @@ static int source_client_switch_wait (client_t *client)
         {
             source->client = client;
             format_apply_client (source->format, client);
+            source->linger_time = 0;
             return source_client_response (client, source);
         }
         thread_rwlock_unlock (&source->lock);

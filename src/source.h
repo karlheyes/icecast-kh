@@ -54,6 +54,8 @@ typedef struct source_tag
     int incoming_adj;
     long limit_rate;
     time_t wait_time;
+    time_t linger_time;
+    int linger_duration;
 
     long termination_count;
     unsigned long peak_listeners;
