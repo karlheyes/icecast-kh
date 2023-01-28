@@ -259,6 +259,7 @@ typedef struct _relay_server
     struct _relay_server *new_details;
     struct source_tag *source;
     time_t updated;
+    time_t start;
     int interval;
     int run_on;
     unsigned char type;

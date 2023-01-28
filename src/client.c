@@ -104,9 +104,9 @@ void client_destroy(client_t *client)
     }
 
     if (client->flags & CLIENT_AUTHENTICATED)
-        DEBUG1 ("client still in auth \"%s\"", httpp_getvar (client->parser, HTTPP_VAR_URI));
+        DEBUG1 ("client still authenticated \"%s\"", httpp_getvar (client->parser, HTTPP_VAR_URI));
 
-    /* write log entry if ip is set (some things don't set it, like outgoing 
+    /* write log entry if ip is set (some things don't set it, like outgoing
      * slave requests
      */
     if (client->respcode > 0 && client->parser)

@@ -1896,7 +1896,8 @@ static int relay_read (client_t *client)
             }
             if (relay->interval < 3)
                 relay->interval = 60; // if set too low then give a decent retry delay
-            client->schedule_ms = client->worker->time_ms + (relay->interval * 1000);
+            client->schedule_ms = 0;
+            relay->start = client->worker->current_time.tv_sec + relay->interval;
             INFO2 ("standing by to restart relay on %s in %d seconds", relay->localmount, relay->interval);
         }
         else
@@ -1965,7 +1966,6 @@ static int relay_initialise (client_t *client)
                 ice_config_t *config;
                 mount_proxy *mountinfo;
 
-                source_clear_source (source);
                 config = config_get_config();
                 mountinfo = config_find_mount (config, source->mount);
                 source->flags |= SOURCE_ON_DEMAND;
@@ -2054,9 +2054,16 @@ static int relay_startup (client_t *client)
         mount_proxy *mountinfo;
 
         thread_rwlock_wlock (&source->lock);
-        start_relay = source->listeners; // 0 or non-zero
+        start_relay = source->listeners ? 1 : 0;
         source->flags |= SOURCE_ON_DEMAND;
         thread_rwlock_unlock (&source->lock);
+
+        if (relay->start > client->worker->current_time.tv_sec)
+        {
+            client->schedule_ms = (relay->start * 1000);
+            return 0;
+        }
+
         mountinfo = config_find_mount (config_get_config(), source->mount);
 
         if (mountinfo && mountinfo->fallback_mount)
@@ -2075,7 +2082,7 @@ static int relay_startup (client_t *client)
                 stats_release (source->stats);
                 slave_update_mounts();
             }
-            client->schedule_ms = (worker->time_ms + 1000) | 0xff;
+            client->schedule_ms = (worker->time_ms + 5000);
             return 0;
         }
         INFO1 ("starting on-demand relay %s", relay->localmount);
@@ -2083,10 +2090,10 @@ static int relay_startup (client_t *client)
 
     /* limit the number of relays starting up at the same time */
     thread_spin_lock (&relay_start_lock);
-    if (relays_connecting > 3)
+    if (relays_connecting > 5)
     {
         thread_spin_unlock (&relay_start_lock);
-        client->schedule_ms = worker->time_ms + 200;
+        client->schedule_ms = worker->time_ms + 100;
         if (global.new_connections_slowdown < 5)
             global.new_connections_slowdown++;
         return 0;
