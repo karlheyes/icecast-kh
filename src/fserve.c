@@ -428,6 +428,7 @@ static fh_node *open_fh (fbinfo *finfo)
                 WARN1 ("different type detected for %s", finfo->mount);
             else
             {
+                fh->frame_start_pos = fcheck.offset;
                 if (fh->finfo.limit && fcheck.bitrate > 0)
                 {
                     float ratio = (float)fh->finfo.limit / (fcheck.bitrate/8);
@@ -733,7 +734,7 @@ static int prefile_send (client_t *client)
         }
         if (refbuf->flags & WRITE_BLOCK_GENERIC)
             bytes = format_generic_write_to_client (client);
-        else 
+        else
             bytes = client->check_buffer (client);
         if (bytes < 0)
         {
@@ -763,12 +764,12 @@ static int file_send (client_t *client)
 #endif
     client->schedule_ms = worker->time_ms;
     now = worker->current_time.tv_sec;
-    /* slowdown if max bandwidth is exceeded, but allow for short-lived connections to avoid 
+    /* slowdown if max bandwidth is exceeded, but allow for short-lived connections to avoid
      * this, eg admin requests */
     if (throttle_sends > 1 && now - client->connection.con_time > 1)
     {
         client->schedule_ms += 300;
-        loop = 1; 
+        loop = 1;
     }
     while (loop && written < 48000)
     {
@@ -798,14 +799,14 @@ static int throttled_file_send (client_t *client)
     fh_node *fh = client->shared_data;
     time_t now;
     worker_t *worker = client->worker;
-    unsigned long secs; 
+    unsigned long secs;
     unsigned int  rate = 0;
     unsigned int limit = fh->finfo.limit;
 
     if (fserve_running == 0 || client->connection.error)
         return -1;
     now = worker->current_time.tv_sec;
-    secs = now - client->timer_start; 
+    secs = now - client->timer_start;
     client->schedule_ms = worker->time_ms;
     if (fh->finfo.fallback)
         return fserve_move_listener (client);
@@ -831,7 +832,7 @@ static int throttled_file_send (client_t *client)
     switch (format_file_read (client, fh->format, fh->f))
     {
         case -1: // DEBUG0 ("loop of file triggered");
-            client->intro_offset = 0;
+            client->intro_offset = fh->frame_start_pos;
             client->schedule_ms += client->throttle ? client->throttle : 150;
             return 0;
         case -2: // DEBUG0 ("major failure on read, better leave");
