@@ -854,7 +854,7 @@ static int source_client_read (client_t *client)
     {
         if (source->limit_rate)
         {
-            if (source->limit_rate < (8 * source->incoming_rate) && global.running == ICE_RUNNING)
+            if (source->limit_rate < (source->incoming_rate) && global.running == ICE_RUNNING)
             {
                 rate_add (source->in_bitrate, 0, client->worker->current_time.tv_sec);
                 source->incoming_rate = (long)rate_avg (source->in_bitrate);
@@ -2153,7 +2153,7 @@ static void source_apply_mount (source_t *source, ice_config_t *config, mount_pr
 
     source->limit_rate = 0;
     if (mountinfo && mountinfo->limit_rate)
-        source->limit_rate = mountinfo->limit_rate;
+        source->limit_rate = mountinfo->limit_rate/8;
 
     /* needs a better mechanism, probably via a client_t handle */
     free (source->dumpfilename);

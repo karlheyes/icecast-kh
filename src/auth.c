@@ -433,7 +433,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         minfo = config_find_mount (config, where.mount);
 
         if (rate == 0 && minfo && minfo->limit_rate)
-            rate = minfo->limit_rate;
+            rate = minfo->limit_rate/8;
         source = source_find_mount_raw (where.mount);
 
         if (source == NULL && minfo == NULL)
