@@ -152,10 +152,11 @@ int format_check_frames (struct format_check_t *c)
     mpeg_sync sync;
     mpeg_setup (&sync, c->desc);
     mpeg_check_numframes (&sync, 20);
+    c->offset = 0;
 
     do
     {
-        int bytes = pread (c->fd, r->data, 16384, 0);
+        int bytes = pread (c->fd, r->data, 16384, c->offset);
         if (bytes <= 0)
             break;
 
@@ -165,13 +166,20 @@ int format_check_frames (struct format_check_t *c)
         {
             break;
         }
-        c->offset = bytes - (r->len + unprocessed);
+        if (r->len > bytes)
+        {
+            c->offset = r->len;
+            continue;
+        }
+        if (c->offset == 0)
+            c->offset = bytes - (r->len + unprocessed);
         c->type = mpeg_get_type (&sync);
         c->srate = mpeg_get_samplerate (&sync);
         c->channels = mpeg_get_channels (&sync);
         c->bitrate = mpeg_get_bitrate (&sync);
         ret = 0;
-    } while (0);
+        break;
+    } while (1);
     refbuf_release (r);
     mpeg_cleanup (&sync);
 
