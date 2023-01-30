@@ -38,6 +38,7 @@ typedef struct _fbinfo
 #define FS_FALLBACK             (1<<2)
 #define FS_FALLBACK_EOF         (1<<3)
 #define FS_OVERRIDE             (1<<4)
+#define FS_MISSING              (1<<5) // returned
 
 void fserve_initialize(void);
 void fserve_shutdown(void);

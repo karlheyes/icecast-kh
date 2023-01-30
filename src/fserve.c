@@ -873,7 +873,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     if (finfo)
     {
         mount_proxy *minfo;
-        if (finfo->flags & FS_FALLBACK && finfo->limit == 0)
+        if ((finfo->flags & FS_MISSING) || ((finfo->flags & FS_FALLBACK) && finfo->limit == 0))
             return -1;
 
         avl_tree_wlock (fh_cache);
@@ -916,7 +916,10 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             config_release_mount (minfo);
             fh = open_fh (finfo);
             if (fh == NULL)
+            {
+                finfo->flags |= FS_MISSING;
                 return client_send_404 (client, NULL);
+            }
             if (fh->finfo.limit)
                 DEBUG2 ("request for throttled file %s (bitrate %d)", fh->finfo.mount, fh->finfo.limit*8);
         }
