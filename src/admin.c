@@ -1209,7 +1209,6 @@ int command_list_mounts(client_t *client, int response)
     DEBUG0("List mounts request");
 
     client_set_queue (client, NULL);
-    client->refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
     if (response == TEXT)
     {
         redirector_update (client);
