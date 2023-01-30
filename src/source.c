@@ -2688,21 +2688,25 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 if (rate == 0)
                     if (sscanf (mount, "%*[^[][%d]", &rate) == 1)
                         rate = rate * 1000 / 8;
-                if (rate)
+                if (rate && (client->flags & CLIENT_IS_SLAVE) == 0)
                 {
-                    fbinfo f;
-                    f.flags = flags;
-                    f.mount = (char *)mount;
-                    f.fallback = NULL;
-                    f.limit = rate;
-                    f.type = FORMAT_TYPE_UNDEFINED;
-                    if (move_listener (client, &f) == 0)
+                    fbinfo f = { .type = FORMAT_TYPE_UNDEFINED, .flags = flags, .mount = (char*)mount, .limit = rate };
+                    global_lock();
+                    if (max_listeners && max_listeners <= global.listeners)
+                    {
+                        global_unlock();
+                        return client_send_403redirect (client, passed_mount, "max listeners reached");
+                    }
+                    ret = fserve_setup_client_fb (client, &f);
+                    if ((f.flags & FS_MISSING) == 0)
                     {
                         /* source dead but fallback to file found */
                         stats_event_inc (NULL, "listener_connections");
-                        return 0;
+                        global.listeners++;
+                        ret = 0;
                     }
-                    ret = -1;
+                    global_unlock();
+
                 }
                 return ret;
             }
