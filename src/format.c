@@ -195,7 +195,7 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
     do
     {
-        len = 8192;
+        len = 4096;
         if (refbuf == NULL)
         {
             if (file_in_use (f) == 0)
