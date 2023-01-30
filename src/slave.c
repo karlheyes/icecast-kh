@@ -758,7 +758,6 @@ static int relay_installed (relay_server *relay)
     connection_init (&client->connection, SOCK_ERROR, NULL);
     switch (relay_has_source (relay, client))
     {
-        case 0:
         case -1:
             free (client);
             return 0;
