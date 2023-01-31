@@ -1299,6 +1299,7 @@ int setup_source_client_callback (client_t *client)
         }
     }
     buf = buf->next;
+    client->refbuf->next = NULL;
     refbuf_release (client->refbuf);    // drop either the incoming headers or 100 continue
     client->refbuf = buf;
     client->pos = 0;
