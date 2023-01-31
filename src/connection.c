@@ -25,6 +25,7 @@
 #endif
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include <fnmatch.h>
 
 #ifdef _MSC_VER
@@ -1188,13 +1189,13 @@ static int shoutcast_source_client (client_t *client)
             char *buf = refbuf->data + refbuf->len;
             char *esc_header;
             refbuf_t *r, *resp;
-            char header [128];
+            char header [256];
 
             if (remaining == 0)
                 break;
 
             ret = client_read_bytes (client, buf, remaining);
-            if (ret == 0 || con->error || global.running != ICE_RUNNING)
+            if (ret == 0 || con->error || global_state() != ICE_RUNNING)
                 break;
             if (ret < 0)
                 return 0;
@@ -1205,10 +1206,23 @@ static int shoutcast_source_client (client_t *client)
             if (refbuf->data [len] == '\0')  /* no EOL yet */
                 return 0;
 
+            const char *mount = client->server_conn->shoutcast_mount, *pw = refbuf->data;
+
+            if (isupper (refbuf->data[0]))      // possible indication of http request
+            {
+                int idx=0;
+                char method [12];
+                if (sscanf (pw, "%10[A-Z] %*[^H]HTTP%*[^\r]%n", method, &idx) == 1 && pw[idx] == '\r')
+                {
+                    INFO1 ("looks like a HTTP request (%s) on a shoutcast port, retrying", method);
+                    client->ops = &http_request_ops;
+                    client->aux_data = (uintptr_t)refbuf;
+                    return 0;
+                }
+            }
             refbuf->data [len] = '\0';  // password
 
             // is mountpoint embedded in the password
-            const char *mount = client->server_conn->shoutcast_mount, *pw = refbuf->data;
             char *sep = strchr (refbuf->data, ':');
             if (sep && *pw == '/')
             {
@@ -1336,10 +1350,11 @@ static int http_client_request (client_t *client)
             }
         }
         ret = client_read_bytes (client, buf, remaining);
-        if (ret > 0)
+        if (ret > 0 || client->aux_data)  // use aux_data as a flag to say read what we have now
         {
             char *ptr;
 
+            if (client->aux_data && ret < 0) ret = 0;
             buf [ret] = '\0';
             refbuf->len += ret;
             buf = refbuf->data;
@@ -1380,6 +1395,7 @@ static int http_client_request (client_t *client)
                 client->schedule_ms = client->worker->time_ms + 40;
                 return 0;
             } while (0);
+            client->aux_data = 0;
             client->refbuf = client->shared_data;
             client->shared_data = NULL;
             client->connection.discon.time = 0;
