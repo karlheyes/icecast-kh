@@ -1342,7 +1342,8 @@ static int http_client_request (client_t *client)
 
             buf [ret] = '\0';
             refbuf->len += ret;
-            if (memcmp (refbuf->data, "<policy-file-request/>", 23) == 0)
+            buf = refbuf->data;
+            if (memmem (buf, refbuf->len, "<policy-file-request/>", 23))
             {
                 fbinfo fb;
                 memset (&fb, 0, sizeof(fb));
@@ -1358,20 +1359,19 @@ static int http_client_request (client_t *client)
             /* find a blank line */
             do
             {
-                buf = refbuf->data;
-                ptr = memmem (buf, ret, "\r\n\r\n", 4); // standard and common case
+                ptr = memmem (buf, refbuf->len, "\r\n\r\n", 4); // standard and common case
                 if (ptr)
                 {
                     ptr += 4;
                     break;
                 }
-                ptr = memmem (buf, ret, "\n\n", 2);
+                ptr = memmem (buf, refbuf->len, "\n\n", 2);
                 if (ptr)
                 {
                     ptr += 2;
                     break;
                 }
-                ptr = memmem (buf, ret, "\r\r\n\r\r\n", 6);
+                ptr = memmem (buf, refbuf->len, "\r\r\n\r\r\n", 6);
                 if (ptr)
                 {
                     ptr += 6;
