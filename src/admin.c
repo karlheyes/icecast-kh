@@ -426,6 +426,7 @@ int admin_handle_request (client_t *client, const char *uri)
             switch (auth_check_source (client, mount))
             {
                 case 0:
+                    client->flags |= CLIENT_AUTHENTICATED;
                     break;
                 default:
                     INFO1("Bad or missing password on mount modification "
