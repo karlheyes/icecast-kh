@@ -2955,9 +2955,11 @@ static int source_client_http_send (client_t *client)
 {
     refbuf_t *stream;
     source_t *source = client->shared_data;
+    int loop = 0;
 
     while (client->pos < client->refbuf->len)
     {
+        if (++loop > 10) return -1;
         if (client->connection.error || format_generic_write_to_client (client) < 0)
         {
             client->schedule_ms = client->worker->time_ms + 40;
@@ -2972,8 +2974,8 @@ static int source_client_http_send (client_t *client)
             return -1;
         }
     }
-    stream = client->refbuf->associated;
-    client->refbuf->associated = NULL;
+    stream = client->refbuf->next;
+    client->refbuf->next = NULL;
     refbuf_release (client->refbuf);
     client->refbuf = stream;
     client->pos = client->intro_offset;
@@ -3042,7 +3044,6 @@ int source_startup (client_t *client, const char *uri)
 
 static int source_client_response (client_t *client, source_t *source)
 {
-    client->respcode = 200;
     client->shared_data = source;
 
     mount_proxy *mountinfo = config_lock_mount (NULL, source->mount);
@@ -3053,17 +3054,14 @@ static int source_client_response (client_t *client, source_t *source)
     if (client->server_conn && client->server_conn->shoutcast_compat)
     {
         source->flags |= SOURCE_SHOUTCAST_COMPAT;
+        client->respcode = 200;
         source_client_callback (client);
     }
     else
     {
-        refbuf_t *ok = refbuf_new (PER_CLIENT_REFBUF_SIZE);
-        snprintf (ok->data, PER_CLIENT_REFBUF_SIZE,
-                "HTTP/1.0 200 OK\r\n\r\n");
-        ok->len = strlen (ok->data);
-        /* we may have unprocessed data read in, so don't overwrite it */
-        ok->associated = client->refbuf;
-        client->refbuf = ok;
+        client_http_headers_t http;
+        client_http_setup (&http, client, 200, 0);
+        client_http_complete (&http);
         client->intro_offset = client->pos;
         client->pos = 0;
         client->ops = &source_client_http_ops;

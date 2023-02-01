@@ -527,6 +527,14 @@ int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int
 
     http->len = 1;       // start with allowing for the nul
     client_http_apply (http, &firsthdr);
+    if (http->conn.status >= 100 && http->conn.status < 200)
+    {
+        client->respcode = 0;       // informational codes are followed by others so reset
+        if (http->in_major < 1 || (http->in_major == 1 && http->in_minor == 0))
+            return -1;
+        http->in_length = -1;
+        return 0;
+    }
 
     ice_config_t *config = config_get_config();
     const char *realm = config->server_id;
@@ -595,10 +603,10 @@ int  client_http_complete (client_http_headers_t *http)
 
     remain += http->len;  // starts with space for nul char
     refbuf_t *rb = refbuf_new (remain);
+    client_t *cl = http->client;
     int written = _client_headers_complete (http, rb);
     if (written >= 0)
     {
-        client_t *cl = http->client;
         rb->next = cl->refbuf;
         cl->refbuf = rb;
         char *p = rb->data + written;
@@ -663,6 +671,7 @@ int client_send_401 (client_t *client, const char *realm)
 {
     client_http_headers_t http;
     if (client_http_setup (&http, client, 401, NULL) < 0) return -1;
+    client_set_queue (client,NULL);
     client_http_apply_fmt (&http, 0, "WWW-Authenticate", "Basic realm=\"%s\"", (realm ? realm : http.in_realm));
     return client_http_send (&http);
 }
@@ -671,6 +680,7 @@ int client_send_401 (client_t *client, const char *realm)
 int client_send_403 (client_t *client, const char *reason)
 {
     client_http_headers_t http;
+    client_set_queue (client,NULL);
     if (client_http_setup (&http, client, 403, reason) < 0) return -1;
     return client_http_send (&http);
 }
@@ -679,6 +689,7 @@ int client_send_404 (client_t *client, const char *message)
 {
     client_http_headers_t http;
     if (client_http_setup (&http, client, 404, NULL) < 0) return -1;
+    client_set_queue (client,NULL);
     if (message)
         client_http_apply_fmt (&http, 0, NULL, "%s", message);
     return client_http_send (&http);
@@ -689,6 +700,7 @@ int client_send_416(client_t *client)
 {
     client_http_headers_t http;
     if (client_http_setup (&http, client, 416, NULL) < 0) return -1;
+    client_set_queue (client,NULL);
     return client_http_send (&http);
 }
 
@@ -705,6 +717,7 @@ int client_send_options(client_t *client)
 {
     client_http_headers_t http;
     if (client_http_setup (&http, client, 204, NULL) < 0) return -1;
+    client_set_queue (client,NULL);
     return client_http_send (&http);
 }
 
