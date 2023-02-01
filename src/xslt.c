@@ -245,14 +245,9 @@ void *xslt_update (void *arg)
         if (sheet->mediaType && strcmp ((char*)sheet->mediaType, "text/html") != 0)
         {
             // avoid this lookup for html pages
-            const char _hdr[] = "Content-Disposition: attachment; filename=\"file.";
-            const size_t _hdrlen = sizeof (_hdr);
-            size_t len = _hdrlen + 12;
-            char *filename = malloc (len); // enough for name and extension
-            strcpy (filename, _hdr);
-            fserve_write_mime_ext ((char*)sheet->mediaType, filename + _hdrlen - 1, len - _hdrlen - 4);
-            strcat (filename, "\"\r\n");
-            x->cache.disposition = filename;
+            char filename[100] = "file.";
+            fserve_write_mime_ext ((char*)sheet->mediaType, filename + 5, sizeof(filename)-5);
+            x->cache.disposition = strdup (filename);
         }
         // we now have a sheet, find and update.
         thread_rwlock_wlock (&xslt_lock);
@@ -501,7 +496,7 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
 
         http.in_length = len;
         if (cache[idx].disposition)
-            client_http_apply_fmt (&http, 0, "content-disposition", "attachment; filename=\"%s\"", cache[idx].disposition);
+            client_http_apply_fmt (&http, 0, "Content-Disposition", "attachment; filename=\"%s\"", cache[idx].disposition);
 
         thread_rwlock_unlock (&xslt_lock);
         client_http_apply_block (&http, content);
