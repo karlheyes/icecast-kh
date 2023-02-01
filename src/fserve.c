@@ -1182,13 +1182,10 @@ void fserve_recheck_mime_types (ice_config_t *config)
                 *cur++ = 0;
                 if(*ext)
                 {
-                    void *tmp;
                     /* Add a new extension->type mapping */
                     mapping = malloc(sizeof(mime_type));
                     mapping->ext = strdup(ext);
                     mapping->type = strdup(type);
-                    if (!avl_get_by_key (new_mimetypes, mapping, &tmp))
-                        avl_delete (new_mimetypes, mapping, _delete_mapping);
                     if (avl_insert (new_mimetypes, mapping) != 0)
                         _delete_mapping (mapping);
                 }
