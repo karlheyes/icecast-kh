@@ -375,7 +375,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     client_http_apply_fmt (&post, CLIENT_POST_ENC, "user", "%s",   (client->username ? client->username : ""));
     client_http_apply_fmt (&post, CLIENT_POST_ENC, "pass", "%s",   (client->password ? client->password : ""));
     client_http_apply_fmt (&post, CLIENT_POST_ENC, "ip", "%s",     &client->connection.ip[0]);
-    client_http_apply_fmt (&post, 0,               "duration", "%" PRIu64, duration);
+    client_http_apply_fmt (&post, 0,               "duration", "%" PRIu64, (uint64_t)duration);
     client_http_apply_fmt (&post, CLIENT_POST_ENC, "agent", "%s",      httpp_getvar (client->parser, "user-agent"));
     client_http_apply_fmt (&post, 0,               "sent", "%" PRIu64, client->connection.sent_bytes);
     refbuf_t *rb = client_post_complete (&post);
