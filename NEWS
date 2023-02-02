@@ -7,8 +7,8 @@ Feature differences from Xiph release
 . can drop new listeners if server-wide bitrate is above a limit
 . server xml reload, and reopen logging available via admin url
 . When max-listeners reached, a HTTP 302 code can be sent to redirect
-  clients to alternative slave hosts. 
-. authenticated relays, those that match the relay user/pass, bypass the 
+  clients to alternative slave hosts.
+. authenticated relays, those that match the relay user/pass, bypass the
   max-listener/bandwidth check. slaves can use a different auth to listeners
 . mount can filter out theora content, useful for defining a local relay
   of a theora+vorbis stream to have a vorbis only stream from the same source.
@@ -17,6 +17,24 @@ Feature differences from Xiph release
 . multiple ICY sources on single port
 
 any extra tags are shown in the conf/icecast.xml.dist file
+
+2.4.0.kh18
+. Extend http headers work from previous release.
+  Can now be used to create POST data. This improves code readability and also
+  allows for more flexability.
+  Make global http headers work as expected.
+- Switchover updates.
+  Cleaner handling when switching over the client for a relay or source.
+  Interacts with inactive on-demand relays.
+. Introduce the linger-on mount setting. On stream exit, the stream goes into a
+  state where it stays around running but no feed comes in. This allows for a
+  delayed termination if you have relays or sources that drop but reconnect
+  but you do not want to keep dropping to fallbacks. During this state, you can
+  connect another source so can be used as a switch over between sources.
+. Various libcurl interaction updates. tigher control on callback handling
+  Handle server shutdown interrupting libcurl requests quicker.
+. Trap for HTTP request on shoutcast port and treat it as such.
+. Various code cleanups that have been reported.
 
 2.4.0.kh17
 . HTTP handling update. A lot of this is internal but the mechanism allows for
