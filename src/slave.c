@@ -2082,6 +2082,13 @@ static int relay_startup (client_t *client)
     if (source->flags & SOURCE_SWITCHOVER)
         return relay_switchover (client, relay, source);
 
+    if (relay->start > client->worker->current_time.tv_sec)
+    {
+        client->schedule_ms = (relay->start * 1000);
+        thread_rwlock_unlock (&source->lock);
+        return 0;
+    }
+
     if (relay->flags & RELAY_ON_DEMAND)
     {
         int start_relay;
@@ -2090,12 +2097,6 @@ static int relay_startup (client_t *client)
         start_relay = source->listeners ? 1 : 0;
         source->flags |= SOURCE_ON_DEMAND;
         thread_rwlock_unlock (&source->lock);
-
-        if (relay->start > client->worker->current_time.tv_sec)
-        {
-            client->schedule_ms = (relay->start * 1000);
-            return 0;
-        }
 
         mountinfo = config_find_mount (config_get_config(), source->mount);
 
