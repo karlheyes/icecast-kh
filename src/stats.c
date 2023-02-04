@@ -1319,7 +1319,10 @@ void stats_purge (time_t mark)
             }
             continue;
         }
-        if (fserve_contains (src->source) < 0)
+        int present = fserve_contains (src->source);
+        if (present < 0)
+            break;      // jump out for now, purge next time around
+        if (present == 0)
         {
             /* no source_t and no fallback file stat, so delete */
             DEBUG1 ("dropping unreferenced stats for %s", src->source);

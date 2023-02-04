@@ -1486,9 +1486,11 @@ void fserve_scan (time_t now)
 
 
 
+// return 0 for missing, 1 for found, -1 try again as we would block
+//
 int fserve_contains (const char *name)
 {
-    int ret = -1;
+    int ret = 0;
     fbinfo finfo;
 
     memset (&finfo, 0, sizeof (finfo));
@@ -1499,10 +1501,11 @@ int fserve_contains (const char *name)
     }
     else if (strncmp (name, "file-/", 6) == 0)
         finfo.mount = (char*)name;
+    if (avl_tree_tryrlock (fh_cache) < 0)
+        return -1;
     DEBUG1 ("looking for %s", name);
-    avl_tree_rlock (fh_cache);
     if (find_fh (&finfo))
-       ret = 0;
+       ret = 1;
     avl_tree_unlock (fh_cache);
     return ret;
 }
