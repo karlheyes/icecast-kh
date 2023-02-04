@@ -1307,17 +1307,11 @@ static void _slave_thread(void)
         if (update_settings)
         {
             update = update_settings;
+            update_settings = 0;
             update_all = update_all_sources;
-            if (update_all_sources || current.tv_sec%5 == 0)
-            {
-                update_settings = 0;
-                update_all_sources = 0;
-            }
-            if (restart_connection_thread)
-            {
-                restart = restart_connection_thread;
-                restart_connection_thread = 0;
-            }
+            update_all_sources = 0;
+            restart = restart_connection_thread;
+            restart_connection_thread = 0;
         }
         thread_spin_unlock (&relay_start_lock);
 
