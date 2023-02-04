@@ -44,6 +44,7 @@
 #include "avl/avl.h"
 #include "httpp/httpp.h"
 #include "net/sock.h"
+#include "timing/timing.h"
 
 #include "connection.h"
 #include "global.h"
@@ -1677,7 +1678,7 @@ void source_init (source_t *source)
 static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, format_type_t type)
 {
     source_t *source;
-    const char *dest = dest_source->mount;
+    char *dest_mount = dest_source->mount;
     int ret = 0, loop = 15;
     unsigned int len;
     char *mount = dest_source->mount, buffer [4096];
@@ -1690,7 +1691,9 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
     }
     config_mount_ref (mountinfo, 1);
     config_release_config ();
-    INFO2 ("for %s set to %s", dest_source->mount, mountinfo->fallback_mount);
+    dest_mount = strdup (dest_source->mount);
+    thread_rwlock_unlock (&dest_source->lock);
+    INFO2 ("for %s set to %s", dest_mount, mountinfo->fallback_mount);
     avl_tree_rlock (global.source_tree);
     while (loop--)
     {
@@ -1702,11 +1705,11 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
         }
         mount = buffer;
 
-        DEBUG2 ("checking for %s on %s", mount, dest);
+        DEBUG2 ("checking for %s on %s", mount, dest_mount);
         source = source_find_mount_raw (mount);
         if (source)
         {
-            if (strcmp (source->mount, dest) == 0) // back where we started, drop out
+            if (strcmp (source->mount, dest_mount) == 0) // back where we started, drop out
             {
                 avl_tree_unlock (global.source_tree);
                 break;
@@ -1720,18 +1723,18 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
                     if (source->listeners && source->fallback.mount == NULL)
                     {
                         source->fallback.limit = 0;
-                        source->fallback.mount = strdup (dest);
+                        source->fallback.mount = strdup (dest_mount);
                         source->fallback.flags = FS_FALLBACK;
                         source->fallback.type = type;
                         source->termination_count = source->listeners;
-                        source->client->timer_start = dest_source->client->worker->time_ms;
+                        source->client->timer_start = timing_get_time();
                         source->flags |= SOURCE_LISTENERS_SYNC;
                         source_listeners_wakeup (source);
                         ret = 1;
                     }
                 }
                 else
-                    ERROR4("%s (%d) and %s(%d) are different formats", dest, type, mount, source->format->type);
+                    ERROR4("%s (%d) and %s(%d) are different formats", dest_mount, type, mount, source->format->type);
                 thread_rwlock_unlock (&source->lock);
                 break;
             }
@@ -1744,11 +1747,13 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
         {
             avl_tree_unlock (global.source_tree);
             if (mount)
-                ret = fserve_set_override (mount, dest, type);
+                ret = fserve_set_override (mount, dest_mount, type);
             break;
         }
     }
-    config_mount_ref (mountinfo, 0);
+    config_release_mount (mountinfo);
+    thread_rwlock_wlock (&dest_source->lock);
+    free (dest_mount);
     return ret;
 }
 
@@ -2502,7 +2507,7 @@ void source_recheck_mounts (int update_all)
             }
         } while (0);
 
-        config_mount_ref (mount, 0);
+        config_release_mount (mount);
         if (rc < -1)
         {
             thread_sleep (10);

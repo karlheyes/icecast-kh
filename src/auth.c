@@ -415,7 +415,6 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
     source_t *source;
     mount_proxy *minfo;
     int rate = finfo->limit, loop = 20, ret = -1;
-    ice_config_t *config = config_get_config();
     struct _fbinfo where;
     unsigned int len = 4096;
     char buffer [len];
@@ -430,7 +429,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         util_expand_pattern (where.fallback, where.mount, buffer, &len);
         where.mount = buffer;
 
-        minfo = config_find_mount (config, where.mount);
+        minfo = config_lock_mount (NULL, where.mount);
 
         if (rate == 0 && minfo && minfo->limit_rate)
             rate = minfo->limit_rate/8;
@@ -446,7 +445,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                 // an unused on-demand relay will still have an unitialised type
                 if (source->format->type == finfo->type || source->format->type == FORMAT_TYPE_UNDEFINED)
                 {
-                    config_release_config();
+                    config_mount_ref (minfo, 0);
                     avl_tree_unlock (global.source_tree);
                     source_setup_listener (source, client);
                     source->listeners++;
@@ -469,7 +468,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
     } while (loop--);
 
     avl_tree_unlock (global.source_tree);
-    config_release_config();
+    config_mount_ref (minfo, 0);
     if (where.mount && ((client->flags & CLIENT_IS_SLAVE) == 0))
     {
         if (where.limit == 0)

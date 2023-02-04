@@ -452,6 +452,14 @@ static fh_node *open_fh (fbinfo *finfo)
     fh->peak = 0;
     fh->finfo.mount = strdup (finfo->mount);
     fh->finfo.fallback = NULL;
+    int len = strlen (finfo->mount) + 15;
+    char buf [len];
+    snprintf (buf, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
+    fh->stats = stats_handle (buf);
+    if (finfo->flags & FS_FALLBACK)
+        stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
+    stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
+    stats_release (fh->stats);
 
     return fh;
 }
@@ -876,13 +884,12 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         if ((finfo->flags & FS_MISSING) || ((finfo->flags & FS_FALLBACK) && finfo->limit == 0))
             return -1;
 
+        minfo = config_lock_mount (NULL, finfo->mount);
         avl_tree_wlock (fh_cache);
         fh = find_fh (finfo);
-        minfo = config_lock_mount (config_get_config(), finfo->mount);
 
         if (fh)
         {
-            config_release_config();
             thread_mutex_lock (&fh->lock);
             avl_tree_unlock (fh_cache);
             client->shared_data = NULL;
@@ -908,7 +915,6 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
             if (minfo && minfo->max_listeners == 0)
             {
                 config_release_mount (minfo);
-                config_release_config();
                 avl_tree_unlock (fh_cache);
                 client->shared_data = NULL;
                 return client_send_403redirect (client, finfo->mount, "max listeners reached");
@@ -1431,23 +1437,7 @@ void fserve_scan (time_t now)
 
         if (fh->finfo.limit)
         {
-            fbinfo *finfo = &fh->finfo;
-            if (fh->stats == 0)
-            {
-                int len = strlen (finfo->mount) + 10;
-                char *str = alloca (len);
-                char buf[30];
-                snprintf (str, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
-                fh->stats = stats_handle (str);
-                stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
-                stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
-                snprintf (buf, sizeof (buf), "%d", fh->refcount);
-                stats_set_flags (fh->stats, "listeners", buf, STATS_GENERAL|STATS_HIDDEN);
-                snprintf (buf, sizeof (buf), "%d", fh->peak);
-                stats_set_flags (fh->stats, "listener_peak", buf, STATS_GENERAL|STATS_HIDDEN);
-                fh->prev_count = fh->refcount;
-            }
-            else
+            if (fh->stats)
             {
                 stats_lock (fh->stats, NULL);
                 if (fh->prev_count != fh->refcount)
@@ -1456,14 +1446,14 @@ void fserve_scan (time_t now)
                     stats_set_args (fh->stats, "listeners", "%ld", fh->refcount);
                     stats_set_args (fh->stats, "listener_peak", "%ld", fh->peak);
                 }
+                if (fh->stats_update <= now)
+                {
+                    fh->stats_update = now + 5;
+                    stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
+                            (long)((8 * rate_avg (fh->out_bitrate))/1024));
+                }
+                stats_release (fh->stats);
             }
-            if (fh->stats_update <= now)
-            {
-                fh->stats_update = now + 5;
-                stats_set_args (fh->stats, "outgoing_kbitrate", "%ld",
-                        (long)((8 * rate_avg (fh->out_bitrate))/1024));
-            }
-            stats_release (fh->stats);
         }
 
         if (fh->refcount == 0 && fh->expire >= 0 && now >= fh->expire)
