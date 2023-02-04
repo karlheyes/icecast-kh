@@ -454,7 +454,12 @@ void config_clear_mount (mount_proxy *mount, int log)
     if (config_mount_ref (mount, 0) < 0)
     {
         if (log)
-            WARN2 ("mount block %s has reference %d", mount->mountname, mount->_refcount);
+        {
+            thread_spin_lock (&_locks.mount_lock);
+            int ref = mount->_refcount;
+            thread_spin_unlock (&_locks.mount_lock);
+            WARN2 ("mount block %s has reference %d", mount->mountname, ref);
+        }
         return;
     }
 

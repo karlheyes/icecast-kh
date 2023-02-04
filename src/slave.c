@@ -727,7 +727,7 @@ int relay_has_source (relay_server *relay, client_t *client)
     else
     {
         if (client->worker == NULL)
-            return 0;   // do the rest from a client context
+            return 0;   // do the rest from a worker context
         int rc = source_reserve (relay->localmount, &source, 0);
         if (rc < 0)
         {
@@ -2093,16 +2093,16 @@ static int relay_startup (client_t *client)
         source->flags |= SOURCE_ON_DEMAND;
         thread_rwlock_unlock (&source->lock);
 
-        mountinfo = config_find_mount (config_get_config(), source->mount);
+        mountinfo = config_lock_mount (NULL, source->mount);
 
         if (mountinfo && mountinfo->fallback_mount)
         {
             avl_tree_rlock (global.source_tree);
-            if (fallback_count (config_get_config_unlocked(), mountinfo->fallback_mount) > 0)
+            if (fallback_count (mountinfo->fallback_mount) > 0)
                 start_relay = 1;
             avl_tree_unlock (global.source_tree);
         }
-        config_release_config();
+        config_release_mount (mountinfo);
         if (start_relay == 0)
         {
             if (source->stats == 0)
@@ -2138,7 +2138,7 @@ static int relay_startup (client_t *client)
 }
 
 
-int fallback_count (ice_config_t *config, const char *mount)
+int fallback_count (const char *mount)
 {
     int count = -1, loop = 10;
     const char *m = mount;
@@ -2146,16 +2146,21 @@ int fallback_count (ice_config_t *config, const char *mount)
 
     if (mount == NULL) return -1;
     if (strstr (mount, "${")) return -1;
+    mount_proxy *mountinfo = NULL;
     while (m && loop--)
     {
         if (avl_tree_tryrlock (global.source_tree) < 0)
-            return -2;
+        {
+            count = -2;
+            break;
+        }
         source_t *fallback = source_find_mount_raw (m);
         if (fallback == NULL || source_running (fallback) == 0)
         {
             unsigned int len;
             avl_tree_unlock (global.source_tree);
-            mount_proxy *mountinfo = config_find_mount (config, m);
+            config_release_mount (mountinfo);
+            mountinfo = config_lock_mount (NULL, m);
             if (fallback == NULL)
             {
                 fbinfo finfo;
@@ -2173,7 +2178,7 @@ int fallback_count (ice_config_t *config, const char *mount)
                 }
                 count = fserve_query_count (&finfo);
                 if (count < -1)
-                    return count;
+                    break;
             }
             if (mountinfo == NULL || mountinfo->fallback_mount == NULL)
                 break;
@@ -2187,5 +2192,6 @@ int fallback_count (ice_config_t *config, const char *mount)
         count = fallback->listeners;
         break;
     }
+    config_release_mount (mountinfo);
     return count;
 }

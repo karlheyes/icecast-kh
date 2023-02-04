@@ -2484,7 +2484,7 @@ void source_recheck_mounts (int update_all)
 
                 len = sizeof buffer;
                 if (util_expand_pattern (mount->mountname, mount->fallback_mount, buffer, &len) == 0)
-                    rc = fallback_count (config, buffer);
+                    rc = fallback_count (buffer);
 
                 if (rc == -2) break;  // odd case, would stall, try again
                 if (rc >= 0)
