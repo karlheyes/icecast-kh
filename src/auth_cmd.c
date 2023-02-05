@@ -196,12 +196,12 @@ static void process_body (int fd, pid_t pid, auth_client *auth_user)
 static void get_response (int fd, auth_client *auth_user, pid_t pid)
 {
     client_t *client = auth_user->client;
-    refbuf_t *r = client->refbuf;
-    char *buf = r->data, *blankline;
-    unsigned remaining = 4095; /* leave a nul char at least */
     int ret = 0;
+    refbuf_t *r = client->refbuf = refbuf_new (4096);
+    unsigned remaining = r->len - 1;  /* leave a nul char at least */
+    char *buf = r->data, *blankline;
 
-    memset (r->data, 0, remaining+1);
+    memset (r->data, 0, r->len);
     sock_set_blocking (fd, 0);
     while (remaining)
     {
