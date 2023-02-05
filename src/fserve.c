@@ -372,6 +372,7 @@ static fh_node *open_fh (fbinfo *finfo)
     // insert new one
     if (fh->finfo.mount[0])
     {
+        config_get_config();
         char *fullpath= util_get_path_from_normalised_uri (fh->finfo.mount, fh->finfo.flags&FS_USE_ADMIN);
         config_release_config ();
 
@@ -479,7 +480,10 @@ int fserve_client_create (client_t *httpclient, const char *path)
     fbinfo finfo;
     char fsize[20];
 
+    config = config_get_config();
+    int file_serving = config->fileserve;
     fullpath = util_get_path_from_normalised_uri (path, 0);
+    config_release_config();
     DEBUG2 ("checking for file %s (%s)", path, fullpath);
 
     if (strcmp (util_get_extension (fullpath), "m3u") == 0)
@@ -528,15 +532,12 @@ int fserve_client_create (client_t *httpclient, const char *path)
     }
 
     /* on demand file serving check */
-    config = config_get_config();
-    if (config->fileserve == 0)
+    if (file_serving == 0)
     {
-        config_release_config();
         DEBUG1 ("on demand file \"%s\" refused", fullpath);
         free (fullpath);
         return client_send_404 (httpclient, "The file you requested could not be found");
     }
-    config_release_config();
 
     if (S_ISREG (file_buf.st_mode) == 0)
     {
