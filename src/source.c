@@ -1862,25 +1862,29 @@ void source_shutdown (source_t *source, int with_fallback)
             auth_stream_end (mountinfo, source);
         }
     }
-    if (source->fallback.limit == 0)
+    int running = (global_state() == ICE_RUNNING) ? 1 : 0;
+    if (running)
     {
-        int rate = 0;
-        time_t connected = time(NULL) - src_client->connection.con_time;
-        if (connected > 40)
+        if (source->fallback.limit == 0)
         {
-            if (source->flags & SOURCE_TIMEOUT)
-                rate = (int)rate_avg_shorten (source->in_bitrate, source->timeout);
-            else
-                rate = (int)rate_avg (source->in_bitrate);
-            rate = (int)((rate / 1000.0) + 0.5) * 1000;
+            int rate = 0;
+            time_t connected = time(NULL) - src_client->connection.con_time;
+            if (connected > 40)
+            {
+                if (source->flags & SOURCE_TIMEOUT)
+                    rate = (int)rate_avg_shorten (source->in_bitrate, source->timeout);
+                else
+                    rate = (int)rate_avg (source->in_bitrate);
+                rate = (int)((rate / 1000.0) + 0.5) * 1000;
+            }
+            if (rate == 0 && source->limit_rate)
+                rate = source->limit_rate;
+            source->fallback.limit = rate;
+            DEBUG2 ("no rate initially on %s, setting as %d", source->mount, rate);
         }
-        if (rate == 0 && source->limit_rate)
-            rate = source->limit_rate;
-        source->fallback.limit = rate;
-        DEBUG2 ("no rate initially on %s, setting as %d", source->mount, rate);
+        if (mountinfo && with_fallback)
+            source_set_fallback (source, mountinfo->fallback_mount);
     }
-    if (mountinfo && with_fallback && global_state() == ICE_RUNNING)
-        source_set_fallback (source, mountinfo->fallback_mount);
     source->flags &= ~(SOURCE_TIMEOUT);
     config_release_mount (mountinfo);
 }
