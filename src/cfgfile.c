@@ -1745,8 +1745,6 @@ static int _parse_listen_sock (cfg_xml *cfg, void *arg)
         config->listen_sock = sc_port;
         config->listen_sock_count++;
     }
-    else
-        listener->shoutcast_mount = (char*)xmlStrdup (XMLSTR(config->shoutcast_mount));
 
     if (config->shoutcast_mount == NULL && listener->shoutcast_mount)
         config->shoutcast_mount = (char*)xmlStrdup (XMLSTR(listener->shoutcast_mount));

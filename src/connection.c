@@ -1222,6 +1222,11 @@ static int shoutcast_source_client (client_t *client)
             }
             refbuf->data [len] = '\0';  // password
 
+            if (memmem (refbuf->data, len, "!POKE", 5))
+            {
+                INFO0 ("seen !POKE on shoutcast port, likely a libshout thing. dropping");
+                break;
+            }
             // is mountpoint embedded in the password
             char *sep = strchr (refbuf->data, ':');
             if (sep && *pw == '/')
@@ -1241,7 +1246,6 @@ static int shoutcast_source_client (client_t *client)
                     mount, esc_header, refbuf->data+len);
             r->len = strlen (r->data);
             free (esc_header);
-            client->respcode = 200;
             resp = refbuf_new (30);
             snprintf (resp->data, 30, "OK2\r\nicy-caps:11\r\n\r\n");
             resp->len = strlen (resp->data);

@@ -1101,6 +1101,7 @@ static int command_shoutcast_metadata (client_t *client, source_t *source)
         if (same_ip && source->format && source->format->set_tag)
         {
             httpp_set_query_param (client->parser, "mount", client->server_conn->shoutcast_mount);
+            client->mount = client->server_conn->shoutcast_mount;
             source->format->set_tag (source->format, "title", value, NULL);
             source->format->set_tag (source->format, NULL, NULL, NULL);
 
