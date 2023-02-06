@@ -480,7 +480,10 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             client_http_apply_fmt (&http, 0, "Icy-MetaData", "1");
         if (auth)
             client_http_apply_fmt (&http, 0, "Authorization", "Basic %s", auth);
-        client_http_apply_fmt (&http, 0, "Host", "%s:%d", server, port);
+        if (secure || port != 80)
+            client_http_apply_fmt (&http, 0, "Host", "%s:%d", server, port);
+        else
+            client_http_apply_fmt (&http, 0, "Host", "%s", server);
         client_http_apply_cfg (&http, relay->http_hdrs);
         client_http_apply_cfg (&http, host->http_hdrs);
         client_http_complete (&http);
@@ -544,6 +547,13 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         {
             ERROR3 ("Error from relay request on %s (%s %s)", relay->localmount,
                     mount, httpp_getvar(parser, HTTPP_VAR_ERROR_MESSAGE));
+            client->parser = NULL;
+            break;
+        }
+        const char *TE = httpp_getvar (parser, "Transfer-Encoding");
+        if (TE && strcasecmp (TE, "chunked") == 0)
+        {
+            WARN0 ("Response would be chunked, not handled currently");
             client->parser = NULL;
             break;
         }
