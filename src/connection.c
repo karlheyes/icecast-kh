@@ -1295,8 +1295,8 @@ int setup_source_client_callback (client_t *client)
             buf->len -= len;
             DEBUG1 ("found %d bytes of stream data after headers", len);
         }
-        client_http_headers_t http;
-        if (client_http_setup (&http, client, 100, NULL) == 0 && expect)
+        ice_http_t http;
+        if (ice_http_setup_flags (&http, client, 100, 0, NULL) == 0 && expect)
         {
            if (strcasecmp (expect, "100-continue") == 0)
            {
@@ -1305,7 +1305,7 @@ int setup_source_client_callback (client_t *client)
                    client->refbuf = surplus->next;
                refbuf_release (surplus);
 
-               client_http_complete (&http);
+               ice_http_complete (&http);
 
                DEBUG0 ("client expects 100 continue");
                client->pos = 0;
@@ -1314,7 +1314,7 @@ int setup_source_client_callback (client_t *client)
            }
            INFO1 ("Received Expect header: %s", expect);
         }
-        client_http_clear (&http);
+        ice_http_clear (&http);
     }
     buf = buf->next;
     client->refbuf->next = NULL;

@@ -518,13 +518,13 @@ void flv_meta_append_string (refbuf_t *buffer, const char *tag, const char *valu
 }
 
 
-int flv_create_client_data (format_plugin_t *plugin, client_http_headers_t *http, client_t *client)
+int flv_create_client_data (format_plugin_t *plugin, ice_http_t *http, client_t *client)
 {
     struct flv *flv = calloc (1, sizeof (struct flv));
 
-    if (client_http_setup (http, client, 200, NULL) < 0) return -1;
+    if (ice_http_setup_flags (http, client, 200, 0, NULL) < 0) return -1;
     http->in_length = (off_t)-1;
-    client_http_apply_fmt (http, 0, "content-type", "video/x-flv");
+    ice_http_printf (http, "content-type", 0, "video/x-flv");
     mpeg_setup (&flv->mpeg_sync, client->connection.ip);
     mpeg_check_numframes (&flv->mpeg_sync, 1);
     client->format_data = flv;

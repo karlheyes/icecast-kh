@@ -1261,8 +1261,8 @@ static int http_source_listener (client_t *client)
 
     if (client->respcode == 0)
     {
-        int (*build_headers)(format_plugin_t *, client_http_headers_t *http, client_t *) = format_client_headers;
-        client_http_headers_t http;
+        int (*build_headers)(format_plugin_t *, ice_http_t *http, client_t *) = format_client_headers;
+        ice_http_t http;
 
         if (source_running (source) == 0)
         {
@@ -1274,12 +1274,12 @@ static int http_source_listener (client_t *client)
 
         if (build_headers (source->format, &http, client) < 0)
         {
-            client_http_clear (&http);
+            ice_http_clear (&http);
             ERROR1 ("internal problem, dropping client %" PRIu64, client->connection.id);
             return -1;
         }
-        client_http_complete (&http);
-        client_http_clear (&http);
+        ice_http_complete (&http);
+        ice_http_clear (&http);
         refbuf = client->refbuf;
         stats_lock (source->stats, source->mount);
         stats_set_inc (source->stats, "listener_connections");
@@ -2761,15 +2761,14 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             if ((client->flags & CLIENT_AUTHENTICATED) == 0 || httpp_getvar (client->parser, "range"))
             {
                 int ret;
-                int (*build_headers)(format_plugin_t *, client_http_headers_t *,client_t *) = format_client_headers;
+                int (*build_headers)(format_plugin_t *, ice_http_t *,client_t *) = format_client_headers;
 
                 if (source->format->create_client_data)
                     build_headers = source->format->create_client_data;
 
-                client_http_headers_t http;
+                ice_http_t http;
                 ret = build_headers (source->format, &http, client);
-                client_http_complete (&http);
-                client_http_clear (&http);
+                ice_http_complete (&http);
 
                 if (ret < 0)
                 {
@@ -3067,9 +3066,9 @@ static int source_client_response (client_t *client, source_t *source)
     }
     else
     {
-        client_http_headers_t http;
-        client_http_setup (&http, client, 200, 0);
-        client_http_complete (&http);
+        ice_http_t http;
+        ice_http_setup_flags (&http, client, 200, 0, NULL);
+        ice_http_complete (&http);
         client->intro_offset = client->pos;
         client->pos = 0;
         client->ops = &source_client_http_ops;

@@ -363,22 +363,21 @@ static auth_result url_remove_listener (auth_client *auth_user)
         url->stop_req_until = 0;
     }
 
-    client_http_headers_t post;
-    client_post_setup (&post, 0);
-    client_http_apply_fmt (&post, 0, "action", "listener_remove");
+    ice_params_t post;
+    ice_params_setup (&post, "=", "&", PARAMS_ESC);
+    ice_params_printf (&post, "action", PARAM_AS,       "listener_remove");
+    ice_params_printf (&post, "server", 0,              "%s", auth_user->hostname);
+    ice_params_printf (&post, "port",   PARAM_AS,       "%d", auth_user->port);
+    ice_params_printf (&post, "client", PARAM_AS,       "%" PRIu64, client->connection.id);
 
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "server",  "%s", auth_user->hostname);
-    client_http_apply_fmt (&post, 0,               "port",    "%d",   auth_user->port);
-
-    client_http_apply_fmt (&post, 0,               "client",  "%" PRIu64, client->connection.id);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "mount", "%s",  auth_user->mount);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "user", "%s",   (client->username ? client->username : ""));
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "pass", "%s",   (client->password ? client->password : ""));
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "ip", "%s",     &client->connection.ip[0]);
-    client_http_apply_fmt (&post, 0,               "duration", "%" PRIu64, (uint64_t)duration);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "agent", "%s",      httpp_getvar (client->parser, "user-agent"));
-    client_http_apply_fmt (&post, 0,               "sent", "%" PRIu64, client->connection.sent_bytes);
-    refbuf_t *rb = client_post_complete (&post);
+    ice_params_printf (&post, "mount",  0,              "%s", auth_user->mount);
+    ice_params_printf (&post, "user",   0,              "%s", (client->username ? client->username : ""));
+    ice_params_printf (&post, "pass",   0,              "%s", (client->password ? client->password : ""));
+    ice_params_printf (&post, "ip",     0,              "%s", &client->connection.ip[0]);
+    ice_params_printf (&post, "duration", PARAM_AS,     "%" PRIu64, (uint64_t)duration);
+    ice_params_printf (&post, "agent",  0,              "%s", httpp_getvar (client->parser, "user-agent"));
+    ice_params_printf (&post, "sent",   PARAM_AS,       "%" PRIu64, client->connection.sent_bytes);
+    refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return AUTH_FAILED;
 
     if (strchr (url->removeurl, '@') == NULL)
@@ -462,26 +461,25 @@ static auth_result url_add_listener (auth_client *auth_user)
             return AUTH_FAILED;
         }
     }
-    client_http_headers_t post;
-    client_post_setup (&post, 0);
-    client_http_apply_fmt (&post, 0, "action", "listener_add");
-
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "server", "%s",      auth_user->hostname);
-    client_http_apply_fmt (&post, 0,               "port",   "%d",      auth_user->port);
-    client_http_apply_fmt (&post, 0,               "client", "%" PRIu64, client->connection.id);
+    ice_params_t post;
+    ice_params_setup (&post, "=", "&", PARAMS_ESC);
+    ice_params_printf (&post, "action", PARAM_AS,       "listener_add");
+    ice_params_printf (&post, "port",   PARAM_AS,       "%d", auth_user->port);
+    ice_params_printf (&post, "client", PARAM_AS,       "%" PRIu64, client->connection.id);
+    ice_params_printf (&post, "server", 0,              "%s", auth_user->hostname);
 
     const char *tmp = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "mount", "%s%s", auth_user->mount, (tmp ? tmp : ""));
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "user",  "%s",   (client->username ? client->username : ""));
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "pass",  "%s",   (client->password ? client->password : ""));
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "ip",    "%s",   &client->connection.ip[0]);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "agent", "%s",   httpp_getvar (client->parser, "user-agent"));
+    ice_params_printf (&post, "mount",  0,      "%s%s", auth_user->mount, (tmp ? tmp : ""));
+    ice_params_printf (&post, "user",   0,      "%s",   (client->username ? client->username : ""));
+    ice_params_printf (&post, "pass",   0,      "%s",   (client->password ? client->password : ""));
+    ice_params_printf (&post, "ip",     0,      "%s",   &client->connection.ip[0]);
+    ice_params_printf (&post, "agent",  0,      "%s",   httpp_getvar (client->parser, "user-agent"));
 
     tmp = httpp_getvar (client->parser, "referer");
-    client_http_apply_fmt (&post, CLIENT_POST_ENC, "referer", "%s", (tmp ? tmp : ""));
+    ice_params_printf (&post, "referer", 0,     "%s", (tmp ? tmp : ""));
 
     char *listeners = stats_get_value (auth_user->mount, "listeners");
-    client_http_apply_fmt (&post, 0, "listeners", "%s", (listeners ? listeners : ""));
+    ice_params_printf (&post, "listeners", PARAM_AS,    "%s", (listeners ? listeners : ""));
     free (listeners);
 
     char *cur_header = url->header_chk_list;
@@ -493,11 +491,11 @@ static auth_result url_add_listener (auth_client *auth_user)
             char name[200];
             int r = snprintf (name, sizeof name, "%s%s", url->header_chk_prefix, cur_header);
             if (r > 0 && r < sizeof name)
-                client_http_apply_fmt (&post, CLIENT_POST_ENC, name, "%s", val);
+                ice_params_printf (&post, name, 0, "%s", val);
         }
         cur_header += (strlen(cur_header) + 1); // get past next nul
     }
-    refbuf_t *rb = client_post_complete (&post);
+    refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return AUTH_FAILED;
 
     if (strchr (url->addurl, '@') == NULL)
@@ -612,15 +610,15 @@ static void url_stream_start (auth_client *auth_user)
     auth_url *url = auth_user->auth->state;
     auth_thread_data *atd = auth_user->thread_data;
 
-    client_http_headers_t post;
-    client_post_setup (&post, 0);
-    client_http_apply_fmt (&post, 0, "action", "mount_add");
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "mount", "%s",  auth_user->mount);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "server", "%s", auth_user->hostname);
-    client_http_apply_fmt (&post, 0,                    "port", "%d",   auth_user->port);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "ip", "%s",     &client->connection.ip[0]);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "agent", "%s",  client->aux_data ? (char*)client->aux_data : "");
-    refbuf_t *rb = client_post_complete (&post);
+    ice_params_t post;
+    ice_params_setup (&post, "=", "&", PARAMS_ESC);
+    ice_params_printf (&post, "action", 0,              "mount_add");
+    ice_params_printf (&post, "mount",  0,              "%s",   auth_user->mount);
+    ice_params_printf (&post, "server", 0,              "%s",   auth_user->hostname);
+    ice_params_printf (&post, "port",   PARAM_AS,       "%d",   auth_user->port);
+    ice_params_printf (&post, "ip",     0,              "%s",   &client->connection.ip[0]);
+    ice_params_printf (&post, "agent",  0,              "%s",   client->aux_data ? (char*)client->aux_data : "");
+    refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return;
 
     if (strchr (url->stream_start, '@') == NULL)
@@ -652,15 +650,15 @@ static void url_stream_end (auth_client *auth_user)
     auth_url *url = auth_user->auth->state;
     auth_thread_data *atd = auth_user->thread_data;
 
-    client_http_headers_t post;
-    client_post_setup (&post, 0);
-    client_http_apply_fmt (&post, 0, "action", "mount_remove");
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "mount", "%s",  auth_user->mount);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "server", "%s", auth_user->hostname);
-    client_http_apply_fmt (&post, 0,                    "port", "%d",   auth_user->port);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "ip", "%s",     &client->connection.ip[0]);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "agent", "%s",  client->aux_data ? (char*)client->aux_data : "");
-    refbuf_t *rb = client_post_complete (&post);
+    ice_params_t post;
+    ice_params_setup (&post, "=", "&", PARAMS_ESC);
+    ice_params_printf (&post, "action", 0,      "mount_remove");
+    ice_params_printf (&post, "mount",  0,      "%s",   auth_user->mount);
+    ice_params_printf (&post, "server", 0,      "%s",   auth_user->hostname);
+    ice_params_printf (&post, "port",   0,      "%d",   auth_user->port);
+    ice_params_printf (&post, "ip",     0,      "%s",   &client->connection.ip[0]);
+    ice_params_printf (&post, "agent",  0,      "%s",   client->aux_data ? (char*)client->aux_data : "");
+    refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return;
 
     if (strchr (url->stream_end, '@') == NULL)
@@ -706,18 +704,18 @@ static void url_stream_auth (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
 
-    client_http_headers_t post;
-    client_post_setup (&post, 0);
-    client_http_apply_fmt (&post, 0, "action", "stream_auth");
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "mount", "%s",    auth_user->mount);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "server", "%s",   auth_user->hostname);
-    client_http_apply_fmt (&post, 0,                    "port", "%d",     auth_user->port);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "ip",   "%s",     &client->connection.ip[0]);
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "user", "%s",     (client->username ? client->username : ""));
-    client_http_apply_fmt (&post, CLIENT_POST_ENC,   "pass", "%s",     (client->password ? client->password : ""));
+    ice_params_t post;
+    ice_params_setup (&post, "=", "&", PARAMS_ESC);
+    ice_params_printf (&post, "action", 0,      "stream_auth");
+    ice_params_printf (&post, "mount",  0,      "%s",   auth_user->mount);
+    ice_params_printf (&post, "server", 0,      "%s",   auth_user->hostname);
+    ice_params_printf (&post, "port",   PARAM_AS,  "%d",   auth_user->port);
+    ice_params_printf (&post, "ip",     0,      "%s",   &client->connection.ip[0]);
+    ice_params_printf (&post, "user",   0,      "%s",   (client->username ? client->username : ""));
+    ice_params_printf (&post, "pass",   0,      "%s",   (client->password ? client->password : ""));
     if (strcmp (auth_user->mount, httpp_getvar (client->parser, HTTPP_VAR_URI)) != 0)
-        adm = client_http_apply_fmt (&post, 0,                "admin", "1") < 0 ? 0 : 1;
-    refbuf_t *rb = client_post_complete (&post);
+        adm = ice_params_printf (&post, "admin", PARAM_AS,  "1") < 0 ? 0 : 1;
+    refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return;
 
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, rb->data);

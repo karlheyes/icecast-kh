@@ -55,6 +55,8 @@ int  fserve_kill_client (client_t *client, const char *mount, int response);
 int  fserve_query_count (fbinfo *finfo);
 void fserve_write_mime_ext (const char *mimetype, char *buf, unsigned int len);
 
+int  client_http_send (ice_http_t *http);
+
 int  file_in_use (icefile_handle f);
 int  file_open (icefile_handle *f, const char *fn);
 void file_close (icefile_handle *f);

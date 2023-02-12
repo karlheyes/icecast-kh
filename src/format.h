@@ -20,6 +20,7 @@
 
 #include "client.h"
 #include "refbuf.h"
+#include "params.h"
 #include "mpeg.h"
 
 struct source_tag;
@@ -64,7 +65,7 @@ struct _format_plugin_tag
     refbuf_t *(*get_buffer)(struct source_tag *);
     int (*write_buf_to_client)(client_t *client);
     void (*write_buf_to_file)(struct source_tag *source, refbuf_t *refbuf);
-    int (*create_client_data)(format_plugin_t *plugin, client_http_headers_t *http, client_t *client);
+    int (*create_client_data)(format_plugin_t *plugin, ice_http_t *http, client_t *client);
     void (*set_tag)(struct _format_plugin_tag *plugin, const char *tag, const char *value, const char *charset);
     void (*free_plugin)(struct _format_plugin_tag *self, client_t *client);
     void (*apply_client)(struct _format_plugin_tag *self, client_t *client);
@@ -85,7 +86,7 @@ int format_generic_write_to_client (client_t *client);
 
 int format_check_frames (struct format_check_t *c);
 int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle f);
-int format_client_headers (format_plugin_t *plugin, client_http_headers_t *http, client_t *client);
+int format_client_headers (format_plugin_t *plugin, ice_http_t *http, client_t *client);
 
 void format_plugin_clear (format_plugin_t *format, client_t *client);
 void format_apply_client (format_plugin_t *format, client_t *client);

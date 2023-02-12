@@ -474,20 +474,19 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         if (secure && connection_uses_ssl (&client->connection, 0) < 0)
             break;
 
-        client_http_headers_t http;
-        client_http_setup_flags (&http, client, 0, CLIENT_HTTPHDRS_REQUEST, mount);
+        ice_http_t http;
+        ice_http_setup_flags (&http, client, 0, ICE_HTTP_REQUEST, mount);
         if (relay->flags & RELAY_ICY_META)
-            client_http_apply_fmt (&http, 0, "Icy-MetaData", "1");
+            ice_http_printf (&http, "Icy-MetaData", 0, "1");
         if (auth)
-            client_http_apply_fmt (&http, 0, "Authorization", "Basic %s", auth);
+            ice_http_printf (&http, "Authorization", 0, "Basic %s", auth);
         if (secure || port != 80)
-            client_http_apply_fmt (&http, 0, "Host", "%s:%d", server, port);
+            ice_http_printf (&http, "Host", 0, "%s:%d", server, port);
         else
-            client_http_apply_fmt (&http, 0, "Host", "%s", server);
-        client_http_apply_cfg (&http, relay->http_hdrs);
-        client_http_apply_cfg (&http, host->http_hdrs);
-        client_http_complete (&http);
-        client_http_clear (&http);
+            ice_http_printf (&http, "Host", 0, "%s", server);
+        ice_http_apply_cfg (&http, relay->http_hdrs);
+        ice_http_apply_cfg (&http, host->http_hdrs);
+        ice_http_complete (&http);
 
         parser = relay_get_response (client);
         if (parser == NULL)

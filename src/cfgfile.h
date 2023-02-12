@@ -114,7 +114,7 @@ typedef struct _config_http_header_tag {
         char *value;
 
         void *callback;
-    } field;
+    } hdr;
 
 } ice_config_http_header_t;
 

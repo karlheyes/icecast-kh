@@ -303,7 +303,7 @@ int format_generic_write_to_client (client_t *client)
 #define FMT_FORCE_AAC           4
 #define FMT_DISABLE_CHUNKED     8
 
-static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *plugin, client_t *client)
+static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, client_t *client)
 {
     const char *fs = httpp_getvar (client->parser, "__FILESIZE");
     const char *opt = httpp_get_query_param (client->parser, "_hdr");
@@ -344,7 +344,7 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
     if (fmtcode & FMT_DISABLE_CHUNKED)
         client->flags &= ~CLIENT_KEEPALIVE;
     if (fmtcode & FMT_RETURN_ICY)
-        http_flags |= CLIENT_HTTPHDRS_USE_ICY;
+        http_flags |= ICE_HTTP_USE_ICY;
     if (fmtcode & FMT_LOWERCASE_TYPE)
         contenttypehdr = "content-type";
     if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
@@ -385,28 +385,36 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
         uint64_t range = client->connection.discon.offset - client->intro_offset + 1;
         char total_size [32] = "*";
 
-        if (fs) // allow range on files
-        {
-            snprintf (total_size, sizeof total_size, "%" PRIu64, length);
-            client_http_setup (http, client, 206, NULL);
-            client_http_apply_fmt (http, 0, "Accept-Ranges", "bytes");
-            client_http_apply_fmt (http, 0, "Content-Range", "bytes %" PRIu64 "-%" PRIu64 "/%s",
-                    (uint64_t)client->intro_offset, client->connection.discon.offset, total_size );
-            http->in_length = range;
-            http->flags |= CLIENT_HTTPHDRS_USES_FILE;
-        }
-        else
-        {
-            // ignore ranges on streams, treat as full
+        if (fs == NULL && range > 100)
+        {       // ignore most range requests on streams, treat as full
             client->connection.discon.offset = 0;
             client->intro_offset = 0;
             client->flags &= ~CLIENT_RANGE_END;
             length = -1;
         }
+        else
+        {
+            ice_http_setup_flags (http, client, 206, 0, NULL);
+            if (fs)
+                snprintf (total_size, sizeof total_size, "%" PRIu64, length);
+            ice_http_printf (http, "Accept-Ranges", 0, "bytes");
+            ice_http_printf (http, "Content-Range", 0, "bytes %" PRIu64 "-%" PRIu64 "/%s",
+                    (uint64_t)client->intro_offset, client->connection.discon.offset, total_size );
+            http->in_length = range;
+            if (range <= 100 && client->parser->req_type != httpp_req_head)
+            {
+                char line [range+1];
+                memset (line, 'A', range);
+                line[range] = 0;
+                ice_http_printf (http, NULL, 0, "%s", line);
+                client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
+                DEBUG2 ("wrote %" PRIu64 " bytes for partial request from %s", range, &client->connection.ip[0]);
+            }
+        }
     }
     if (client->respcode == 0)
     {
-        client_http_setup_flags (http, client, 200, http_flags, NULL);
+        ice_http_setup_flags (http, client, 200, http_flags, NULL);
         http->in_length = (off_t)((fs) ? length : -1);
         int chunked = 0;
 
@@ -415,17 +423,17 @@ static int apply_client_tweaks (client_http_headers_t *http, format_plugin_t *pl
         if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
         {
             client->flags |= CLIENT_CHUNKED;
-            client_http_apply_fmt (http, 0, "Transfer-Encoding", "chunked");
+            ice_http_printf (http, "Transfer-Encoding", 0, "chunked");
         }
         client->flags &= ~CLIENT_KEEPALIVE;
     }
-    client_http_apply_fmt (http, 0, contenttypehdr, "%s", contenttype);
+    ice_http_printf (http, contenttypehdr, 0, "%s", contenttype);
 
     return fmtcode;
 }
 
 
-int format_client_headers (format_plugin_t *plugin, client_http_headers_t *http, client_t *client)
+int format_client_headers (format_plugin_t *plugin, ice_http_t *http, client_t *client)
 {
     avl_node *node;
 
@@ -449,8 +457,8 @@ int format_client_headers (format_plugin_t *plugin, client_http_headers_t *http,
 
                 brfield = strstr (var->value, "bitrate=");
                 if (brfield && sscanf (brfield, "bitrate=%u", &bitrate) == 1)
-                    client_http_apply_fmt (http, 0, "icy-br", "%u", bitrate);
-                client_http_apply_fmt (http, 0, var->name, "%s", var->value);
+                    ice_http_printf (http, "icy-br", 0, "%u", bitrate);
+                ice_http_printf (http, var->name, 0, "%s", var->value);
                 continue;
             }
             if (strcasecmp (var->name, "ice-password") == 0) continue;
@@ -459,33 +467,22 @@ int format_client_headers (format_plugin_t *plugin, client_http_headers_t *http,
             if (strncasecmp ("ice-", var->name, 4) == 0)
             {
                 if (!strcasecmp ("ice-public", var->name))
-                    client_http_apply_fmt (http, 0, "icy-pub", "%s", var->value);
+                    ice_http_printf (http, "icy-pub", 0, "%s", var->value);
                 else
                     if (strcasecmp ("ice-bitrate", var->name) == 0)
-                        client_http_apply_fmt (http, 0, "icy-br", "%s", var->value);
+                        ice_http_printf (http, "icy-br", 0, "%s", var->value);
                     else
                     {
                         char icyname[1000];
                         snprintf (icyname, sizeof icyname, "icy%s", var->name + 3);
-                        client_http_apply_fmt (http, 0, icyname, "%s", var->value);
+                        ice_http_printf (http, icyname, 0, "%s", var->value);
                     }
                 continue;
             }
             if (!strncasecmp ("icy-", var->name, 4))
-                client_http_apply_fmt (http, 0, var->name, "%s", var->value);
+                ice_http_printf (http, var->name, 0, "%s", var->value);
         }
         avl_tree_unlock (plugin->parser->vars);
-    }
-
-    uint64_t range = client->respcode == 206 ? http->in_length : 0;
-    if (client->parser->req_type != httpp_req_head && (http->flags & CLIENT_HTTPHDRS_USES_FILE) == 0 && range > 0 && range < 100)
-    {
-        char line [range+1];
-        memset (line, 'A', range);
-        line[range] = 0;
-        client_http_apply_fmt (http, 0, NULL, "%s", line);
-        client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
-        DEBUG2 ("wrote %" PRIu64 " bytes for partial request from %s", range, &client->connection.ip[0]);
     }
     return 0;
 }

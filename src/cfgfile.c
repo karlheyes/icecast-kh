@@ -395,11 +395,11 @@ redirect_host *config_clear_redirect (redirect_host *redir)
 }
 
 
-static void _clear_http_header_contents (ice_config_http_header_t *header)
+static void _clear_http_header_contents (ice_config_http_header_t *entry)
 {
-    xmlFree (header->field.name);
-    xmlFree (header->field.value);
-    xmlFree (header->field.status);
+    xmlFree (entry->hdr.name);
+    xmlFree (entry->hdr.value);
+    xmlFree (entry->hdr.status);
 }
 
 
@@ -1161,37 +1161,37 @@ static int _parse_directory (cfg_xml *cfg, void *arg)
 static int _add_http_header (ice_config_http_header_t **top, const ice_config_http_header_t *src)
 {
     // does it already exist, if so maybe replace
-    ice_config_http_header_t **trail = top, *hdr = *top;
+    ice_config_http_header_t **trail = top, *cur = *top;
 
-    while (hdr)
+    while (cur)
     {
-        if (strcasecmp (hdr->field.name, src->field.name) == 0)
+        if (strcasecmp (cur->hdr.name, src->hdr.name) == 0)
         {
-            if (hdr->flags & CFG_HTTPHDR_CONST)
+            if (cur->flags & PARAM_CONST)
                 return -1;    // no change allowed.
-            if (hdr->flags & CFG_HTTPHDR_MULTI)
-                hdr = NULL;
-            _clear_http_header_contents (hdr);
-            hdr->field = src->field;
+            if (cur->flags & PARAM_MULTI)
+                cur = NULL;
+            _clear_http_header_contents (cur);
+            cur->hdr = src->hdr;
             break;
         }
-        trail = &hdr->next;
-        hdr = *trail;
+        trail = &cur->next;
+        cur = *trail;
     }
-    if (hdr == NULL)    // a new one
+    if (cur == NULL)    // a new one
     {
-        hdr = malloc (sizeof (*hdr));
-        *hdr = *src;
-        hdr->next = *trail;
-        *trail = hdr;
+        cur = malloc (sizeof (*cur));
+        *cur = *src;
+        cur->next = *trail;
+        *trail = cur;
     }
-    if ((src->flags & CFG_HTTPHDR_NOCOPY) == 0) // we usually make copies here
+    if ((src->flags & PARAM_NOCOPY) == 0) // we usually make copies here
     {
-        hdr->field.name =   (char*)xmlCharStrdup (src->field.name);
-        hdr->field.value =  (char*)xmlCharStrdup (src->field.value);
-        hdr->field.status = (char*)xmlCharStrdup (src->field.status);
+        cur->hdr.name =   (char*)xmlCharStrdup (src->hdr.name);
+        cur->hdr.value =  (char*)xmlCharStrdup (src->hdr.value);
+        cur->hdr.status = (char*)xmlCharStrdup (src->hdr.status);
     }
-    DEBUG4 ("Adding %s name %s status %s (%d)", hdr->field.name, hdr->field.value, hdr->field.status, (hdr->field.callback)?1:0);
+    DEBUG4 ("Adding %s name %s status %s (%d)", cur->hdr.name, cur->hdr.value, cur->hdr.status, (cur->hdr.callback)?1:0);
     return 0;
 }
 
@@ -1227,7 +1227,7 @@ static int config_get_http_header (cfg_xml *cfg, void *arg)
             break;
         }
 
-        ice_config_http_header_t hdr = { .flags = CFG_HTTPHDR_NOCOPY, .field = { .name = name, .value = value, .status = code } };
+        ice_config_http_header_t hdr = { .flags = PARAM_NOCOPY, .hdr = { .name = name, .value = value, .status = code } };
         if (_add_http_header (top,  &hdr) < 0)
             break;
 
@@ -1246,7 +1246,7 @@ int config_http_copy (ice_config_http_header_t *src, ice_config_http_header_t **
     while (src)
     {
         ice_config_http_header_t hdr = *src;
-        hdr.flags &= ~CFG_HTTPHDR_NOCOPY;
+        hdr.flags &= ~PARAM_NOCOPY;
         _add_http_header (dest, &hdr);
         dest = &(*dest)->next;
         src = src->next;
@@ -1801,9 +1801,9 @@ static int _parse_root (cfg_xml *cfg, void *p)
 
     extern ice_config_http_header_t default_headers[];
 
-    for (int i = 0; default_headers[i].field.name; i++)
+    for (int i = 0; default_headers[i].hdr.name; i++)
         if (_add_http_header (&config->http_headers, &default_headers[i]) < 0)
-            WARN1 ("Problem with default header %s", default_headers[i].field.name);
+            WARN1 ("Problem with default header %s", default_headers[i].hdr.name);
 
     config->master_relay_auth = 1;
     if (parse_xml_tags (cfg, icecast_tags))

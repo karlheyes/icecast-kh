@@ -220,10 +220,10 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
         xmlFree(buff);
         xmlFreeDoc (doc);
 
-        client_http_headers_t http;
-        client_http_setup (&http, client, 200, NULL);
-        client_http_apply_fmt (&http, 0, "Content-Type", "%s", "text/xml");
-        client_http_apply_block (&http, rb);
+        ice_http_t http;
+        ice_http_setup_flags (&http, client, 200, 0, NULL);
+        ice_http_printf (&http, "Content-Type", 0, "%s", "text/xml");
+        ice_http_apply_block (&http, rb);
         return client_http_send (&http);
     }
     if (response == XSLT)
@@ -482,9 +482,9 @@ static int command_require (client_t *client, const char *name, const char **var
 
 int html_success (client_t *client, const char *message)
 {
-    client_http_headers_t http;
-    if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
-    client_http_apply_fmt (&http, 0, NULL,
+    ice_http_t http;
+    if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
+    ice_http_printf (&http, NULL, 0,
             "<html><head><title>Admin request successful</title></head>"
             "<body><p>%s</p></body></html>", message);
     return client_http_send (&http);
@@ -1197,10 +1197,10 @@ static int command_list_log (client_t *client, int response)
     }
     else
     {
-        client_http_headers_t http;
-        if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
-        client_http_apply_block (&http, content);
-        client_http_apply_fmt (&http, 0, "Content-Type", "text/plain");
+        ice_http_t http;
+        if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
+        ice_http_apply_block (&http, content);
+        ice_http_printf (&http, "Content-Type", 0, "text/plain");
         return client_http_send (&http);
     }
 }
@@ -1221,9 +1221,9 @@ int command_list_mounts(client_t *client, int response)
         else
             rb = stats_get_streams (0);
 
-        client_http_headers_t http;
-        if (client_http_setup (&http, client, 200, NULL) < 0) return -1;
-        client_http_apply_block (&http, rb);
+        ice_http_t http;
+        if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
+        ice_http_apply_block (&http, rb);
         return client_http_send (&http);
     }
     else

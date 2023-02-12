@@ -460,18 +460,18 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
     free (params);
     client->shared_data = NULL;
 
-    client_http_headers_t http;
+    ice_http_t http;
 
     if (res == NULL || xslt_SaveResultToBuf (&content, &len, res, cur) < 0)
     {
         thread_rwlock_unlock (&xslt_lock);
         WARN1 ("problem applying stylesheet \"%s\"", cache [idx].filename);
 
-        client_http_setup (&http, client, 404, NULL);
+        ice_http_setup_flags (&http, client, 404, 0, NULL);
     }
     else
     {
-        client_http_setup (&http, client, 200, NULL);
+        ice_http_setup_flags (&http, client, 200, 0, NULL);
 
         const char *mediatype = NULL;
 
@@ -490,16 +490,16 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
                     mediatype = "text/xml";
         }
         if (cur->encoding)
-            client_http_apply_fmt (&http, 0, "Content-Type", "%s; charset=%s", mediatype, (char *)cur->encoding);
+            ice_http_printf (&http, "Content-Type", 0, "%s; charset=%s", mediatype, (char *)cur->encoding);
         else
-            client_http_apply_fmt (&http, 0, "Content-Type", "%s", mediatype);
+            ice_http_printf (&http, "Content-Type", 0, "%s", mediatype);
 
         http.in_length = len;
         if (cache[idx].disposition)
-            client_http_apply_fmt (&http, 0, "Content-Disposition", "attachment; filename=\"%s\"", cache[idx].disposition);
+            ice_http_printf (&http, "Content-Disposition", 0, "attachment; filename=\"%s\"", cache[idx].disposition);
 
         thread_rwlock_unlock (&xslt_lock);
-        client_http_apply_block (&http, content);
+        ice_http_apply_block (&http, content);
     }
     xmlFreeDoc(res);
     xmlFreeDoc(doc);

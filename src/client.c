@@ -214,446 +214,21 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
 }
 
 
-static int _date_hdr (client_http_headers_t * http, client_http_header_t *curr)
-{
-    client_t *cl = http->client;
-
-    struct tm result;
-    time_t now = cl->worker ? cl->worker->current_time.tv_sec : time(NULL);
-    if (gmtime_r (&now, &result))
-    {
-        char *datebuf = malloc (40);
-        if (strftime (datebuf, 40, "%a, %d %b %Y %X GMT", &result) > 0)
-        {
-            curr->value = datebuf;
-            return 0;
-        }
-    }
-    return -1;
-}
-
-
-static int _connection_hdr (client_http_headers_t * http, client_http_header_t *curr)
-{
-    if (http->in_major == 1 && http->in_minor == 1)
-    {
-        if (http->in_connection && strcasecmp (http->in_connection, "keep-alive") == 0)
-        {
-            curr->value = strdup ("keep-alive");
-            http->client->flags |= CLIENT_KEEPALIVE;
-        }
-        return 0;
-    }
-    curr->value = NULL;
-    return 0;
-}
-
-
-static int _send_cors_hdr (client_http_headers_t * http, client_http_header_t *curr)
-{
-    if (http->in_origin == NULL)
-    {
-        curr->value = NULL; // drop header but not error out
-        return -1;
-    }
-
-    if (strcasecmp (curr->name, "Access-Control-Allow-Origin") == 0)
-    {
-        if (strcmp (curr->value, "*") == 0)
-            curr->value = strdup (http->in_origin);
-        if (strcmp (curr->value, "*") == 0)
-            http->flags |= CLIENT_HTTPHDRS_WILDCARD_ORIGIN;
-        else
-            http->flags &= ~CLIENT_HTTPHDRS_WILDCARD_ORIGIN;
-    }
-    if (strcasecmp (curr->name, "Access-Control-Allow-Credentials") == 0 && (http->flags&CLIENT_HTTPHDRS_WILDCARD_ORIGIN))
-        return -1;
-    return 0;
-}
-
-
-static int _client_http_apply (client_http_headers_t *http, const client_http_header_t *header)
-{
-    client_http_header_t **trail = &http->headers, *chdr = http->headers;
-
-    if (header->name == NULL)
-    {
-        if (header->value == NULL)
-            return -1;      // definitely fail
-        free (http->msg);
-        http->msg = strdup (header->value);
-        return 0;
-    }
-    if (header->callback == NULL && header->value == NULL) return -1; // error case
-
-    // calc lengths of strings, but allow extra space for chars ': ' and '\r\n'
-    int nlen = strlen (header->name), vlen;
-    if (nlen) nlen += http->entry_div_len;
-
-    client_http_header_t matched = { .name = NULL };
-
-    while (chdr)
-    {
-        if (header->name[0] && strcasecmp (chdr->name, header->name) == 0)
-        {
-            matched = *chdr;
-            if (chdr->flags & CFG_HTTPHDR_MULTI)
-                break;
-            if (chdr->flags & CFG_HTTPHDR_CONST)
-                return -1;
-            // replace existing data block
-            break;
-        }
-        trail = &chdr->next;
-        chdr = *trail;
-    }
-    if (matched.name == NULL)
-    {
-        chdr = calloc (1, sizeof (*chdr));
-        chdr->name = header->name;
-    }
-    chdr->value = header->value;
-    if (header->callback)
-    {
-        if (header->callback (http, chdr) < 0)
-        {
-            int ret = chdr->value == NULL ? 0 : -1;
-            if (matched.name)
-                *chdr = matched;      // leave as it was
-            else
-                free (chdr);
-            return ret;
-        }
-    }
-    chdr->name = strdup (header->name);
-    if (chdr->value == NULL)
-        chdr->value = strdup (header->value ? header->value : "");
-    else if (header->flags & CLIENT_POST_ENC)
-        chdr->value = util_url_escape (header->value);
-    else if (chdr->value == header->value)
-        chdr->value = strdup (header->value);
-
-    chdr->flags = (header->flags & ~CFG_HTTPHDR_NOCOPY);
-    vlen = strlen (chdr->value) + http->entry_end_len;
-    chdr->callback = header->callback;
-    chdr->value_len = vlen;
-    chdr->name_len = nlen;
-    http->len -= (matched.name_len + matched.value_len);
-    http->len += (nlen + vlen);
-
-    if (matched.name)
-    {   // we are replacing so just clean up
-        free (matched.name);
-        free (matched.value);
-    }
-    else
-    {   // insert
-        chdr->next = *trail;
-        *trail = chdr;
-    }
-    return 0;
-}
-
-
-int client_http_apply (client_http_headers_t *http, const client_http_header_t *header)
-{
-    const client_http_header_t *hdr = header;
-
-    while (hdr)
-    {
-        if (_client_http_apply (http, hdr) < 0)
-            WARN2 ("header problem %s:%s", hdr->name, hdr->value);
-        hdr = hdr->next;
-    }
-    return 0;
-}
-
-
-void client_http_clear (client_http_headers_t *http)
-{
-    if (http->headers == NULL) return;  // means nothing set
-    while (http->headers)
-    {
-        client_http_header_t *hdr = http->headers;
-        http->headers = hdr->next;
-
-        if ((hdr->flags & CFG_HTTPHDR_NOCOPY) == 0)
-        {
-            free (hdr->name);
-            free (hdr->value);
-        }
-        free (hdr);
-    }
-    free (http->in_realm);
-    free (http->msg);
-}
-
-
-int client_http_apply_block (client_http_headers_t *http, refbuf_t *ref)
-{
-    if (ref)
-    {
-        client_t *client = http->client;
-        refbuf_t **rp = &client->refbuf;
-
-        while (*rp)
-            rp = &((*rp)->next);
-        *rp = ref;
-        http->block_total += ref->len;
-    }
-    return 0;
-}
-
-
-//
-int client_http_apply_fmt (client_http_headers_t *http, int flags, const char *name, const char *fmt, ...)
-{
-    int ret = 1023;
-    if (fmt == NULL) return -1;
-    do {
-        va_list ap;
-        char content [ret + 1];
-        va_start(ap, fmt);
-        ret = vsnprintf (content, sizeof content, fmt, ap);
-        va_end(ap);
-
-        if (ret >= 0 && ret < sizeof content)
-        {
-            client_http_header_t hdr = { .next = NULL, .name = (char*)name, .value = content, .flags = flags };
-            return client_http_apply (http, &hdr);
-        }
-    } while (ret < 8000);        // loop to retry with a larger size, although not silly
-    WARN1 ("header content too large for %s", CONN_ADDR (http->client));
-    return -1;
-}
-
-
-int  client_http_apply_cfg (client_http_headers_t *http, ice_config_http_header_t *h)
-{
-    while (h)
-    {
-        if (cached_pattern_compare (http->respcode, h->field.status) == 0)
-        {
-            client_http_header_t hdr = { .name = h->field.name, .value = h->field.value, .flags = h->flags, .callback = h->field.callback };
-            client_http_apply (http, &hdr);
-        }
-        h = h->next;
-    }
-    return 0;
-}
-
-
-int client_http_status_lookup (int status, client_http_status_t *s)
-{
-#define RetX(A,B) (*s = (client_http_status_t){.status=A, .msg=B })
-    switch (status)
-    {
-        case 100: RetX (100, "Continue"); break;
-        case 200: RetX (200, "OK"); break;
-        case 204: RetX (204, "No Content"); break;
-        case 206: RetX (206, "Partial Content"); break;
-        case 302: RetX (302, "Found"); break;
-        case 401: RetX (401, "Authentication Required"); break;
-        case 403: RetX (403, "Forbidden"); break;
-        case 404: RetX (404, "File Not Found"); break;
-        case 416: RetX (416, "Request Range Not Satisfiable"); break;
-        case 501: RetX (501, "Not Implemented"); break;
-        default:  RetX (400, "Bad Request"); break;
-    }
-    return 0;
-}
-
-
-static int client_http_setup_req (client_http_headers_t *http, unsigned int flags, const char *uri)
-{
-    if (uri == NULL || uri[0] == 0) return -1;
-    // special case, first line has blank name as it is different to the other headers
-    if (http->headers == NULL)
-    {
-        char line [1024];
-        client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
-        snprintf (line, sizeof(line), "GET %.1000s HTTP/1.1", uri);
-
-        http->len = 1;       // start with allowing for the nul
-        http->in_major = http->in_minor = 1;
-        client_http_apply (http, &firsthdr);
-    }
-    ice_config_t *config = config_get_config();
-    client_http_apply_fmt (http, 0, "User-Agent", "%s", config->server_id);
-    config_release_config();
-    client_http_apply_fmt (http, 0, "Connection", "Close");
-    return 0;
-}
-
-
-int  client_http_setup_flags (client_http_headers_t *http, client_t *client, int status, unsigned int flags, const char *statusmsg)
-{
-    if (client && client->respcode) return -1;
-    memset (http, 0, sizeof (*http));
-    http->client = client;
-    http->entry_end_len = snprintf (&http->entry_end[0], sizeof (http->entry_end), "\r\n");
-    http->entry_div_len = snprintf (&http->entry_div[0], sizeof (http->entry_div), ": ");
-    if (flags & CLIENT_HTTPHDRS_REQUEST)
-        return client_http_setup_req (http, flags, statusmsg);
-
-    client_http_status_lookup (status, &http->conn);
-    client->respcode = http->conn.status;
-
-    // for matching on header pattern matching and quicker lookup/check
-    snprintf (&http->respcode[0], sizeof (http->respcode), "%" PRIu16, client->respcode);
-
-    char protocol[20];
-    if (flags & CLIENT_HTTPHDRS_USE_ICY)
-        strcpy (protocol, "ICY");
-    else
-    {
-        const char *in_version = httpp_getvar (client->parser, HTTPP_VAR_VERSION);
-        if (in_version == NULL)
-            in_version = "1.0";
-        int ret = sscanf (in_version, "%" SCNu8 ".%" SCNu8, &http->in_major, &http->in_minor);
-        if (ret < 1 || ret > 2) return -1;  // parsing error
-        if (http->in_major < 1 || http->in_major > 3 || http->in_minor > 1) return -1; // may need altering for newer specs
-        snprintf (protocol, sizeof protocol, "HTTP/%d.%d", http->in_major, http->in_minor);
-    }
-
-    http->in_connection = httpp_getvar (client->parser, "connection");
-    http->in_origin = httpp_getvar (client->parser, "origin");
-
-    char line [1024];
-    client_http_header_t  firsthdr = { .name = "", .value = line, .flags = CFG_HTTPHDR_CONST };
-    if (statusmsg == NULL)
-        statusmsg = http->conn.msg;
-    snprintf (line, sizeof(line), "%s %d %.1000s", protocol, http->conn.status, statusmsg);
-
-    http->len = 1;       // start with allowing for the nul
-    client_http_apply (http, &firsthdr);
-    if (http->conn.status >= 100 && http->conn.status < 200)
-    {
-        client->respcode = 0;       // informational codes are followed by others so reset
-        if (http->in_major < 1 || (http->in_major == 1 && http->in_minor == 0))
-            return -1;
-        http->in_length = -1;
-        return 0;
-    }
-
-    ice_config_t *config = config_get_config();
-    const char *realm = config->server_id;
-    mount_proxy *mountinfo = client->mount ? config_find_mount (config, client->mount) : NULL;
-    if (mountinfo)
-    {
-        if (mountinfo->auth && mountinfo->auth->realm)
-            realm = mountinfo->auth->realm;
-        if (mountinfo->http_headers)
-            client_http_apply_cfg (http, mountinfo->http_headers);
-    }
-    else
-        client_http_apply_cfg (http, config->http_headers);
-    if (client->respcode == 401)        http->in_realm = strdup (realm);
-    config_release_config();
-
-    return 0;
-}
-
-
-int  client_post_setup (client_http_headers_t *http, unsigned int flags)
-{
-    memset (http, 0, sizeof (*http));
-    http->entry_end_len = snprintf (&http->entry_end[0], sizeof (http->entry_end), "&");
-    http->entry_div_len = snprintf (&http->entry_div[0], sizeof (http->entry_div), "=");
-
-    http->len = 1;       // start with allowing for the nul
-    http->in_length = -1;
-    return 0;
-}
-
-
-static int _client_headers_complete (client_http_headers_t *http, refbuf_t *rb)
-{
-    client_http_header_t *h = http->headers;
-    unsigned int remain = rb->len;
-    char *p = rb->data;
-    while (h)
-    {
-        const char *divider = h->name[0] ? &http->entry_div[0] : "";
-        const char *endtag  = h->next    ? &http->entry_end[0] : "";
-        int r = snprintf (p, remain, "%s%s%s%s", h->name, divider, h->value, endtag);
-        if (r < 0 || r >= remain) return -1;
-        p += r;
-        remain -= r;
-        h = h->next;
-    }
-    return p - rb->data;
-}
-
-
-int  client_http_complete (client_http_headers_t *http)
-{
-    if (http == NULL || http->headers == NULL) return -1;
-
-    const char *msg = (http->msg) ? http->msg : "";
-    int remain = strlen (msg);
-    uint64_t msglen = remain + http->block_total;
-
-    if (http->in_length > 0)
-        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, http->in_length);  // forward notification
-    else if (http->in_length == 0)
-        client_http_apply_fmt (http, 0, "Content-Length", "%" PRIu64, msglen);  // headers + simple message
-
-    _client_http_apply (http, &(client_http_header_t){ .name = "", .value = "\r\n" });
-
-    remain += http->len;  // starts with space for nul char
-    refbuf_t *rb = refbuf_new (remain);
-    client_t *cl = http->client;
-    int written = _client_headers_complete (http, rb);
-    if (written >= 0)
-    {
-        rb->next = cl->refbuf;
-        cl->refbuf = rb;
-        char *p = rb->data + written;
-        written += snprintf (p, (rb->len - written), "%s", msg);
-        rb->len = written; // don't send the last nul
-    }
-    client_http_clear (http);
-    return written < 0 ? -1 : 0;
-}
-
-
-refbuf_t *client_post_complete (client_http_headers_t *http)
-{
-    if (http == NULL || http->headers == NULL) return NULL;
-    uint64_t remain = http->block_total + http->len;
-    refbuf_t *rb = refbuf_new (remain);
-    int written = _client_headers_complete (http, rb);
-    if (written >= 0)
-        rb->len = written; // do not include the last null even though it is there
-    client_http_clear (http);
-    return rb;
-}
-
-
-int client_http_send (client_http_headers_t *http)
-{
-    client_t *client = http->client;
-    client_http_complete (http);
-    return fserve_setup_client (client);
-}
-
-
 int client_send_302(client_t *client, const char *location)
 {
     if (location == NULL) return -1;
-    client_http_headers_t http;
-    client_http_setup (&http, client, 302, NULL);
-    client_http_apply_fmt (&http, 0, "Location", "%s", location);
+    ice_http_t http;
+    ice_http_setup_flags (&http, client, 302, 0, NULL);
+    ice_http_printf (&http, "Location", 0, "%s", location);
     return client_http_send (&http);
 }
 
 
 int client_send_400(client_t *client, const char *message)
 {
-    client_http_headers_t http;
-    client_http_setup (&http, client, 400, NULL);
-    client_http_apply_fmt (&http, 0, NULL, "%s", message);
+    ice_http_t http;
+    ice_http_setup_flags (&http, client, 400, 0, NULL);
+    ice_http_printf (&http, NULL, 0, "%s", message);
     return client_http_send (&http);
 
 }
@@ -669,37 +244,37 @@ int client_send_403redirect (client_t *client, const char *mount, const char *re
 
 int client_send_401 (client_t *client, const char *realm)
 {
-    client_http_headers_t http;
-    if (client_http_setup (&http, client, 401, NULL) < 0) return -1;
+    ice_http_t http;
+    if (ice_http_setup_flags (&http, client, 401, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
-    client_http_apply_fmt (&http, 0, "WWW-Authenticate", "Basic realm=\"%s\"", (realm ? realm : http.in_realm));
+    ice_http_printf (&http, "WWW-Authenticate", 0, "Basic realm=\"%s\"", (realm ? realm : http.in_realm));
     return client_http_send (&http);
 }
 
 
 int client_send_403 (client_t *client, const char *reason)
 {
-    client_http_headers_t http;
+    ice_http_t http;
     client_set_queue (client,NULL);
-    if (client_http_setup (&http, client, 403, reason) < 0) return -1;
+    if (ice_http_setup_flags (&http, client, 403, 0, reason) < 0) return -1;
     return client_http_send (&http);
 }
 
 int client_send_404 (client_t *client, const char *message)
 {
-    client_http_headers_t http;
-    if (client_http_setup (&http, client, 404, NULL) < 0) return -1;
+    ice_http_t http;
+    if (ice_http_setup_flags (&http, client, 404, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     if (message)
-        client_http_apply_fmt (&http, 0, NULL, "%s", message);
+        ice_http_printf (&http, NULL, 0, "%s", message);
     return client_http_send (&http);
 }
 
 
 int client_send_416(client_t *client)
 {
-    client_http_headers_t http;
-    if (client_http_setup (&http, client, 416, NULL) < 0) return -1;
+    ice_http_t http;
+    if (ice_http_setup_flags (&http, client, 416, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     return client_http_send (&http);
 }
@@ -707,16 +282,16 @@ int client_send_416(client_t *client)
 
 int client_send_501(client_t *client)
 {
-    client_http_headers_t http;
-    if (client_http_setup (&http, client, 501, NULL) < 0) return -1;
+    ice_http_t http;
+    if (ice_http_setup_flags (&http, client, 501, 0, NULL) < 0) return -1;
     return client_http_send (&http);
 }
 
 
 int client_send_options(client_t *client)
 {
-    client_http_headers_t http;
-    if (client_http_setup (&http, client, 204, NULL) < 0) return -1;
+    ice_http_t http;
+    if (ice_http_setup_flags (&http, client, 204, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     return client_http_send (&http);
 }
@@ -813,12 +388,12 @@ int client_send_m3u (client_t *client, const char *path)
             config_release_config();
             host = hostport;
         }
-        client_http_headers_t http;
-        client_http_setup (&http, client, 200, NULL);
-        client_http_apply_fmt (&http, 0, "Content-Type", "%s", "audio/x-mpegurl");
-        client_http_apply_fmt (&http, 0, "Content-Disposition", "%s", "attachment; filename=\"listen.m3u\"");
-        client_http_apply_fmt (&http, 0, NULL, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
-        client_http_complete (&http);
+        ice_http_t http;
+        ice_http_setup_flags (&http, client, 200, 0, NULL);
+        ice_http_printf (&http, "Content-Type", 0,              "%s", "audio/x-mpegurl");
+        ice_http_printf (&http, "Content-Disposition", 0,       "%s", "attachment; filename=\"listen.m3u\"");
+        ice_http_printf (&http, NULL, 0, "%s://%s%s%s%s\n", protocol, userpass, host, sourceuri, args?args:"");
+        ice_http_complete (&http);
         free (sourceuri);
         return fserve_setup_client_fb (client, NULL);
     } while (0);
@@ -1387,33 +962,4 @@ void worker_logger (int stop)
     }
     thread_create ("Log Thread", log_commit_thread, NULL, THREAD_DETACHED);
 }
-
-
-ice_config_http_header_t default_headers[] =
-{
-    { .field = { .status = "2*",        .name = "Server",               .value = "Icecast" } },
-    { .field = { .status = "[24]*",     .name = "Connection",           .value = "Close",
-                                        .callback = _connection_hdr } },
-    { .field = { .status = "2*",        .name = "Pragma",               .value = "no-cache" } },
-    { .field = { .status = "2*",        .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
-    { .field = { .status = "2*",        .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
-    { .field = { .status = "2*",        .name = "Vary",                 .value = "Origin" } },
-    { .field = { .status = "2*",        .name = "Access-Control-Allow-Origin",
-                                        .value = "*",
-                                        .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",        .name = "Access-Control-Allow-Credentials",
-                                        .value = "True", .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",        .name = "Access-Control-Allow-Headers",
-                                        .value = "Origin, Icy-MetaData, Range",
-                                        .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",        .name = "Access-Control-Expose-Headers",
-                                        .value = "Icy-Br, Icy-Description, Icy-Genre, Icy-MetaInt, Icy-Name, Icy-Pub, Icy-Url",
-                                        .callback = _send_cors_hdr } },
-    { .field = { .status = "2*",        .name = "Access-Control-Allow-Methods",
-                                        .value = "GET, OPTIONS, SOURCE, PUT, HEAD, STATS",
-                                        .callback = _send_cors_hdr } },
-    { .field = { .status = "*",         .name = "Date",                 .callback = _date_hdr } },
-    { .field = { .status = "*",         .name = "Content-Type",         .value = "text/html" } },
-    { .field = { .name = NULL }}
-};
 
