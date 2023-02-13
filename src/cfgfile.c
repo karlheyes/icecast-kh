@@ -30,6 +30,7 @@
 #include "cfgfile.h"
 #include "refbuf.h"
 #include "client.h"
+#include "params.h"
 #include "logging.h"
 #include "global.h"
 #include "git_hash.h"

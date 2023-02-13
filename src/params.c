@@ -201,7 +201,6 @@ int ice_http_apply (ice_http_t *http, const ice_param_t *header)
                 return -1;      // definitely fail
             free (http->msg);
             http->msg = strdup (header->value);
-            if (http->in_length == 0) http->in_length = -1; // unset for now
             continue;
         }
         _ice_params_apply (&http->headers, header); // process 1 param

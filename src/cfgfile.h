@@ -118,9 +118,6 @@ typedef struct _config_http_header_tag {
 
 } ice_config_http_header_t;
 
-#define CFG_HTTPHDR_MULTI               1       // only one, generally the default
-#define CFG_HTTPHDR_CONST               2       // set once not overriden, may not be unique
-#define CFG_HTTPHDR_NOCOPY              4       // data is not copied
 
 
 typedef struct _mount_proxy {

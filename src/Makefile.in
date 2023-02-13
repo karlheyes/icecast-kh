@@ -127,8 +127,8 @@ am__objects_1 = cfgfile.$(OBJEXT) main.$(OBJEXT) logging.$(OBJEXT) \
 	sighandler.$(OBJEXT) connection.$(OBJEXT) global.$(OBJEXT) \
 	util.$(OBJEXT) slave.$(OBJEXT) source.$(OBJEXT) \
 	stats.$(OBJEXT) refbuf.$(OBJEXT) client.$(OBJEXT) \
-	xslt.$(OBJEXT) fserve.$(OBJEXT) event.$(OBJEXT) \
-	admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
+	params.$(OBJEXT) xslt.$(OBJEXT) fserve.$(OBJEXT) \
+	event.$(OBJEXT) admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
 	format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
 	format_midi.$(OBJEXT) format_flac.$(OBJEXT) \
 	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
@@ -141,9 +141,9 @@ am_icecast_OBJECTS = cfgfile.$(OBJEXT) main.$(OBJEXT) \
 	logging.$(OBJEXT) sighandler.$(OBJEXT) connection.$(OBJEXT) \
 	global.$(OBJEXT) util.$(OBJEXT) slave.$(OBJEXT) \
 	source.$(OBJEXT) stats.$(OBJEXT) refbuf.$(OBJEXT) \
-	client.$(OBJEXT) xslt.$(OBJEXT) fserve.$(OBJEXT) \
-	event.$(OBJEXT) admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
-	format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
+	client.$(OBJEXT) params.$(OBJEXT) xslt.$(OBJEXT) \
+	fserve.$(OBJEXT) event.$(OBJEXT) admin.$(OBJEXT) md5.$(OBJEXT) \
+	format.$(OBJEXT) format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
 	format_midi.$(OBJEXT) format_flac.$(OBJEXT) \
 	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
 	auth_htpasswd.$(OBJEXT) auth_url.$(OBJEXT) \
@@ -182,10 +182,11 @@ am__depfiles_remade = ./$(DEPDIR)/admin.Po ./$(DEPDIR)/auth.Po \
 	./$(DEPDIR)/format_theora.Po ./$(DEPDIR)/format_vorbis.Po \
 	./$(DEPDIR)/fserve.Po ./$(DEPDIR)/global.Po \
 	./$(DEPDIR)/logging.Po ./$(DEPDIR)/main.Po ./$(DEPDIR)/md5.Po \
-	./$(DEPDIR)/mpeg.Po ./$(DEPDIR)/refbuf.Po \
-	./$(DEPDIR)/sighandler.Po ./$(DEPDIR)/slave.Po \
-	./$(DEPDIR)/source.Po ./$(DEPDIR)/stats.Po ./$(DEPDIR)/util.Po \
-	./$(DEPDIR)/xslt.Po ./$(DEPDIR)/yp.Po
+	./$(DEPDIR)/mpeg.Po ./$(DEPDIR)/params.Po \
+	./$(DEPDIR)/refbuf.Po ./$(DEPDIR)/sighandler.Po \
+	./$(DEPDIR)/slave.Po ./$(DEPDIR)/source.Po \
+	./$(DEPDIR)/stats.Po ./$(DEPDIR)/util.Po ./$(DEPDIR)/xslt.Po \
+	./$(DEPDIR)/yp.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -445,7 +446,7 @@ SUBDIRS = avl thread httpp net log timing
 @WIN32_TRUE@noinst_LIBRARIES = libicecast.a
 noinst_HEADERS = admin.h cfgfile.h logging.h sighandler.h connection.h \
     global.h util.h slave.h source.h stats.h refbuf.h client.h \
-    compat.h fserve.h xslt.h yp.h event.h md5.h \
+    compat.h fserve.h xslt.h yp.h event.h md5.h params.h \
     auth.h auth_htpasswd.h auth_cmd.h auth_url.h \
     fnmatch_loop.c fnmatch.h \
     format.h format_ogg.h format_mp3.h format_ebml.h \
@@ -453,7 +454,7 @@ noinst_HEADERS = admin.h cfgfile.h logging.h sighandler.h connection.h \
     format_kate.h format_skeleton.h mpeg.h flv.h
 
 icecast_SOURCES = cfgfile.c main.c logging.c sighandler.c connection.c global.c \
-    util.c slave.c source.c stats.c refbuf.c client.c \
+    util.c slave.c source.c stats.c refbuf.c client.c params.c\
     xslt.c fserve.c event.c admin.c md5.c \
     format.c format_ogg.c format_mp3.c format_midi.c format_flac.c format_ebml.c format_opus.c \
     auth.c auth_htpasswd.c auth_url.c format_kate.c format_skeleton.c mpeg.c flv.c
@@ -602,6 +603,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/md5.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mpeg.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/params.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/refbuf.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sighandler.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slave.Po@am__quote@ # am--include-marker
@@ -873,6 +875,7 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/main.Po
 	-rm -f ./$(DEPDIR)/md5.Po
 	-rm -f ./$(DEPDIR)/mpeg.Po
+	-rm -f ./$(DEPDIR)/params.Po
 	-rm -f ./$(DEPDIR)/refbuf.Po
 	-rm -f ./$(DEPDIR)/sighandler.Po
 	-rm -f ./$(DEPDIR)/slave.Po
@@ -955,6 +958,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/main.Po
 	-rm -f ./$(DEPDIR)/md5.Po
 	-rm -f ./$(DEPDIR)/mpeg.Po
+	-rm -f ./$(DEPDIR)/params.Po
 	-rm -f ./$(DEPDIR)/refbuf.Po
 	-rm -f ./$(DEPDIR)/sighandler.Po
 	-rm -f ./$(DEPDIR)/slave.Po
