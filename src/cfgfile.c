@@ -118,7 +118,8 @@ struct cfg_tag
     unsigned int flags;
 };
 
-#define CFG_TAG_NOTATTR         1
+#define CFG_TAG_DEF             1
+#define CFG_TAG_NOTATTR         2
 
 static xmlChar *cfg_get_string (cfg_xml *cfg)
 {
@@ -305,6 +306,16 @@ int parse_xml_tags (cfg_xml *cfg, const struct cfg_tag *args)
     ncfg.flag = 1;
     for (; argp->name; argp++)
     {
+        if ((argp->flags & CFG_TAG_DEF) && node && node->type == XML_TEXT_NODE)
+        {
+            seen_element = 1;
+            ncfg.flag = 0;
+            ncfg.node = parent;
+            ret = argp->retrieve (&ncfg, argp->storage);
+            ncfg.flag = 1;
+            if (ret < 0)
+                xmlParserWarning (NULL, "skipping default for %s at line %ld\n", parent->name, xmlGetLineNo(parent));
+        }
         if (argp->flags & CFG_TAG_NOTATTR)   continue;
         char *v = (char*)xmlGetProp (parent, (const xmlChar*)argp->name);
         if (v)
@@ -912,12 +923,12 @@ static int _parse_errorlog (cfg_xml *cfg, void *arg)
     error_log *log = arg;
     struct cfg_tag icecast_tags[] =
     {
-        { "name",           config_get_str,     &log->name },
-        { "archive",        config_get_bool,    &log->archive },
-        { "display",        config_get_int,     &log->display },
-        { "level",          config_get_loglevel,     &log->level },
-        { "size",           config_get_long,    &log->size },
-        { "duration",       config_get_int,     &log->duration },
+        { "name",           config_get_str,             &log->name,    .flags = CFG_TAG_DEF },
+        { "archive",        config_get_bool,            &log->archive },
+        { "display",        config_get_int,             &log->display },
+        { "level",          config_get_loglevel,        &log->level },
+        { "size",           config_get_long,            &log->size },
+        { "duration",       config_get_int,             &log->duration },
         { NULL, NULL, NULL }
     };
 
