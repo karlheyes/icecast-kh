@@ -2104,10 +2104,10 @@ static int relay_startup (client_t *client)
 
         mountinfo = config_lock_mount (NULL, source->mount);
 
-        if (mountinfo && mountinfo->fallback_mount)
+        if (mountinfo && mountinfo->fallback.mount)
         {
             avl_tree_rlock (global.source_tree);
-            if (fallback_count (mountinfo->fallback_mount) > 0)
+            if (fallback_count (mountinfo->fallback.mount) > 0)
                 start_relay = 1;
             avl_tree_unlock (global.source_tree);
         }
@@ -2177,7 +2177,7 @@ int fallback_count (const char *mount)
                 memset (&finfo, 0, sizeof (finfo));
                 finfo.flags = FS_FALLBACK;
                 finfo.mount = (char *)m;
-                finfo.fallback = NULL;
+                finfo.override = NULL;
                 finfo.limit = mountinfo ? mountinfo->limit_rate/8 : 0;
                 if (finfo.limit == 0)
                 {
@@ -2189,10 +2189,10 @@ int fallback_count (const char *mount)
                 if (count < -1)
                     break;
             }
-            if (mountinfo == NULL || mountinfo->fallback_mount == NULL)
+            if (mountinfo == NULL || mountinfo->fallback.mount == NULL)
                 break;
             len = sizeof buffer;
-            if (util_expand_pattern (m, mountinfo->fallback_mount, buffer, &len) < 0)
+            if (util_expand_pattern (m, mountinfo->fallback.mount, buffer, &len) < 0)
                 break;
             m = buffer;
             continue;

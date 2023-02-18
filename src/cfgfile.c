@@ -467,7 +467,8 @@ void config_clear_mount (mount_proxy *mount, int log)
     if (mount->intro_filename) xmlFree (mount->intro_filename);
     if (mount->on_connect)  xmlFree (mount->on_connect);
     if (mount->on_disconnect) xmlFree (mount->on_disconnect);
-    if (mount->fallback_mount) xmlFree (mount->fallback_mount);
+    if (mount->fallback.mount) xmlFree (mount->fallback.mount);
+    if (mount->fallback.override) xmlFree (mount->fallback.override);
     if (mount->stream_name) xmlFree (mount->stream_name);
     if (mount->stream_description)  xmlFree (mount->stream_description);
     if (mount->stream_url)  xmlFree (mount->stream_url);
@@ -1330,6 +1331,22 @@ static int _parse_mount_auth (cfg_xml *cfg, void *arg)
 }
 
 
+int _parse_get_fallback (cfg_xml *cfg, void *x)
+{
+    fbinfo *fb = (fbinfo*)x;
+    struct cfg_tag icecast_tags[] =
+    {
+        { "mount",              config_get_str,         &fb->mount,   .flags = CFG_TAG_DEF },
+        { "rate",               config_get_bitrate,     &fb->limit },
+        { NULL, NULL, NULL },
+    };
+
+    if (parse_xml_tags (cfg, icecast_tags))
+        return -1;
+    return 0;
+}
+
+
 static int _parse_mount (cfg_xml *cfg, void *arg)
 {
     ice_config_t *config = cfg->config;
@@ -1349,7 +1366,8 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "dump-file",          config_get_str,     &mount->dumpfile },
         { "intro",              config_get_str,     &mount->intro_filename },
         { "file-seekable",      config_get_bool,    &mount->file_seekable },
-        { "fallback-mount",     config_get_str,     &mount->fallback_mount },
+        { "fallback",           _parse_get_fallback, &mount->fallback },
+        { "fallback-mount",     _parse_get_fallback, &mount->fallback },
         { "fallback-override",  config_get_bool,    &mount->fallback_override },
         { "fallback-when-full", config_get_bool,    &mount->fallback_when_full },
         { "allow-chunked",      config_get_bool,    &mount->allow_chunked },
@@ -1449,11 +1467,12 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         mount->ogg_passthrough = 0;
     if (mount->ban_client < 0)
         mount->no_mount = 0;
-    if (mount->fallback_mount && mount->fallback_mount[0] != '/')
+
+    if (mount->fallback.mount && mount->fallback.mount[0] != '/')
     {
         WARN1 ("fallback does not start with / on %s", mount->mountname);
-        xmlFree (mount->fallback_mount);
-        mount->fallback_mount = NULL;
+        xmlFree (mount->fallback.mount);
+        mount->fallback.mount = NULL;
     }
 
     if (config_mount_template (mount->mountname))

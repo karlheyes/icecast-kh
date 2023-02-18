@@ -266,7 +266,7 @@ source_t *source_find_mount (const char *mount)
 
         if (mountinfo == NULL)
             break;
-        mount = mountinfo->fallback_mount;
+        mount = mountinfo->fallback.mount;
         depth++;
     }
 
@@ -1683,7 +1683,7 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
     unsigned int len;
     char *mount = dest_source->mount, buffer [4096];
 
-    if (mountinfo == NULL || mountinfo->fallback_mount == NULL || mountinfo->fallback_override == 0)
+    if (mountinfo == NULL || mountinfo->fallback.mount == NULL || mountinfo->fallback_override == 0)
     {
         config_release_config ();
         INFO1 ("no override for %s set", dest_source->mount);
@@ -1693,12 +1693,12 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
     config_release_config ();
     dest_mount = strdup (dest_source->mount);
     thread_rwlock_unlock (&dest_source->lock);
-    INFO2 ("for %s set to %s", dest_mount, mountinfo->fallback_mount);
+    INFO2 ("for %s set to %s", dest_mount, mountinfo->fallback.mount);
     avl_tree_rlock (global.source_tree);
     while (loop--)
     {
         len = sizeof buffer;
-        if (util_expand_pattern (mount, mountinfo->fallback_mount, buffer, &len) < 0)
+        if (util_expand_pattern (mount, mountinfo->fallback.mount, buffer, &len) < 0)
         {
             avl_tree_unlock (global.source_tree);
             break;
@@ -1743,7 +1743,7 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
         mount_proxy *m = config_lock_mount (NULL, mount);
         config_release_mount (mountinfo);
         mountinfo = m;
-        if (mountinfo == NULL || mountinfo->fallback_mount == NULL || mountinfo->fallback_override == 0)
+        if (mountinfo == NULL || mountinfo->fallback.mount == NULL || mountinfo->fallback_override == 0)
         {
             avl_tree_unlock (global.source_tree);
             if (mount)
@@ -1758,8 +1758,9 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
 }
 
 
-void source_set_fallback (source_t *source, const char *dest_mount)
+void source_set_fallback (source_t *source, fbinfo *fallback)
 {
+    const char *dest_mount = fallback->mount;
     if (dest_mount == NULL)
     {
         INFO1 ("No fallback on %s", source->mount);
@@ -1776,10 +1777,9 @@ void source_set_fallback (source_t *source, const char *dest_mount)
         return;
     }
     source->fallback.mount = strdup (dest_mount);
-    source->fallback.fallback = source->mount;
     source->fallback.flags = FS_FALLBACK;
     source->fallback.type = source->format->type;
-    INFO4 ("fallback set on %s to %s(%d) with %ld listeners", source->mount, dest_mount,
+    INFO4 ("fallback set on %s to %s (%" PRIu64 ") with %ld listeners", source->mount, dest_mount,
             source->fallback.limit, source->listeners);
 }
 
@@ -1883,7 +1883,7 @@ void source_shutdown (source_t *source, int with_fallback)
             DEBUG2 ("no rate initially on %s, setting as %d", source->mount, rate);
         }
         if (mountinfo && with_fallback)
-            source_set_fallback (source, mountinfo->fallback_mount);
+            source_set_fallback (source, &mountinfo->fallback);
     }
     source->flags &= ~(SOURCE_TIMEOUT);
     config_release_mount (mountinfo);
@@ -2471,7 +2471,7 @@ void source_recheck_mounts (int update_all)
 
         node = avl_get_next (node);
 
-        if (mount->fallback_mount == NULL)
+        if (mount->fallback.mount == NULL)
             continue;              // ignore these
 
         config_mount_ref (mount, 1);
@@ -2487,7 +2487,7 @@ void source_recheck_mounts (int update_all)
                 char buffer [4096];
 
                 len = sizeof buffer;
-                if (util_expand_pattern (mount->mountname, mount->fallback_mount, buffer, &len) == 0)
+                if (util_expand_pattern (mount->mountname, mount->fallback.mount, buffer, &len) == 0)
                     rc = fallback_count (buffer);
 
                 if (rc == -2) break;  // odd case, would stall, try again
@@ -2688,7 +2688,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             avl_tree_unlock (global.source_tree);
             if (minfo && minfo->limit_rate)
                 rate = minfo->limit_rate/8;
-            if (minfo == NULL || minfo->fallback_mount == NULL)
+            if (minfo == NULL || minfo->fallback.mount == NULL)
             {
                 int ret = -2;
                 if (minfo != mountinfo)
@@ -2719,8 +2719,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 return ret;
             }
             len = sizeof buffer;
-            if (util_expand_pattern (mount, minfo->fallback_mount, buffer, &len) < 0)
-                mount = minfo->fallback_mount;
+            if (util_expand_pattern (mount, minfo->fallback.mount, buffer, &len) < 0)
+                mount = minfo->fallback.mount;
             else
                 mount = buffer;
             mount_proxy *m = config_lock_mount (NULL, mount);
@@ -2834,12 +2834,12 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             INFO1 ("max listener count reached on %s", source->mount);
         }
         /* minfo starts off as mountinfo put cascades through fallbacks */
-        if (minfo && minfo->fallback_when_full && minfo->fallback_mount)
+        if (minfo && minfo->fallback_when_full && minfo->fallback.mount)
         {
             thread_rwlock_unlock (&source->lock);
             len = sizeof buffer;
-            if (util_expand_pattern (mount, minfo->fallback_mount, buffer, &len) < 0)
-                mount = minfo->fallback_mount;
+            if (util_expand_pattern (mount, minfo->fallback.mount, buffer, &len) < 0)
+                mount = minfo->fallback.mount;
             else
                 mount = buffer;
             INFO1 ("stream full trying %s", mount);

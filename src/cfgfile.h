@@ -31,7 +31,7 @@ typedef struct _listener_t listener_t;
 #include "avl/avl.h"
 #include "auth.h"
 #include "compat.h"
-
+#include "format.h"
 
 extern uint64_t config_updated;
 
@@ -119,6 +119,15 @@ typedef struct _config_http_header_tag {
 } ice_config_http_header_t;
 
 
+typedef struct _fbinfo
+{
+    int flags;
+    format_type_t type;
+    uint64_t limit;
+    char *mount;
+    char *override;
+} fbinfo;
+
 
 typedef struct _mount_proxy {
     char *mountname; /* The mountpoint this proxy is used for */
@@ -142,7 +151,7 @@ typedef struct _mount_proxy {
 
     int max_listeners; /* Max listeners for this mountpoint only. -1 to not
                           limit here (i.e. only use the global limit) */
-    char *fallback_mount; /* Fallback mountname */
+    fbinfo fallback;    // fallback reference details
 
     int fallback_override; /* When this source arrives, do we steal back
                               clients from the fallback? */

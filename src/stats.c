@@ -1190,7 +1190,7 @@ xmlDocPtr stats_get_xml (int flags, const char *show_mount)
             finfo.flags = FS_FALLBACK;
             finfo.mount = (char*)show_mount;
             finfo.limit = 0;
-            finfo.fallback = NULL;
+            finfo.override = NULL;
 
             fserve_list_clients_xml (node, &finfo);
         }

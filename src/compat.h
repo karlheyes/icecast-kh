@@ -64,5 +64,7 @@
 void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen);
 #endif
 
+#define icefile_handle   int
+
 #endif /* __COMPAT_H__ */
 

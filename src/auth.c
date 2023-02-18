@@ -420,13 +420,13 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
     char buffer [len];
 
     memcpy (&where, finfo, sizeof (where));
-    if (finfo->fallback)
-        where.fallback = strdup (finfo->fallback);
+    if (finfo->override)
+        where.override = strdup (finfo->override);
     avl_tree_rlock (global.source_tree);
     do
     {
         len = sizeof buffer;
-        util_expand_pattern (where.fallback, where.mount, buffer, &len);
+        util_expand_pattern (where.override, where.mount, buffer, &len);
         where.mount = buffer;
 
         minfo = config_lock_mount (NULL, where.mount);
@@ -451,17 +451,17 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
                     source->listeners++;
                     client->flags |= CLIENT_HAS_MOVED;
                     thread_rwlock_unlock (&source->lock);
-                    free (where.fallback);
+                    free (where.override);
                     return 0;
                 }
             }
             thread_rwlock_unlock (&source->lock);
         }
-        if (minfo && minfo->fallback_mount)
+        if (minfo && minfo->fallback.mount)
         {
-            free (where.fallback);
-            where.fallback = strdup (where.mount);
-            where.mount = minfo->fallback_mount;
+            free (where.override);
+            where.override = strdup (where.mount);
+            where.mount = minfo->fallback.mount;
         }
         else
             break;
@@ -481,7 +481,7 @@ int move_listener (client_t *client, struct _fbinfo *finfo)
         client->intro_offset = 0;
         ret = fserve_setup_client_fb (client, &where);
     }
-    free (where.fallback);
+    free (where.override);
     return ret;
 }
 

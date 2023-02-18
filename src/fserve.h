@@ -17,21 +17,8 @@
 #include <stdio.h>
 #include "cfgfile.h"
 
-#define icefile_handle   int
-
-
-#include "format.h"
-
 typedef void (*fserve_callback_t)(client_t *, void *);
 
-typedef struct _fbinfo
-{
-    int flags;
-    unsigned int limit;
-    char *mount;
-    char *fallback;
-    format_type_t type;
-} fbinfo;
 
 #define FS_USE_ADMIN            (1)
 #define FS_DELETE               (1<<1)

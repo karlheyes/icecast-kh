@@ -175,12 +175,10 @@ xmlDocPtr admin_build_sourcelist (const char *mount, int show_listeners)
             {
                 if (mountinfo->auth)
                 {
-                    xmlNewChild (srcnode, NULL, XMLSTR("authenticator"), 
-                            XMLSTR(mountinfo->auth->type));
+                    xmlNewChild (srcnode, NULL, XMLSTR("authenticator"), XMLSTR(mountinfo->auth->type));
                 }
-                if (mountinfo->fallback_mount)
-                    xmlNewChild (srcnode, NULL, XMLSTR("fallback"), 
-                            XMLSTR(mountinfo->fallback_mount));
+                if (mountinfo->fallback.mount)
+                    xmlNewChild (srcnode, NULL, XMLSTR("fallback"), XMLSTR(mountinfo->fallback.mount));
             }
             config_release_config();
 
@@ -192,8 +190,7 @@ xmlDocPtr admin_build_sourcelist (const char *mount, int show_listeners)
                             (unsigned long)(now - source->client->connection.con_time));
                     xmlNewChild (srcnode, NULL, XMLSTR("Connected"), XMLSTR(buf));
                 }
-                xmlNewChild (srcnode, NULL, XMLSTR("content-type"), 
-                        XMLSTR(source->format->contenttype));
+                xmlNewChild (srcnode, NULL, XMLSTR("content-type"), XMLSTR(source->format->contenttype));
                 if (show_listeners)
                     admin_source_listeners (source, srcnode);
             }
@@ -493,29 +490,38 @@ int html_success (client_t *client, const char *message)
 
 static int command_move_clients (client_t *client, source_t *source, int response)
 {
-    const char *dest_source;
+    const char *dest_source, *rate_str = "";
     xmlDocPtr doc;
     xmlNodePtr node;
     int parameters_passed = 0;
+    uint64_t rate = 0;
     char buf[255];
 
     if((COMMAND_OPTIONAL(client, "destination", dest_source))) {
         parameters_passed = 1;
     }
+    if ((COMMAND_OPTIONAL(client, "rate", rate_str)))
+        if (rate_str == NULL || sscanf (rate_str, "%" SCNu64, &rate) != 1 || rate > 10000000)
+            parameters_passed = 0;
+
     if (!parameters_passed) {
         doc = admin_build_sourcelist(source->mount, 0);
         thread_rwlock_unlock (&source->lock);
         return admin_send_response(doc, client, response, "moveclients.xsl");
     }
-    INFO2 ("source is \"%s\", destination is \"%s\"", source->mount, dest_source);
+    INFO3 ("source is \"%s\", destination is \"%s\" (%" PRIu64 ")", source->mount, dest_source, rate);
 
     doc = xmlNewDoc(XMLSTR("1.0"));
     node = xmlNewDocNode(doc, NULL, XMLSTR("iceresponse"), NULL);
     xmlDocSetRootElement(doc, node);
 
-    source_set_fallback (source, dest_source);
-    source->termination_count = source->listeners;
-    source->flags |= SOURCE_LISTENERS_SYNC;
+    if (source->listeners)
+    {
+        fbinfo fb = { .mount = (char*)dest_source, .limit = rate };
+        source_set_fallback (source, &fb);
+        source->termination_count = source->listeners;
+        source->flags |= SOURCE_LISTENERS_SYNC;
+    }
 
     snprintf (buf, sizeof(buf), "Clients moved from %s to %s",
             source->mount, dest_source);
@@ -971,8 +977,8 @@ static int command_fallback (client_t *client, source_t *source, int response)
         if (COMMAND_REQUIRE(client, "fallback", fallback) < 0)
             return client_send_400 (client, "missing arg, fallback");
 
-        xmlFree (mountinfo->fallback_mount);
-        mountinfo->fallback_mount = (char *)xmlCharStrdup (fallback);
+        xmlFree (mountinfo->fallback.mount);
+        mountinfo->fallback.mount = (char *)xmlCharStrdup (fallback);
         snprintf (buffer, sizeof (buffer), "Fallback for \"%s\" configured", mountinfo->mountname);
         config_release_config ();
         return html_success (client, buffer);

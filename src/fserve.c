@@ -250,7 +250,7 @@ static int _delete_fh (void *mapping)
         avl_tree_free (fh->clients, NULL);
     rate_free (fh->out_bitrate);
     free (fh->finfo.mount);
-    free (fh->finfo.fallback);
+    free (fh->finfo.override);
     free (fh);
 
     return 1;
@@ -393,7 +393,7 @@ static fh_node *open_fh (fbinfo *finfo)
                 return NULL;
             }
             fh->expire = (time_t)-1;
-            INFO2 ("lookup of fallback file \"%s\" (%d)", finfo->mount, finfo->limit);
+            INFO2 ("lookup of fallback file \"%s\" (%" PRIu64 ")", finfo->mount, finfo->limit);
         }
         else
             INFO1 ("lookup of \"%s\"", finfo->mount);
@@ -434,7 +434,7 @@ static fh_node *open_fh (fbinfo *finfo)
                 {
                     float ratio = (float)fh->finfo.limit / (fcheck.bitrate/8);
                     if (ratio < 0.9 || ratio > 1.1)
-                        WARN3 ("bitrate from %s (%d), was expecting %d", finfo->mount, (fcheck.bitrate/1000), (fh->finfo.limit/1000*8));
+                        WARN3 ("bitrate from %s (%u), was expecting %" PRIu64, finfo->mount, (fcheck.bitrate/1000), (fh->finfo.limit/1000*8));
                 }
             }
         }
@@ -452,7 +452,7 @@ static fh_node *open_fh (fbinfo *finfo)
     fh->refcount = 0;
     fh->peak = 0;
     fh->finfo.mount = strdup (finfo->mount);
-    fh->finfo.fallback = NULL;
+    fh->finfo.override = NULL;
     int len = strlen (finfo->mount) + 15;
     char buf [len];
     snprintf (buf, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
@@ -549,7 +549,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
     free (fullpath);
     finfo.flags = 0;
     finfo.mount = (char *)path;
-    finfo.fallback = NULL;
+    finfo.override = NULL;
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
     snprintf (fsize, 20, "%" PRId64, (int64_t)file_buf.st_size);
@@ -644,7 +644,7 @@ static int fserve_move_listener (client_t *client)
         client_set_queue (client, NULL);
     f.flags = fh->finfo.flags & (~FS_DELETE);
     f.limit = fh->finfo.limit;
-    f.mount = fh->finfo.fallback;
+    f.mount = fh->finfo.override;
     f.type = fh->finfo.type;
     if (move_listener (client, &f) < 0)
     {
@@ -702,7 +702,7 @@ static int prefile_send (client_t *client)
             return -1;
         if (refbuf == NULL || client->pos == refbuf->len)
         {
-            if (fh->finfo.fallback && (client->flags & CLIENT_AUTHENTICATED))
+            if (fh->finfo.override && (client->flags & CLIENT_AUTHENTICATED))
                 return fserve_move_listener (client);
 
             if (refbuf == NULL || refbuf->next == NULL)
@@ -817,7 +817,7 @@ static int throttled_file_send (client_t *client)
     now = worker->current_time.tv_sec;
     secs = now - client->timer_start;
     client->schedule_ms = worker->time_ms;
-    if (fh->finfo.fallback)
+    if (fh->finfo.override)
         return fserve_move_listener (client);
 
     if (fserve_change_worker (client)) // allow for balancing
@@ -928,7 +928,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
                 return client_send_404 (client, NULL);
             }
             if (fh->finfo.limit)
-                DEBUG2 ("request for throttled file %s (bitrate %d)", fh->finfo.mount, fh->finfo.limit*8);
+                DEBUG2 ("request for throttled file %s (bitrate %" PRIu64 ")", fh->finfo.mount, fh->finfo.limit*8);
         }
         if (fh->finfo.limit)
         {
@@ -1027,7 +1027,7 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
 
     fh.finfo.flags = FS_FALLBACK;
     fh.finfo.mount = (char *)mount;
-    fh.finfo.fallback = NULL;
+    fh.finfo.override = NULL;
     fh.finfo.type = type;
 
     avl_tree_wlock (fh_cache);
@@ -1057,7 +1057,7 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
             result->format = NULL;
             result->stats = 0;
             result->f = SOCK_ERROR;
-            result->finfo.fallback = strdup (dest);
+            result->finfo.override = strdup (dest);
             result->finfo.type = type;
         }
         avl_tree_unlock (fh_cache);
@@ -1231,7 +1231,7 @@ int fserve_kill_client (client_t *client, const char *mount, int response)
     finfo.flags = 0;
     finfo.mount = (char*)mount;
     finfo.limit = 0;
-    finfo.fallback = NULL;
+    finfo.override = NULL;
 
     idtext = httpp_get_query_param (client->parser, "id");
     if (idtext == NULL)
@@ -1322,7 +1322,7 @@ int fserve_list_clients (client_t *client, const char *mount, int response, int 
     finfo.flags = 0;
     finfo.mount = (char*)mount;
     finfo.limit = 0;
-    finfo.fallback = NULL;
+    finfo.override = NULL;
 
     doc = xmlNewDoc(XMLSTR("1.0"));
     node = xmlNewDocNode(doc, NULL, XMLSTR("icestats"), NULL);

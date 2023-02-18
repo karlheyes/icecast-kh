@@ -21,15 +21,6 @@ struct mpeg_sync;
 
 typedef uint8_t frame_type_t;
 
-#define FORMAT_TYPE_UNDEFINED       0   /* No format determined */
-#define FORMAT_TYPE_OGG             1
-#define FORMAT_TYPE_AAC             2   // for AAC/ADTS style content
-#define FORMAT_TYPE_MPEG            3   // for MPEG1/2/ADTS type content
-#define FORMAT_TYPE_MP4             4
-#define FORMAT_TYPE_EBML            5
-#define FORMAT_TYPE_USAC            6   // USAC/LOAS framed aac
-
-
 typedef struct sync_callback_t
 {
     void *callback_key;

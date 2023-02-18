@@ -19,17 +19,24 @@
 #ifndef __FORMAT_H__
 #define __FORMAT_H__
 
+#include <inttypes.h>
+typedef uint8_t format_type_t;
+
 #include "client.h"
 #include "refbuf.h"
 #include "params.h"
-#include "mpeg.h"
 
 struct source_tag;
 struct _mount_proxy;
 
-typedef frame_type_t format_type_t;
+#define FORMAT_TYPE_UNDEFINED       0   /* No format determined */
+#define FORMAT_TYPE_OGG             1
+#define FORMAT_TYPE_AAC             2   // for AAC/ADTS style content
+#define FORMAT_TYPE_MPEG            3   // for MPEG1/2/ADTS type content
+#define FORMAT_TYPE_MP4             4
+#define FORMAT_TYPE_EBML            5
+#define FORMAT_TYPE_USAC            6   // USAC/LOAS framed aac
 
-#include "fserve.h"
 
 typedef struct _format_plugin_tag format_plugin_t;
 
@@ -40,7 +47,7 @@ typedef struct _format_plugin_tag format_plugin_t;
 typedef struct format_check_t
 {
     icefile_handle fd;
-    frame_type_t type;
+    format_type_t type;
     unsigned short channels;
     const char *desc;
     long offset;
