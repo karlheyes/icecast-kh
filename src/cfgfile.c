@@ -118,8 +118,9 @@ struct cfg_tag
     unsigned int flags;
 };
 
-#define CFG_TAG_DEF             1
-#define CFG_TAG_NOTATTR         2
+#define CFG_TAG_DEF             (1<<0)
+#define CFG_TAG_NOTATTR         (1<<1)
+#define CFG_TAG_MULTI           (1<<2)
 
 static xmlChar *cfg_get_string (cfg_xml *cfg)
 {
@@ -150,7 +151,7 @@ int config_qsizing_conv_a2n (const char *str, uint32_t *p)
             *p = 1<<31; // for later conversion, when bitrate is known.
         }
     } else if (r != 1) // error converting
-        return 1;
+        return -1;
     if (v > (1<<31))  // enforce cap on largest number
         v = (unsigned int) (1<<31) - 1;
     *p += v;
@@ -166,7 +167,7 @@ int config_get_qsizing (cfg_xml *cfg, void *x)
     {
         uint32_t *p = (uint32_t *)x;
         if (config_qsizing_conv_a2n ((char*)str, p) < 0)
-            ret = 1;
+            ret = -1;
 
         errno = 0;
         xmlFree (str);
@@ -192,7 +193,7 @@ int config_get_bool (cfg_xml *cfg, void *x)
         errno = 0;
         xmlFree (str);
     }
-    return str ? 0 : 1;
+    return str ? 0 : -1;
 }
 
 
@@ -205,7 +206,7 @@ int config_get_str (cfg_xml *cfg, void *x)
         if (old) xmlFree (old);
         *(xmlChar **)x = str;
     }
-    return str ? 0 : 1;
+    return str ? 0 : -1;
 }
 
 
@@ -218,7 +219,7 @@ int config_get_int (cfg_xml *cfg, void *x)
         errno = 0;
         xmlFree (str);
     }
-    return str ? 0 : 1;
+    return str ? 0 : -1;
 }
 
 
@@ -231,7 +232,7 @@ int config_get_long (cfg_xml *cfg, void *x)
         errno = 0;
         xmlFree (str);
     }
-    return str ? 0 : 1;
+    return str ? 0 : -1;
 }
 
 
@@ -268,7 +269,7 @@ int config_get_bitrate (cfg_xml *cfg, void *x)
             (*p) *= 1000000;
         xmlFree (str);
     }
-    return str ? 0 : 1;
+    return str ? 0 : -1;
 }
 
 
@@ -296,85 +297,70 @@ int config_get_loglevel (cfg_xml *cfg, void *x)
 
 int parse_xml_tags (cfg_xml *cfg, const struct cfg_tag *args)
 {
-    int ret = 0, seen_element = 0;
+    int ret = 0;
     xmlNodePtr parent = cfg->node, node = parent->xmlChildrenNode;
     const struct cfg_tag *argp;
-
     cfg_xml ncfg = *cfg;
 
     argp = args;
     ncfg.flag = 1;
-    for (; argp->name; argp++)
+    for (; argp->name && ret == 0; argp++)
     {
-        if ((argp->flags & CFG_TAG_DEF) && node && node->type == XML_TEXT_NODE)
+        if ((argp->flags & CFG_TAG_DEF) && xmlNodeIsText (node) && !xmlIsBlankNode (node))
         {
-            seen_element = 1;
             ncfg.flag = 0;
             ncfg.node = parent;
             ret = argp->retrieve (&ncfg, argp->storage);
             ncfg.flag = 1;
             if (ret < 0)
-                xmlParserWarning (NULL, "skipping default for %s at line %ld\n", parent->name, xmlGetLineNo(parent));
+                xmlParserWarning (NULL, "failed to parse \"%s\" at line %ld\n", parent->name, xmlGetLineNo(parent));
+            ret = 0;
         }
         if (argp->flags & CFG_TAG_NOTATTR)   continue;
         char *v = (char*)xmlGetProp (parent, (const xmlChar*)argp->name);
         if (v)
         {
-            seen_element = 1;
             ncfg.attrval = (xmlChar*)v;
             ret = argp->retrieve (&ncfg, argp->storage);
             if (ncfg.attrval) xmlFree (ncfg.attrval);
-            if (ret > 0)
-            {
-                if (ret == 2)
-                {
-                    argp++;
-                    ret = 0;
-                    continue;
-                }
-                xmlParserWarning (NULL, "skipping attribute \"%s\" parsing \"%s\" "
-                        "at line %ld\n", argp->name, parent->name, xmlGetLineNo(node));
+            if (ret < 0)
+                xmlParserWarning (NULL, "failed to parse attribute \"%s\" on \"%s\" at line %ld\n",
+                        argp->name, parent->name, xmlGetLineNo(parent));
+            if (argp->flags & CFG_TAG_MULTI)        // allow for checking multi tags
                 ret = 0;
-            }
+            if (ret < 0)
+                break;
         }
     }
+
     ncfg.flag = 0;
     for (; node != NULL && ret == 0; node = node->next)
     {
         if (xmlIsBlankNode (node) || node->type != XML_ELEMENT_NODE)
             continue;
-        seen_element = 1;
         argp = args;
         ncfg.node = node;
-        while (argp->name)
+        for (; argp->name && ret == 0; argp++)
         {
             if (strcmp ((const char*)node->name, argp->name) == 0)
             {
                 ret = argp->retrieve (&ncfg, argp->storage);
-                if (ret > 0)
-                {
-                    if (ret == 2)
-                    {
-                        argp++;
-                        ret = 0;
-                        continue;
-                    }
-                    xmlParserWarning (NULL, "skipping node \"%s\" parsing \"%s\" "
-                            "at line %ld\n", node->name, parent->name, xmlGetLineNo(node));
+                if (ret < 0)
+                    xmlParserWarning (NULL, "failed to parse \"%s\" parsing \"%s\" at line %ld\n",
+                            node->name, parent->name, xmlGetLineNo(node));
+                if (argp->flags & CFG_TAG_MULTI) // allow for checking multi tags
                     ret = 0;
-                }
-                break;
+                else
+                    break;
             }
-            argp++;
         }
         if (argp->name == NULL)
             xmlParserWarning (NULL, "unknown node \"%s\" parsing \"%s\" at line %ld", node->name,
                     parent->name, xmlGetLineNo(node));
     }
-    if (ret == 0 && seen_element == 0)
-        return 2;
     return ret;
 }
+
 
 void config_initialize(void) {
     create_locks();
@@ -893,7 +879,7 @@ static int _parse_accesslog (cfg_xml *cfg, void *arg)
     char *type = NULL;
     struct cfg_tag icecast_tags[] =
     {
-        { "name",           config_get_str,     &log->name },
+        { "name",           config_get_str,     &log->name, .flags = CFG_TAG_DEF },
         { "ip",             config_get_bool,    &log->log_ip },
         { "type",           config_get_str,     &type },
         { "archive",        config_get_bool,    &log->archive },
@@ -910,7 +896,7 @@ static int _parse_accesslog (cfg_xml *cfg, void *arg)
     log->qstr = 1;
     log->archive = -1;
     if (parse_xml_tags (cfg, icecast_tags))
-        return 2;
+        return -1;
     if (type && strcmp (type, "CLF-ESC") == 0)
         log->type = LOG_ACCESS_CLF_ESC;
     xmlFree (type);
@@ -942,7 +928,7 @@ static int _parse_playlistlog (cfg_xml *cfg, void *arg)
     playlist_log *log = arg;
     struct cfg_tag icecast_tags[] =
     {
-        { "name",           config_get_str,     &log->name },
+        { "name",           config_get_str,     &log->name, .flags = CFG_TAG_DEF },
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
         { "size",           config_get_long,    &log->size },
@@ -970,8 +956,7 @@ static int _parse_logging (cfg_xml *cfg, void *arg)
                             config_get_str,     &config->access_log.exclude_ext },
         { "accesslog_lines",
                             config_get_int,     &config->access_log.display },
-        { "errorlog",       _parse_errorlog,    &config->error_log,     .flags = CFG_TAG_NOTATTR },
-        { "errorlog",       config_get_str,     &config->error_log.name },
+        { "errorlog",       _parse_errorlog,    &config->error_log },
         { "errorlog_lines", config_get_int,     &config->error_log.display },
         { "loglevel",       config_get_loglevel,     &config->error_log.level },
         { "playlistlog",    config_get_str,     &config->playlist_log },
