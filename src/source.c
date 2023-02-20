@@ -150,11 +150,6 @@ int source_reserve (const char *mount, source_t **sp, int flags)
 
     do
     {
-        if (avl_tree_trywlock (global.source_tree) < 0)
-        {
-            *sp = NULL;
-            return 0;
-        }
         src = source_find_mount_raw (mount);
         if (src)
         {
@@ -3107,12 +3102,18 @@ static struct _client_functions source_switchover_ops =
 static int  source_client_startup (client_t *client)
 {
     char *uri = (char*)client->aux_data;
-    int rc = 1;
+    int rc = 0;
     source_t *source = client->shared_data;     // usually not present unless routine restarted
     int hijack = (client->flags & CLIENT_HIJACKER) ? 1 : 0;
 
-    if (source == NULL)
-        rc = source_reserve (uri, &source, hijack);
+    if (source)
+    {
+        if (thread_rwlock_trywlock (&source->lock) == 0)
+            rc = 1;
+    }
+    else
+        if (avl_tree_trywlock (global.source_tree) == 0)
+            rc = source_reserve (uri, &source, hijack);
     if (rc == 0)
     {   // failed to get locks so retry again.
         client->shared_data = source;

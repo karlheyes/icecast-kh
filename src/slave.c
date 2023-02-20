@@ -724,7 +724,10 @@ void detach_master_relay (const char *localmount, int cleanup)
 }
 
 
-
+// return 1 to indicate source acquired and locked.
+// return 0 to indicate unable to acquire, try again
+// return -1 to indicate failed.
+//
 int relay_has_source (relay_server *relay, client_t *client)
 {
     source_t *source = relay->source;
@@ -737,6 +740,8 @@ int relay_has_source (relay_server *relay, client_t *client)
     {
         if (client->worker == NULL)
             return 0;   // do the rest from a worker context
+        if (avl_tree_trywlock (global.source_tree) < 0)
+            return 0;
         int rc = source_reserve (relay->localmount, &source, 0);
         if (rc < 0)
         {
@@ -745,7 +750,11 @@ int relay_has_source (relay_server *relay, client_t *client)
         }
         relay->source = source;
         if (rc == 0)
+        {
+            WARN1 ("relay for \"%s\" cannot get started, mountpoint in use, waiting", relay->localmount);
+            client->schedule_ms = client->worker->time_ms + (1000*60*15); // retry in 15 mins
             return 0;
+        }
         source->client = client;
         source->format->type = relay->type;
     }
@@ -765,14 +774,6 @@ static int relay_installed (relay_server *relay)
     client_t *client = calloc (1, sizeof (client_t));
 
     connection_init (&client->connection, SOCK_ERROR, NULL);
-    switch (relay_has_source (relay, client))
-    {
-        case -1:
-            free (client);
-            return 0;
-        case 1:
-            thread_rwlock_unlock (&relay->source->lock);
-    }
     global_lock();
     client_register (client);
     global_unlock();
@@ -1125,6 +1126,7 @@ void update_relays (ice_config_t *config)
     relay = config->relays;
     while (relay)
     {
+        DEBUG1 ("assess relay %s", relay->localmount);
         find.localmount = relay->localmount;
         notfound = avl_get_by_key (global.relays, &find, (void*)&result);
         if (notfound)
@@ -1974,23 +1976,13 @@ static void relay_release (client_t *client)
 static int relay_initialise (client_t *client)
 {
     relay_server *relay = get_relay_details (client);
+
+    if (global_state() != ICE_RUNNING)
+        return -1;
     int rc = relay_has_source (relay, client);
     source_t *source = relay->source;
-
-    if (rc < 0)  return -1;
-    if (rc == 0)  // in cases where relay was added ok but source in use, should be rare
-    {
-        if (relay->source)
-        {
-            client->schedule_ms = client->worker->time_ms + 20;
-        }
-        else
-        {
-            WARN1 ("relay for \"%s\" cannot get started, mountpoint in use, waiting", relay->localmount);
-            client->schedule_ms = client->worker->time_ms + 120000;
-        }
-        return 0;
-    }
+    if (rc <= 0)
+        return rc;
     do
     {
         if (relay->flags & RELAY_RUNNING)
