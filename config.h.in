@@ -150,6 +150,9 @@
 /* Define to 1 if you have the `setresuid' function. */
 #undef HAVE_SETRESUID
 
+/* Define to 1 if you have the `sigaction' function. */
+#undef HAVE_SIGACTION
+
 /* Define if signalfd exists */
 #undef HAVE_SIGNALFD
 

@@ -39,7 +39,7 @@ typedef struct ice_global_tag
     int sources;
     int clients;
     int listeners;
-    int schedule_config_reread;
+    volatile int schedule_config_reread;
 
     avl_tree *source_tree;
 
