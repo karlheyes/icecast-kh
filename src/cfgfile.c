@@ -1188,7 +1188,7 @@ static int _parse_directory (cfg_xml *cfg, void *arg)
 }
 
 
-static int _add_http_header (ice_config_http_header_t **top, const ice_config_http_header_t *src)
+static int _add_http_header (ice_config_http_header_t **top, const ice_config_http_header_t *src, int log)
 {
     // does it already exist, if so maybe replace
     ice_config_http_header_t **trail = top, *cur = *top;
@@ -1221,7 +1221,8 @@ static int _add_http_header (ice_config_http_header_t **top, const ice_config_ht
         cur->hdr.value =  (char*)xmlCharStrdup (src->hdr.value);
         cur->hdr.status = (char*)xmlCharStrdup (src->hdr.status);
     }
-    DEBUG4 ("Adding %s name %s status %s (%d)", cur->hdr.name, cur->hdr.value, cur->hdr.status, (cur->hdr.callback)?1:0);
+    if (log)
+        DEBUG4 ("Adding %s as %s, status %s (%d)", cur->hdr.name, cur->hdr.value?cur->hdr.value:"set later", cur->hdr.status, (cur->hdr.callback)?1:0);
     return 0;
 }
 
@@ -1258,7 +1259,7 @@ static int config_get_http_header (cfg_xml *cfg, void *arg)
         }
 
         ice_config_http_header_t hdr = { .flags = PARAM_NOCOPY, .hdr = { .name = name, .value = value, .status = code } };
-        if (_add_http_header (top,  &hdr) < 0)
+        if (_add_http_header (top,  &hdr, 1) < 0)
             break;
 
         return 1;
@@ -1277,7 +1278,7 @@ int config_http_copy (ice_config_http_header_t *src, ice_config_http_header_t **
     {
         ice_config_http_header_t hdr = *src;
         hdr.flags &= ~PARAM_NOCOPY;
-        _add_http_header (dest, &hdr);
+        _add_http_header (dest, &hdr, 0);
         dest = &(*dest)->next;
         src = src->next;
     }
@@ -1852,7 +1853,7 @@ static int _parse_root (cfg_xml *cfg, void *p)
     extern ice_config_http_header_t default_headers[];
 
     for (int i = 0; default_headers[i].hdr.name; i++)
-        if (_add_http_header (&config->http_headers, &default_headers[i]) < 0)
+        if (_add_http_header (&config->http_headers, &default_headers[i], 1) < 0)
             WARN1 ("Problem with default header %s", default_headers[i].hdr.name);
 
     config->master_relay_auth = 1;
