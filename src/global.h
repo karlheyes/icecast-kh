@@ -22,7 +22,7 @@
 
 #define ICECAST_VERSION_STRING "Icecast " PACKAGE_VERSION
 
-#include "thread/thread.h"
+#include <signal.h>
 #include "net/sock.h"
 #include "compat.h"
 #include "avl/avl.h"
@@ -33,13 +33,13 @@ typedef struct ice_global_tag
     sock_t *serversock;
     struct _listener_t **server_conn;
 
-    int running;
+    volatile sig_atomic_t running;
+    volatile sig_atomic_t schedule_config_reread;
 
     int new_connections_slowdown;
     int sources;
     int clients;
     int listeners;
-    volatile int schedule_config_reread;
 
     avl_tree *source_tree;
 
