@@ -385,7 +385,7 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         uint64_t range = client->connection.discon.offset - client->intro_offset + 1;
         char total_size [32] = "*";
 
-        if (fs == NULL && range > 100)
+        if (range == 0 || (fs == NULL && range > 100))
         {       // ignore most range requests on streams, treat as full
             client->connection.discon.offset = 0;
             client->intro_offset = 0;
@@ -400,7 +400,7 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
             ice_http_printf (http, "Accept-Ranges", 0, "bytes");
             ice_http_printf (http, "Content-Range", 0, "bytes %" PRIu64 "-%" PRIu64 "/%s",
                     (uint64_t)client->intro_offset, client->connection.discon.offset, total_size );
-            http->in_length = range;
+            http->in_length = range > 0 ? range : -1;
             if (range <= 100 && client->parser->req_type != httpp_req_head)
             {
                 char line [range+1];
