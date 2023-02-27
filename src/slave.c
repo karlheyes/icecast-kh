@@ -1944,6 +1944,7 @@ static int relay_read (client_t *client)
         stats_lock (source->stats, NULL);
         stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         source_clear_source (relay->source);
+        format_plugin_clear (source->format, client);
         relay_reset (relay);
         stats_set (source->stats, NULL, NULL);
         source->stats = 0;
