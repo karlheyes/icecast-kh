@@ -1590,8 +1590,8 @@ static int _parse_relay (cfg_xml *cfg, void *arg)
 
     struct cfg_tag icecast_tags[] =
     {
-        { "master",                     _relay_host,        relay,      .flags = CFG_TAG_NOTATTR },
-        { "host",                       _relay_host,        relay,      .flags = CFG_TAG_NOTATTR },
+        { "master",                     _relay_host,        relay,      .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "host",                       _relay_host,        relay,      .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { "server",                     config_get_str,     &host->ip },
         { "ip",                         config_get_str,     &host->ip },
         { "bind",                       config_get_str,     &host->bind },
