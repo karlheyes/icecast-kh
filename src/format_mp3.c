@@ -936,8 +936,9 @@ static int validate_mpeg (source_t *source, refbuf_t *refbuf)
         len = source_mp3->qblock_sz;
         if (len < unprocessed + 40) // avoid extreme block shrinkage
         {
-            WARN3 ("source %s, len %ld, unprocessed %d", source->mount, (long)len, unprocessed);
-            len = unprocessed + 1000;
+            if (mpeg_get_type(mpeg_sync) == FORMAT_TYPE_UNDEFINED)
+                WARN3 ("source %s, len %ld, unprocessed %d", source->mount, (long)len, unprocessed);
+            len = unprocessed + 2000;
         }
         leftover = refbuf_new (len);
         memcpy (leftover->data, refbuf->data + refbuf->len, unprocessed);
