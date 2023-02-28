@@ -179,6 +179,7 @@ relay_server *relay_copy (relay_server *r)
         copy->interval = r->interval;
         copy->run_on = r->run_on;
         copy->updated = r->updated;
+        copy->recheck_hosts = r->recheck_hosts;
         DEBUG2 ("copy relay %s at %p", copy->localmount, copy);
     }
     return copy;
@@ -1159,10 +1160,10 @@ void update_relays (ice_config_t *config)
             copy = relay_copy (relay);
             DEBUG2 ("adding new relay %s (%p) into tree", relay->localmount, copy);
             // let client trigger the switchover for new details
-            result->new_details = copy;
             copy->updated = sync_time;
             copy->flags |= RELAY_IN_LIST;
             avl_insert (global.relays, copy);
+            result->new_details = copy;
         }
         trap = 10;
         relay = relay->new_details;
@@ -1516,29 +1517,56 @@ static int relay_expired (relay_server *relay)
 
 static relay_server *get_relay_details (client_t *client)
 {
+    int changed = 0;
     relay_server *relay = client->shared_data;
 
     if (relay == NULL) return NULL;
     avl_tree_rlock (global.relays);
     if (relay->new_details)
     {
-        relay_server *old_details = relay;
+        relay_server *old = relay, *updated = relay->new_details;
 
         INFO1 ("Detected change in relay details for %s", relay->localmount);
-        client->shared_data = relay->new_details;
-        relay = client->shared_data;
-        relay->source = old_details->source;
-        old_details->source = NULL;
-        config_clear_relay (old_details);
+        if (old->in_use)
+        {
+            relay_server_host *srchost = old->hosts, *dsthost = updated->hosts;
+            for (; srchost && dsthost && changed == 0; srchost=srchost->next)
+            {
+                dsthost->skip = srchost->skip;
+                if (old->in_use == srchost)
+                    updated->in_use = dsthost;
+                if (strcmp (srchost->ip, dsthost->ip) != 0)
+                    changed = 1;
+                if (strcmp (srchost->mount, dsthost->mount) != 0)
+                    changed = 1;
+                if (srchost->port != dsthost->port)
+                    changed = 1;
+                dsthost = dsthost->next;
+            }
+            if (changed == 0 && (srchost || dsthost))
+                changed = 1;
+        }
+        relay = client->shared_data = updated;
+        relay->source = old->source;
+        old->source = NULL;
+        config_clear_relay (old);
     }
     if (relay_expired (relay))
     {
         DEBUG1 ("relay expired %s", relay->localmount);
         relay->flags |= RELAY_CLEANUP;
     }
-    avl_tree_unlock (global.relays);
     if (relay->flags & RELAY_CLEANUP)
         relay->flags &= ~RELAY_RUNNING;
+    avl_tree_unlock (global.relays);
+    if (changed)
+    {
+        source_t *source = relay->source;
+        thread_rwlock_wlock (&source->lock);
+        DEBUG1 ("change in relay settings, restarting relay %s", relay->localmount);
+        source->flags &= ~SOURCE_RUNNING;
+        thread_rwlock_unlock (&source->lock);
+    }
     return relay;
 }
 
