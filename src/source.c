@@ -899,7 +899,7 @@ static int source_client_read (client_t *client)
     {
         if (client->timer_start + 1000 < client->worker->time_ms)
         {
-            WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount); 
+            WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount);
             if (source->listeners != source->clients->length)
             {
                 WARN3 ("source %s has inconsistent listeners (%ld, %u)", source->mount, source->listeners, source->clients->length);
@@ -932,12 +932,13 @@ static int source_client_read (client_t *client)
         global_lock();
         global.sources--;
         stats_event_args (NULL, "sources", "%d", global.sources);
-        global_unlock();
         if (source->wait_time == 0 || global.running != ICE_RUNNING)
         {
+            global_unlock();
             INFO1 ("no more listeners on %s", source->mount);
             return -1;   // don't unlock source as the release is called which requires it
         }
+        global_unlock();
         /* set a wait time for leaving the source reserved */
         client->connection.discon.time = client->worker->current_time.tv_sec + source->wait_time;
         client->schedule_ms = client->worker->time_ms + (1000 * source->wait_time);

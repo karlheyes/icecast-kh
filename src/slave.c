@@ -1795,7 +1795,7 @@ static int relay_switchover (client_t *client, relay_server *relay, source_t *so
 static int relay_read (client_t *client)
 {
     relay_server *relay = get_relay_details (client);
-    if (relay == NULL) return -1;
+    if (relay == NULL || relay->source == NULL) return -1;
 
     source_t *source = relay->source;
 
@@ -2006,12 +2006,23 @@ static int relay_initialise (client_t *client)
 {
     relay_server *relay = get_relay_details (client);
 
-    if (global_state() != ICE_RUNNING)
-        return -1;
+    if (global_state() != ICE_RUNNING || (relay->flags & RELAY_CLEANUP))
+        return relay_read (client);
     int rc = relay_has_source (relay, client);
-    source_t *source = relay->source;
     if (rc <= 0)
         return rc;
+
+    source_t *source = relay->source;
+    if (source->flags & SOURCE_SWITCHOVER)
+        return relay_switchover (client, relay, source);
+
+    if (relay->start > client->worker->current_time.tv_sec)
+    {
+        DEBUG1 ("start of %s delayed", relay->localmount);
+        client->schedule_ms = (relay->start * 1000);
+        thread_rwlock_unlock (&source->lock);
+        return 0;
+    }
     do
     {
         if (relay->flags & RELAY_RUNNING)
@@ -2037,8 +2048,6 @@ static int relay_initialise (client_t *client)
             break;
         }
         thread_rwlock_unlock (&source->lock);
-        if (relay->flags & RELAY_CLEANUP)
-            return relay_read (client);
         client->schedule_ms = client->worker->time_ms + 1000000;
         return 0;
     } while(0);
@@ -2061,14 +2070,11 @@ static int relay_startup (client_t *client)
         DEBUG1 ("relay %s disabled", relay->localmount);
         return client->ops->process (client);
     }
-    global_lock();
-    if (global.running != ICE_RUNNING)  /* wait for cleanup */
+    if (global_state() != ICE_RUNNING)  /* wait for cleanup */
     {
-        global_unlock();
         client->schedule_ms = client->worker->time_ms + 50;
         return 0;
     }
-    global_unlock();
     thread_spin_lock (&worker->lock);
     if (worker->move_allocations)
     {
@@ -2109,6 +2115,7 @@ static int relay_startup (client_t *client)
 
     if (relay->start > client->worker->current_time.tv_sec)
     {
+        DEBUG1 ("start of %s delayed", relay->localmount);
         client->schedule_ms = (relay->start * 1000);
         thread_rwlock_unlock (&source->lock);
         return 0;
