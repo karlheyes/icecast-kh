@@ -1858,6 +1858,8 @@ static int relay_read (client_t *client)
         /* this section is for once through code */
         int running = global_state();
         int fallback = (running == ICE_RUNNING) ? 1 : 0;
+        if (running == 0)
+            relay->flags |= RELAY_CLEANUP;
         if (client->connection.con_time && running == ICE_RUNNING)
         {
             if ((relay->flags & RELAY_RUNNING) && relay->in_use)
