@@ -39,7 +39,7 @@ int  fserve_set_override (const char *mount, const char *dest, format_type_t typ
 int  fserve_list_clients (client_t *client, const char *mount, int response, int show_listeners);
 int  fserve_list_clients_xml (xmlNodePtr srcnode, fbinfo *finfo);
 int  fserve_kill_client (client_t *client, const char *mount, int response);
-int  fserve_query_count (fbinfo *finfo);
+int  fserve_query_count (fbinfo *finfo, mount_proxy *mountinfo);
 void fserve_write_mime_ext (const char *mimetype, char *buf, unsigned int len);
 
 int  client_http_send (ice_http_t *http);

@@ -342,7 +342,7 @@ static void fh_add_client (fh_node *fh, client_t *client)
 // requires config read lock and fh_cache write lock on entry. New node is added or
 // existing one returned. config used for the path lookup. Both are dropped on exit
 //
-static fh_node *open_fh (fbinfo *finfo)
+static fh_node *open_fh (fbinfo *finfo, mount_proxy *minfo)
 {
     fh_node *fh, *result;
 
@@ -372,7 +372,6 @@ static fh_node *open_fh (fbinfo *finfo)
     // insert new one
     if (fh->finfo.mount[0])
     {
-        config_get_config();
         char *fullpath= util_get_path_from_normalised_uri (fh->finfo.mount, fh->finfo.flags&FS_USE_ADMIN);
         config_release_config ();
 
@@ -422,6 +421,8 @@ static fh_node *open_fh (fbinfo *finfo)
                 free (fh);
                 return NULL;
             }
+            if (fh->format && fh->format->apply_settings)
+                fh->format->apply_settings (fh->format, minfo);
             format_check_t fcheck;
             fcheck.fd = fh->f;
             fcheck.desc = finfo->mount;
@@ -920,13 +921,14 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
                 client->shared_data = NULL;
                 return client_send_403redirect (client, finfo->mount, "max listeners reached");
             }
-            config_release_mount (minfo);
-            fh = open_fh (finfo);
+            fh = open_fh (finfo, minfo);
             if (fh == NULL)
             {
+                config_release_mount (minfo);
                 finfo->flags |= FS_MISSING;
                 return client_send_404 (client, NULL);
             }
+            config_release_mount (minfo);
             if (fh->finfo.limit)
                 DEBUG2 ("request for throttled file %s (bitrate %" PRIu64 ")", fh->finfo.mount, fh->finfo.limit*8);
         }
@@ -1348,7 +1350,7 @@ int fserve_list_clients (client_t *client, const char *mount, int response, int 
 }
 
 
-int fserve_query_count (fbinfo *finfo)
+int fserve_query_count (fbinfo *finfo, mount_proxy *mountinfo)
 {
     int ret = -1;
     fh_node *fh;
@@ -1358,7 +1360,7 @@ int fserve_query_count (fbinfo *finfo)
         config_get_config();
         avl_tree_wlock (fh_cache);
 
-        fh = open_fh (finfo);
+        fh = open_fh (finfo, mountinfo);
         if (fh)
         {
             ret = fh->refcount;

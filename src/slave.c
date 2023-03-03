@@ -2215,7 +2215,7 @@ int fallback_count (const char *mount)
                     if (sscanf (m, "%*[^[][%u]", &rate) == 1)
                        finfo.limit = rate * 1000 / 8;
                 }
-                count = fserve_query_count (&finfo);
+                count = fserve_query_count (&finfo, mountinfo);
                 if (count < -1)
                     break;
             }
