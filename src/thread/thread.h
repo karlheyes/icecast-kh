@@ -2,6 +2,7 @@
  * - Thread Abstraction Function Headers
  *
  * Copyright (c) 1999, 2000 the icecast team <team@icecast.org>
+ * Copyright (c) 2019-2023 Karl Heyes <karl@kheyes.plus.com>
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -32,7 +33,7 @@ typedef struct {
 
     /* the time the thread was created */
     time_t create_time;
-    
+
     /* the file and line which created this thread */
     const char *file;
     int line;
@@ -63,7 +64,7 @@ typedef struct {
 #endif
     /* the file and line where the mutex was locked */
     const char *file;
-    int line;    
+    int line;
 
     /* the system specific mutex */
     pthread_mutex_t sys_mutex;
@@ -181,7 +182,7 @@ void thread_shutdown(void);
 void thread_use_log_id(int log_id);
 
 /* creation, destruction, locking, unlocking, signalling and waiting */
-thread_type *thread_create_c(char *name, void *(*start_routine)(void *), 
+thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
         void *arg, int detached, int line, const char *file);
 void thread_mutex_create_c(mutex_t *mutex, int line, const char *file);
 void thread_mutex_lock_c(mutex_t *mutex, int line, const char *file);

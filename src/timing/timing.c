@@ -43,8 +43,8 @@
 
 /* see timing.h for an explanation of _mangle() */
 
-/* 
- * Returns milliseconds no matter what. 
+/*
+ * Returns milliseconds no matter what.
  */
 uint64_t timing_get_time(void)
 {

@@ -1743,7 +1743,7 @@ static int _handle_source_request (client_t *client)
     INFO1("Source logging in at mountpoint \"%s\"", uri);
 
     client->flags &= ~CLIENT_KEEPALIVE;
-    
+
     if (uri[0] != '/')
     {
         WARN1 ("mountpoint not starting with / (%s)", uri);

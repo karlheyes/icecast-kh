@@ -2,6 +2,7 @@
 /* sock.c: General Socket Functions
  *
  * Copyright (c) 1999 the icecast team
+ * Copyright (c) 2010-2023 Karl Heyes <karl@kheyes.plus.com>
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -132,8 +133,8 @@ char *sock_get_localip(char *buff, int len)
 }
 
 /* sock_error
-** 
-** returns the last socket error
+*
+* returns the last socket error
 */
 int sock_error(void)
 {
@@ -272,7 +273,7 @@ int inet_aton(const char *s, struct in_addr *a)
     }
 
     a->s_addr = inet_addr(s);
-    
+
     return (a->s_addr != INADDR_NONE);
 }
 #endif /* _WIN32 */
@@ -304,7 +305,7 @@ int sock_set_blocking(sock_t sock, int block)
 int sock_set_nolinger(sock_t sock)
 {
     struct linger lin = { 0, 0 };
-    return setsockopt(sock, SOL_SOCKET, SO_LINGER, (void *)&lin, 
+    return setsockopt(sock, SOL_SOCKET, SO_LINGER, (void *)&lin,
             sizeof(struct linger));
 }
 
@@ -342,7 +343,7 @@ int sock_set_delay(sock_t sock)
 int sock_set_keepalive(sock_t sock)
 {
     int keepalive = 1;
-    return setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive, 
+    return setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive,
             sizeof(int));
 }
 
@@ -370,7 +371,7 @@ sock_t _sock_open_cloexec (int domain, int type, int protocol)
 {
     static int sock_cloexec = SOCK_CLOEXEC;
     sock_t s = socket (domain, type|sock_cloexec, protocol);
-    if (s >= 0) 
+    if (s >= 0)
     {
         if (sock_cloexec == 0) sock_set_cloexec (s);
         return s;
@@ -613,7 +614,7 @@ int sock_read_line(sock_t sock, char *buff, const int len)
 {
     char c = '\0';
     int read_bytes, pos;
-  
+
     /*if (!sock_valid_socket(sock)) {
         return 0;
     } else*/ if (!buff) {
@@ -634,7 +635,7 @@ int sock_read_line(sock_t sock, char *buff, const int len)
             buff[pos++] = c;
         read_bytes = recv(sock, &c, 1, 0);
     }
-    
+
     if (read_bytes == 1) {
         buff[pos] = '\0';
         return 1;
@@ -648,7 +649,7 @@ int sock_read_line(sock_t sock, char *buff, const int len)
  * return SOCK_TIMEOUT for timeout
  * return SOCK_ERROR for failure
  * return 0 for try again, interrupted
- * return 1 for ok 
+ * return 1 for ok
  */
 #ifdef HAVE_POLL
 int sock_connected (sock_t sock, int timeout)
@@ -761,7 +762,7 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
         {
             sock_set_cloexec(sock);
             sock_set_blocking (sock, 0);
-            if (connect(sock, ai->ai_addr, ai->ai_addrlen) < 0 && 
+            if (connect(sock, ai->ai_addr, ai->ai_addrlen) < 0 &&
                     !sock_connect_pending(sock_error()))
             {
                 sock_close (sock);
@@ -773,7 +774,7 @@ sock_t sock_connect_non_blocking (const char *hostname, unsigned port)
         ai = ai->ai_next;
     }
     if (head) freeaddrinfo (head);
-    
+
     return sock;
 }
 

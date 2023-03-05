@@ -70,7 +70,7 @@ typedef struct log_tag
     log_entry_t *written_entry;
     log_entry_t *log_head;
     log_entry_t *log_tail;
-    
+
     char *buffer;
 } log_t;
 
@@ -89,7 +89,7 @@ static int _log_open (int id, time_t now)
         return 0;
 
     /* check for cases where an open of the logfile is wanted */
-    if (loglist [id] . logfile == NULL || 
+    if (loglist [id] . logfile == NULL ||
        (loglist [id] . duration && loglist [id] . reopen_at <= now) ||
        (loglist [id] . trigger_level && loglist [id] . size > loglist [id] . trigger_level))
     {
@@ -637,7 +637,7 @@ int log_contents (int log_id, char **_contents, unsigned int *_len)
 }
 
 
-void log_write(int log_id, unsigned priority, const char *cat, const char *func, 
+void log_write(int log_id, unsigned priority, const char *cat, const char *func,
         const char *fmt, ...)
 {
     static char *prior[] = { "EROR", "WARN", "INFO", "DBUG" };
@@ -673,7 +673,7 @@ void log_write_direct(int log_id, const char *fmt, ...)
     char line[LOG_MAXLINELEN];
 
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
-    
+
     va_start(ap, fmt);
 
     _lock_logger();

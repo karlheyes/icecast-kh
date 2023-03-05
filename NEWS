@@ -18,6 +18,25 @@ Feature differences from Xiph release
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0.kh19
+. Another update to xml parsing. Allows for cleaner and more flexible handling of
+  parameters and tags.
+  Added fallback to mirror fallback-mount, so that it reads better in certain cases
+  eg <fallback mount="/backup" rate="128k"/>. The other layouts are also handled.
+  Empty tags are now ignored, seen with some with intro tags
+  original shoutcast port compatability settings handled better.
+. Optional feature, set hijack to true on mount to allow a source to kick off the
+  existing stream without touching listeners. This is primarily for replacing a
+  relay stream as a replacment for fallback handling as it keeps listeners on the
+  same mountpoint. While the feature will stay, the exact methos to enable is still
+  subject for change but setting this on the mount block is reasonable.
+. fix relay intialization failure case.
+. relay internal state fix on reload. restart on certain changes.
+. range header case fixed. playback issue in browsers
+. various code cleanups, possible lockup issues resolved, crash cases, work done
+  at shutdown etc.
+. reduce some excessive logging in certain cases.
+
 2.4.0.kh18
 . Extend http headers work from previous release.
   Can now be used to create POST data. This improves code readability and also

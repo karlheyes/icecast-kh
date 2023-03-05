@@ -1,6 +1,7 @@
 /* threads.c: Thread Abstraction Functions
  *
  * Copyright (c) 1999, 2000 the icecast team <team@icecast.org>
+ * Copyright (c) 2020-2023 Karl Heyes <karl@kheyes.plus.com>
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
