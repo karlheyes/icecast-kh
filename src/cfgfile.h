@@ -169,6 +169,7 @@ typedef struct _mount_proxy {
     int allow_chunked; /* allow chunked transfers */
     int mp3_meta_interval; /* outgoing per-stream metadata interval */
     int max_send_size;
+    int hijack;                 // an authenticated source can hijack and exist stream
     int filter_theora; /* prevent theora pages getting queued */
     int url_ogg_meta; /* enable to allow updates via url requests for ogg */
     int ogg_passthrough; /* enable to prevent the ogg stream being rebuilt */

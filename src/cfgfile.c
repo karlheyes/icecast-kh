@@ -1404,6 +1404,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "fallback-mount",     _parse_fallback,    &mount->fallback },
         { "fallback-override",  config_get_bool,    &mount->fallback_override },
         { "fallback-when-full", config_get_bool,    &mount->fallback_when_full },
+        { "hijack",             config_get_bool,    &mount->hijack },
         { "allow-chunked",      config_get_bool,    &mount->allow_chunked },
         { "max-listeners",      config_get_int,     &mount->max_listeners },
         { "max-bandwidth",      config_get_bitrate, &mount->max_bandwidth },

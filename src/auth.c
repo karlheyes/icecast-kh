@@ -939,6 +939,8 @@ int auth_check_source (client_t *client, const char *mount)
         if (mountinfo)
         {
             ret = 1;
+            if (mountinfo->hijack)
+                client->flags |= CLIENT_HIJACKER;
             if (auth_stream_authenticate (client, mount, mountinfo) > 0)
                 break;
             ret = -1;
