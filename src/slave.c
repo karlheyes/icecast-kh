@@ -1856,11 +1856,11 @@ static int relay_read (client_t *client)
     if ((source->flags & SOURCE_TERMINATING) == 0)
     {
         /* this section is for once through code */
-        int running = global_state();
-        int fallback = (running == ICE_RUNNING) ? 1 : 0;
-        if (running == 0)
+        int serv_state = global_state();
+        int fallback = (serv_state == ICE_RUNNING) ? 1 : 0;
+        if (serv_state != ICE_RUNNING)
             relay->flags |= RELAY_CLEANUP;
-        if (client->connection.con_time && running == ICE_RUNNING)
+        if (client->connection.con_time && serv_state == ICE_RUNNING)
         {
             if ((relay->flags & RELAY_RUNNING) && relay->in_use)
                 fallback = 0;
