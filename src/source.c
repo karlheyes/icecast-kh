@@ -2988,7 +2988,7 @@ static int source_client_http_send (client_t *client)
 }
 
 
-int source_format_init (source_t *source, client_t *client)
+static int _source_format_init (source_t *source, client_t *client)
 {
     format_plugin_t *format = source->format;
 
@@ -3024,9 +3024,17 @@ int source_format_init (source_t *source, client_t *client)
             return -1;
         }
     }
+    return 0;
+}
+
+
+int source_format_init (source_t *source, client_t *client)
+{
+    format_plugin_t *format = source->format;
+    int ret = _source_format_init (source, client);
     source->client = client;
     format_apply_client (format, client);
-    return 0;
+    return ret;
 }
 
 
@@ -3147,7 +3155,7 @@ static int  source_client_startup (client_t *client)
                 if (rc == 1) source_free_source (source);
                 return client_send_403 (client, "too many streams connected");
             }
-            if (source_format_init (source, client) < 0)
+            if (rc == 1 && source_format_init (source, client) < 0)
             {
                 global_unlock();
                 thread_rwlock_unlock (&source->lock);
@@ -3163,14 +3171,15 @@ static int  source_client_startup (client_t *client)
         }
         if (rc == 2 && (hijack || source->linger_time))
         {
+            _source_format_init (source, client);
             client_t *sc = source->client;
             if (sc->connection.discon.time)
                 sc->connection.discon.time = 0;
-            DEBUG2 ("client %p flag for switchover on %s", client, source->mount);
-            source->flags |= SOURCE_SWITCHOVER;
+            DEBUG3 ("old %p, new %p,  flagged for switchover on %s", sc, client, source->mount);
             client->queue_pos = sc->queue_pos;
             source->format->parser = client->parser;
             sc->aux_data = (uintptr_t)client;  // ask the original client to make us live on source
+            source->flags |= SOURCE_SWITCHOVER;
 
             worker_t *worker = sc->worker;
             thread_spin_lock (&worker->lock);

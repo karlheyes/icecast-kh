@@ -1775,10 +1775,10 @@ static int relay_switchover (client_t *client, relay_server *relay, source_t *so
     source->flags &= ~SOURCE_SWITCHOVER;
     INFO1 ("Detected switch over to another client for %s", source->mount);
     source->client = (client_t *)client->aux_data;
+    DEBUG3 ("switchover client %p for %p on relay %p", client, source->client, relay);
     format_apply_client (source->format, source->client);
     source->linger_time = 0;
     thread_rwlock_unlock (&source->lock);
-    DEBUG2 ("switchover client %p on relay %p", client, relay);
     if (relay->flags & RELAY_IN_LIST)
     {   // source client on relay mount, so reset this relay for later use, this client goes
         DEBUG1 ("old client for relay %s going away", relay->localmount);
@@ -2130,7 +2130,6 @@ static int relay_startup (client_t *client)
 
         start_relay = source->listeners ? 1 : 0;
         source->flags |= SOURCE_ON_DEMAND;
-        thread_rwlock_unlock (&source->lock);
 
         mountinfo = config_lock_mount (NULL, source->mount);
 
@@ -2151,12 +2150,12 @@ static int relay_startup (client_t *client)
                 slave_update_mounts();
             }
             client->schedule_ms = (worker->time_ms + 5000);
+            thread_rwlock_unlock (&source->lock);
             return 0;
         }
         INFO1 ("starting on-demand relay %s", relay->localmount);
     }
-    else
-        thread_rwlock_unlock (&source->lock);
+    thread_rwlock_unlock (&source->lock);
 
     /* limit the number of relays starting up at the same time */
     thread_spin_lock (&relay_start_lock);
