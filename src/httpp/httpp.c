@@ -27,7 +27,7 @@
 #define strcasecmp stricmp
 #endif
 
-#define MAX_HEADERS 32
+#define MAX_HEADERS 48
 
 /* internal functions */
 
