@@ -354,7 +354,7 @@ static int ice_http_setup_req (ice_http_t *http, unsigned int flags, const char 
     {
         char line [1024];
         ice_param_t  firsthdr = { .name = "", .value = line, .flags = PARAM_CONST|PARAM_AS };
-        snprintf (line, sizeof(line), "GET %.1000s HTTP/1.1", uri);
+        snprintf (line, sizeof(line), "GET %.1000s HTTP/1.0", uri);
 
         http->headers.len = 1;       // start with allowing for the nul
         http->in_major = http->in_minor = 1;

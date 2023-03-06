@@ -550,7 +550,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
             client->parser = NULL;
             break;
         }
-        const char *TE = httpp_getvar (parser, "Transfer-Encoding");
+        const char *TE = httpp_getvar (parser, "transfer-encoding");
         if (TE && strcasecmp (TE, "chunked") == 0)
         {
             WARN0 ("Response would be chunked, not handled currently");
