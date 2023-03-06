@@ -372,6 +372,7 @@ static fh_node *open_fh (fbinfo *finfo, mount_proxy *minfo)
     // insert new one
     if (fh->finfo.mount[0])
     {
+        config_get_config();
         char *fullpath= util_get_path_from_normalised_uri (fh->finfo.mount, fh->finfo.flags&FS_USE_ADMIN);
         config_release_config ();
 
