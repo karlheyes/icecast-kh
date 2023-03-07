@@ -98,7 +98,7 @@ struct bufs
 
 
 /* Keep it small... */
-#define CACHESIZE       10
+#define CACHESIZE       50
 
 static stylesheet_cache_t cache[CACHESIZE];
 static rwlock_t xslt_lock;
@@ -464,10 +464,10 @@ static int xslt_send_sheet (client_t *client, xmlDocPtr doc, int idx)
 
     if (res == NULL || xslt_SaveResultToBuf (&content, &len, res, cur) < 0)
     {
-        thread_rwlock_unlock (&xslt_lock);
         WARN1 ("problem applying stylesheet \"%s\"", cache [idx].filename);
 
         ice_http_setup_flags (&http, client, 404, 0, NULL);
+        thread_rwlock_unlock (&xslt_lock);
     }
     else
     {
