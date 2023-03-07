@@ -129,6 +129,4 @@ int connection_check_admin_pass(http_parser_t *parser);
 void connection_close_sigfd (void);
 void connection_listen_sockets_close (struct ice_config_tag *config, int all_sockets);
 
-extern int connection_running;
-
 #endif  /* __CONNECTION_H__ */

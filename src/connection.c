@@ -159,7 +159,7 @@ cache_file_contents banned_ip, allowed_ip;
 /* filtering listener connection based on useragent */
 cache_file_contents useragents;
 
-int connection_running = 0;
+volatile sig_atomic_t connection_running = 0;
 
 
 // Generated using `openssl dhparam -C -2 2048`

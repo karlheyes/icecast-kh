@@ -546,10 +546,6 @@ static int admin_function (const char *function, char *buf, unsigned int len)
     }
     if (strcmp (function, "updatecfg") == 0)
     {
-#ifdef HAVE_SIGNALFD
-        connection_running = 0;
-        connection_close_sigfd();
-#endif
         global . schedule_config_reread = 1;
         snprintf (buf, len, "Requesting reread of configuration file");
         return 0;
