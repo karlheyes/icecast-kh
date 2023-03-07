@@ -372,7 +372,6 @@ static fh_node *open_fh (fbinfo *finfo, mount_proxy *minfo)
     // insert new one
     if (fh->finfo.mount[0])
     {
-        config_get_config();
         char *fullpath= util_get_path_from_normalised_uri (fh->finfo.mount, fh->finfo.flags&FS_USE_ADMIN);
         config_release_config ();
 
@@ -887,7 +886,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         if ((finfo->flags & FS_MISSING) || ((finfo->flags & FS_FALLBACK) && finfo->limit == 0))
             return -1;
 
-        minfo = config_lock_mount (NULL, finfo->mount);
+        minfo = config_lock_mount (config_get_config(), finfo->mount);
         avl_tree_wlock (fh_cache);
         fh = find_fh (finfo);
 
