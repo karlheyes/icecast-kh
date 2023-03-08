@@ -18,6 +18,14 @@ Feature differences from Xiph release
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0.kh20
+. fix config lock imbalance, causing a lockup effect when write lock wanted ie reload
+  or exit.
+. enforce http 1.0 when sending requests on relays. Some sites can send chunked transfers
+  which do not work with icy metadata.
+. minor code changes, larger xslt cachesize, larger number of http response headers from
+  relays, pruning unused code.
+
 2.4.0.kh19
 . Another update to xml parsing. Allows for cleaner and more flexible handling of
   parameters and tags.
