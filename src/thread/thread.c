@@ -173,7 +173,7 @@ void thread_initialize(void)
     _mutextree = avl_tree_new(_compare_mutexes, NULL);
 
     /* we have to create this one by hand, because there's no
-    ** mutextree_mutex to lock yet! 
+    ** mutextree_mutex to lock yet!
     */
     _mutex_create(&_mutextree_mutex);
 
@@ -182,11 +182,11 @@ void thread_initialize(void)
 
     log_initialize();
     _logid = log_open("thread.log");
-    log_set_level(_logid, 4);
+    log_set_level(_logid, 256+4);
 #endif
 
     thread_mutex_create(&_threadtree_mutex);
-    thread_mutex_create(&_library_mutex);    
+    thread_mutex_create(&_library_mutex);
 
     /* initialize the thread tree and insert the main thread */
 
@@ -227,7 +227,7 @@ void thread_shutdown(void)
         thread_mutex_destroy(&_threadtree_mutex);
 #ifdef THREAD_DEBUG
         thread_mutex_destroy(&_mutextree_mutex);
-        
+
         avl_tree_free(_mutextree, _free_mutex);
 #endif
         avl_tree_free(_threadtree, _free_thread);
@@ -297,14 +297,14 @@ static void _catch_signals(void)
 }
 
 
-thread_type *thread_create_c(char *name, void *(*start_routine)(void *), 
+thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
         void *arg, int detached, int line, const char *file)
 {
     thread_type *thread = NULL;
     thread_start_t *start = NULL;
     pthread_attr_t attr;
 
-    thread = (thread_type *)calloc(1, sizeof(thread_type));    
+    thread = (thread_type *)calloc(1, sizeof(thread_type));
     do {
         if (thread == NULL)
             break;
@@ -317,7 +317,7 @@ thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
         thread->line = line;
         thread->file = file;
 
-        _mutex_lock (&_threadtree_mutex);    
+        _mutex_lock (&_threadtree_mutex);
         thread->thread_id = _next_thread_id++;
         _mutex_unlock (&_threadtree_mutex);
 
@@ -362,7 +362,7 @@ thread_type *thread_create_c(char *name, void *(*start_routine)(void *),
 }
 
 /* _mutex_create
-** 
+**
 ** creates a mutex
 */
 static void _mutex_create(mutex_t *mutex)
@@ -683,7 +683,7 @@ void thread_exit_c(long val, int line, char *file)
             tmutex = (mutex_t *)node->key;
 
             if (tmutex->thread_id == th->thread_id) {
-                LOG_WARN("Thread %d [%s] exiting in file %s line %d, without unlocking mutex [%s]", 
+                LOG_WARN("Thread %d [%s] exiting in file %s line %d, without unlocking mutex [%s]",
                      th->thread_id, th->name, file, line, mutex_to_string(tmutex, name));
             }
 
@@ -729,7 +729,7 @@ void thread_sleep(unsigned long len)
     while (ret != 0 && errno == EINTR) {
         time_sleep.tv_sec = time_remaining.tv_sec;
         time_sleep.tv_nsec = time_remaining.tv_nsec;
-        
+
         ret = nanosleep(&time_sleep, &time_remaining);
     }
 # else
@@ -796,9 +796,9 @@ thread_type *thread_self(void)
         _mutex_unlock(&_threadtree_mutex);
         return NULL;
     }
-    
+
     node = avl_get_first(_threadtree);
-    
+
     while (node) {
         th = (thread_type *)node->key;
 
@@ -806,7 +806,7 @@ thread_type *thread_self(void)
             _mutex_unlock(&_threadtree_mutex);
             return th;
         }
-        
+
         node = avl_get_next(node);
     }
     _mutex_unlock(&_threadtree_mutex);
@@ -815,7 +815,7 @@ thread_type *thread_self(void)
 #ifdef THREAD_DEBUG
     LOG_ERROR("Nonexistant thread alive...");
 #endif
-    
+
     return NULL;
 }
 
@@ -829,7 +829,7 @@ void thread_rename(const char *name)
     th->name = strdup(name);
 }
 
-static void _mutex_lock_c(mutex_t *mutex, const char *file, int line) 
+static void _mutex_lock_c(mutex_t *mutex, const char *file, int line)
 {
     int rc;
 #if _POSIX_C_SOURCE>=200112L

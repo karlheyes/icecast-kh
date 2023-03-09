@@ -306,7 +306,7 @@ int config_get_loglevel (cfg_xml *cfg, void *x)
         if ((v=1) && strcasecmp (str, "error") == 0) break;
         v = atoi (str);
     } while (0);
-    *p = (v > 0 && v < 5) ? v : 2;  // set to default if invalid setting provided
+    *p = ((v&15) > 0 && (v&15) < 5) ? v : 2;  // set to default if invalid setting provided
     // WARN1 ("log level set to %d", *p);
     return 1;
 }

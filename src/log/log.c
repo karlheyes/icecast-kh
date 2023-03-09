@@ -1,4 +1,4 @@
-/* 
+/*
 ** Logging framework.
 **
 ** This program is distributed under the GNU General Public License, version 2.
@@ -16,6 +16,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -24,6 +27,9 @@
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
 #endif
 
 
@@ -51,9 +57,10 @@ typedef struct _log_entry_t
 
 typedef struct log_tag
 {
-    int in_use;
-
-    unsigned level;
+    uint8_t in_use;
+    uint8_t archive_timestamp;
+    uint8_t level;
+    uint16_t flags;
 
     char *filename;
     FILE *logfile;
@@ -61,7 +68,6 @@ typedef struct log_tag
     off_t trigger_level;
     time_t reopen_at;
     unsigned int duration;
-    short archive_timestamp;
     time_t recheck_time;
 
     unsigned long buffer_bytes;
@@ -334,6 +340,9 @@ void log_set_level(int log_id, unsigned level)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
 
+    uint16_t flags = level >> 8;
+    loglist[log_id].flags = flags;
+    level &= 15;
     _lock_logger();
     if (loglist[log_id].in_use)
         loglist[log_id].level = level;
@@ -653,11 +662,20 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
 
     va_start(ap, fmt);
 
+#ifdef HAVE_GETTIMEOFDAY
+    struct timeval tv;
+    gettimeofday (&tv, NULL);
+    datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S", localtime_r(&tv.tv_sec, &thetime));
+    if (loglist[log_id].flags & 1)
+        datelen += snprintf (line+datelen, sizeof line-datelen, ".%ld] %s %s%s ", (long)tv.tv_usec, prior [priority-1], cat, func);
+    else
+        datelen += snprintf (line+datelen, sizeof line-datelen, "] %s %s%s ", prior [priority-1], cat, func);
+#else
     now = time(NULL);
-
     datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S]", localtime_r(&now, &thetime));
-
     datelen += snprintf (line+datelen, sizeof line-datelen, " %s %s%s ", prior [priority-1], cat, func);
+#endif
+
     vsnprintf (line+datelen, sizeof line-datelen, fmt, ap);
 
     _lock_logger();
