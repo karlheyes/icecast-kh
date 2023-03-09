@@ -411,7 +411,8 @@ int config_rehash(void);
 
 ice_config_locks *config_locks(void);
 
-ice_config_t *config_get_config(void);
+ice_config_t *config_get_config_c(const char *file, int line);
+#define config_get_config()     config_get_config_c(__FILE__,__LINE__)
 ice_config_t *config_grab_config(void);
 void config_release_config(void);
 

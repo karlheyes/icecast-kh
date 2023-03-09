@@ -733,9 +733,9 @@ void config_release_config(void)
     thread_rwlock_unlock(&(_locks.config_lock));
 }
 
-ice_config_t *config_get_config(void)
+ice_config_t *config_get_config_c(const char *file, int line)
 {
-    thread_rwlock_rlock(&(_locks.config_lock));
+    thread_rwlock_rlock_c(&(_locks.config_lock), line, file);
     return &_current_configuration;
 }
 

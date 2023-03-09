@@ -94,6 +94,7 @@ typedef struct {
 
     /* time the lock was taken */
     unsigned long long lock_start;
+    long lock_count;
 #endif
 
     pthread_rwlock_t sys_rwlock;

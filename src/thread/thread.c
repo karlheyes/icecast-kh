@@ -521,6 +521,7 @@ void thread_rwlock_create_c(const char *name, rwlock_t *rwlock, int line, const 
 #endif
 #ifdef THREAD_DEBUG
     rwlock->name = strdup (name);
+    rwlock->lock_count = 0;
     LOG_DEBUG4 ("rwlock %s (%p) created (%s:%d)", rwlock->name, rwlock, file, line);
 #endif
 }
@@ -548,6 +549,12 @@ int thread_rwlock_tryrlock_c(rwlock_t *rwlock, int line, const char *file)
             log_write (thread_log, 1, "thread/", "rwlock", "try rlock error triggered at %p, %s:%d (%d)", rwlock, file, line, ret);
             abort();
         case 0:
+#ifdef THREAD_DEBUG
+    PROTECT_CODE(
+            long x = ++rwlock->lock_count;
+            LOG_DEBUG4("rLock on %s acquired at %s:%d (count %ld)", rwlock->name, file, line, x);
+            );
+#endif
             return 0;
         case EBUSY:
         case EAGAIN:
@@ -579,7 +586,10 @@ void thread_rwlock_rlock_c(rwlock_t *rwlock, int line, const char *file)
         abort();
     }
 #ifdef THREAD_DEBUG
-    LOG_DEBUG3("rLock on %s acquired at %s:%d", rwlock->name, file, line);
+    PROTECT_CODE(
+            long x = ++rwlock->lock_count;
+            LOG_DEBUG4("rLock on %s acquired at %s:%d (count %ld)", rwlock->name, file, line, x);
+            );
 #endif
 }
 
@@ -606,7 +616,10 @@ void thread_rwlock_wlock_c(rwlock_t *rwlock, int line, const char *file)
         abort();
     }
 #ifdef THREAD_DEBUG
-    LOG_DEBUG3("wLock on %s acquired at %s:%d", rwlock->name, file, line);
+    PROTECT_CODE(
+            long x = ++rwlock->lock_count;
+            LOG_DEBUG4("wLock on %s acquired at %s:%d, %ld", rwlock->name, file, line, x);
+    );
 #endif
 }
 
@@ -623,6 +636,12 @@ int thread_rwlock_trywlock_c(rwlock_t *rwlock, int line, const char *file)
             log_write (thread_log, 1, "thread/", "rwlock", "try wlock error triggered at %p, %s:%d (%d)", rwlock, file, line, ret);
             abort();
         case 0:
+#ifdef THREAD_DEBUG
+PROTECT_CODE(
+            long x = ++rwlock->lock_count;
+            LOG_DEBUG4("trywLock on %s acquired at %s:%d (count %ld)", rwlock->name, file, line, x);
+            );
+#endif
             return 0;
         case EBUSY:
         case EAGAIN:
@@ -641,7 +660,10 @@ void thread_rwlock_unlock_c(rwlock_t *rwlock, int line, const char *file)
     }
 
 #ifdef THREAD_DEBUG
-    LOG_DEBUG4 ("unlock %s (%p) at %s:%d", rwlock->name, rwlock, file, line);
+PROTECT_CODE(
+    long x = --rwlock->lock_count;
+    LOG_DEBUG5 ("unlock %s (%p) at %s:%d (count %ld)", rwlock->name, rwlock, file, line, x);
+    );
 #endif
 }
 
