@@ -2714,6 +2714,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 }
                 return ret;
             }
+            if (rate == 0 && minfo->fallback.limit)
+                rate = minfo->fallback.limit / 8;
             len = sizeof buffer;
             if (util_expand_pattern (mount, minfo->fallback.mount, buffer, &len) < 0)
                 mount = minfo->fallback.mount;
