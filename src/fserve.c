@@ -892,6 +892,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
 
         if (fh)
         {
+            config_release_config();
             thread_mutex_lock (&fh->lock);
             avl_tree_unlock (fh_cache);
             client->shared_data = NULL;
@@ -916,6 +917,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         {
             if (minfo && minfo->max_listeners == 0)
             {
+                config_release_config();
                 config_release_mount (minfo);
                 avl_tree_unlock (fh_cache);
                 client->shared_data = NULL;
