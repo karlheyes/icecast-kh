@@ -24,8 +24,10 @@
 
 #if defined(_WIN32) || defined(__MINGW32__)
 #  define PATH_SEPARATOR "\\"
+#  define filename_cmp stricmp
 #else
 #  define PATH_SEPARATOR "/"
+#  define filename_cmp strcmp
 #endif
 
 #ifdef TIME_WITH_SYS_TIME
