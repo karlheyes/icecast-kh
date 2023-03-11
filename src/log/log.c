@@ -170,6 +170,7 @@ static void log_init (log_t *log)
 {
     log->in_use = 0;
     log->level = 2;
+    log->flags = 0;
     log->size = 0;
     log->trigger_level = 50*1024*1024;
     log->duration = 0;
@@ -667,7 +668,7 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
     gettimeofday (&tv, NULL);
     datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S", localtime_r(&tv.tv_sec, &thetime));
     if (loglist[log_id].flags & 1)
-        datelen += snprintf (line+datelen, sizeof line-datelen, ".%ld] %s %s%s ", (long)tv.tv_usec, prior [priority-1], cat, func);
+        datelen += snprintf (line+datelen, sizeof line-datelen, ".%06ld] %s %s%s ", (long)tv.tv_usec, prior [priority-1], cat, func);
     else
         datelen += snprintf (line+datelen, sizeof line-datelen, "] %s %s%s ", prior [priority-1], cat, func);
 #else
