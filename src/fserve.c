@@ -987,6 +987,11 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     client->ops = &buffer_content_ops;
 
     worker_t *worker = client->worker;
+    if (worker == NULL)
+    {
+        client_add_incoming (client);
+        return 0;
+    }
     thread_spin_lock (&worker->lock);
     client->flags &= ~CLIENT_HAS_INTRO_CONTENT;
     client->flags |= CLIENT_IN_FSERVE;
