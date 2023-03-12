@@ -957,20 +957,23 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         thread_mutex_lock (&fh->lock);
     }
     client->mount = fh->finfo.mount;
-    ice_http_t http = ICE_HTTP_INIT;
-    if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
+    if (client->respcode == 0)
     {
-        if (client->respcode == 0)
-            ret = format_client_headers (fh->format, &http,  client);
+        ice_http_t http = ICE_HTTP_INIT;
+        if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
+        {
+            if (client->respcode == 0)
+                ret = format_client_headers (fh->format, &http,  client);
+        }
+        else
+        {
+            if (fh->format->create_client_data && client->format_data == NULL)
+                ret = fh->format->create_client_data (fh->format, &http, client);
+            if (fh->format->write_buf_to_client)
+                client->check_buffer = fh->format->write_buf_to_client;
+        }
+        ice_http_complete (&http);
     }
-    else
-    {
-        if (fh->format->create_client_data && client->format_data == NULL)
-            ret = fh->format->create_client_data (fh->format, &http, client);
-        if (fh->format->write_buf_to_client)
-            client->check_buffer = fh->format->write_buf_to_client;
-    }
-    ice_http_complete (&http);
     if (ret < 0)
     {
         thread_mutex_unlock (&fh->lock);

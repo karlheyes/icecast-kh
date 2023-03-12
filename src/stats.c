@@ -1101,7 +1101,7 @@ static void stats_client_release (client_t *client)
     if (match)
         *trail = match->next;
     else
-        WARN0 ("odd, no stats client details in collection"); 
+        WARN0 ("odd, no stats client details in collection");
     thread_mutex_unlock (&_stats.listeners_lock);
 
     clear_stats_queue (client);

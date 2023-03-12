@@ -219,6 +219,7 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
 
         ice_http_t http;
         ice_http_setup_flags (&http, client, 200, 0, NULL);
+        http.in_length = len;
         ice_http_printf (&http, "Content-Type", 0, "%s", "text/xml");
         ice_http_apply_block (&http, rb);
         return client_http_send (&http);

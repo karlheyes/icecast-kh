@@ -814,8 +814,8 @@ void source_listeners_wakeup (source_t *source)
     while (node)
     {
         client_t *client = (client_t *)node->key;
-        if (s->schedule_ms + 100 < client->schedule_ms)
-            DEBUG2 ("listener on %s was ahead by %ld", source->mount, (long)(client->schedule_ms - s->schedule_ms));
+        // if (s->schedule_ms + 100 < client->schedule_ms)
+            // DEBUG2 ("listener on %s was ahead by %ld", source->mount, (long)(client->schedule_ms - s->schedule_ms));
         worker_t *w = client->worker;
         if (s->worker != w)
         {
