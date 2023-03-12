@@ -519,18 +519,22 @@ void client_add_worker (client_t *client)
 }
 
 
-void client_add_incoming (client_t *client)
+int client_add_incoming (client_t *client)
 {
     worker_t *handler;
 
+    if (client->worker) return 0;
+    client->flags |= CLIENT_ACTIVE;
+    client->schedule_ms = 0;
     thread_rwlock_rlock (&workers_lock);
     handler = worker_incoming;
     thread_spin_lock (&handler->lock);
-    thread_rwlock_unlock (&workers_lock);
 
     worker_add_client (handler, client);
     thread_spin_unlock (&handler->lock);
     worker_wakeup (handler);
+    thread_rwlock_unlock (&workers_lock);
+    return 1;
 }
 
 
