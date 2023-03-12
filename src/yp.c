@@ -252,8 +252,8 @@ static int directory_recheck (client_t *client)
             {
                 if (yp_update || client->counter <= client->worker->current_time.tv_sec)
                 {
+                    ret = 1;
                     client->counter = (uint64_t)-1;
-                    client->flags &= ~CLIENT_ACTIVE;
                     thread_create ("YP Thread", yp_update_thread, NULL, THREAD_DETACHED);
                     break;
                 }
@@ -268,15 +268,14 @@ static int directory_recheck (client_t *client)
 
 static void yp_client_add (ice_config_t *config)
 {
-    if (config->num_yp_directories == 0 || active_yps || global.running != ICE_RUNNING)
+    if (config->num_yp_directories == 0 || active_yps || global_state() != ICE_RUNNING)
         return;
     INFO0 ("Starting Directory client for YP processing");
     ypclient.ops = &directory_client_ops;
     ypclient.counter = 0;
-    ypclient.schedule_ms = 0;
     ypclient.connection.error = 0;
     ypclient.flags = CLIENT_ACTIVE|CLIENT_SKIP_ACCESSLOG;
-    client_add_worker (&ypclient);
+    client_add_incoming (&ypclient);
 }
 
 
@@ -311,7 +310,7 @@ void yp_recheck_config (ice_config_t *config)
     client_limit = config->client_limit;
     free ((char*)server_version);
     server_version = strdup (config->server_id);
-    /* for each yp url in config, check to see if one exists 
+    /* for each yp url in config, check to see if one exists
        if not, then add it. */
     for (i=0 ; i < config->num_yp_directories; i++)
     {
@@ -874,10 +873,8 @@ static void *yp_update_thread(void *arg)
     yp_thread = NULL;
     /* DEBUG0("YP thread shutdown"); */
 
-    ypclient.schedule_ms = ypclient.worker->time_ms + 1000;
-    ypclient.flags |= CLIENT_ACTIVE;
-    worker_wakeup (ypclient.worker);
-
+    if (global_state() == ICE_RUNNING)
+        client_add_incoming (&ypclient);
     return NULL;
 }
 
