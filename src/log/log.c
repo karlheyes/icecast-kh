@@ -666,7 +666,8 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
 #ifdef HAVE_GETTIMEOFDAY
     struct timeval tv;
     gettimeofday (&tv, NULL);
-    datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S", localtime_r(&tv.tv_sec, &thetime));
+    now = tv.tv_sec;
+    datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S", localtime_r(&now, &thetime));
     if (loglist[log_id].flags & 1)
         datelen += snprintf (line+datelen, sizeof line-datelen, ".%06ld] %s %s%s ", (long)tv.tv_usec, prior [priority-1], cat, func);
     else

@@ -1252,7 +1252,7 @@ static int config_get_http_header (cfg_xml *cfg, void *arg)
             code = (char*)xmlCharStrdup("*");
         int len = 0;
         // verify provided xml
-        if (sscanf (name, "%*[A-Za-z0-9!#$\%&'*+.^_'|~-]%n", &len) != 0 || len < 0 || name[len] != '\0')
+        if (sscanf (name, "%*[A-Za-z0-9!#$%&'*+.^_'|~-]%n", &len) != 0 || len < 0 || name[len] != '\0')
         {
             WARN1 ("header name invalid \"%.100s\"", name);
             break;
