@@ -284,7 +284,7 @@ static void auth_remove_listener (auth_client *auth_user)
     if (auth_user->client)
     {
         client_t *client = auth_user->client;
-        auth_user->flags &= ~CLIENT_AUTHENTICATED;
+        client->flags &= ~CLIENT_AUTHENTICATED;
         DEBUG1 ("client #%" PRIu64 " completed", client->connection.id);
         thread_rwlock_rlock (&workers_lock);
         worker_t *worker = client->worker;
@@ -337,7 +337,7 @@ static void stream_start_callback (auth_client *auth_user)
         client_t *client = auth_user->client;
         free (client->connection.ip);
         refbuf_release (client->refbuf);
-        free ((void*)client->aux_data); // useragent
+        free (client->shared_data); // useragent
         free (client);
         auth_user->client = NULL;
     }
@@ -891,7 +891,7 @@ void auth_stream_start (mount_proxy *mountinfo, source_t *source)
         auth_user->client = calloc (1, sizeof (client_t));
         auth_user->client->connection.ip = strdup (client->connection.ip);
         if (agent)
-            auth_user->client->aux_data = (uintptr_t)strdup (agent);
+            auth_user->client->shared_data = strdup (agent);
         INFO1 ("request stream startup for \"%s\"", mount);
 
         queue_auth_client (auth_user, mountinfo);
