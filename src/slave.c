@@ -680,11 +680,7 @@ static void *start_relay_stream (void *arg)
     relays_connecting--;
     thread_spin_unlock (&relay_start_lock);
 
-    worker_t *worker = client->worker;
-    thread_spin_lock (&worker->lock);
-    client->flags |= CLIENT_ACTIVE;
-    thread_spin_unlock (&worker->lock);
-    worker_wakeup (worker);
+    client_add_incoming (client);
     return NULL;
 }
 
@@ -2169,10 +2165,10 @@ static int relay_startup (client_t *client)
     }
     relays_connecting++;
     thread_spin_unlock (&relay_start_lock);
+    client->worker = NULL;
 
-    client->flags &= ~CLIENT_ACTIVE;
     thread_create ("Relay Thread", start_relay_stream, client, THREAD_DETACHED);
-    return 0;
+    return 1;
 }
 
 

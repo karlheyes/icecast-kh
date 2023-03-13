@@ -282,14 +282,8 @@ int admin_mount_request (client_t *client)
     const char *mount = client->mount;
 
     client->ops = &admin_mount_ops;
-    if ((client->flags & CLIENT_ACTIVE) == 0)   // non-worker so kick it back to worker.
-    {
-        worker_t *worker = client->worker;
-        DEBUG0 ("client on auth thread, reschedule on worker");
-        client->flags |= CLIENT_ACTIVE;
-        worker_wakeup (worker);
+    if (client_add_incoming (client))   // if add to worker, run from there
         return 0;
-    }
     if ((client->flags & CLIENT_AUTHENTICATED) == 0)
     {
         WARN1 ("Failed auth for source \"%s\"", client->mount);
@@ -431,7 +425,7 @@ int admin_handle_request (client_t *client, const char *uri)
                             "admin request (%s)", uri);
                     return client_send_401 (client, NULL);
                 case 1:
-                    return 0;
+                    return 1;
             }
         }
         if (strcmp (uri, "streams") == 0)

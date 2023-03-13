@@ -2895,13 +2895,8 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     source_setup_listener (source, client);
     source->listeners++;
 
-    if ((client->flags & CLIENT_ACTIVE) && (source->flags & SOURCE_RUNNING))
+    if (client_add_incoming (client) == 0 && source_running (source))
         do_process = 1;
-    else
-    {
-        client->flags |= CLIENT_ACTIVE; // from an auth thread context
-        worker_wakeup (client->worker);
-    }
     thread_rwlock_unlock (&source->lock);
     global_reduce_bitrate_sampling (global.out_bitrate);
 
@@ -3045,12 +3040,7 @@ int source_startup (client_t *client, const char *uri)
     client->aux_data = (uintptr_t)strdup(uri);
     client->ops = &source_client_start_ops;
 
-    if ((client->flags & CLIENT_ACTIVE) == 0)
-    {
-        client->schedule_ms = 0;
-        client->flags |= CLIENT_ACTIVE;
-        worker_wakeup (client->worker);
-    }
+    client_add_incoming (client);
     return 0;
 }
 
@@ -3135,6 +3125,7 @@ static int  source_client_startup (client_t *client)
     {
         free (uri);
         client->aux_data = 0;
+        client->mount = source->mount;
         if (source_running (source) == 0)
         {
             if (rc == 2 && hijack == 0)

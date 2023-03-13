@@ -488,6 +488,7 @@ int xslt_client (client_t *client)
         if (rc && xsl_count < 50)
         {       // cache slot marked and queue not too bad
             client->next_on_worker = xsl_clients;
+            client->worker = NULL;
             xsl_clients = client;
             xsl_count++;
             if (xsl_threads < 5)
@@ -526,6 +527,6 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
     client->schedule_ms = client->worker->time_ms;
     client->ops = &xslt_ops;
     client->connection.discon.time = client->worker->current_time.tv_sec + 3;
-    return client->ops->process (client);
+    return client->worker ? client->ops->process (client) : 0;
 }
 

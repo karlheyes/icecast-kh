@@ -128,7 +128,7 @@ static auth_client *auth_client_setup (const char *mount, client_t *client)
     auth_user->client = client;
     if (client)
     {
-        auth_user->flags = (client->flags & (~CLIENT_ACTIVE));
+        auth_user->flags = client->flags;
         if (client->mount == NULL)
             client->mount = auth_user->mount;
     }
@@ -145,6 +145,8 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
     if (auth_user == NULL || mountinfo == NULL)
         return;
     auth = mountinfo->auth;
+    if (auth_user->client)
+        auth_user->client->worker = NULL;
     thread_mutex_lock (&auth->lock);
     auth_user->next = NULL;
     auth_user->auth = auth;
@@ -289,14 +291,7 @@ static void auth_remove_listener (auth_client *auth_user)
         thread_rwlock_rlock (&workers_lock);
         worker_t *worker = client->worker;
         if (worker)
-        {
-            auth_user->flags |= CLIENT_ACTIVE;
             client_send_404 (client, NULL);
-            thread_spin_lock (&client->worker->lock);
-            client->flags = auth_user->flags;
-            thread_spin_unlock (&client->worker->lock);
-            worker_wakeup (worker);
-        }
         else
             client_destroy (auth_user->client);
         thread_rwlock_unlock (&workers_lock);
@@ -315,9 +310,7 @@ static void stream_auth_callback (auth_client *auth_user)
     if (auth_user->auth->stream_auth)
         auth_user->auth->stream_auth (auth_user);
 
-    thread_spin_lock (&client->worker->lock);
     client->flags = auth_user->flags;
-    thread_spin_unlock (&client->worker->lock);
 
     auth_postprocess_source (auth_user);
 }
@@ -565,9 +558,7 @@ static int auth_postprocess_listener (auth_client *auth_user)
     if (client == NULL)
         return 0;
 
-    thread_spin_lock (&client->worker->lock);
     client->flags = auth_user->flags;
-    thread_spin_unlock (&client->worker->lock);
 
     if ((auth_user->flags & CLIENT_AUTHENTICATED) == 0)
     {
@@ -715,13 +706,10 @@ int auth_add_listener (const char *mount, client_t *client)
                 {
                     auth_client *auth_user = auth_client_setup (mount, client);
                     auth_user->process = auth_new_listener;
-                    thread_spin_lock (&client->worker->lock);
-                    client->flags &= ~CLIENT_ACTIVE;
-                    thread_spin_unlock (&client->worker->lock);
                     DEBUG1 ("adding client #%" PRIu64 " for authentication", client->connection.id);
                     queue_auth_client (auth_user, mountinfo);
                     config_release_mount (mountinfo);
-                    return 0;
+                    return 1;
                 }
             } while (0);
         }
@@ -751,17 +739,10 @@ int auth_release_listener (client_t *client, const char *mount, mount_proxy *mou
         if (mount && mountinfo && mountinfo->auth && mountinfo->auth->release_listener)
         {
             auth_client *auth_user = auth_client_setup (mount, client);
-            if (client->worker)
-                thread_spin_lock (&client->worker->lock);
-            client->flags &= ~CLIENT_ACTIVE;
-            if (client->worker)
-            {
-                client->ops = &auth_release_ops; // put into a wait state
-                thread_spin_unlock (&client->worker->lock);
-            }
+            client->ops = &auth_release_ops; // put into a wait state
             auth_user->process = auth_remove_listener;
             queue_auth_client (auth_user, mountinfo);
-            return 0;
+            return 1;
         }
         client->flags &= ~CLIENT_AUTHENTICATED;
     }
@@ -862,9 +843,6 @@ int auth_stream_authenticate (client_t *client, const char *mount, mount_proxy *
 
         auth_user->process = stream_auth_callback;
         INFO1 ("request source auth for \"%s\"", mount);
-        thread_spin_lock (&client->worker->lock);
-        client->flags &= ~CLIENT_ACTIVE;
-        thread_spin_unlock (&client->worker->lock);
         queue_auth_client (auth_user, mountinfo);
         return 1;
     }

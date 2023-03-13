@@ -1754,13 +1754,11 @@ static int _handle_source_request (client_t *client)
         case 0:         /* authenticated from config file */
             return source_startup (client, uri);
         case 1:         /* auth pending */
-            break;
+            return 1;
         default:        /* failed */
             INFO1("Source (%s) attempted to login with invalid or missing password", uri);
             return client_send_401 (client, NULL);
     }
-
-    return 0;
 }
 
 

@@ -935,7 +935,6 @@ static void _register_listener (client_t *client)
 {
     event_listener_t *listener = client->shared_data;
     avl_node *node;
-    worker_t *worker = client->worker;
     stats_event_t stats_count;
     refbuf_t *refbuf, *biglist = NULL, **full_p = &biglist, *last = NULL;
     size_t size = 8192, len = 0;
@@ -1075,9 +1074,7 @@ static void _register_listener (client_t *client)
     listener->recent_block = last;
     thread_mutex_unlock (&_stats.listeners_lock);
 
-    client->schedule_ms = 0;
-    client->flags |= CLIENT_ACTIVE;
-    worker_wakeup (worker);
+    client_add_incoming (client);
 }
 
 
