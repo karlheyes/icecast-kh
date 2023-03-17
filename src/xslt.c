@@ -507,7 +507,7 @@ int xslt_client (client_t *client)
         thread_spin_unlock (&update_lock);
         // DEBUG1 ("cache full, reschedule client %ld", client->connection.id);
 
-        client->schedule_ms += 20;
+        client->schedule_ms += 15;
         return 0;   // retry
     } while (0);
     xsl_req_clear (x);

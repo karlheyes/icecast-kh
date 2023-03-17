@@ -45,7 +45,6 @@ struct _worker_t
     thread_type *thread;
     struct timespec current_time;
     uint64_t time_ms;
-    uint64_t wakeup_ms;
     struct _worker_t *next;
 };
 

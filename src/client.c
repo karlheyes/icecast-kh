@@ -158,7 +158,6 @@ void client_destroy(client_t *client)
     DEBUG1 ("keepalive detected on %s, placing back onto worker", client->connection.ip);
 
     client->ops = &http_request_ops;
-    client->flags = CLIENT_ACTIVE;
     client->shared_data = NULL;
     client->refbuf = NULL;
     client->pos = 0;
@@ -196,7 +195,6 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
         if (remaining > 2)
             {unsigned char*b = buf; DEBUG4 ("transferring %d (%2x %2x %2x) bytes previously stored", remaining, b[0], b[1], b[2]);}
         client->pos += remaining;
-        DEBUG2 ("list, %d, %d", client->pos, client->refbuf->len);
         if (client->pos >= client->refbuf->len)
             client_set_queue (client, NULL);
         return remaining;
@@ -524,7 +522,6 @@ int client_add_incoming (client_t *client)
     worker_t *handler;
 
     if (client->worker) return 0;
-    client->flags |= CLIENT_ACTIVE;
     client->schedule_ms = 0;
     thread_rwlock_rlock (&workers_lock);
     handler = worker_incoming;
@@ -570,8 +567,22 @@ void worker_control_create (FD_t wakeup_fd[])
 }
 
 
-static client_t **worker_add_pending_clients (worker_t *worker)
+typedef struct {
+    worker_t *worker;
+    client_t **prevp;
+    uint64_t sched_ms;
+    uint64_t wakeup_ms;
+    uint16_t max_run;
+    uint16_t time_recheck;
+    uint16_t flags;
+} worker_client_t;
+
+#define WKRC_TIMER_CHECK        (1<<1)
+#define WKR_CLIENT_INIT(W)      { .worker = W, .max_run = 30, .flags = WKRC_TIMER_CHECK }
+
+static void worker_add_pending_clients (worker_client_t *wc, int duration)
 {
+    worker_t *worker = wc->worker;
     thread_spin_lock (&worker->lock);
     if (worker->pending_clients)
     {
@@ -586,36 +597,46 @@ static client_t **worker_add_pending_clients (worker_t *worker)
         worker->pending_clients = NULL;
         worker->pending_clients_tail = &worker->pending_clients;
         worker->pending_count = 0;
-        thread_spin_unlock (&worker->lock);
-        DEBUG2 ("Added %d pending clients to %p", count, worker);
-        return p;  /* only these new ones scheduled so process from here */
+        if (duration > 15)
+        {
+            thread_spin_unlock (&worker->lock);
+            DEBUG2 ("Added %d pending clients to %p", count, worker);
+            wc->prevp = p; /* only these new ones scheduled so process from here */
+            wc->flags &= ~WKRC_TIMER_CHECK;
+            return;
+        }
     }
     thread_spin_unlock (&worker->lock);
-    worker->wakeup_ms = worker->time_ms + 60000;
-    return &worker->clients;
 }
 
 
 // enter with spin lock enabled, exit without
 //
-static client_t **worker_wait (worker_t *worker)
+static void worker_wait (worker_client_t *wc)
 {
-    int ret, duration = 2;
+    worker_t *worker = wc->worker;
+    int ret, duration = 1;
 
-    if (worker->running)
+    thread_spin_unlock (&worker->lock);
+    if (worker->running) // && (wc->flags & WKRC_TIMER_CHECK))
     {
         uint64_t tm = worker_check_time_ms (worker);
-        if (worker->wakeup_ms > tm)
-            duration = (int)(worker->wakeup_ms - tm);
+        if (wc->wakeup_ms > tm)
+            duration = (int)(wc->wakeup_ms - tm);
         if (duration > 60000) /* make duration at most 60s */
             duration = 60000;
     }
-    thread_spin_unlock (&worker->lock);
 
-    ret = util_timed_wait_for_fd (worker->wakeup_fd[0], duration);
+    // DEBUG1 (" for %d msec", duration);
+    if (wc->flags & WKRC_TIMER_CHECK)
+    {
+        ret = util_timed_wait_for_fd (worker->wakeup_fd[0], duration);
+    }
+    wc->prevp = &worker->clients;
+    wc->flags |= WKRC_TIMER_CHECK;
     if (ret > 0) /* may of been several wakeup attempts */
     {
-        char ca[100];
+        char ca[150];
         do
         {
             ret = pipe_read (worker->wakeup_fd[0], ca, sizeof ca);
@@ -629,38 +650,28 @@ static client_t **worker_wait (worker_t *worker)
             worker_wakeup (worker);
             WARN0 ("Had to recreate worker control feed");
         } while (1);
+        worker_add_pending_clients (wc, duration);
     }
-
-    worker->time_ms = timing_get_time();
-    worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
-
-    return worker_add_pending_clients (worker);
+    else
+        wc->sched_ms = 0;
 }
 
 
-static void worker_relocate_clients (worker_t *worker)
+static void worker_relocate_clients (worker_client_t *wc)
 {
+    worker_t *worker = wc->worker;
     if (workers == NULL)
         return;
     while (worker->count || worker->pending_count)
     {
         client_t *client = worker->clients, **prevp = &worker->clients;
 
-        worker->wakeup_ms = worker->time_ms + 150;
+        wc->wakeup_ms = worker->time_ms + 150;
         worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
         while (client)
         {
-            if (client->flags & CLIENT_ACTIVE)
-            {
-                client->worker = workers;
-                prevp = &client->next_on_worker;
-            }
-            else
-            {
-                *prevp = client->next_on_worker;
-                worker_add_client (worker, client);
-                worker->count--;
-            }
+            client->worker = workers;
+            prevp = &client->next_on_worker;
             client = *prevp;
         }
         if (worker->clients)
@@ -676,101 +687,163 @@ static void worker_relocate_clients (worker_t *worker)
             worker->count = 0;
         }
         thread_spin_lock (&worker->lock);
-        worker_wait (worker);
+        worker_wait (wc);
     }
 }
+
+
+static client_t *worker_pick_client (worker_client_t *wc)
+{
+    worker_t *worker = wc->worker;
+    int worker_shutdown = (worker->running == 0);
+    if (wc->max_run == 0)
+    {
+        wc->max_run = worker->count < 50 ? 100 : worker->count<<1;
+        wc->sched_ms = 0;
+        return NULL;
+    }
+    if (wc->time_recheck == 0)
+    {
+        thread_spin_unlock (&worker->lock);
+        worker->time_ms = timing_get_time();
+        worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
+        wc->time_recheck = 40;
+        thread_spin_lock (&worker->lock);
+    }
+    if (wc->sched_ms == 0)
+    {   // update these periodically to keep in sync
+        wc->wakeup_ms = worker->time_ms + 30000;
+        wc->sched_ms = worker->time_ms + 8;
+        if (wc->prevp == NULL)
+            wc->prevp = &worker->clients;
+        //DEBUG2 ("time check %ld, sched thresh %ld", worker->time_ms, wc->sched_ms);
+    }
+    client_t *client;
+#if 0
+    for (client = worker->clients; client; client = client->next_on_worker)
+    {
+         DEBUG4 ("wlist, L %d P %d, c %p, %ld", (worker->last_p == &client->next_on_worker)? 1 : 0, *wc->prevp == client ? 1 : 0, client, client->schedule_ms);
+    }
+#endif
+    while ((client = *wc->prevp))
+    {
+        if (client->worker != worker) abort();
+        if (client->schedule_ms < wc->sched_ms || worker_shutdown)
+        {
+            wc->max_run--;
+            wc->time_recheck--;
+            // DEBUG2 ("client %p, counted %d", client, wc->max_run);
+            break;
+        }
+        // DEBUG3 ("client %p, cl-sched %ld, comp %ld", client, client->schedule_ms, wc->sched_ms);
+        if ((wc->flags & WKRC_TIMER_CHECK) && client->schedule_ms < wc->wakeup_ms)
+            wc->wakeup_ms = client->schedule_ms;
+        wc->prevp = &client->next_on_worker;
+    }
+    return client;
+}
+
+
+static int worker_moved_client (worker_client_t *wc, client_t *next, int keep)
+{
+    worker_t *worker = wc->worker;
+    int rc = 1;
+    // DEBUG3 ("keep %d, prevp %p, next %p", keep, *wc->prevp, next);
+    if (keep)
+    {
+        if (next == NULL)
+            return 0;
+        client_t *client = *wc->prevp;
+        client->next_on_worker = NULL;
+        *worker->last_p = client;
+        worker->last_p = &client->next_on_worker;
+    }
+    else
+    {
+        rc = 0;
+        worker->count--;
+        if (next == NULL) /* was this the last client */
+            worker->last_p = wc->prevp;
+    }
+    *wc->prevp = next;
+    return rc;
+}
+
+
+static void worker_next_client (worker_client_t *wc)
+{
+    worker_t *worker = wc->worker;
+    client_t *client = *wc->prevp;
+    int quick = 0;
+    if ((client->schedule_ms < worker->time_ms + 5) && worker_moved_client (wc, client->next_on_worker, 1))
+        quick = 1;
+
+    if (quick == 0)
+    {
+        if ((wc->flags & WKRC_TIMER_CHECK) && client->schedule_ms < wc->wakeup_ms)
+            wc->wakeup_ms = client->schedule_ms;
+        wc->prevp = &client->next_on_worker;
+    }
+}
+
 
 void *worker (void *arg)
 {
     worker_t *worker = arg;
     long prev_count = -1;
-    client_t **prevp = &worker->clients;
-    uint64_t c = 0;
 
     thread_rwlock_rlock (&global.workers_rw);
     worker->running = 1;
-    worker->wakeup_ms = (int64_t)0;
-    worker->time_ms = timing_get_time();
 
+    worker_client_t wc = WKR_CLIENT_INIT (worker);
     while (1)
     {
-        client_t *client = *prevp;
-        uint64_t sched_ms = worker->time_ms + 12;
+        client_t *client;
 
-        c = 0;
+        wc.time_recheck = 0;
+
         thread_spin_lock (&worker->lock);
-        while (client)
+        while ((client = worker_pick_client (&wc)))
         {
-            if (client->worker != worker) abort();
-            /* process client details but skip those that are not ready yet */
-            if (client->flags & CLIENT_ACTIVE)
-            {
-                int ret = 0;
-                client_t *nx = client->next_on_worker;
+            thread_spin_unlock (&worker->lock);
 
-                int process = 1;
-                if (worker->running)  // force all active clients to run on worker shutdown
-                {
-                    if (client->schedule_ms <= sched_ms)
-                    {
-                        if (c > 9000 && client->wakeup == NULL)
-                            process = 0;
-                    }
-                    else if (client->wakeup == NULL || *client->wakeup == 0)
-                    {
-                        process = 0;
-                    }
-                }
+            client_t *nxc = client->next_on_worker;
+            errno = 0;
 
-                if (process)
-                {
-                    thread_spin_unlock (&worker->lock);
-                    if ((c & 511) == 0)
-                    {
-                        // update these periodically to keep in sync
-                        worker->time_ms = worker_check_time_ms (worker);
-                        worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
-                    }
-                    c++;
-                    errno = 0;
-                    ret = client->ops->process (client);
-                    if (ret < 0)
-                    {
-                        client->worker = NULL;
-                        if (client->ops->release)
-                            client->ops->release (client);
-                    }
-                    if (ret)
-                    {
-                        thread_spin_lock (&worker->lock);
-                        worker->count--;
-                        if (nx == NULL) /* is this the last client */
-                            worker->last_p = prevp;
-                        client = *prevp = nx;
-                        continue;
-                    }
-                    thread_spin_lock (&worker->lock);
-                }
-                if (ret == 0 && (client->flags & CLIENT_ACTIVE) && client->schedule_ms < worker->wakeup_ms)
-                    worker->wakeup_ms = client->schedule_ms;
+            int ret = client->ops->process (client);
+            // DEBUG3 ("%p processed client %p, ret %d", worker, client, ret);
+            if (ret < 0)
+            {   // we call the client shutdown
+                client->worker = NULL;
+                if (client->ops->release)
+                    client->ops->release (client);
+                // at this point, client is unreliable
             }
-            prevp = &client->next_on_worker;
-            client = *prevp;
+            thread_spin_lock (&worker->lock);
+            if (ret)
+            {
+                worker_moved_client (&wc, nxc, 0);
+                continue;
+            }
+            worker_next_client (&wc);
         }
         if (prev_count != worker->count)
         {
-            DEBUG2 ("%p now has %d clients", worker, worker->count);
             prev_count = worker->count;
+            thread_spin_unlock (&worker->lock);
+            DEBUG2 ("%p now has %ld clients", worker, prev_count);
+            thread_spin_lock (&worker->lock);
         }
         if (worker->running == 0)
         {
+            DEBUG3 ("%p count %d, pending %d", worker, worker->count, worker->pending_count);
             if (worker->count == 0 && worker->pending_count == 0)
                 break;
         }
-        prevp = worker_wait (worker);
+        worker_wait (&wc);
     }
     thread_spin_unlock (&worker->lock);
-    worker_relocate_clients (worker);
+    worker_relocate_clients (&wc);
     INFO0 ("shutting down");
     thread_rwlock_unlock (&global.workers_rw);
     return NULL;
