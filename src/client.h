@@ -37,15 +37,18 @@ struct _worker_t
     int move_allocations;
     spin_t lock;
     FD_t wakeup_fd[2];
-
-    client_t *pending_clients;
-    client_t **pending_clients_tail,
-             *clients;
-    client_t **last_p;
-    thread_type *thread;
     struct timespec current_time;
     uint64_t time_ms;
+
+    client_t *fast_clients;
+    client_t **fast_tailp;
+    client_t *pending_clients;
+    client_t **pending_tailp;
+    client_t *clients;
+    client_t **last_p;
+
     struct _worker_t *next;
+    thread_type *thread;
 };
 
 
