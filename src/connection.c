@@ -1489,12 +1489,10 @@ static int http_client_request (client_t *client)
         if (ret && client->connection.error == 0)
         {
             /* scale up the retry time, very short initially, usual case */
-            uint64_t diff = client->worker->time_ms - client->counter;
-            diff >>= 3;
-            if (diff > 100)
-                diff = 100;
-            // DEBUG1 ("diff %" PRIu64, diff);
-            client->schedule_ms = client->worker->time_ms + 2 + diff;
+            static volatile sig_atomic_t vary = 4;
+            int diff = 2 + (++vary & 15);
+            // DEBUG2 ("client %p diff %d", client, diff);
+            client->schedule_ms = client->worker->time_ms + diff;
             return 0;
         }
     }
