@@ -8,7 +8,7 @@
  *                      oddsock <oddsock@xiph.org>,
  *                      Karl Heyes <karl@xiph.org>
  *                      and others (see AUTHORS for details).
- * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2010-2023, Karl Heyes <karl@kheyes.plus.com>
  *
  */
 
@@ -40,6 +40,7 @@
 #include <sys/time.h>
 #endif
 
+#include "timing/timing.h"
 #include "thread/thread.h"
 #include "avl/avl.h"
 #include "httpp/httpp.h"
@@ -62,11 +63,11 @@
 typedef struct {
     char               *filename;
     char               *disposition;
-    uint32_t            flags;
-    time_t             last_modified;
-    time_t             cache_age;
-    time_t             next_check;
     xsltStylesheetPtr  stylesheet;
+    uint32_t           flags;
+    time_t             last_modified;
+    uint64_t           cache_age;
+    uint64_t           next_check;
 } stylesheet_cache_t;
 
 #define XSLCACHE_PENDING        (1<<0)
@@ -244,12 +245,12 @@ static void xsl_req_clear (xsl_req *x)
 }
 
 
-static int xslt_sheet_check (stylesheet_cache_t *cached, time_t now)
+static int xslt_sheet_check (stylesheet_cache_t *cached, uint64_t now)
 {
     int rc = 0;
     do
     {
-        if (cached->next_check > cached->cache_age)
+        if (cached->next_check > now)
             break;
         rc = -1;
         struct stat file;
@@ -260,13 +261,13 @@ static int xslt_sheet_check (stylesheet_cache_t *cached, time_t now)
         }
         if (file.st_mtime == cached->last_modified)
         {
-            //thread_spin_unlock (&update_lock);
             DEBUG1 ("file %s has same mtime, not modified", cached->filename);
             break;
         }
         xsltStylesheetPtr sheet = xsltParseStylesheetFile (XMLSTR(cached->filename));
         if (sheet)
         {
+            cached->last_modified = file.st_mtime;
             INFO1 ("loaded stylesheet %s", cached->filename);
             if (sheet->mediaType && strcmp ((char*)(sheet->mediaType), "text/html") != 0)
             {
@@ -282,9 +283,8 @@ static int xslt_sheet_check (stylesheet_cache_t *cached, time_t now)
     } while (0);
     cached->flags &= ~XSLCACHE_PENDING;
     cached->cache_age = now;
-    cached->next_check = now + 60;
+    cached->next_check = now + 60000;
     return rc;
-
 }
 
 
@@ -301,10 +301,10 @@ static void clear_cached_stylesheet (stylesheet_cache_t *entry, int zerod)
 
 // requires write lock on xslt_lock on entry
 //
-static int xslt_cached (xsl_req *x, time_t now)
+static int xslt_cached (xsl_req *x, uint64_t now)
 {
-    time_t earliest = now;
-    int i, evict = CACHESIZE;
+    uint64_t early_p = now+1, early_f = early_p;
+    int i, present = CACHESIZE, failed = CACHESIZE;
 
     for (i=0; i < CACHESIZE; i++)
     {
@@ -312,21 +312,36 @@ static int xslt_cached (xsl_req *x, time_t now)
             break;
         if (filename_cmp (x->filename, cache[i].filename) == 0)
             break;
-        if (cache[i].cache_age > 0 && earliest > cache[i].cache_age && (cache[i].flags & XSLCACHE_PENDING) == 0)
+        if (cache[i].cache_age > 0 && (cache[i].flags & XSLCACHE_PENDING) == 0)
         {
-            earliest = cache[i].cache_age;
-            evict = i;
-            // DEBUG2 ("early is %ld, idx %d", earliest, evict);
+            if (cache[i].flags & XSLCACHE_FAILED)
+            {
+                if (early_f > cache[i].cache_age)
+                {
+                    early_f = cache[i].cache_age;
+                    failed = i;
+                }
+            }
+            else
+                if (early_p > cache[i].cache_age)
+                {
+                    early_p = cache[i].cache_age;
+                    present = i;
+                }
         }
     }
-    if (i == CACHESIZE && evict < CACHESIZE)
-    {   // no matching filename, but something to replace
-        i = evict;
-        clear_cached_stylesheet (&cache[i], 1);
-        // DEBUG1 ("dropped idx %d", i);
-    }
-    if (i < CACHESIZE)
+    do
     {
+        if (i == CACHESIZE)
+        {   // no matching filename, maybe something to replace
+            if (failed < CACHESIZE)       // evict failed slots over success
+                i = failed;
+            else if (present < CACHESIZE)
+                i = present;
+            if (i == CACHESIZE) break;  // nothing selected, drop out for retry
+            clear_cached_stylesheet (&cache[i], 1);
+            // DEBUG1 ("cleared slot %d", i);
+        }
         if (cache[i].filename == NULL)
         {
             cache[i].filename = strdup (x->filename);
@@ -335,13 +350,12 @@ static int xslt_cached (xsl_req *x, time_t now)
         }
         if ((cache[i].flags & XSLCACHE_FAILED) && cache[i].next_check > now)
             return -1;
-        if (cache[i].cache_age)
-            cache[i].cache_age = now;   // update to keep around
+        cache[i].cache_age = now;   // update to keep around
         cache[i].flags &= ~XSLCACHE_FAILED;
         x->cache = &cache[i];
-        DEBUG1 ("using cache slot %d", i);
+        DEBUG2 ("using cache slot %d for %s", i, x->filename);
         return 1;
-    }
+    } while (0);
     return 0;
 }
 
@@ -442,11 +456,10 @@ void *xslt_update (void *arg)
         thread_spin_unlock (&update_lock);
 
         xsl_req *x = (xsl_req *)client->aux_data;
-        // DEBUG2 ("Processing client %ld, req for %s", client->connection.id, x->filename);
         client->next_on_worker = NULL;
 
-        time_t now = time(NULL);
-        if (client->connection.discon.time > now)
+        uint64_t now = timing_get_time();
+        if (client->connection.discon.time > (now/1000))
         {
             stylesheet_cache_t *cached = x->cache;
             thread_rwlock_wlock (&xslt_lock);
@@ -455,14 +468,10 @@ void *xslt_update (void *arg)
                 cached->flags |= XSLCACHE_FAILED;
                 thread_rwlock_unlock (&xslt_lock);
                 WARN1 ("problem reading stylesheet \"%s\"", x->filename);
-                //client->shared_data = NULL;
                 client_send_404 (client, "Could not parse XSLT file");
             }
             else
-            {
-                //cached->flags &= ~XSLCACHE_PENDING;
                 xslt_send_response (x);
-            }
             x->cache = NULL;
         }
         xsl_req_clear (x);
@@ -477,15 +486,15 @@ void *xslt_update (void *arg)
 int xslt_client (client_t *client)
 {
     xsl_req *x = (xsl_req*)client->aux_data;
-    time_t now = client->worker->current_time.tv_sec;
-    int rc = xslt_cached (x, now);
+    uint64_t now = client->worker->time_ms;
+    int rc = xslt_cached (x, now), fail_it = 0;
     do
     {
         if (rc < 0) break;
-        if (client->connection.discon.time <= now)
+        if (client->connection.discon.time <= (now/1000))
             break;
         thread_spin_lock (&update_lock);
-        if (rc && xsl_count < 50)
+        if (rc && xsl_count < 20)
         {       // cache slot marked and queue not too bad
             client->next_on_worker = xsl_clients;
             client->worker = NULL;
@@ -504,10 +513,14 @@ int xslt_client (client_t *client)
             DEBUG2 ("reschedule update, %d queued, %d running", q, v);
             return 1;
         }
+        if (xsl_count > 70)
+           fail_it = 1;         // a DoS most likely
         thread_spin_unlock (&update_lock);
-        // DEBUG1 ("cache full, reschedule client %ld", client->connection.id);
+        if (fail_it)
+           break;
+        DEBUG1 ("cache full, reschedule client %ld", client->connection.id); // must be loaded
 
-        client->schedule_ms += 15;
+        client->schedule_ms += 11;
         return 0;   // retry
     } while (0);
     xsl_req_clear (x);
