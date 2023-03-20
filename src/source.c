@@ -362,6 +362,20 @@ static int _free_source (void *p)
 }
 
 
+void source_reset_client_stats (source_t *source, int not_locked)
+{
+    source->last_read = time(NULL);
+    stats_event_inc (NULL, "source_total_connections");
+    if (not_locked)
+        source->stats = stats_lock (source->stats, source->mount);
+    stats_set_flags (source->stats, "connected", "0", STATS_COUNTERS);
+    stats_set_flags (source->stats, "source_ip", source->client->connection.ip, STATS_COUNTERS);
+    stats_set_time (source->stats, "stream_start", STATS_COUNTERS, source->last_read);
+    if (not_locked)
+        stats_release (source->stats);
+}
+
+
 // drop source from tree, so it cannot be found by name. No lock on source on entry but
 // lock still active on return (stats cleared)
 static void drop_source_from_tree (source_t *source)
@@ -866,6 +880,7 @@ static int source_client_read (client_t *client)
             source->client = (client_t *)client->aux_data;
             source->linger_time = 0;
             format_apply_client (source->format, source->client);
+            source_reset_client_stats (source, 1);
             thread_rwlock_unlock (&source->lock);
             client->aux_data = 0;
             client->shared_data = NULL;
@@ -1601,7 +1616,6 @@ void source_init (source_t *source)
     }
 
     /* start off the statistics */
-    stats_event_inc (NULL, "source_total_connections");
     source->stats = stats_lock (source->stats, source->mount);
     stats_set_flags (source->stats, "slow_listeners", "0", STATS_COUNTERS);
     stats_set (source->stats, "server_type", source->format->contenttype);
@@ -1614,11 +1628,8 @@ void source_init (source_t *source)
     stats_set_flags (source->stats, "outgoing_kbitrate", "0", STATS_COUNTERS);
     stats_set_flags (source->stats, "incoming_bitrate", "0", STATS_COUNTERS);
     stats_set_flags (source->stats, "queue_size", "0", STATS_COUNTERS);
-    stats_set_flags (source->stats, "connected", "0", STATS_COUNTERS);
-    stats_set_flags (source->stats, "source_ip", source->client->connection.ip, STATS_COUNTERS);
+    source_reset_client_stats (source, 0);
 
-    source->last_read = time(NULL);
-    stats_set_time (source->stats, "stream_start", STATS_COUNTERS, source->last_read);
     source->prev_listeners = -1;
     source->bytes_sent_at_update = 0;
     source->stats_interval = 5;
@@ -3031,6 +3042,7 @@ int source_format_init (source_t *source, client_t *client)
     int ret = _source_format_init (source, client);
     source->client = client;
     format_apply_client (format, client);
+    source_reset_client_stats (source, 1);
     return ret;
 }
 

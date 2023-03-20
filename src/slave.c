@@ -1773,8 +1773,10 @@ static int relay_switchover (client_t *client, relay_server *relay, source_t *so
     source->client = (client_t *)client->aux_data;
     DEBUG3 ("switchover client %p for %p on relay %p", client, source->client, relay);
     format_apply_client (source->format, source->client);
+    source_reset_client_stats (source, 1);
     source->linger_time = 0;
     thread_rwlock_unlock (&source->lock);
+    client->aux_data = 0;
     if (relay->flags & RELAY_IN_LIST)
     {   // source client on relay mount, so reset this relay for later use, this client goes
         DEBUG1 ("old client for relay %s going away", relay->localmount);

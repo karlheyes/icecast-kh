@@ -122,6 +122,7 @@ int  source_startup (client_t *client, const char *uri);
 void source_update_settings (ice_config_t *config, source_t *source, mount_proxy *mountinfo);
 void source_clear_listeners (source_t *source);
 void source_clear_source (source_t *source);
+void source_reset_client_stats (source_t *source, int not_locked);
 source_t *source_find_mount(const char *mount);
 source_t *source_find_mount_raw(const char *mount);
 client_t *source_find_client(source_t *source, uint64_t id);
