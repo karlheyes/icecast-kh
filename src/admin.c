@@ -591,6 +591,8 @@ static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay)
         xmlNewChild (masternode, NULL, XMLSTR("mount"), XMLSTR(host->mount));
         snprintf (str, sizeof (str), "%d", host->port);
         xmlNewChild (masternode, NULL, XMLSTR("port"), XMLSTR(str));
+        if (host == relay->in_use)
+            xmlNewChild (masternode, NULL, XMLSTR("active"), XMLSTR("true"));
         host = host->next;
     }
 }
