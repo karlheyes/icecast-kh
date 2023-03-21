@@ -519,7 +519,7 @@ int xslt_client (client_t *client)
         thread_spin_unlock (&update_lock);
         if (fail_it)
            break;
-        DEBUG1 ("cache full, reschedule client %ld", client->connection.id); // must be loaded
+        INFO1 ("cache full, reschedule client %" PRIu64, client->connection.id); // must be loaded
 
         client->schedule_ms += 11;
         return 0;   // retry
