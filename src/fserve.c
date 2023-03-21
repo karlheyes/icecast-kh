@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2012-2022, Karl Heyes <karl@kheyes.plus.com>,
+ * Copyright 2012-2023, Karl Heyes <karl@kheyes.plus.com>,
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -265,6 +265,33 @@ static void remove_fh_from_cache (fh_node *fh)
 }
 
 
+static void fh_stats (fh_node *fh, int enable)
+{
+    if (enable)
+    {
+        if (fh->finfo.limit == 0) return; // stats only appear for rate limited files
+        if (fh->stats == 0) // assume handle is locked beforehand
+        {
+            int len = strlen (fh->finfo.mount) + 15;
+            char buf [len];
+            snprintf (buf, len, "%s-%s", (fh->finfo.flags & FS_FALLBACK) ? "fallback" : "file", fh->finfo.mount);
+            fh->stats = stats_handle (buf);
+            fh->prev_count = ~fh->refcount; // trigger update of listeners
+        }
+        if (fh->finfo.flags & FS_FALLBACK)
+            stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
+        stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
+        stats_release (fh->stats);
+    }
+    else if (fh->stats)
+    {
+        stats_lock (fh->stats, NULL);
+        stats_set (fh->stats, NULL, NULL);
+        fh->stats = 0;
+    }
+}
+
+
 static void remove_from_fh (fh_node *fh, client_t *client)
 {
     thread_mutex_lock (&fh->lock);
@@ -278,7 +305,9 @@ static void remove_from_fh (fh_node *fh, client_t *client)
     if (fh->refcount == 0 && fh->finfo.mount)
     {
         rate_free (fh->out_bitrate);
-        if ((fh->finfo.flags & FS_FALLBACK) == 0)
+        if (fh->finfo.flags & FS_FALLBACK)
+            fh_stats (fh, 0);
+        else
         {
             fh->out_bitrate = NULL;
             if (fh->finfo.flags & FS_DELETE)
@@ -288,7 +317,7 @@ static void remove_from_fh (fh_node *fh, client_t *client)
                 return;
             }
             DEBUG1 ("setting timeout as no clients on %s", fh->finfo.mount);
-            fh->expire = time(NULL) + 10;
+            fh->expire = time(NULL) + 120;
         }
         fh->out_bitrate = rate_setup (10000, 1000);
     }
@@ -328,6 +357,8 @@ static void fh_add_client (fh_node *fh, client_t *client)
     if (fh->clients == NULL)
         return;
     avl_insert (fh->clients, client);
+    if (fh->refcount == 0 && fh->finfo.limit)
+        fh_stats (fh, 1);
     fh->refcount++;
     if ((fh->refcount != fh->clients->length && fh->finfo.mount) || ((fh->refcount != fh->clients->length+1) && fh->finfo.mount == NULL))
         ERROR3 (" on %s, with ref %d, len %d", fh->finfo.mount, fh->refcount, fh->clients->length);
@@ -364,7 +395,6 @@ static fh_node *open_fh (fbinfo *finfo, mount_proxy *minfo)
                 thread_mutex_unlock (&result->lock);
                 return NULL;
             }
-            result->expire = (time_t)-1;
         }
         return result;
     }
@@ -454,14 +484,6 @@ static fh_node *open_fh (fbinfo *finfo, mount_proxy *minfo)
     fh->peak = 0;
     fh->finfo.mount = strdup (finfo->mount);
     fh->finfo.override = NULL;
-    int len = strlen (finfo->mount) + 15;
-    char buf [len];
-    snprintf (buf, len, "%s-%s", (finfo->flags & FS_FALLBACK) ? "fallback" : "file", finfo->mount);
-    fh->stats = stats_handle (buf);
-    if (finfo->flags & FS_FALLBACK)
-        stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
-    stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
-    stats_release (fh->stats);
 
     return fh;
 }
@@ -1028,14 +1050,14 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
         thread_mutex_lock (&result->lock);
 
         if (result->refcount > 0)
-        {
+        {       // insert clean copy, no stats or listeners
             fh_node *copy = calloc (1, sizeof (*copy));
             avl_delete (fh_cache, result, NULL);
             copy->finfo = result->finfo;
             copy->finfo.mount = strdup (copy->finfo.mount);
             copy->prev_count = -1; // trigger stats update
             copy->expire = (time_t)-1;
-            copy->stats = result->stats;
+            copy->stats = 0;
             copy->format = result->format;
             copy->f = result->f;
             thread_mutex_create (&copy->lock);
@@ -1043,14 +1065,15 @@ int fserve_set_override (const char *mount, const char *dest, format_type_t type
             copy->clients = avl_tree_new (client_compare, NULL);
             avl_insert (fh_cache, copy);
 
+            // leave detached from cache, last listener trigger delete
             result->finfo.flags |= FS_DELETE;
             result->finfo.flags &= ~FS_FALLBACK;
             result->format = NULL;
-            result->stats = 0;
             result->f = SOCK_ERROR;
             result->finfo.override = strdup (dest);
             result->finfo.type = type;
         }
+        fh_stats (result, 0);
         avl_tree_unlock (fh_cache);
         thread_mutex_unlock (&result->lock);
         INFO2 ("move clients from %s to %s", mount, dest);
@@ -1353,6 +1376,8 @@ int fserve_query_count (fbinfo *finfo, mount_proxy *mountinfo)
         if (fh)
         {
             ret = fh->refcount;
+            if (ret == 0)
+                fh->expire = 0;
             thread_mutex_unlock (&fh->lock);
         }
     }
@@ -1399,7 +1424,7 @@ ssize_t pread (icefile_handle f, void *data, size_t count, off_t offset)
 {
     ssize_t bytes = -1;
 
-    // we do not want another thread to modifiy handle between seek and read 
+    // we do not want another thread to modifiy handle between seek and read
     // win32 may be able to use the overlapped io struct in ReadFile
     thread_mutex_lock (&seekread_lock);
     if (lseek (f, offset, SEEK_SET) != (off_t)-1)
@@ -1459,11 +1484,7 @@ void fserve_scan (time_t now)
         if (fh->refcount == 0 && fh->expire >= 0 && now >= fh->expire)
         {
             DEBUG1 ("timeout of %s", fh->finfo.mount);
-            if (fh->stats)
-            {
-                stats_lock (fh->stats, NULL);
-                stats_set (fh->stats, NULL, NULL);
-            }
+            fh_stats (fh, 0);
             remove_fh_from_cache (fh);
             thread_mutex_unlock (&fh->lock);
             _delete_fh (fh);
