@@ -622,11 +622,9 @@ static void worker_wait (worker_client_t *wc)
     }
     else
     {
-        {
-            wc->prevp = &worker->fast_clients;
-            wc->flags &= ~WKRC_NORMAL_CLIENTS;
-            wc->flags |= WKRC_NORMAL_AFTER;
-        }
+        wc->prevp = &worker->fast_clients;
+        wc->flags &= ~WKRC_NORMAL_CLIENTS;
+        wc->flags |= WKRC_NORMAL_AFTER;
         if (worker->count)
             DEBUG3 ("%p, %d clients, %s flush", worker, worker->count, wc->flags & WKRC_NORMAL_CLIENTS ? "normal" : "fast");
         return;
