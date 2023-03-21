@@ -1786,6 +1786,8 @@ void source_set_fallback (source_t *source, fbinfo *fallback)
     source->fallback.mount = strdup (dest_mount);
     source->fallback.flags = FS_FALLBACK;
     source->fallback.type = source->format->type;
+    if (source->fallback.limit == 0)
+        source->fallback.limit = fallback->limit;
     INFO4 ("fallback set on %s to %s (%" PRIu64 ") with %ld listeners", source->mount, dest_mount,
             source->fallback.limit, source->listeners);
 }
@@ -2495,7 +2497,11 @@ void source_recheck_mounts (int update_all)
 
                 len = sizeof buffer;
                 if (util_expand_pattern (mount->mountname, mount->fallback.mount, buffer, &len) == 0)
-                    rc = fallback_count (buffer);
+                {
+                    fbinfo f = mount->fallback;
+                    f.mount = buffer;
+                    rc = fallback_count (&f);
+                }
 
                 if (rc == -2) break;  // odd case, would stall, try again
                 if (rc >= 0)
@@ -2726,7 +2732,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 return ret;
             }
             if (rate == 0 && minfo->fallback.limit)
-                rate = minfo->fallback.limit / 8;
+                rate = minfo->fallback.limit;
             len = sizeof buffer;
             if (util_expand_pattern (mount, minfo->fallback.mount, buffer, &len) < 0)
                 mount = minfo->fallback.mount;

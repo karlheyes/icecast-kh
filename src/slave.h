@@ -29,6 +29,6 @@ void redirector_update (struct _client_tag *client);
 relay_server *relay_free (relay_server *relay);
 int  relay_toggle (relay_server *relay);
 int  relay_source_reactivated (struct source_tag *source);
-int  fallback_count (const char *mount);
+int  fallback_count (fbinfo *fb);
 
 #endif  /* __SLAVE_H__ */

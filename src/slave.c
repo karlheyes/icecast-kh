@@ -2133,10 +2133,20 @@ static int relay_startup (client_t *client)
 
         if (mountinfo && mountinfo->fallback.mount)
         {
-            avl_tree_rlock (global.source_tree);
-            if (fallback_count (mountinfo->fallback.mount) > 0)
-                start_relay = 1;
-            avl_tree_unlock (global.source_tree);
+            unsigned int len;
+            char buffer [4096];
+
+            len = sizeof buffer;
+            if (util_expand_pattern (mountinfo->mountname, mountinfo->fallback.mount, buffer, &len) == 0)
+            {
+                fbinfo f = mountinfo->fallback;
+                f.mount = buffer;
+
+                avl_tree_rlock (global.source_tree);
+                if (fallback_count (&f) > 0)
+                    start_relay = 1;
+                avl_tree_unlock (global.source_tree);
+            }
         }
         config_release_mount (mountinfo);
         if (start_relay == 0)
@@ -2174,14 +2184,16 @@ static int relay_startup (client_t *client)
 }
 
 
-int fallback_count (const char *mount)
+int fallback_count (fbinfo *fb)
 {
     int count = -1, loop = 10;
-    const char *m = mount;
     char buffer[4096];
 
-    if (mount == NULL) return -1;
-    if (strstr (mount, "${")) return -1;
+    if (fb == NULL || fb->mount == NULL) return -1;
+
+    const char *m = fb->mount;
+    if (strstr (m, "${")) return -1;
+
     mount_proxy *mountinfo = NULL;
     while (m && loop--)
     {
@@ -2201,11 +2213,12 @@ int fallback_count (const char *mount)
             {
                 fbinfo finfo;
 
-                memset (&finfo, 0, sizeof (finfo));
+                memcpy (&finfo, fb, sizeof (finfo));
                 finfo.flags = FS_FALLBACK;
                 finfo.mount = (char *)m;
                 finfo.override = NULL;
-                finfo.limit = mountinfo ? mountinfo->limit_rate/8 : 0;
+                if (finfo.limit == 0)
+                    finfo.limit = mountinfo ? mountinfo->limit_rate/8 : 0;
                 if (finfo.limit == 0)
                 {
                     unsigned int rate;

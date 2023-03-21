@@ -1367,16 +1367,18 @@ static int _parse_mount_auth (cfg_xml *cfg, void *arg)
 static int _parse_fallback (cfg_xml *cfg, void *x)
 {
     fbinfo *fb = (fbinfo*)x;
+    int64_t limit = 0;
     struct cfg_tag icecast_tags[] =
     {
         { "mount",              config_get_str,         &fb->mount,   .flags = CFG_TAG_DEF },
-        { "rate",               config_get_bitrate,     &fb->limit },
+        { "rate",               config_get_bitrate,     &limit },
         { NULL, NULL, NULL },
     };
 
     parse_xml_tags (cfg, icecast_tags);
     if (fb->mount == NULL)
         WARN1 ("incomplete specification (line %ld)", xmlGetLineNo (cfg->node));
+    fb->limit = limit/8;   // the fbinfo sruct expects measure in bytes
     return 1;
 }
 
