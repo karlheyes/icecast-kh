@@ -261,6 +261,7 @@ static int xslt_sheet_check (stylesheet_cache_t *cached, uint64_t now)
         }
         if (file.st_mtime == cached->last_modified)
         {
+            rc = 0;
             DEBUG1 ("file %s has same mtime, not modified", cached->filename);
             break;
         }
