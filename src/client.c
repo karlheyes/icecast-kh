@@ -578,7 +578,7 @@ typedef struct {
 } worker_client_t;
 
 #define WKRC_NORMAL_CLIENTS     (1)
-#define WKRC_NORMAL_AFTER       (1<<1) // set when WKRC_NORMAL_CLIENTSis unset to cause an auto run wof both fast and normal
+#define WKRC_NORMAL_AFTER       (1<<1) // set when WKRC_NORMAL_CLIENTS is unset to cause an auto run of both fast and normal
 #define WKR_CLIENT_INIT(W)      { .worker = W, .max_run = 5000, .flags = WKRC_NORMAL_CLIENTS }
 
 static void worker_add_pending_clients (worker_client_t *wc)

@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2010-2023, Karl Heyes <karl@kheyes.plus.com>
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -94,31 +94,31 @@ static int  source_set_override (mount_proxy *mountinfo, source_t *dest_source, 
 static void source_run_script (char *command, char *mountpoint);
 #endif
 
-struct _client_functions source_client_ops = 
+struct _client_functions source_client_ops =
 {
     source_client_read,
     client_destroy
 };
 
-struct _client_functions source_client_halt_ops = 
+struct _client_functions source_client_halt_ops =
 {
     source_client_shutdown,
     source_client_release
 };
 
-struct _client_functions listener_client_ops = 
+struct _client_functions listener_client_ops =
 {
     send_to_listener,
     client_destroy
 };
 
-struct _client_functions listener_pause_ops = 
+struct _client_functions listener_pause_ops =
 {
     wait_for_restart,
     client_destroy
 };
 
-struct _client_functions listener_wait_ops = 
+struct _client_functions listener_wait_ops =
 {
     wait_for_other_listeners,
     client_destroy
@@ -2559,7 +2559,7 @@ int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client,
     while (node)
     {
         client_t *existing_client = (client_t *)node->key;
-        if (existing_client->username && 
+        if (existing_client->username &&
                 strcmp (existing_client->username, client->username) == 0)
         {
             if (auth->flags & AUTH_DEL_EXISTING_LISTENER)
@@ -2572,7 +2572,7 @@ int check_duplicate_logins (const char *mount, avl_tree *tree, client_t *client,
                 return 0;
         }
         node = avl_get_next (node);
-    }       
+    }
     return 1;
 }
 
