@@ -1377,7 +1377,7 @@ int fserve_query_count (fbinfo *finfo, mount_proxy *mountinfo)
         {
             ret = fh->refcount;
             if (ret == 0)
-                fh->expire = 0;
+                fh->expire = time(NULL)+20;
             thread_mutex_unlock (&fh->lock);
         }
     }
