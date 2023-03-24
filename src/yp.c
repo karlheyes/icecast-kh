@@ -226,7 +226,7 @@ static void destroy_yp_server (struct yp_server *server)
 
 static void yp_schedule (ypdata_t *yp, unsigned offset)
 {
-    time_t when = ypclient.worker->current_time.tv_sec + offset;
+    time_t when = time(NULL) + offset;
     yp->next_update = when;
     if ((uint64_t)when < ypclient.counter)
         ypclient.counter = (uint64_t)when;
@@ -252,10 +252,11 @@ static int directory_recheck (client_t *client)
             {
                 if (yp_update || client->counter <= client->worker->current_time.tv_sec)
                 {
-                    ret = 1;
                     client->counter = (uint64_t)-1;
+                    client->worker = NULL;
+                    thread_rwlock_unlock (&yp_lock);
                     thread_create ("YP Thread", yp_update_thread, NULL, THREAD_DETACHED);
-                    break;
+                    return 1;
                 }
             }
         }
