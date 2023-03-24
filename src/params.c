@@ -340,6 +340,7 @@ int  ice_params_setup (ice_params_t *params, const char *divider, const char *se
     memset (params, 0, sizeof (*params));
     params->entry_div_len = snprintf (&params->entry_div[0], sizeof (params->entry_div), "%s", divider);
     params->entry_end_len = snprintf (&params->entry_end[0], sizeof (params->entry_end), "%s", separator);
+    params->flags = flags;
 
     params->len = 1;       // start with allowing for the nul
     return 0;

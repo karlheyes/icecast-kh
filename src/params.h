@@ -108,6 +108,8 @@ int  ice_http_printf (ice_http_t *http, const char *name, int flags, const char 
 
 int  ice_params_setup (ice_params_t *p, const char *divider, const char *separator, unsigned int flags);
 int  ice_params_printf (ice_params_t *p, const char *name, int flags, const char *fmt, ...) __attribute__ ((format (printf, 4, 5)));
+int  ice_params_apply (ice_params_t *pm, const ice_param_t *header);
+void ice_params_clear (ice_params_t *params);
 refbuf_t *ice_params_complete (ice_params_t *pm);
 
 #endif
