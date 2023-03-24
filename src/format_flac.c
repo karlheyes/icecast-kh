@@ -50,7 +50,7 @@ static refbuf_t *process_flac_page (ogg_state_t *ogg_info, ogg_codec_t *codec, o
 
     if (codec->headers)
     {
-        int loop = 3;
+        int loop = 10, found_header = 0;
         ogg_packet packet;
         if (ogg_stream_pagein (&codec->os, page) < 0)
         {
@@ -64,24 +64,34 @@ static refbuf_t *process_flac_page (ogg_state_t *ogg_info, ogg_codec_t *codec, o
             if (pkt > 0)
             {
                 int type = packet.packet[0];
-                if (type == 0xFF) // seen audio pkt, drop to normal processing
+                if (type == 0xFF || type == 0) // seen audio pkt, drop to normal processing
                 {
+                    if (found_header)
+                        WARN0 ("Found an unexpected packet with headers");
                     codec->headers = 0;
                     break;
                 }
-                codec->headers--;
+                if (type == 0x7F)
+                {
+                    WARN0 ("Found another initial header packet");
+                    ogg_info->error = 1;
+                    return NULL;
+                }
+                if (codec->headers > 0)
+                    codec->headers--;
                 // other valid header pkts are fine
-                if (type >= 1 && type <= 0x7E)
-                    continue;
-                if (type >= 0x81 && type <= 0xFE)
-                    continue;
-                // something odd
+                continue;
+            }
+            if (pkt == 0) break;
+            if (loop == 0)
+            {
+                WARN0 ("Looping too many times, abort packetout");
                 ogg_info->error = 1;
                 return NULL;
             }
-            loop = (pkt < 0) ? (loop-1) : 0;
+            loop--;
         }
-        if (codec->headers)
+        if (found_header)
         {
             DEBUG0("Adding header page");
             format_ogg_attach_header (codec, page);
@@ -129,21 +139,15 @@ ogg_codec_t *initial_flac_page (format_plugin_t *plugin, ogg_page *page)
             break;
         }
         int headers = (parse[7]<<8) + parse[8];
+
         if (headers == 0)
         {
-            WARN0 ("FLAC stream has unknown number of headers, skipping");
-            break;
+            INFO0 ("FLAC stream has unknown number of headers");
+            headers = -1;
         }
         if (memcmp (parse+9, "fLaC", 4) != 0)
             break;
-        uint32_t samplerate = (((parse[9+10] << 8) + parse[9+11]) << 4) + (parse[9+12]>>4);
-        if (samplerate == 0)
-            INFO0 ("seen initial FLAC header");
-        else
-        {
-            uint32_t channels = ((parse[9+12]>>1) & 0x7) + 1;
-            INFO2 ("seen initial FLAC header (hint %dHz, channels %d)", samplerate, channels);
-        }
+        INFO0 ("seen initial FLAC header");
         stats_event_args (ogg_info->mount, "FLAC_version", "%d.%d",  parse[5], parse[6]);
         codec->process_page = process_flac_page;
         codec->codec_free = flac_codec_free;
