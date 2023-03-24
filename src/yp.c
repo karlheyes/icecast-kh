@@ -54,7 +54,6 @@ struct yp_server
 };
 
 
-
 typedef struct ypdata_tag
 {
     int remove;
@@ -63,17 +62,9 @@ typedef struct ypdata_tag
 
     char *sid;
     char *mount;
-    char *url;
     char *listen_url;
-    char *server_name;
-    char *server_desc;
-    char *server_genre;
     char *cluster_password;
-    char *bitrate;
-    char *audio_info;
-    char *server_type;
     char *current_song;
-    char *subtype;
 
     struct yp_server *server;
     time_t      next_update;
@@ -83,6 +74,9 @@ typedef struct ypdata_tag
 
     struct ypdata_tag *next;
 } ypdata_t;
+
+#define  YP_CURRENT_SONG        1
+#define  YP_CLUSTER_PASSWORD    2
 
 
 typedef struct _yp_change_t
@@ -103,9 +97,8 @@ int yp_initialised;
 static volatile struct yp_server *active_yps = NULL, *pending_yps = NULL;
 static volatile int yp_update = 0;
 static time_t now;
-static volatile thread_type *yp_thread;
-static volatile unsigned client_limit = 0;
-static volatile char *server_version = NULL;
+static unsigned serv_max_listeners = 0;
+static char *serv_admin = NULL;
 
 static void *yp_update_thread(void *arg);
 static void add_yp_info (ypdata_t *yp, void *info, int type);
@@ -300,7 +293,7 @@ void yp_recheck_config (ice_config_t *config)
     struct yp_server *server;
 
     DEBUG0("Updating YP configuration");
-    thread_rwlock_rlock (&yp_lock);
+    thread_rwlock_wlock (&yp_lock);
 
     server = (struct yp_server *)active_yps;
     while (server)
@@ -308,9 +301,10 @@ void yp_recheck_config (ice_config_t *config)
         server->remove = 1;
         server = server->next;
     }
-    client_limit = config->client_limit;
-    free ((char*)server_version);
-    server_version = strdup (config->server_id);
+    serv_max_listeners = config->max_listeners < 0 ? config->client_limit : config->max_listeners;
+    free (serv_admin);
+    serv_admin = strdup (config->admin ? config->admin : "");
+
     /* for each yp url in config, check to see if one exists
        if not, then add it. */
     for (i=0 ; i < config->num_yp_directories; i++)
@@ -322,7 +316,7 @@ void yp_recheck_config (ice_config_t *config)
 
             if (server == NULL)
                 break;
-            server->server_id = strdup ((char *)server_version);
+            server->server_id = strdup ((char *)config->server_id);
             server->url = strdup (config->yp_url[i]);
             server->url_timeout = config->yp_url_timeout[i];
             server->touch_interval = config->yp_touch_interval[i];
@@ -377,6 +371,23 @@ void yp_initialize (ice_config_t *config)
  * return 0 for ok, -1 for this entry failed, -2 for server fail.
  * On failure case, update and process are modified
  */
+#if 0
+// shell routine to check for POST requests that would go out
+//
+static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
+{
+    DEBUG2 ("send YP (%s):%s", cmd, post);
+    if (strcmp (cmd, "add") == 0)
+    {
+        char tmp [30];
+        snprintf (tmp, sizeof tmp, "%ld", time(NULL));
+        yp->sid = strdup (tmp);
+        yp->touch_interval = 35;
+    }
+    yp_schedule (yp, yp->touch_interval);
+    return 0;
+}
+#else
 static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
 {
     int curlcode;
@@ -427,6 +438,7 @@ static int send_to_yp (const char *cmd, ypdata_t *yp, char *post)
     DEBUG3 ("YP %s at %s for %s succeeded", cmd, server->url, yp->mount);
     return 0;
 }
+#endif
 
 
 /* routines for building and issues requests to the YP server */
@@ -457,143 +469,128 @@ static int do_yp_remove (ypdata_t *yp, char *s, unsigned len)
  * (to handle lower figures) and then refer to the most significant 3 bits using shift
  * ops.  This should give us a resoanble estimation for YP
  */
-static void set_bitrate_from_inrate (ypdata_t *yp)
+static int get_bitrate_from_inrate (const char *inrate, char *buf, int maxlen)
 {
-    char *value = stats_get_value (yp->mount, "incoming_bitrate");
-    if (value)
+    long v = 0, c = 0;
+    if (inrate)
     {
-        long v = atol (value), c = 0;
-        char buf [22];
-
+        v = atol (inrate);
         v = (long)(v*1.1) + 5;
         for (; v > 7; c++)
             v >>= 1;
         v <<= c;
         v /= 1024;
-        snprintf (buf, sizeof buf, "%ld", v);
-        add_yp_info (yp, buf, YP_BITRATE);
-        free (value);
+        snprintf (buf, maxlen, "%ld", v);
     }
+    return buf[0] ? 1 : 0;
 }
 
 
+static int yp_normalise_bitrate (stats_handle_t stats, char *buf, int maxlen)
+{
+    const char *value = stats_retrieve_nocopy (stats, "incoming_bitrate");
+    int rc = 0;
+    if (value)
+        rc = get_bitrate_from_inrate (value, buf, maxlen);
+    return rc;
+}
+
+
+static const char *yp_stat (stats_handle_t stats, const char *name)
+{
+    const char *v = stats_retrieve_nocopy (stats, name);
+    return v ? v : "";
+}
+
 static int do_yp_add (ypdata_t *yp, char *s, unsigned len)
 {
-    int ret;
-    char *value;
-
-    value = stats_get_value (yp->mount, "server_type");
-    add_yp_info (yp, value, YP_SERVER_TYPE);
-    free (value);
-
-    value = stats_get_value (yp->mount, "server_name");
-    if (value == NULL || strcasecmp (value, "Unspecified name") == 0)
+    ice_params_t post;
+    ice_params_setup (&post, "=", "&", PARAMS_ESC);
+    ice_params_printf (&post, "action", PARAM_AS, "add");
+    stats_handle_t stats = stats_handle (yp->mount);
+    do
     {
-        INFO1 ("mount %s requires valid name", yp->mount);
-        yp_schedule (yp, 600);
-        free (value);
-        return 0;
-    }
-    add_yp_info (yp, value, YP_SERVER_NAME);
-    free (value);
-
-    value = stats_get_value (yp->mount, "server_url");
-    add_yp_info (yp, value, YP_SERVER_URL);
-    free (value);
-
-    value = stats_get_value (yp->mount, "genre");
-    add_yp_info (yp, value, YP_SERVER_GENRE);
-    free (value);
-
-    value = stats_get_value (yp->mount, "bitrate");
-    if (value)
-    {
-        add_yp_info (yp, value, YP_BITRATE);
-        free (value);
-    }
-    else
-        set_bitrate_from_inrate (yp);
-
-    value = stats_get_value (yp->mount, "server_description");
-    add_yp_info (yp, value, YP_SERVER_DESC);
-    free (value);
-
-    value = stats_get_value (yp->mount, "subtype");
-    add_yp_info (yp, value, YP_SUBTYPE);
-    free (value);
-
-    value = stats_get_value (yp->mount, "audio_info");
-    add_yp_info (yp, value, YP_AUDIO_INFO);
-    free (value);
-
-    if (yp->server_name[0] == 0 || yp->server_genre[0] == 0 || yp->server_type[0] == 0 || yp->bitrate[0] == 0)
-    {
+        if (stats == 0) break;
+        const char *name = yp_stat (stats, "server_name"),
+                   *genre = yp_stat (stats, "genre"),
+                   *type = yp_stat (stats, "server_type");
+        char bitrate [30];
+        if (name[0] && genre[0] && type[0] && yp_normalise_bitrate (stats, bitrate, sizeof bitrate))
+        {
+            ice_param_t x[] = {
+                { .name="admin",        .value = serv_admin },
+                { .name="sn",           .value = (char*)name },
+                { .name="genre",        .value = (char*)genre },
+                { .name="type",         .value = (char*)type },
+                { .name="b",            .value = bitrate },
+                { .name="cpswd",        .value = yp->cluster_password },
+                { .name="desc",         .value = (char*)yp_stat (stats, "server_description") },
+                { .name="url",          .value = (char*)yp_stat (stats, "url") },
+                { .name="listenurl",    .value = (char*)yp_stat (stats, "listenurl") },
+                { .name="stype",        .value = (char*)yp_stat (stats, "subtype") },
+                { .name="",             .value = (char*)yp_stat (stats, "audio_info"), .flags = PARAM_AS }
+            };
+            for (int i=0; i < (sizeof (x)/sizeof (x[0])); i++)
+                ice_params_apply (&post, &x[i]);
+            refbuf_t *rb = ice_params_complete (&post);
+            stats_release (stats);
+            int ret = send_to_yp ("add", yp, rb->data);
+            refbuf_release (rb);
+            if (ret == 0)
+            {
+                yp->process = do_yp_touch;
+                yp_schedule (yp, 5); /* force first touch in 5 secs */
+            }
+            return ret;
+        }
+        stats_release (stats);
         INFO1 ("mount %s requires stats (sn, genre, type, bitrate)", yp->mount);
         yp_schedule (yp, 600);
-        return -1;
-    }
-    ret = snprintf (s, len, "action=add&sn=%s&genre=%s&cpswd=%s&desc="
-                    "%s&url=%s&listenurl=%s&type=%s&stype=%s&b=%s&%s\r\n",
-                    yp->server_name, yp->server_genre, yp->cluster_password,
-                    yp->server_desc, yp->url, yp->listen_url,
-                    yp->server_type, yp->subtype, yp->bitrate, yp->audio_info);
-    if (ret >= (signed)len)
-        return ret+1;
-    ret = send_to_yp ("add", yp, s);
-    if (ret == 0)
-    {
-        yp->process = do_yp_touch;
-        /* force first touch in 5 secs */
-        yp_schedule (yp, 5);
-    }
-    return ret;
+    } while (0);
+    ice_params_clear (&post);
+    return -1;
 }
 
 
 static int do_yp_touch (ypdata_t *yp, char *s, unsigned len)
 {
-    unsigned listeners = 0, max_listeners = 1;
-    char *val;
-    int ret;
-
-    if (yp->sid == NULL) // odd case, go back to add, try get another sid.
+    do
     {
-        yp->process = do_yp_touch;
-        yp_schedule (yp, 60);
-    }
-    val = (char *)stats_get_value (yp->mount, "listeners");
-    if (val)
-    {
-        listeners = atoi (val);
-        free (val);
-    }
-    val = stats_get_value (yp->mount, "max_listeners");
-    if (val == NULL || strcmp (val, "unlimited") == 0 || atoi(val) < 0)
-        max_listeners = client_limit;
-    else
-        max_listeners = atoi (val);
-    free (val);
-
-    val = stats_get_value (yp->mount, "subtype");
-    if (val)
-    {
-        add_yp_info (yp, val, YP_SUBTYPE);
-        free (val);
-    }
-
-    ret = snprintf (s, len, "action=touch&sid=%s&st=%s"
-            "&listeners=%u&max_listeners=%u&stype=%s\r\n",
-            yp->sid, yp->current_song, listeners, max_listeners, yp->subtype);
-
-    if (ret >= (signed)len)
-        return ret+1; /* space required for above text and nul*/
-
-    ret = send_to_yp ("touch", yp, s);
-    if (ret == 0)
-    {
-        yp_schedule (yp, yp->touch_interval);
-    }
-    return ret;
+        if (yp->sid == NULL) // go back to add, try get another sid.
+        {
+            yp->process = do_yp_add;
+            yp_schedule (yp, 60);
+            return 0;
+        }
+        int max_listeners = 1;
+        ice_params_t post;
+        ice_params_setup (&post, "=", "&", PARAMS_ESC);
+        ice_params_printf (&post, "action", PARAM_AS, "touch");
+        ice_params_printf (&post, "sid",    PARAM_AS, "%s", yp->sid);
+        stats_handle_t stats = stats_handle (yp->mount);
+        if (stats)
+        {
+            ice_params_printf (&post, "st", 0, "%s", yp->current_song);
+            ice_params_printf (&post, "listeners", PARAM_AS, "%s", yp_stat (stats, "listeners"));
+            const char *v = stats_retrieve_nocopy (stats, "max_listeners");
+            if (v)
+                max_listeners = atoi (v);
+            if (v == NULL || strcmp (v, "unlimited") == 0 || max_listeners < 0)
+                max_listeners = serv_max_listeners;
+            ice_params_printf (&post, "max_listeners", PARAM_AS, "%d", max_listeners);
+            ice_params_printf (&post, "stype", 0, "%s", yp_stat (stats, "subtype"));
+            refbuf_t *rb = ice_params_complete (&post);
+            stats_release (stats);
+            int ret = send_to_yp ("touch", yp, rb->data);
+            refbuf_release (rb);
+            if (ret == 0)
+                yp_schedule (yp, yp->touch_interval);
+            return ret;
+        }
+        ice_params_clear (&post);
+        free (yp->sid);
+        yp->sid = NULL; // loop to exit out
+    } while (1);
 }
 
 
@@ -691,16 +688,8 @@ static ypdata_t *create_yp_entry (const char *mount)
         if (yp == NULL)
             break;
         yp->mount = strdup (mount);
-        yp->server_name = strdup ("");
-        yp->server_desc = strdup ("");
-        yp->server_genre = strdup ("");
-        yp->bitrate = strdup ("");
-        yp->server_type = strdup ("");
         yp->cluster_password = strdup ("");
-        yp->url = strdup ("");
         yp->current_song = strdup ("");
-        yp->audio_info = strdup ("");
-        yp->subtype = strdup ("");
         yp->process = do_yp_add;
 
         url = malloc (len);
@@ -841,11 +830,11 @@ static void *yp_update_thread(void *arg)
 {
     struct yp_server *server;
 
-    yp_thread = thread_self();
-    /* DEBUG0("YP thread started"); */
+    // DEBUG0("YP thread started");
 
     /* do the YP communication */
     thread_rwlock_rlock (&yp_lock);
+
     server = (struct yp_server *)active_yps;
     while (server)
     {
@@ -856,9 +845,9 @@ static void *yp_update_thread(void *arg)
     thread_rwlock_unlock (&yp_lock);
 
     /* update the local YP structure */
+    thread_rwlock_wlock (&yp_lock);
     if (yp_update)
     {
-        thread_rwlock_wlock (&yp_lock);
         check_servers ();
         server = (struct yp_server *)active_yps;
         while (server)
@@ -869,13 +858,12 @@ static void *yp_update_thread(void *arg)
             server = server->next;
         }
         yp_update = 0;
-        thread_rwlock_unlock (&yp_lock);
     }
-    yp_thread = NULL;
-    /* DEBUG0("YP thread shutdown"); */
+    thread_rwlock_unlock (&yp_lock);
 
     if (global_state() == ICE_RUNNING)
         client_add_incoming (&ypclient);
+    // DEBUG0("YP thread shutdown");
     return NULL;
 }
 
@@ -887,20 +875,8 @@ static void yp_destroy_ypdata(ypdata_t *ypdata)
         if (ypdata->mount) {
             free (ypdata->mount);
         }
-        if (ypdata->url) {
-            free (ypdata->url);
-        }
         if (ypdata->sid) {
             free(ypdata->sid);
-        }
-        if (ypdata->server_name) {
-            free(ypdata->server_name);
-        }
-        if (ypdata->server_desc) {
-            free(ypdata->server_desc);
-        }
-        if (ypdata->server_genre) {
-            free(ypdata->server_genre);
         }
         if (ypdata->cluster_password) {
             free(ypdata->cluster_password);
@@ -911,16 +887,6 @@ static void yp_destroy_ypdata(ypdata_t *ypdata)
         if (ypdata->current_song) {
             free(ypdata->current_song);
         }
-        if (ypdata->bitrate) {
-            free(ypdata->bitrate);
-        }
-        if (ypdata->server_type) {
-            free(ypdata->server_type);
-        }
-        if (ypdata->audio_info) {
-            free(ypdata->audio_info);
-        }
-        free (ypdata->subtype);
         free (ypdata->error_msg);
         free (ypdata);
     }
@@ -930,7 +896,7 @@ static void add_yp_info (ypdata_t *yp, void *info, int type)
 {
     char *escaped;
 
-    if (!info)
+    if (info == NULL)
         return;
 
     escaped = util_url_escape(info);
@@ -939,34 +905,6 @@ static void add_yp_info (ypdata_t *yp, void *info, int type)
 
     switch (type)
     {
-        case YP_SERVER_NAME:
-            free (yp->server_name);
-            yp->server_name = escaped;
-            break;
-        case YP_SERVER_DESC:
-            free (yp->server_desc);
-            yp->server_desc = escaped;
-            break;
-        case YP_SERVER_GENRE:
-            free (yp->server_genre);
-            yp->server_genre = escaped;
-            break;
-        case YP_SERVER_URL:
-            free (yp->url);
-            yp->url = escaped;
-            break;
-        case YP_BITRATE:
-            free (yp->bitrate);
-            yp->bitrate = escaped;
-            break;
-        case YP_AUDIO_INFO:
-            free (yp->audio_info);
-            yp->audio_info = escaped;
-            break;
-        case YP_SERVER_TYPE:
-            free (yp->server_type);
-            yp->server_type = escaped;
-            break;
         case YP_CURRENT_SONG:
             free (yp->current_song);
             yp->current_song = escaped;
@@ -974,10 +912,6 @@ static void add_yp_info (ypdata_t *yp, void *info, int type)
         case YP_CLUSTER_PASSWORD:
             free (yp->cluster_password);
             yp->cluster_password = escaped;
-            break;
-        case YP_SUBTYPE:
-            free (yp->subtype);
-            yp->subtype = escaped;
             break;
         default:
             free (escaped);
@@ -1222,8 +1156,8 @@ void yp_shutdown (void)
         active_yps = server->next;
         destroy_yp_server (server);
     }
-    free ((char*)server_version);
-    server_version = NULL;
+    free (serv_admin);
+    serv_admin = NULL;
     active_yps = NULL;
     yp_initialised = 0;
     INFO0 ("YP cleanup complete");
