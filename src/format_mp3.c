@@ -471,18 +471,12 @@ static void metadata_setup (source_t *source)
 
         if (mpeg_sync)
         {
-            char *str = stats_retrieve (source->stats, "server_name");
+            const char *str = stats_retrieve_nocopy (source->stats, "server_name");
             if (str)
-            {
                 flv_meta_append_string (flvmeta, "name", str);
-                free (str);
-            }
-            str = stats_retrieve (source->stats, "server_description");
+            str = stats_retrieve_nocopy (source->stats, "server_description");
             if (str)
-            {
                 flv_meta_append_string (flvmeta, "description", str);
-                free (str);
-            }
             flv_meta_append_number (flvmeta, "audiodatarate", syncframe_bitrate (mpeg_sync));
             flv_meta_append_number (flvmeta, "audiosamplerate", syncframe_samplerate (mpeg_sync));
             flv_meta_append_bool (flvmeta, "stereo", syncframe_channels (mpeg_sync) == 2 ? 1 : 0);

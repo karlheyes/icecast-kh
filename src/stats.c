@@ -330,14 +330,18 @@ char *stats_get_value(const char *source, const char *name)
 }
 
 
-char *stats_retrieve (stats_handle_t handle, const char *name)
+const char *stats_retrieve_nocopy (stats_handle_t handle, const char *name)
 {
-    char *v = NULL;
     stats_source_t *src_stats = (stats_source_t *)handle;
     stats_node_t *stats = _find_node (src_stats->stats_tree, name);
+    return stats ? stats->value : NULL;
+}
 
-    if (stats) v =  strdup (stats->value);
-    return v;
+
+char *stats_retrieve (stats_handle_t handle, const char *name)
+{
+    const char *str = stats_retrieve_nocopy (handle, name);
+    return str ? strdup (str) : NULL;
 }
 
 

@@ -73,6 +73,7 @@ void stats_set_flags (stats_handle_t handle, const char *name, const char *value
 void stats_set_conv (stats_handle_t handle, const char *name, const char *value, const char *charset);
 void stats_set_time (stats_handle_t handle, const char *name, int flags, time_t tm);
 char *stats_retrieve (stats_handle_t handle, const char *name);
+const char *stats_retrieve_nocopy (stats_handle_t handle, const char *name);
 
 void stats_listener_to_xml (client_t *listener, xmlNodePtr parent);
 
