@@ -1620,7 +1620,7 @@ int relay_source_reactivated (source_t *source)
 // used for a intermediate stage when switching to a higher priority host. As a separate relay
 // is made to allow modifications, the existing relay is just removed from the global tree and
 // this routine just makes sure the relay client for that has seen it and now we can add the
-// copy into the tree.
+// relay copy into the tree.  Trigger the update of stream stats is the last thing we do
 //
 static int relay_wait_on_switchover (client_t *client)
 {
@@ -1649,6 +1649,10 @@ static int relay_wait_on_switchover (client_t *client)
         avl_tree_unlock (global.relays);
 
         DEBUG2 ("relay source %s, start pos %"PRIu64, source->mount, source->client->queue_pos);
+        // check for other stats that should be updated from the new client
+        mount_proxy *mountinfo = config_lock_mount (NULL, source->mount);
+        source_update_settings (NULL, source, mountinfo);
+        config_release_mount (mountinfo);
         thread_rwlock_unlock (&source->lock);
         client->ops = &relay_client_ops;
         return 0;
