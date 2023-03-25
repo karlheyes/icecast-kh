@@ -1405,9 +1405,9 @@ stats_handle_t stats_handle (const char *mount)
 
         avl_insert (_stats.source_tree, (void *)src_stats);
     }
-    src_stats->updated = (time_t)(LONG_MAX);
     avl_tree_wlock (src_stats->stats_tree);
     avl_tree_unlock (_stats.source_tree);
+    src_stats->updated = (time_t)(LONG_MAX);
 
     return (stats_handle_t)src_stats;
 }
@@ -1442,6 +1442,7 @@ void stats_flush (stats_handle_t handle)
         avl_node *node;
 
         avl_tree_wlock (src_stats->stats_tree);
+        src_stats->updated = 0;
         while ((node = src_stats->stats_tree->root->right))
         {
             stats_node_t *stats = (stats_node_t*)node->key;
@@ -1454,7 +1455,7 @@ void stats_flush (stats_handle_t handle)
 }
 
 
-// assume source stats are write locked 
+// assume source stats are write locked
 void stats_set (stats_handle_t handle, const char *name, const char *value)
 {
     if (handle)

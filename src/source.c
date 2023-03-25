@@ -2415,27 +2415,16 @@ static void source_run_script (char *command, char *mountpoint)
 #endif
 
 
-// match the fallback return code on this, -2 try again, -1 missing, 0+ actual count
+// return 0 for determined value at p, -1 is failed to lock source
+// p contains source pointer if reserved and locked if return 0
 //
-static int _get_source_listeners (const char *mount)
+static int _get_source (const char *mount, source_t **p)
 {
-    int rc = -2;
-
-    if (avl_tree_tryrlock (global.source_tree) == 0)
-    {
-        source_t *source = source_find_mount_raw (mount);
-        if (source == NULL)
-            rc = -1;
-        else if (thread_rwlock_tryrlock (&source->lock) == 0)
-        {
-            if (source_available (source))
-                rc = source->listeners;
-            else
-                rc = -1;
-            thread_rwlock_unlock (&source->lock);
-        }
-        avl_tree_unlock (global.source_tree);
-    }
+    source_t *source = source_find_mount_raw (mount);
+    int rc = 0;
+    if (source && thread_rwlock_tryrlock (&source->lock) < 0)
+        rc = -1;
+    *p = source;
     return rc;
 }
 
@@ -2449,9 +2438,9 @@ void source_recheck_mounts (int update_all)
     time_t mark = time (NULL);
 
     //DEBUG1 ("run through %d", update_all);
+    avl_tree_rlock (global.source_tree);
     if (update_all)
     {
-        avl_tree_rlock (global.source_tree);
         avl_node *node = avl_get_first (global.source_tree);
         while (node)
         {
@@ -2465,76 +2454,62 @@ void source_recheck_mounts (int update_all)
             config_release_mount (mountinfo);
             node = avl_get_next (node);
         }
-        avl_tree_unlock (global.source_tree);
     }
 
     // update stats for specific mounts that are inactive but have active fallbacks
     config = config_get_config();
     avl_node *node = avl_get_first (config->mounts_tree);
-    int loop = 0;
     while (node)
     {
         source_t *source = NULL;
         mount_proxy *mount = (mount_proxy*)node->key;
-        int rc = -1;
 
         node = avl_get_next (node);
 
         if (mount->fallback.mount == NULL)
             continue;              // ignore these
 
-        config_mount_ref (mount, 1);
-        config_release_config();
+        if (_get_source (mount->mountname, &source) < 0)
+            continue;   // something else has a lock, so ignore
 
-        do {
-            if ((rc = _get_source_listeners (mount->mountname)) < -1)
-                break;  // odd case, loop back around try again a few times
+        if (source == NULL || source_available (source) == 0)
+        {   // if source locked or set to something then it is being used, skip it
+            unsigned int len;
+            int rc = -1, loop = 5;
+            char buffer [4096];
 
-            if (rc < 0)         // source not available, check for a file
+            len = sizeof buffer;
+            if (util_expand_pattern (mount->mountname, mount->fallback.mount, buffer, &len) == 0)
             {
-                unsigned int len;
-                char buffer [4096];
-
-                len = sizeof buffer;
-                if (util_expand_pattern (mount->mountname, mount->fallback.mount, buffer, &len) == 0)
+                fbinfo f = mount->fallback;
+                f.mount = buffer;
+                while (loop && (rc = fallback_count (&f)) < 0)
                 {
-                    fbinfo f = mount->fallback;
-                    f.mount = buffer;
-                    rc = fallback_count (&f);
+                    thread_sleep (4000);
+                    --loop;
                 }
-
-                if (rc == -2) break;  // odd case, would stall, try again
-                if (rc >= 0)
-                {
-                    DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, rc);
-                    stats_handle_t stats = stats_handle (mount->mountname);
-                    if (source == NULL) // mark for purge if there is no source at all
-                        stats_set_expire (stats, mark);
-                    stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);
-                    stats_set_args (stats, "listenurl", "http://%s:%d%s",
-                            config->hostname, config->port, mount->mountname);
-                    stats_set (stats, "listeners", "0");
-                    if (mount->max_listeners < 0)
-                        stats_set (stats, "max_listeners", "unlimited");
-                    else
-                        stats_set_args (stats, "max_listeners", "%d", mount->max_listeners);
-                    stats_release (stats);
-                }
-                // rc == -1 m just fall thru...
             }
-        } while (0);
-
-        config_release_mount (mount);
-        if (rc < -1)
-        {
-            thread_sleep (10);
-            config = config_get_config();
-            if (++loop > 9) break;
-            node = avl_get_first (config->mounts_tree);
-            continue;
+            if (rc >= 0)
+            {
+                DEBUG2 ("fallback checking %s (fallback has %d)", mount->mountname, rc);
+                stats_handle_t stats = stats_handle (mount->mountname);
+                stats_set_expire (stats, mark); // mark for quick purge
+                stats_set_flags (stats, NULL, NULL, mount->hidden?STATS_HIDDEN:0);
+                stats_set_args (stats, "listenurl", "http://%s:%d%s",
+                        config->hostname, config->port, mount->mountname);
+                stats_set (stats, "listeners", "0");
+                if (mount->max_listeners < 0)
+                    stats_set (stats, "max_listeners", "unlimited");
+                else
+                    stats_set_args (stats, "max_listeners", "%d", mount->max_listeners);
+                stats_release (stats);
+            }
+            // rc == -1 m just fall thru...
         }
-        config = config_get_config();
+        if (source)
+            thread_rwlock_unlock (&source->lock);
     }
+    avl_tree_unlock (global.source_tree);
     stats_purge (mark);
     config_release_config();
 }
