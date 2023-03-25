@@ -609,10 +609,10 @@ static void worker_add_pending_clients (worker_client_t *wc)
 static void worker_wait (worker_client_t *wc)
 {
     worker_t *worker = wc->worker;
-    int ret = 0, duration = 1;
+    int ret = 0, duration = 1, running = worker->running;
 
     thread_spin_unlock (&worker->lock);
-    if (worker->running)
+    if (running)
     {
         uint64_t tm = worker_check_time_ms (worker);
         if (wc->wakeup_ms > tm)
