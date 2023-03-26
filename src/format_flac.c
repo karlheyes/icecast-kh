@@ -80,6 +80,7 @@ static refbuf_t *process_flac_page (ogg_state_t *ogg_info, ogg_codec_t *codec, o
                 if (codec->headers > 0)
                     codec->headers--;
                 // other valid header pkts are fine
+                found_header = 1;
                 continue;
             }
             if (pkt == 0) break;
@@ -91,7 +92,7 @@ static refbuf_t *process_flac_page (ogg_state_t *ogg_info, ogg_codec_t *codec, o
             }
             loop--;
         }
-        if (found_header)
+        if (found_header || codec->headers)
         {
             DEBUG0("Adding header page");
             format_ogg_attach_header (codec, page);
