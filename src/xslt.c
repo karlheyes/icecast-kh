@@ -275,7 +275,7 @@ static int xslt_sheet_check (stylesheet_cache_t *cached, uint64_t now)
                 // avoid this lookup for html pages
                 char filename[100] = "file.";
                 fserve_write_mime_ext ((char*)sheet->mediaType, filename + 5, sizeof(filename)-5);
-                cache->disposition = strdup (cached->filename);
+                cache->disposition = strdup (filename);
             }
             rc = 0;
             cached->stylesheet = sheet;
