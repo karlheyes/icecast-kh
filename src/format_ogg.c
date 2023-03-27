@@ -88,20 +88,10 @@ refbuf_t *make_refbuf_with_page (ogg_codec_t *codec, ogg_page *page)
 }
 
 
-/* routine for taking the provided page (should be a header page) and
- * placing it on the collection of header pages
- */
-void format_ogg_attach_header (ogg_codec_t *codec, ogg_page *page)
+
+static void add_block_header (ogg_state_t *ogg_info, refbuf_t *refbuf, int bos)
 {
-    ogg_state_t *ogg_info = codec->parent;
-    refbuf_t *refbuf;
-    
-    if (codec->filtered)
-        return;
-
-    refbuf = make_refbuf_with_page (codec, page);
-
-    if (ogg_page_bos (page))
+    if (bos)
     {
         DEBUG0 ("attaching BOS page");
         if (*ogg_info->bos_end == NULL)
@@ -118,6 +108,52 @@ void format_ogg_attach_header (ogg_codec_t *codec, ogg_page *page)
 
     if (ogg_info->header_pages == NULL)
         ogg_info->header_pages = refbuf;
+}
+
+
+/* routine for taking the provided page (should be a header page) and
+ * placing it on the collection of header pages
+ */
+void format_ogg_attach_header (ogg_codec_t *codec, ogg_page *page)
+{
+    ogg_state_t *ogg_info = codec->parent;
+    refbuf_t *refbuf;
+
+    if (codec->filtered)
+        return;
+
+    refbuf = make_refbuf_with_page (codec, page);
+    add_block_header (ogg_info, refbuf, ogg_page_bos (page));
+}
+
+
+// routine to add non-intial header pages already flattened
+void format_ogg_attach_cached (ogg_codec_t *codec)
+{
+    ogg_state_t *ogg_info = codec->parent;
+    refbuf_t *block = codec->cached;
+    while (block)
+    {
+        refbuf_t *next = block->next;
+        block->next = NULL;
+        add_block_header (ogg_info, block, 0);
+        block = next;
+    }
+    codec->cached = NULL;
+    codec->cached_p = &codec->cached;
+}
+
+void format_ogg_free_cached (ogg_codec_t *codec)
+{
+    while (codec->cached)
+    {
+        refbuf_t *to_go = codec->cached;
+        codec->cached = to_go->next;
+        to_go->next = NULL;
+        refbuf_release (to_go);
+    }
+    codec->cached_p = &codec->cached;
+    codec->cached = NULL;
 }
 
 
@@ -149,6 +185,7 @@ static void free_ogg_codecs (ogg_state_t *ogg_info)
     {
         ogg_codec_t *next = codec->next;
         refbuf_release (codec->possible_start);
+        format_ogg_free_cached (codec);
         codec->codec_free (ogg_info, codec);
         codec = next;
     }
@@ -248,6 +285,7 @@ static int process_initial_page (format_plugin_t *plugin, ogg_page *page)
 
     if (ogg_info->bos_completed)
     {
+        INFO0 ("new BOS page arrived, reset for detection");
         ogg_info->bitrate = 0;
         ogg_info->codec_sync = NULL;
         /* need to zap old list of codecs when next group of BOS pages appear */
