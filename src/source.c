@@ -365,7 +365,6 @@ static int _free_source (void *p)
 void source_reset_client_stats (source_t *source, int not_locked)
 {
     source->last_read = time(NULL);
-    stats_event_inc (NULL, "source_total_connections");
     if (not_locked)
         source->stats = stats_lock (source->stats, source->mount);
     stats_set_flags (source->stats, "connected", "0", STATS_COUNTERS);
@@ -2314,12 +2313,11 @@ static int source_client_callback (client_t *client)
     const char *agent;
     source_t *source = client->shared_data;
 
-    stats_event_inc(NULL, "source_client_connections");
+    stats_event_inc (NULL, "source_client_connections");
+    stats_event_inc (NULL, "source_total_connections");
 
     client->ops = &source_client_ops;
-    if (source_running (source))
-        stats_event_inc (NULL, "source_total_connections");
-    else
+    if (source_running (source) == 0)
         source_init (source);
     agent = httpp_getvar (source->client->parser, "user-agent");
     thread_rwlock_unlock (&source->lock);

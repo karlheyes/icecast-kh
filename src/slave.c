@@ -650,6 +650,7 @@ static void *start_relay_stream (void *arg)
         if (open_relay (relay) < 0)
             break;
         stats_event_inc (NULL, "source_relay_connections");
+        stats_event_inc (NULL, "source_total_connections");
         source_init (src);
         config = config_get_config();
         mountinfo = config_find_mount (config, src->mount);
@@ -725,7 +726,7 @@ void detach_master_relay (const char *localmount, int cleanup)
 // return 0 to indicate unable to acquire, try again
 // return -1 to indicate failed.
 //
-int relay_has_source (relay_server *relay, client_t *client)
+static int relay_has_source (relay_server *relay, client_t *client)
 {
     source_t *source = relay->source;
     if (source)
@@ -1724,6 +1725,8 @@ static void *relay_switch (void *arg)
                 worker_wakeup (worker);
                 thread_rwlock_unlock (&source->lock);
 
+                stats_event_inc (NULL, "source_relay_connections");
+                stats_event_inc (NULL, "source_total_connections");
                 DEBUG2 ("switchover relay %p, client %p, flagged and new client added ", relay, client);
                 client->shared_data = relay;
                 client->schedule_ms = timing_get_time() + 60;
