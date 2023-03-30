@@ -8,8 +8,7 @@ DEF_VER=$(date "+%Y%m%d%H%M%S")
 if test -f version
 then
 	VN=$(cat version) || VN="$DEF_VER"
-elif test -d .git -o -f .git
-then
+else
 	VN=$(git describe --match icecast\* --long --dirty=-modified 2>/dev/null | cut -d - -f 4-)
 fi
 test -z "$VN" && VN="$DEF_VER"
