@@ -31,7 +31,7 @@ else
     PROFILE="-pg -g"
     AC_DEFINE([_GNU_SOURCE], 1, [Define to include GNU extensions to POSIX])
 fi
-AM_CONDITIONAL([WIN32], [test x$host_os = xmingw32])
+AM_CONDITIONAL([WINDOWS], [test x$host_os = xmingw32])
 if test x$host_os = xmingw32; then
 AC_DEFINE([_POSIX], 1, [Define to use C99 routines on MS])
 fi
@@ -78,9 +78,10 @@ if test "x$ac_cv_func_fnmatch" != "xyes"
 then
 AC_CHECK_LIB(fnmatch, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-lfnmatch"])],
         [ AC_CHECK_LIB(iberty, fnmatch, [XIPH_VAR_APPEND([XIPH_LIBS],["-liberty"])],
-        [ICECAST_OPTIONAL="$ICECAST_OPTIONAL fnmatch.o"])])
+        [])])
 AC_DEFINE(HAVE_FNMATCH_H, 1, [Define if using a local fnmatch])
 fi
+AM_CONDITIONAL([BUILD_FNMATCH], [test "x$ac_cv_func_fnmatch" != "xyes" ])
 AC_SEARCH_LIBS(nanosleep, rt posix4,
         AC_DEFINE(HAVE_NANOSLEEP, 1, [Define if you have nanosleep]))
 AC_SEARCH_LIBS(clock_gettime, rt posix4,
@@ -97,28 +98,31 @@ XIPH_PATH_VORBIS([
     XIPH_VAR_APPEND([XIPH_CPPFLAGS],[$VORBIS_CFLAGS])
     XIPH_VAR_PREPEND([XIPH_LIBS],[$VORBIS_LIBS])
     XIPH_VAR_APPEND([XIPH_LDFLAGS],[$VORBIS_LDFLAGS])
-    ICECAST_OPTIONAL="$ICECAST_OPTIONAL format_vorbis.o"
+    build_vorbis="yes"
     ],
     [AC_MSG_ERROR([must have Ogg Vorbis v1.0 or above installed])
     ])
+AM_CONDITIONAL([BUILD_VORBIS], [test "x$build_vorbis" = "xyes" ])
 
 XIPH_PATH_THEORA([
     XIPH_VAR_APPEND([XIPH_CPPFLAGS],[$THEORA_CFLAGS])
     XIPH_VAR_APPEND([XIPH_LDFLAGS],[$THEORA_LDFLAGS])
     XIPH_VAR_PREPEND([XIPH_LIBS],[$THEORA_LIBS])
-    ICECAST_OPTIONAL="$ICECAST_OPTIONAL format_theora.o"
+    build_theora="yes"
     ],
     [ AC_MSG_WARN([Theora disabled!])
     ])
+AM_CONDITIONAL([BUILD_THEORA], [test "x$build_theora" = "xyes" ])
 
 XIPH_PATH_SPEEX(
     [ XIPH_VAR_APPEND([XIPH_CPPFLAGS],[$SPEEX_CFLAGS])
     XIPH_VAR_PREPEND([XIPH_LIBS],[$SPEEX_LIBS])
     XIPH_VAR_APPEND([XIPH_LDFLAGS],[$SPEEX_LDFLAGS])
-    ICECAST_OPTIONAL="$ICECAST_OPTIONAL format_speex.o"
+    build_speex="yes"
     ],
     [ AC_MSG_WARN([Speex support disabled!])
     ])
+AM_CONDITIONAL([BUILD_SPEEX], [test "x$build_speex" = "xyes" ])
 
 AC_CHECK_LIB(kate, kate_decode_init,[have_kate=yes],[have_kate=no], -logg)
 if test "x$have_kate" = "xyes"
@@ -131,7 +135,6 @@ then
   fi
 fi
 dnl we still use format_kate as it doesn't need libkate to work
-#ICECAST_OPTIONAL="$ICECAST_OPTIONAL format_kate.o"
 
 ACX_PTHREAD(, AC_MSG_ERROR([POSIX threads missing]))
 XIPH_VAR_APPEND([XIPH_CFLAGS],[$PTHREAD_CFLAGS])
@@ -158,10 +161,11 @@ AC_ARG_ENABLE([yp],
 if test "x$enable_yp" = "xyes" -a "x$enable_curl" = xyes
 then
     AC_DEFINE([USE_YP], 1, [Define to compile in YP support code])
-    ICECAST_OPTIONAL="$ICECAST_OPTIONAL yp.o"
 else
     AC_MSG_NOTICE([YP support disabled])
 fi
+AM_CONDITIONAL([BUILD_YP], [test "x$enable_yp" = "xyes" -a "x$enable_curl" = xyes])
+
 XIPH_PATH_OPENSSL([
     XIPH_VAR_APPEND([XIPH_CPPFLAGS],[$OPENSSL_CFLAGS])
     XIPH_VAR_APPEND([XIPH_LDFLAGS],[$OPENSSL_LDFLAGS])
@@ -170,10 +174,7 @@ XIPH_PATH_OPENSSL([
     [ AC_MSG_NOTICE([SSL disabled!])
     ])
 
-if test "x$ac_cv_func_fork" = "xyes"
-then
-    ICECAST_OPTIONAL="$ICECAST_OPTIONAL auth_cmd.o"
-fi
+AM_CONDITIONAL([BUILD_AUTHCMD], [ test "x$ac_cv_func_fork" = "xyes"])
 
 dnl Make substitutions
 
@@ -189,7 +190,6 @@ AC_SUBST(LIBS)
 AC_SUBST(DEBUG)
 AC_SUBST(CFLAGS)
 AC_SUBST(PROFILE)
-AC_SUBST(ICECAST_OPTIONAL)
 AC_SUBST(HAVE_KATE)
 AC_SUBST(KATE_LIBS)
 
@@ -207,6 +207,7 @@ AC_CONFIG_FILES([
    web/Makefile
    web/images/Makefile
    admin/Makefile
-   win32/Makefile
+   windows/Makefile
 ])
+AM_COND_IF([WINDOWS], [AC_CONFIG_FILES([icecast.nsis:conf/$host.nsis.in])])
 AC_OUTPUT

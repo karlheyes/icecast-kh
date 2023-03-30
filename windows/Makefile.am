@@ -13,12 +13,17 @@ EXTRA_DIST = ConfigTab.cpp ConfigTab.h Icecast2win.clw Icecast2win.cpp \
     icecastService.cpp icecastService.dsp
 
 bin_PROGRAMS = icecast
-icecast_DEPENDENCIES = ../src/libicecast.a ../src/net/libicenet.la \
-    ../src/thread/libicethread.la ../src/httpp/libicehttpp.la ../src/log/libicelog.la \
-    ../src/avl/libiceavl.la ../src/timing/libicetiming.la
+icecast_DEPENDENCIES = \
+   $(top_builddir)/src/libicecast.la \
+   $(top_builddir)/src/net/libicenet.la \
+   $(top_builddir)/src/thread/libicethread.la \
+   $(top_builddir)/src/httpp/libicehttpp.la \
+   $(top_builddir)/src/log/libicelog.la \
+   $(top_builddir)/src/avl/libiceavl.la \
+   $(top_builddir)/src/timing/libicetiming.la
 
 icecast_SOURCES = icecastService.cpp
-icecast_CPPFLAGS = -I../src @XIPH_CFLAGS@ @XIPH_CPPFLAGS@
+icecast_CPPFLAGS = -I$(top_srcdir)/src @XIPH_CFLAGS@ @XIPH_CPPFLAGS@
 icecast_LDFLAGS = -static-libgcc
 icecast_LDADD = $(icecast_DEPENDENCIES) @XIPH_LDFLAGS@ @XIPH_LIBS@ @KATE_LIBS@
 

@@ -8,7 +8,7 @@ noinst_LTLIBRARIES = libicelog.la
 noinst_HEADERS = log.h
 
 libicelog_la_SOURCES = log.c
-AM_CFLAGS = $(XIPH_CFLAGS)
+AM_CFLAGS = $(XIPH_CFLAGS) -static
 
 debug:
 	$(MAKE) all CFLAGS="@DEBUG@"

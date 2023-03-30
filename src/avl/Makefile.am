@@ -8,9 +8,9 @@ noinst_LTLIBRARIES = libiceavl.la
 noinst_HEADERS = avl.h
 
 libiceavl_la_SOURCES = avl.c
-libiceavl_la_CFLAGS = @XIPH_CFLAGS@
+libiceavl_la_CFLAGS = @XIPH_CFLAGS@ -static
 
-AM_CPPFLAGS = -I$(srcdir)/..
+AM_CPPFLAGS = -I$(top_srcdir)/src
 
 debug:
 	$(MAKE) all CFLAGS="@DEBUG@"

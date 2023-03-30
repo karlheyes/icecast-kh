@@ -3,8 +3,8 @@
 ACLOCAL_AMFLAGS = -I m4
 
 SUBDIRS = conf doc web admin src
-if WIN32
-SUBDIRS += win32
+if WINDOWS
+SUBDIRS += windows
 endif
 
 BUILT_SOURCES = git_hash.h

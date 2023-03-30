@@ -8,9 +8,9 @@ noinst_LTLIBRARIES = libicethread.la
 noinst_HEADERS = thread.h
 
 libicethread_la_SOURCES = thread.c
-libicethread_la_CFLAGS = @XIPH_CFLAGS@
+libicethread_la_CFLAGS = @XIPH_CFLAGS@ -static
 
-AM_CPPFLAGS = -I$(srcdir)/..
+AM_CPPFLAGS = -I$(top_srcdir)/src
 
 debug:
 	$(MAKE) all CFLAGS="@DEBUG@"

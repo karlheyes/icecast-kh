@@ -6,8 +6,8 @@ noinst_LTLIBRARIES = libicehttpp.la
 noinst_HEADERS = httpp.h
 
 libicehttpp_la_SOURCES = httpp.c
-libicehttpp_la_CFLAGS = @XIPH_CFLAGS@
-AM_CPPFLAGS = @XIPH_CPPFLAGS@ -I$(srcdir)/..
+libicehttpp_la_CFLAGS = @XIPH_CFLAGS@ -static
+AM_CPPFLAGS = @XIPH_CPPFLAGS@ -I$(top_srcdir)/src
 
 # SCCS stuff (for BitKeeper)
 GET = true
