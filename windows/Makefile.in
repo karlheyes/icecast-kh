@@ -89,7 +89,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = icecast$(EXEEXT)
-subdir = win32
+subdir = windows
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/acx_pthread.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
@@ -219,7 +219,6 @@ FGREP = @FGREP@
 FILECMD = @FILECMD@
 GREP = @GREP@
 HAVE_KATE = @HAVE_KATE@
-ICECAST_OPTIONAL = @ICECAST_OPTIONAL@
 ICY_CHARSET = @ICY_CHARSET@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -356,12 +355,17 @@ EXTRA_DIST = ConfigTab.cpp ConfigTab.h Icecast2win.clw Icecast2win.cpp \
     icecast2_console.dsw icecast2_console.dsp credits.bmp icecast2title.bmp \
     icecastService.cpp icecastService.dsp
 
-icecast_DEPENDENCIES = ../src/libicecast.a ../src/net/libicenet.la \
-    ../src/thread/libicethread.la ../src/httpp/libicehttpp.la ../src/log/libicelog.la \
-    ../src/avl/libiceavl.la ../src/timing/libicetiming.la
+icecast_DEPENDENCIES = \
+   $(top_builddir)/src/libicecast.la \
+   $(top_builddir)/src/net/libicenet.la \
+   $(top_builddir)/src/thread/libicethread.la \
+   $(top_builddir)/src/httpp/libicehttpp.la \
+   $(top_builddir)/src/log/libicelog.la \
+   $(top_builddir)/src/avl/libiceavl.la \
+   $(top_builddir)/src/timing/libicetiming.la
 
 icecast_SOURCES = icecastService.cpp
-icecast_CPPFLAGS = -I../src @XIPH_CFLAGS@ @XIPH_CPPFLAGS@
+icecast_CPPFLAGS = -I$(top_srcdir)/src @XIPH_CFLAGS@ @XIPH_CPPFLAGS@
 icecast_LDFLAGS = -static-libgcc
 icecast_LDADD = $(icecast_DEPENDENCIES) @XIPH_LDFLAGS@ @XIPH_LIBS@ @KATE_LIBS@
 all: all-am
@@ -377,9 +381,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign win32/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign windows/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign win32/Makefile
+	  $(AUTOMAKE) --foreign windows/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \

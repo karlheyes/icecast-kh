@@ -90,7 +90,13 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@WIN32_FALSE@bin_PROGRAMS = icecast$(EXEEXT)
+@BUILD_FNMATCH_TRUE@am__append_1 = fnmatch.c
+@BUILD_YP_TRUE@am__append_2 = yp.c
+@BUILD_VORBIS_TRUE@am__append_3 = format_vorbis.c
+@BUILD_SPEEX_TRUE@am__append_4 = format_speex.c
+@BUILD_THEORA_TRUE@am__append_5 = format_theora.c
+@BUILD_AUTHCMD_TRUE@am__append_6 = auth_cmd.c
+@WINDOWS_FALSE@bin_PROGRAMS = icecast$(EXEEXT)
 subdir = src
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/acx_pthread.m4 \
@@ -113,30 +119,62 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-LIBRARIES = $(noinst_LIBRARIES)
-ARFLAGS = cru
-AM_V_AR = $(am__v_AR_@AM_V@)
-am__v_AR_ = $(am__v_AR_@AM_DEFAULT_V@)
-am__v_AR_0 = @echo "  AR      " $@;
-am__v_AR_1 = 
-libicecast_a_AR = $(AR) $(ARFLAGS)
-am__DEPENDENCIES_1 = net/libicenet.la thread/libicethread.la \
-	httpp/libicehttpp.la log/libicelog.la avl/libiceavl.la \
-	timing/libicetiming.la
-am__objects_1 = cfgfile.$(OBJEXT) main.$(OBJEXT) logging.$(OBJEXT) \
-	sighandler.$(OBJEXT) connection.$(OBJEXT) global.$(OBJEXT) \
-	util.$(OBJEXT) slave.$(OBJEXT) source.$(OBJEXT) \
-	stats.$(OBJEXT) refbuf.$(OBJEXT) client.$(OBJEXT) \
-	params.$(OBJEXT) xslt.$(OBJEXT) fserve.$(OBJEXT) \
-	event.$(OBJEXT) admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
-	format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
-	format_midi.$(OBJEXT) format_flac.$(OBJEXT) \
-	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
-	auth_htpasswd.$(OBJEXT) auth_url.$(OBJEXT) \
-	format_kate.$(OBJEXT) format_skeleton.$(OBJEXT) mpeg.$(OBJEXT) \
-	flv.$(OBJEXT)
-am_libicecast_a_OBJECTS = $(am__objects_1)
-libicecast_a_OBJECTS = $(am_libicecast_a_OBJECTS)
+LTLIBRARIES = $(noinst_LTLIBRARIES)
+am__libicecast_la_SOURCES_DIST = cfgfile.c main.c logging.c \
+	sighandler.c connection.c global.c util.c slave.c source.c \
+	stats.c refbuf.c client.c params.c xslt.c fserve.c event.c \
+	admin.c md5.c format.c format_ogg.c format_mp3.c format_midi.c \
+	format_flac.c format_ebml.c format_opus.c auth.c \
+	auth_htpasswd.c auth_url.c format_kate.c format_skeleton.c \
+	mpeg.c flv.c fnmatch.c yp.c format_vorbis.c format_speex.c \
+	format_theora.c auth_cmd.c
+@BUILD_FNMATCH_TRUE@am__objects_1 = libicecast_la-fnmatch.lo
+@BUILD_YP_TRUE@am__objects_2 = libicecast_la-yp.lo
+@BUILD_VORBIS_TRUE@am__objects_3 = libicecast_la-format_vorbis.lo
+@BUILD_SPEEX_TRUE@am__objects_4 = libicecast_la-format_speex.lo
+@BUILD_THEORA_TRUE@am__objects_5 = libicecast_la-format_theora.lo
+@BUILD_AUTHCMD_TRUE@am__objects_6 = libicecast_la-auth_cmd.lo
+am__objects_7 = libicecast_la-cfgfile.lo libicecast_la-main.lo \
+	libicecast_la-logging.lo libicecast_la-sighandler.lo \
+	libicecast_la-connection.lo libicecast_la-global.lo \
+	libicecast_la-util.lo libicecast_la-slave.lo \
+	libicecast_la-source.lo libicecast_la-stats.lo \
+	libicecast_la-refbuf.lo libicecast_la-client.lo \
+	libicecast_la-params.lo libicecast_la-xslt.lo \
+	libicecast_la-fserve.lo libicecast_la-event.lo \
+	libicecast_la-admin.lo libicecast_la-md5.lo \
+	libicecast_la-format.lo libicecast_la-format_ogg.lo \
+	libicecast_la-format_mp3.lo libicecast_la-format_midi.lo \
+	libicecast_la-format_flac.lo libicecast_la-format_ebml.lo \
+	libicecast_la-format_opus.lo libicecast_la-auth.lo \
+	libicecast_la-auth_htpasswd.lo libicecast_la-auth_url.lo \
+	libicecast_la-format_kate.lo libicecast_la-format_skeleton.lo \
+	libicecast_la-mpeg.lo libicecast_la-flv.lo $(am__objects_1) \
+	$(am__objects_2) $(am__objects_3) $(am__objects_4) \
+	$(am__objects_5) $(am__objects_6)
+@WINDOWS_TRUE@am_libicecast_la_OBJECTS = $(am__objects_7)
+libicecast_la_OBJECTS = $(am_libicecast_la_OBJECTS)
+AM_V_lt = $(am__v_lt_@AM_V@)
+am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
+am__v_lt_0 = --silent
+am__v_lt_1 = 
+libicecast_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(libicecast_la_CFLAGS) \
+	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+@WINDOWS_TRUE@am_libicecast_la_rpath =
+am__icecast_SOURCES_DIST = cfgfile.c main.c logging.c sighandler.c \
+	connection.c global.c util.c slave.c source.c stats.c refbuf.c \
+	client.c params.c xslt.c fserve.c event.c admin.c md5.c \
+	format.c format_ogg.c format_mp3.c format_midi.c format_flac.c \
+	format_ebml.c format_opus.c auth.c auth_htpasswd.c auth_url.c \
+	format_kate.c format_skeleton.c mpeg.c flv.c fnmatch.c yp.c \
+	format_vorbis.c format_speex.c format_theora.c auth_cmd.c
+@BUILD_FNMATCH_TRUE@am__objects_8 = fnmatch.$(OBJEXT)
+@BUILD_YP_TRUE@am__objects_9 = yp.$(OBJEXT)
+@BUILD_VORBIS_TRUE@am__objects_10 = format_vorbis.$(OBJEXT)
+@BUILD_SPEEX_TRUE@am__objects_11 = format_speex.$(OBJEXT)
+@BUILD_THEORA_TRUE@am__objects_12 = format_theora.$(OBJEXT)
+@BUILD_AUTHCMD_TRUE@am__objects_13 = auth_cmd.$(OBJEXT)
 am_icecast_OBJECTS = cfgfile.$(OBJEXT) main.$(OBJEXT) \
 	logging.$(OBJEXT) sighandler.$(OBJEXT) connection.$(OBJEXT) \
 	global.$(OBJEXT) util.$(OBJEXT) slave.$(OBJEXT) \
@@ -148,12 +186,10 @@ am_icecast_OBJECTS = cfgfile.$(OBJEXT) main.$(OBJEXT) \
 	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
 	auth_htpasswd.$(OBJEXT) auth_url.$(OBJEXT) \
 	format_kate.$(OBJEXT) format_skeleton.$(OBJEXT) mpeg.$(OBJEXT) \
-	flv.$(OBJEXT)
+	flv.$(OBJEXT) $(am__objects_8) $(am__objects_9) \
+	$(am__objects_10) $(am__objects_11) $(am__objects_12) \
+	$(am__objects_13)
 icecast_OBJECTS = $(am_icecast_OBJECTS)
-AM_V_lt = $(am__v_lt_@AM_V@)
-am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
-am__v_lt_0 = --silent
-am__v_lt_1 = 
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -181,12 +217,49 @@ am__depfiles_remade = ./$(DEPDIR)/admin.Po ./$(DEPDIR)/auth.Po \
 	./$(DEPDIR)/format_skeleton.Po ./$(DEPDIR)/format_speex.Po \
 	./$(DEPDIR)/format_theora.Po ./$(DEPDIR)/format_vorbis.Po \
 	./$(DEPDIR)/fserve.Po ./$(DEPDIR)/global.Po \
-	./$(DEPDIR)/logging.Po ./$(DEPDIR)/main.Po ./$(DEPDIR)/md5.Po \
-	./$(DEPDIR)/mpeg.Po ./$(DEPDIR)/params.Po \
-	./$(DEPDIR)/refbuf.Po ./$(DEPDIR)/sighandler.Po \
-	./$(DEPDIR)/slave.Po ./$(DEPDIR)/source.Po \
-	./$(DEPDIR)/stats.Po ./$(DEPDIR)/util.Po ./$(DEPDIR)/xslt.Po \
-	./$(DEPDIR)/yp.Po
+	./$(DEPDIR)/libicecast_la-admin.Plo \
+	./$(DEPDIR)/libicecast_la-auth.Plo \
+	./$(DEPDIR)/libicecast_la-auth_cmd.Plo \
+	./$(DEPDIR)/libicecast_la-auth_htpasswd.Plo \
+	./$(DEPDIR)/libicecast_la-auth_url.Plo \
+	./$(DEPDIR)/libicecast_la-cfgfile.Plo \
+	./$(DEPDIR)/libicecast_la-client.Plo \
+	./$(DEPDIR)/libicecast_la-connection.Plo \
+	./$(DEPDIR)/libicecast_la-event.Plo \
+	./$(DEPDIR)/libicecast_la-flv.Plo \
+	./$(DEPDIR)/libicecast_la-fnmatch.Plo \
+	./$(DEPDIR)/libicecast_la-format.Plo \
+	./$(DEPDIR)/libicecast_la-format_ebml.Plo \
+	./$(DEPDIR)/libicecast_la-format_flac.Plo \
+	./$(DEPDIR)/libicecast_la-format_kate.Plo \
+	./$(DEPDIR)/libicecast_la-format_midi.Plo \
+	./$(DEPDIR)/libicecast_la-format_mp3.Plo \
+	./$(DEPDIR)/libicecast_la-format_ogg.Plo \
+	./$(DEPDIR)/libicecast_la-format_opus.Plo \
+	./$(DEPDIR)/libicecast_la-format_skeleton.Plo \
+	./$(DEPDIR)/libicecast_la-format_speex.Plo \
+	./$(DEPDIR)/libicecast_la-format_theora.Plo \
+	./$(DEPDIR)/libicecast_la-format_vorbis.Plo \
+	./$(DEPDIR)/libicecast_la-fserve.Plo \
+	./$(DEPDIR)/libicecast_la-global.Plo \
+	./$(DEPDIR)/libicecast_la-logging.Plo \
+	./$(DEPDIR)/libicecast_la-main.Plo \
+	./$(DEPDIR)/libicecast_la-md5.Plo \
+	./$(DEPDIR)/libicecast_la-mpeg.Plo \
+	./$(DEPDIR)/libicecast_la-params.Plo \
+	./$(DEPDIR)/libicecast_la-refbuf.Plo \
+	./$(DEPDIR)/libicecast_la-sighandler.Plo \
+	./$(DEPDIR)/libicecast_la-slave.Plo \
+	./$(DEPDIR)/libicecast_la-source.Plo \
+	./$(DEPDIR)/libicecast_la-stats.Plo \
+	./$(DEPDIR)/libicecast_la-util.Plo \
+	./$(DEPDIR)/libicecast_la-xslt.Plo \
+	./$(DEPDIR)/libicecast_la-yp.Plo ./$(DEPDIR)/logging.Po \
+	./$(DEPDIR)/main.Po ./$(DEPDIR)/md5.Po ./$(DEPDIR)/mpeg.Po \
+	./$(DEPDIR)/params.Po ./$(DEPDIR)/refbuf.Po \
+	./$(DEPDIR)/sighandler.Po ./$(DEPDIR)/slave.Po \
+	./$(DEPDIR)/source.Po ./$(DEPDIR)/stats.Po ./$(DEPDIR)/util.Po \
+	./$(DEPDIR)/xslt.Po ./$(DEPDIR)/yp.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -206,10 +279,9 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libicecast_a_SOURCES) $(icecast_SOURCES) \
-	$(EXTRA_icecast_SOURCES)
-DIST_SOURCES = $(libicecast_a_SOURCES) $(icecast_SOURCES) \
-	$(EXTRA_icecast_SOURCES)
+SOURCES = $(libicecast_la_SOURCES) $(icecast_SOURCES)
+DIST_SOURCES = $(am__libicecast_la_SOURCES_DIST) \
+	$(am__icecast_SOURCES_DIST)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -316,7 +388,6 @@ FGREP = @FGREP@
 FILECMD = @FILECMD@
 GREP = @GREP@
 HAVE_KATE = @HAVE_KATE@
-ICECAST_OPTIONAL = @ICECAST_OPTIONAL@
 ICY_CHARSET = @ICY_CHARSET@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -443,7 +514,6 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = avl thread httpp net log timing
-@WIN32_TRUE@noinst_LIBRARIES = libicecast.a
 noinst_HEADERS = admin.h cfgfile.h logging.h sighandler.h connection.h \
     global.h util.h slave.h source.h stats.h refbuf.h client.h \
     compat.h fserve.h xslt.h yp.h event.h md5.h params.h \
@@ -453,23 +523,28 @@ noinst_HEADERS = admin.h cfgfile.h logging.h sighandler.h connection.h \
     format_vorbis.h format_theora.h format_flac.h format_speex.h format_midi.h format_opus.h \
     format_kate.h format_skeleton.h mpeg.h flv.h
 
-icecast_SOURCES = cfgfile.c main.c logging.c sighandler.c connection.c global.c \
-    util.c slave.c source.c stats.c refbuf.c client.c params.c\
-    xslt.c fserve.c event.c admin.c md5.c \
-    format.c format_ogg.c format_mp3.c format_midi.c format_flac.c format_ebml.c format_opus.c \
-    auth.c auth_htpasswd.c auth_url.c format_kate.c format_skeleton.c mpeg.c flv.c
+icecast_SOURCES = cfgfile.c main.c logging.c sighandler.c connection.c \
+	global.c util.c slave.c source.c stats.c refbuf.c client.c \
+	params.c xslt.c fserve.c event.c admin.c md5.c format.c \
+	format_ogg.c format_mp3.c format_midi.c format_flac.c \
+	format_ebml.c format_opus.c auth.c auth_htpasswd.c auth_url.c \
+	format_kate.c format_skeleton.c mpeg.c flv.c $(am__append_1) \
+	$(am__append_2) $(am__append_3) $(am__append_4) \
+	$(am__append_5) $(am__append_6)
+icecast_DEPENDENCIES = \
+    net/libicenet.la \
+    thread/libicethread.la \
+    httpp/libicehttpp.la \
+    log/libicelog.la \
+    avl/libiceavl.la \
+    timing/libicetiming.la
 
-EXTRA_icecast_SOURCES = yp.c \
-    auth_cmd.c \
-    format_vorbis.c format_theora.c format_speex.c fnmatch.c
-
-icecast_DEPENDENCIES = @ICECAST_OPTIONAL@ net/libicenet.la thread/libicethread.la \
-    httpp/libicehttpp.la log/libicelog.la avl/libiceavl.la timing/libicetiming.la
-
-icecast_LDADD = $(icecast_DEPENDENCIES) @XIPH_LIBS@ @KATE_LIBS@
-libicecast_a_SOURCES = $(icecast_SOURCES)
-libicecast_a_DEPENDENCIES = $(icecast_DEPENDENCIES)
-libicecast_a_LIBADD = $(icecast_DEPENDENCIES)
+@WINDOWS_TRUE@noinst_LTLIBRARIES = libicecast.la
+@WINDOWS_TRUE@libicecast_la_SOURCES = $(icecast_SOURCES)
+@WINDOWS_TRUE@libicecast_la_CFLAGS = -static
+@WINDOWS_TRUE@libicecast_la_LIBADD = $(icecast_DEPENDENCIES) @XIPH_LIBS@ @KATE_LIBS@
+@WINDOWS_TRUE@libicecast_la_DEPENDENCIES = $(icecast_DEPENDENCIES)
+@WINDOWS_FALSE@icecast_LDADD = $(icecast_DEPENDENCIES) @XIPH_LIBS@ @KATE_LIBS@
 AM_CFLAGS = @XIPH_CFLAGS@
 AM_CPPFLAGS = @XIPH_CPPFLAGS@
 AM_LDFLAGS = @XIPH_LDFLAGS@ @KATE_LIBS@
@@ -556,13 +631,19 @@ clean-binPROGRAMS:
 	echo " rm -f" $$list; \
 	rm -f $$list
 
-clean-noinstLIBRARIES:
-	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
 
-libicecast.a: $(libicecast_a_OBJECTS) $(libicecast_a_DEPENDENCIES) $(EXTRA_libicecast_a_DEPENDENCIES) 
-	$(AM_V_at)-rm -f libicecast.a
-	$(AM_V_AR)$(libicecast_a_AR) libicecast.a $(libicecast_a_OBJECTS) $(libicecast_a_LIBADD)
-	$(AM_V_at)$(RANLIB) libicecast.a
+libicecast.la: $(libicecast_la_OBJECTS) $(libicecast_la_DEPENDENCIES) $(EXTRA_libicecast_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(libicecast_la_LINK) $(am_libicecast_la_rpath) $(libicecast_la_OBJECTS) $(libicecast_la_LIBADD) $(LIBS)
 
 icecast$(EXEEXT): $(icecast_OBJECTS) $(icecast_DEPENDENCIES) $(EXTRA_icecast_DEPENDENCIES) 
 	@rm -f icecast$(EXEEXT)
@@ -599,6 +680,44 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/format_vorbis.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fserve.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/global.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-admin.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-auth.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-auth_cmd.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-auth_htpasswd.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-auth_url.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-cfgfile.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-client.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-connection.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-event.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-flv.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-fnmatch.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_ebml.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_flac.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_kate.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_midi.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_mp3.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_ogg.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_opus.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_skeleton.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_speex.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_theora.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-format_vorbis.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-fserve.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-global.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-logging.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-main.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-md5.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-mpeg.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-params.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-refbuf.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-sighandler.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-slave.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-source.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-stats.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-util.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-xslt.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-yp.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logging.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/md5.Po@am__quote@ # am--include-marker
@@ -639,6 +758,272 @@ am--depfiles: $(am__depfiles_remade)
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
+
+libicecast_la-cfgfile.lo: cfgfile.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-cfgfile.lo -MD -MP -MF $(DEPDIR)/libicecast_la-cfgfile.Tpo -c -o libicecast_la-cfgfile.lo `test -f 'cfgfile.c' || echo '$(srcdir)/'`cfgfile.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-cfgfile.Tpo $(DEPDIR)/libicecast_la-cfgfile.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='cfgfile.c' object='libicecast_la-cfgfile.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-cfgfile.lo `test -f 'cfgfile.c' || echo '$(srcdir)/'`cfgfile.c
+
+libicecast_la-main.lo: main.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-main.lo -MD -MP -MF $(DEPDIR)/libicecast_la-main.Tpo -c -o libicecast_la-main.lo `test -f 'main.c' || echo '$(srcdir)/'`main.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-main.Tpo $(DEPDIR)/libicecast_la-main.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='main.c' object='libicecast_la-main.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-main.lo `test -f 'main.c' || echo '$(srcdir)/'`main.c
+
+libicecast_la-logging.lo: logging.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-logging.lo -MD -MP -MF $(DEPDIR)/libicecast_la-logging.Tpo -c -o libicecast_la-logging.lo `test -f 'logging.c' || echo '$(srcdir)/'`logging.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-logging.Tpo $(DEPDIR)/libicecast_la-logging.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='logging.c' object='libicecast_la-logging.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-logging.lo `test -f 'logging.c' || echo '$(srcdir)/'`logging.c
+
+libicecast_la-sighandler.lo: sighandler.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-sighandler.lo -MD -MP -MF $(DEPDIR)/libicecast_la-sighandler.Tpo -c -o libicecast_la-sighandler.lo `test -f 'sighandler.c' || echo '$(srcdir)/'`sighandler.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-sighandler.Tpo $(DEPDIR)/libicecast_la-sighandler.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='sighandler.c' object='libicecast_la-sighandler.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-sighandler.lo `test -f 'sighandler.c' || echo '$(srcdir)/'`sighandler.c
+
+libicecast_la-connection.lo: connection.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-connection.lo -MD -MP -MF $(DEPDIR)/libicecast_la-connection.Tpo -c -o libicecast_la-connection.lo `test -f 'connection.c' || echo '$(srcdir)/'`connection.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-connection.Tpo $(DEPDIR)/libicecast_la-connection.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='connection.c' object='libicecast_la-connection.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-connection.lo `test -f 'connection.c' || echo '$(srcdir)/'`connection.c
+
+libicecast_la-global.lo: global.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-global.lo -MD -MP -MF $(DEPDIR)/libicecast_la-global.Tpo -c -o libicecast_la-global.lo `test -f 'global.c' || echo '$(srcdir)/'`global.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-global.Tpo $(DEPDIR)/libicecast_la-global.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='global.c' object='libicecast_la-global.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-global.lo `test -f 'global.c' || echo '$(srcdir)/'`global.c
+
+libicecast_la-util.lo: util.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-util.lo -MD -MP -MF $(DEPDIR)/libicecast_la-util.Tpo -c -o libicecast_la-util.lo `test -f 'util.c' || echo '$(srcdir)/'`util.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-util.Tpo $(DEPDIR)/libicecast_la-util.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='util.c' object='libicecast_la-util.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-util.lo `test -f 'util.c' || echo '$(srcdir)/'`util.c
+
+libicecast_la-slave.lo: slave.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-slave.lo -MD -MP -MF $(DEPDIR)/libicecast_la-slave.Tpo -c -o libicecast_la-slave.lo `test -f 'slave.c' || echo '$(srcdir)/'`slave.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-slave.Tpo $(DEPDIR)/libicecast_la-slave.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='slave.c' object='libicecast_la-slave.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-slave.lo `test -f 'slave.c' || echo '$(srcdir)/'`slave.c
+
+libicecast_la-source.lo: source.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-source.lo -MD -MP -MF $(DEPDIR)/libicecast_la-source.Tpo -c -o libicecast_la-source.lo `test -f 'source.c' || echo '$(srcdir)/'`source.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-source.Tpo $(DEPDIR)/libicecast_la-source.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='source.c' object='libicecast_la-source.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-source.lo `test -f 'source.c' || echo '$(srcdir)/'`source.c
+
+libicecast_la-stats.lo: stats.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-stats.lo -MD -MP -MF $(DEPDIR)/libicecast_la-stats.Tpo -c -o libicecast_la-stats.lo `test -f 'stats.c' || echo '$(srcdir)/'`stats.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-stats.Tpo $(DEPDIR)/libicecast_la-stats.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='stats.c' object='libicecast_la-stats.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-stats.lo `test -f 'stats.c' || echo '$(srcdir)/'`stats.c
+
+libicecast_la-refbuf.lo: refbuf.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-refbuf.lo -MD -MP -MF $(DEPDIR)/libicecast_la-refbuf.Tpo -c -o libicecast_la-refbuf.lo `test -f 'refbuf.c' || echo '$(srcdir)/'`refbuf.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-refbuf.Tpo $(DEPDIR)/libicecast_la-refbuf.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='refbuf.c' object='libicecast_la-refbuf.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-refbuf.lo `test -f 'refbuf.c' || echo '$(srcdir)/'`refbuf.c
+
+libicecast_la-client.lo: client.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-client.lo -MD -MP -MF $(DEPDIR)/libicecast_la-client.Tpo -c -o libicecast_la-client.lo `test -f 'client.c' || echo '$(srcdir)/'`client.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-client.Tpo $(DEPDIR)/libicecast_la-client.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='client.c' object='libicecast_la-client.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-client.lo `test -f 'client.c' || echo '$(srcdir)/'`client.c
+
+libicecast_la-params.lo: params.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-params.lo -MD -MP -MF $(DEPDIR)/libicecast_la-params.Tpo -c -o libicecast_la-params.lo `test -f 'params.c' || echo '$(srcdir)/'`params.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-params.Tpo $(DEPDIR)/libicecast_la-params.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='params.c' object='libicecast_la-params.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-params.lo `test -f 'params.c' || echo '$(srcdir)/'`params.c
+
+libicecast_la-xslt.lo: xslt.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-xslt.lo -MD -MP -MF $(DEPDIR)/libicecast_la-xslt.Tpo -c -o libicecast_la-xslt.lo `test -f 'xslt.c' || echo '$(srcdir)/'`xslt.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-xslt.Tpo $(DEPDIR)/libicecast_la-xslt.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='xslt.c' object='libicecast_la-xslt.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-xslt.lo `test -f 'xslt.c' || echo '$(srcdir)/'`xslt.c
+
+libicecast_la-fserve.lo: fserve.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-fserve.lo -MD -MP -MF $(DEPDIR)/libicecast_la-fserve.Tpo -c -o libicecast_la-fserve.lo `test -f 'fserve.c' || echo '$(srcdir)/'`fserve.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-fserve.Tpo $(DEPDIR)/libicecast_la-fserve.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='fserve.c' object='libicecast_la-fserve.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-fserve.lo `test -f 'fserve.c' || echo '$(srcdir)/'`fserve.c
+
+libicecast_la-event.lo: event.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-event.lo -MD -MP -MF $(DEPDIR)/libicecast_la-event.Tpo -c -o libicecast_la-event.lo `test -f 'event.c' || echo '$(srcdir)/'`event.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-event.Tpo $(DEPDIR)/libicecast_la-event.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='event.c' object='libicecast_la-event.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-event.lo `test -f 'event.c' || echo '$(srcdir)/'`event.c
+
+libicecast_la-admin.lo: admin.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-admin.lo -MD -MP -MF $(DEPDIR)/libicecast_la-admin.Tpo -c -o libicecast_la-admin.lo `test -f 'admin.c' || echo '$(srcdir)/'`admin.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-admin.Tpo $(DEPDIR)/libicecast_la-admin.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='admin.c' object='libicecast_la-admin.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-admin.lo `test -f 'admin.c' || echo '$(srcdir)/'`admin.c
+
+libicecast_la-md5.lo: md5.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-md5.lo -MD -MP -MF $(DEPDIR)/libicecast_la-md5.Tpo -c -o libicecast_la-md5.lo `test -f 'md5.c' || echo '$(srcdir)/'`md5.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-md5.Tpo $(DEPDIR)/libicecast_la-md5.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='md5.c' object='libicecast_la-md5.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-md5.lo `test -f 'md5.c' || echo '$(srcdir)/'`md5.c
+
+libicecast_la-format.lo: format.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format.Tpo -c -o libicecast_la-format.lo `test -f 'format.c' || echo '$(srcdir)/'`format.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format.Tpo $(DEPDIR)/libicecast_la-format.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format.c' object='libicecast_la-format.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format.lo `test -f 'format.c' || echo '$(srcdir)/'`format.c
+
+libicecast_la-format_ogg.lo: format_ogg.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_ogg.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_ogg.Tpo -c -o libicecast_la-format_ogg.lo `test -f 'format_ogg.c' || echo '$(srcdir)/'`format_ogg.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_ogg.Tpo $(DEPDIR)/libicecast_la-format_ogg.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_ogg.c' object='libicecast_la-format_ogg.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_ogg.lo `test -f 'format_ogg.c' || echo '$(srcdir)/'`format_ogg.c
+
+libicecast_la-format_mp3.lo: format_mp3.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_mp3.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_mp3.Tpo -c -o libicecast_la-format_mp3.lo `test -f 'format_mp3.c' || echo '$(srcdir)/'`format_mp3.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_mp3.Tpo $(DEPDIR)/libicecast_la-format_mp3.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_mp3.c' object='libicecast_la-format_mp3.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_mp3.lo `test -f 'format_mp3.c' || echo '$(srcdir)/'`format_mp3.c
+
+libicecast_la-format_midi.lo: format_midi.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_midi.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_midi.Tpo -c -o libicecast_la-format_midi.lo `test -f 'format_midi.c' || echo '$(srcdir)/'`format_midi.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_midi.Tpo $(DEPDIR)/libicecast_la-format_midi.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_midi.c' object='libicecast_la-format_midi.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_midi.lo `test -f 'format_midi.c' || echo '$(srcdir)/'`format_midi.c
+
+libicecast_la-format_flac.lo: format_flac.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_flac.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_flac.Tpo -c -o libicecast_la-format_flac.lo `test -f 'format_flac.c' || echo '$(srcdir)/'`format_flac.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_flac.Tpo $(DEPDIR)/libicecast_la-format_flac.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_flac.c' object='libicecast_la-format_flac.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_flac.lo `test -f 'format_flac.c' || echo '$(srcdir)/'`format_flac.c
+
+libicecast_la-format_ebml.lo: format_ebml.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_ebml.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_ebml.Tpo -c -o libicecast_la-format_ebml.lo `test -f 'format_ebml.c' || echo '$(srcdir)/'`format_ebml.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_ebml.Tpo $(DEPDIR)/libicecast_la-format_ebml.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_ebml.c' object='libicecast_la-format_ebml.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_ebml.lo `test -f 'format_ebml.c' || echo '$(srcdir)/'`format_ebml.c
+
+libicecast_la-format_opus.lo: format_opus.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_opus.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_opus.Tpo -c -o libicecast_la-format_opus.lo `test -f 'format_opus.c' || echo '$(srcdir)/'`format_opus.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_opus.Tpo $(DEPDIR)/libicecast_la-format_opus.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_opus.c' object='libicecast_la-format_opus.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_opus.lo `test -f 'format_opus.c' || echo '$(srcdir)/'`format_opus.c
+
+libicecast_la-auth.lo: auth.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-auth.lo -MD -MP -MF $(DEPDIR)/libicecast_la-auth.Tpo -c -o libicecast_la-auth.lo `test -f 'auth.c' || echo '$(srcdir)/'`auth.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-auth.Tpo $(DEPDIR)/libicecast_la-auth.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='auth.c' object='libicecast_la-auth.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-auth.lo `test -f 'auth.c' || echo '$(srcdir)/'`auth.c
+
+libicecast_la-auth_htpasswd.lo: auth_htpasswd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-auth_htpasswd.lo -MD -MP -MF $(DEPDIR)/libicecast_la-auth_htpasswd.Tpo -c -o libicecast_la-auth_htpasswd.lo `test -f 'auth_htpasswd.c' || echo '$(srcdir)/'`auth_htpasswd.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-auth_htpasswd.Tpo $(DEPDIR)/libicecast_la-auth_htpasswd.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='auth_htpasswd.c' object='libicecast_la-auth_htpasswd.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-auth_htpasswd.lo `test -f 'auth_htpasswd.c' || echo '$(srcdir)/'`auth_htpasswd.c
+
+libicecast_la-auth_url.lo: auth_url.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-auth_url.lo -MD -MP -MF $(DEPDIR)/libicecast_la-auth_url.Tpo -c -o libicecast_la-auth_url.lo `test -f 'auth_url.c' || echo '$(srcdir)/'`auth_url.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-auth_url.Tpo $(DEPDIR)/libicecast_la-auth_url.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='auth_url.c' object='libicecast_la-auth_url.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-auth_url.lo `test -f 'auth_url.c' || echo '$(srcdir)/'`auth_url.c
+
+libicecast_la-format_kate.lo: format_kate.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_kate.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_kate.Tpo -c -o libicecast_la-format_kate.lo `test -f 'format_kate.c' || echo '$(srcdir)/'`format_kate.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_kate.Tpo $(DEPDIR)/libicecast_la-format_kate.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_kate.c' object='libicecast_la-format_kate.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_kate.lo `test -f 'format_kate.c' || echo '$(srcdir)/'`format_kate.c
+
+libicecast_la-format_skeleton.lo: format_skeleton.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_skeleton.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_skeleton.Tpo -c -o libicecast_la-format_skeleton.lo `test -f 'format_skeleton.c' || echo '$(srcdir)/'`format_skeleton.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_skeleton.Tpo $(DEPDIR)/libicecast_la-format_skeleton.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_skeleton.c' object='libicecast_la-format_skeleton.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_skeleton.lo `test -f 'format_skeleton.c' || echo '$(srcdir)/'`format_skeleton.c
+
+libicecast_la-mpeg.lo: mpeg.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-mpeg.lo -MD -MP -MF $(DEPDIR)/libicecast_la-mpeg.Tpo -c -o libicecast_la-mpeg.lo `test -f 'mpeg.c' || echo '$(srcdir)/'`mpeg.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-mpeg.Tpo $(DEPDIR)/libicecast_la-mpeg.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='mpeg.c' object='libicecast_la-mpeg.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-mpeg.lo `test -f 'mpeg.c' || echo '$(srcdir)/'`mpeg.c
+
+libicecast_la-flv.lo: flv.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-flv.lo -MD -MP -MF $(DEPDIR)/libicecast_la-flv.Tpo -c -o libicecast_la-flv.lo `test -f 'flv.c' || echo '$(srcdir)/'`flv.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-flv.Tpo $(DEPDIR)/libicecast_la-flv.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='flv.c' object='libicecast_la-flv.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-flv.lo `test -f 'flv.c' || echo '$(srcdir)/'`flv.c
+
+libicecast_la-fnmatch.lo: fnmatch.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-fnmatch.lo -MD -MP -MF $(DEPDIR)/libicecast_la-fnmatch.Tpo -c -o libicecast_la-fnmatch.lo `test -f 'fnmatch.c' || echo '$(srcdir)/'`fnmatch.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-fnmatch.Tpo $(DEPDIR)/libicecast_la-fnmatch.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='fnmatch.c' object='libicecast_la-fnmatch.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-fnmatch.lo `test -f 'fnmatch.c' || echo '$(srcdir)/'`fnmatch.c
+
+libicecast_la-yp.lo: yp.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-yp.lo -MD -MP -MF $(DEPDIR)/libicecast_la-yp.Tpo -c -o libicecast_la-yp.lo `test -f 'yp.c' || echo '$(srcdir)/'`yp.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-yp.Tpo $(DEPDIR)/libicecast_la-yp.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='yp.c' object='libicecast_la-yp.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-yp.lo `test -f 'yp.c' || echo '$(srcdir)/'`yp.c
+
+libicecast_la-format_vorbis.lo: format_vorbis.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_vorbis.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_vorbis.Tpo -c -o libicecast_la-format_vorbis.lo `test -f 'format_vorbis.c' || echo '$(srcdir)/'`format_vorbis.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_vorbis.Tpo $(DEPDIR)/libicecast_la-format_vorbis.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_vorbis.c' object='libicecast_la-format_vorbis.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_vorbis.lo `test -f 'format_vorbis.c' || echo '$(srcdir)/'`format_vorbis.c
+
+libicecast_la-format_speex.lo: format_speex.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_speex.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_speex.Tpo -c -o libicecast_la-format_speex.lo `test -f 'format_speex.c' || echo '$(srcdir)/'`format_speex.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_speex.Tpo $(DEPDIR)/libicecast_la-format_speex.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_speex.c' object='libicecast_la-format_speex.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_speex.lo `test -f 'format_speex.c' || echo '$(srcdir)/'`format_speex.c
+
+libicecast_la-format_theora.lo: format_theora.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-format_theora.lo -MD -MP -MF $(DEPDIR)/libicecast_la-format_theora.Tpo -c -o libicecast_la-format_theora.lo `test -f 'format_theora.c' || echo '$(srcdir)/'`format_theora.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-format_theora.Tpo $(DEPDIR)/libicecast_la-format_theora.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='format_theora.c' object='libicecast_la-format_theora.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-format_theora.lo `test -f 'format_theora.c' || echo '$(srcdir)/'`format_theora.c
+
+libicecast_la-auth_cmd.lo: auth_cmd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-auth_cmd.lo -MD -MP -MF $(DEPDIR)/libicecast_la-auth_cmd.Tpo -c -o libicecast_la-auth_cmd.lo `test -f 'auth_cmd.c' || echo '$(srcdir)/'`auth_cmd.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-auth_cmd.Tpo $(DEPDIR)/libicecast_la-auth_cmd.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='auth_cmd.c' object='libicecast_la-auth_cmd.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-auth_cmd.lo `test -f 'auth_cmd.c' || echo '$(srcdir)/'`auth_cmd.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -804,7 +1189,7 @@ distdir-am: $(DISTFILES)
 	done
 check-am: all-am
 check: check-recursive
-all-am: Makefile $(PROGRAMS) $(LIBRARIES) $(HEADERS)
+all-am: Makefile $(PROGRAMS) $(LTLIBRARIES) $(HEADERS)
 installdirs: installdirs-recursive
 installdirs-am:
 	for dir in "$(DESTDIR)$(bindir)"; do \
@@ -843,7 +1228,7 @@ maintainer-clean-generic:
 clean: clean-recursive
 
 clean-am: clean-binPROGRAMS clean-generic clean-libtool \
-	clean-noinstLIBRARIES mostlyclean-am
+	clean-noinstLTLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
 		-rm -f ./$(DEPDIR)/admin.Po
@@ -871,6 +1256,44 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/format_vorbis.Po
 	-rm -f ./$(DEPDIR)/fserve.Po
 	-rm -f ./$(DEPDIR)/global.Po
+	-rm -f ./$(DEPDIR)/libicecast_la-admin.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth_cmd.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth_htpasswd.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth_url.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-cfgfile.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-client.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-connection.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-event.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-flv.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-fnmatch.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_ebml.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_flac.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_kate.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_midi.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_mp3.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_ogg.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_opus.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_skeleton.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_speex.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_theora.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_vorbis.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-fserve.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-global.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-logging.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-main.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-md5.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-mpeg.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-params.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-refbuf.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-sighandler.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-slave.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-source.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-stats.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-util.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-xslt.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-yp.Plo
 	-rm -f ./$(DEPDIR)/logging.Po
 	-rm -f ./$(DEPDIR)/main.Po
 	-rm -f ./$(DEPDIR)/md5.Po
@@ -954,6 +1377,44 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/format_vorbis.Po
 	-rm -f ./$(DEPDIR)/fserve.Po
 	-rm -f ./$(DEPDIR)/global.Po
+	-rm -f ./$(DEPDIR)/libicecast_la-admin.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth_cmd.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth_htpasswd.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-auth_url.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-cfgfile.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-client.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-connection.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-event.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-flv.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-fnmatch.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_ebml.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_flac.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_kate.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_midi.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_mp3.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_ogg.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_opus.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_skeleton.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_speex.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_theora.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-format_vorbis.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-fserve.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-global.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-logging.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-main.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-md5.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-mpeg.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-params.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-refbuf.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-sighandler.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-slave.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-source.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-stats.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-util.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-xslt.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-yp.Plo
 	-rm -f ./$(DEPDIR)/logging.Po
 	-rm -f ./$(DEPDIR)/main.Po
 	-rm -f ./$(DEPDIR)/md5.Po
@@ -989,7 +1450,7 @@ uninstall-am: uninstall-binPROGRAMS
 
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
 	am--depfiles check check-am clean clean-binPROGRAMS \
-	clean-generic clean-libtool clean-noinstLIBRARIES \
+	clean-generic clean-libtool clean-noinstLTLIBRARIES \
 	cscopelist-am ctags ctags-am distclean distclean-compile \
 	distclean-generic distclean-libtool distclean-tags distdir dvi \
 	dvi-am html html-am info info-am install install-am \
