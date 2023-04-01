@@ -1961,7 +1961,7 @@ int connection_setup_sockets (ice_config_t *config)
     arr_size = count = global.server_sockets;
     if (sockets_setup == 1)
     {
-        // in case of changowner, run through the first time as root, but reject the second run through as that will 
+        // in case of changowner, run through the first time as root, but reject the second run through as that will
         // be as a user (initial startup of listening thread). after that it's fine.
         sockets_setup--;
         global_unlock();
@@ -2010,6 +2010,8 @@ int connection_setup_sockets (ice_config_t *config)
                 if (tmp) global.server_conn = tmp;
             }
 
+            if (config->shoutcast_mount && listener->shoutcast_mount == NULL)
+                listener->shoutcast_mount = (char*)xmlStrdup (XMLSTR(config->shoutcast_mount));
             sock_set_blocking (sock, 0);
             global.serversock [count] = sock;
             global.server_conn [count] = listener;

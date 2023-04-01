@@ -1777,12 +1777,17 @@ static int _parse_listen_sock (cfg_xml *cfg, void *arg)
 
         if (listener->qlen < 1)
             listener->qlen = ICE_LISTEN_QUEUE;
-        listener->next = config->listen_sock;
-        config->listen_sock = listener;
-        config->listen_sock_count++;
 
-        if (listener->shoutcast_mount && listener->shoutcast_compat == 0)
+        if (listener->shoutcast_mount)
         {
+            if (listener->shoutcast_compat)
+            {
+                WARN1 ("shoutcast-compat and shoutcast-mount set on port %d, ignoring", listener->port);
+                break;
+            }
+            if (config->shoutcast_mount == NULL)
+                config->shoutcast_mount = (char*)xmlStrdup (XMLSTR(listener->shoutcast_mount));
+
             listener_t *sc_port = calloc (1, sizeof (listener_t));
             sc_port->refcount = 1;
             sc_port->port = listener->port+1;
@@ -1796,12 +1801,13 @@ static int _parse_listen_sock (cfg_xml *cfg, void *arg)
             config->listen_sock = sc_port;
             config->listen_sock_count++;
         }
-
-        if (config->shoutcast_mount == NULL && listener->shoutcast_mount)
-            config->shoutcast_mount = (char*)xmlStrdup (XMLSTR(listener->shoutcast_mount));
+        listener->next = config->listen_sock;
+        config->listen_sock = listener;
+        config->listen_sock_count++;
 
         if (config->port == 0)
             config->port = listener->port;
+        // leave unset shoutcast mount at this point, let the connection setup routine fill them
         return 1;
     } while (0);
     config_clear_listener (listener);
