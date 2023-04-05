@@ -73,17 +73,21 @@ typedef struct {
 
 #define XSLCACHE_PENDING        (1<<0)
 #define XSLCACHE_FAILED         (1<<1)
+#define XSLCACHE_ADMIN          (1<<2)
 
 
 typedef struct
 {
-    int index;
-    int delay;
+    int32_t index;
+    int32_t flags;
     client_t *client;
     xmlDocPtr doc;
     char *filename;
     stylesheet_cache_t *cache;
 } xsl_req;
+
+#define XSLREQ_DELAY            (1<<0)
+#define XSLREQ_ADM              (1<<1)
 
 
 static int xslt_client (client_t *client);
@@ -264,8 +268,8 @@ static void xsl_req_clear (xsl_req *x)
 //
 static int xslt_cached (xsl_req *x, uint64_t now)
 {
-    uint64_t early_p = now+1, early_f = early_p;
-    int i, present = CACHESIZE, failed = CACHESIZE;
+    uint64_t early_p = now+1, early_f = early_p, early_na = early_p;
+    int i, present = CACHESIZE, failed = CACHESIZE, nonadmin = CACHESIZE;
 
     if (x && x->cache) return 0; // already set
     thread_mutex_lock (&cache_lock);
@@ -285,12 +289,19 @@ static int xslt_cached (xsl_req *x, uint64_t now)
                     failed = i;
                 }
             }
-            else
-                if (early_p > cache[i].cache_age)
+            else if ((cache[i].flags & XSLCACHE_ADMIN) == 0)
+            {
+                if (early_na > cache[i].cache_age)
                 {
-                    early_p = cache[i].cache_age;
-                    present = i;
+                    early_na = cache[i].cache_age;
+                    nonadmin = i;
                 }
+            }
+            else if (early_p > cache[i].cache_age)
+            {
+                early_p = cache[i].cache_age;
+                present = i;
+            }
         }
     }
     int rc = 0;
@@ -300,7 +311,9 @@ static int xslt_cached (xsl_req *x, uint64_t now)
         {   // no matching filename, maybe something to replace
             if (failed < CACHESIZE)       // evict failed slots over success
                 i = failed;
-            else if (present < CACHESIZE)
+            else if (nonadmin < CACHESIZE) // evict non-admin slots over admin
+                i = nonadmin;
+            else if (present < CACHESIZE)  // oldest of all
                 i = present;
             if (i == CACHESIZE) break;  // nothing selected, drop out for retry
             clear_cached_stylesheet (&cache[i], 1);
@@ -311,15 +324,17 @@ static int xslt_cached (xsl_req *x, uint64_t now)
             cache[i].filename = strdup (x->filename);
             cache[i].cache_age = 0;
             cache[i].flags = XSLCACHE_PENDING;  // init
+            if (x->flags & XSLREQ_ADM)
+                cache[i].flags |= XSLCACHE_ADMIN;
         }
         else if (cache[i].flags & XSLCACHE_PENDING)
-            x->delay = 1;       // slot is in pending state
+            x->flags |= XSLREQ_DELAY;       // slot is in pending state
         rc = -1;
         if ((cache[i].flags & XSLCACHE_FAILED) && cache[i].next_check > now)
             break;
         if ((cache[i].flags & XSLCACHE_PENDING) == 0)
         {
-            x->delay = 0;
+            x->flags &= ~XSLREQ_DELAY;          // toggle off
             cache[i].cache_age = now;           // update to keep around
             cache[i].flags &= ~XSLCACHE_FAILED; // drop for recheck
         }
@@ -585,7 +600,7 @@ int xslt_client (client_t *client)
             break;
         if (rc > 0)
         {       // process only if cached and none already pending
-            if (x->delay)
+            if (x->flags & XSLREQ_DELAY)
             {
                 client->schedule_ms += 15;
                 return 0;
@@ -622,9 +637,7 @@ int xslt_client (client_t *client)
 }
 
 
-// entry point for xslt requests
-//
-int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
+static int _xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client, int admin)
 {
     xsl_req *x = calloc (1, sizeof (xsl_req));
     x->client = client;
@@ -637,3 +650,14 @@ int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
     return client->worker ? client->ops->process (client) : 0;
 }
 
+// entry point for xslt requests
+//
+int xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *client)
+{
+    return _xslt_transform (doc, xslfilename, client, 0);
+}
+
+int xslt_transform_admin (xmlDocPtr doc, const char *xslfilename, client_t *client)
+{
+    return _xslt_transform (doc, xslfilename, client, 1);
+}
