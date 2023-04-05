@@ -458,7 +458,7 @@ static int _ice_params_complete (ice_params_t *pm, refbuf_t *rb)
 
 int  ice_http_complete (ice_http_t *http)
 {
-    if (http == NULL || http->headers.head == NULL) return -1;
+    if (http == NULL || http->client == NULL || http->headers.head == NULL) return -1;
 
     const char *msg = (http->msg) ? http->msg : "";
     int remain = strlen (msg);
