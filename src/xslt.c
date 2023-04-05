@@ -124,14 +124,15 @@ int xsltSaveResultToString(xmlChar **doc_txt_ptr, int * doc_txt_len, xmlDocPtr r
     *doc_txt_ptr = NULL;
     *doc_txt_len = 0;
     if (result->children == NULL)
-	return(0);
+        return 0;
 
     buf = xmlAllocOutputBuffer(NULL);
 
     if (buf == NULL)
-        return(-1);
+        return -1 ;
     xsltSaveResultTo(buf, result, style);
-    if (buf->conv != NULL) {
+    if (buf->conv != NULL)
+    {
         *doc_txt_len = xmlBufUse (buf->conv);
         *doc_txt_ptr = xmlStrndup (xmlBufContent (buf->conv), *doc_txt_len);
     } else {
@@ -463,6 +464,7 @@ static int xslt_apply_sheet (xsl_req *x, uint64_t now)
         if (cached->refc > 0) cached->refc--;
         cached->flags &= ~XSLCACHE_PENDING;
         thread_mutex_unlock (&cache_lock);
+        x->cache = NULL;
     }
     free (fn);
     return rc;
