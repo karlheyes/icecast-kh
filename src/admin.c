@@ -1023,6 +1023,8 @@ static int command_metadata (client_t *client, source_t *source, int response)
         }
         if (plugin->set_tag)
         {
+            if (charset == NULL && plugin->charset)
+                charset = plugin->charset;  // optionally use format setting if request has not provided one
             if (url)
             {
                 plugin->set_tag (plugin, "url", url, charset);
