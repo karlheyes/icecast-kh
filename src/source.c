@@ -987,10 +987,8 @@ static int source_queue_advance (client_t *client)
     if (lag == 0)
     {
         client->schedule_ms += 5 + ((source->incoming_adj>>1));
-        client->wakeup = &source->wakeup; // allow for quick wakeup
         return -1;
     }
-    client->wakeup = NULL;
     if (lag > source->queue_size || (lag == source->queue_size && client->pos))
     {
         INFO4 ("Client %" PRIu64 " (%s) has fallen too far behind (%"PRIu64") on %s, removing",
@@ -1315,7 +1313,6 @@ static int http_source_listener (client_t *client)
 // detach client from the source, enter with lock (probably read) and exit with write lock.
 void source_listener_detach (source_t *source, client_t *client)
 {
-    client->wakeup = NULL;
     if (client->check_buffer != http_source_listener) // not in http headers
     {
         refbuf_t *ref = client->refbuf;

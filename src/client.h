@@ -65,7 +65,6 @@ struct _client_functions
 struct _client_tag
 {
     uint64_t schedule_ms;
-    char *wakeup;
 
     /* various states the client could be in */
     unsigned int flags;
