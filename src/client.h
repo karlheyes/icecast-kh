@@ -67,10 +67,10 @@ struct _client_tag
     uint64_t schedule_ms;
 
     /* various states the client could be in */
-    unsigned int flags;
+    uint32_t flags;
 
     /* position in first buffer */
-    unsigned int pos;
+    uint32_t pos;
 
     client_t *next_on_worker;
 
@@ -88,6 +88,9 @@ struct _client_tag
 
     /* the clients connection */
     connection_t connection;
+
+    /* trap for excessive fast client reschedule */
+    unsigned char fast_count;
 
     /* the client's http headers */
     http_parser_t *parser;

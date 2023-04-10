@@ -733,8 +733,8 @@ static client_t *worker_next_client (worker_client_t *wc)
     client_t *client = *wc->prevp, *next = client->next_on_worker;
 
     int fast = 0;
-    if (client->schedule_ms < (worker->time_ms + 5))
-        fast = 1;
+    if (client->schedule_ms < worker->time_ms + 2 && client->fast_count < 4)
+        fast = 1;       // treat as rescheule quickly, add to end of fast list
     if ((wc->flags & WKRC_NORMAL_CLIENTS))
     {
         if (fast)
@@ -758,6 +758,7 @@ static client_t *worker_next_client (worker_client_t *wc)
         {
             if (next)
                 wc->prevp = &client->next_on_worker;
+            client->fast_count++;
             // DEBUG2 ("%p, cl %p, next on fast, avoid wakeup", worker, client);
             return next;
         }
@@ -772,6 +773,7 @@ static client_t *worker_next_client (worker_client_t *wc)
     }
     if (client->schedule_ms < wc->wakeup_ms)
         wc->wakeup_ms = client->schedule_ms;
+    client->fast_count = 0;
     return next;
 }
 
@@ -793,7 +795,7 @@ static client_t *worker_pick_client (worker_client_t *wc)
         thread_spin_unlock (&worker->lock);
         worker->time_ms = timing_get_time();
         worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
-        wc->time_recheck = 40;
+        wc->time_recheck = 50;
         // DEBUG2 ("%p time recheck at %ld", worker, worker->time_ms);
         thread_spin_lock (&worker->lock);
     }
@@ -867,6 +869,7 @@ void *worker (void *arg)
             client_t *nxc = client->next_on_worker;
             errno = 0;
 
+            client->schedule_ms = worker->time_ms;
             int ret = client->ops->process (client);
             // DEBUG3 ("%p processed client %p, ret %d", worker, client, ret);
             if (ret < 0)
