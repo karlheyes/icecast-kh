@@ -1956,6 +1956,10 @@ static int relay_read (client_t *client)
         {
             if (client->connection.con_time && relay->in_use)
             {
+                stats_lock (source->stats, NULL);
+                stats_set_args (source->stats, "listeners", "%lu", source->listeners);
+                stats_release (source->stats);
+
                 INFO1 ("standing by to restart relay on %s", relay->localmount);
                 stats_flush (source->stats);
                 if (relay->flags & RELAY_ON_DEMAND && source->listeners == 0 && relay->in_use->next)
@@ -1976,8 +1980,6 @@ static int relay_read (client_t *client)
             INFO1 ("Relay %s is disabled", relay->localmount);
             client->schedule_ms = client->worker->time_ms + 3600000;
         }
-        stats_lock (source->stats, NULL);
-        stats_set_args (source->stats, "listeners", "%lu", source->listeners);
         source_clear_source (relay->source);
         format_plugin_clear (source->format, client);
         relay_reset (relay);
