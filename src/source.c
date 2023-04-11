@@ -3018,7 +3018,8 @@ int source_format_init (source_t *source, client_t *client)
     int ret = _source_format_init (source, client);
     source->client = client;
     format_apply_client (format, client);
-    source_reset_client_stats (source, 1);
+    if (client->connection.con_time)
+        source_reset_client_stats (source, 1);
     return ret;
 }
 
