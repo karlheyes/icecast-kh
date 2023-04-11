@@ -582,8 +582,9 @@ static void process_source_stat (stats_source_t *src_stats, stats_event_t *event
         avl_tree_unlock (src_stats->stats_tree);
         avl_tree_wlock (_stats.source_tree);
         avl_tree_wlock (src_stats->stats_tree);
-        avl_delete (_stats.source_tree, (void *)src_stats, _free_source_stats);
+        avl_delete (_stats.source_tree, (void *)src_stats, NULL);
         avl_tree_unlock (_stats.source_tree);
+        _free_source_stats (src_stats);
         return;
     }
     /* change source flags status */
@@ -653,11 +654,14 @@ static void process_source_event (stats_event_t *event)
         int fallback_stream = 0;
         avl_tree_wlock (snode->stats_tree);
         fallback_stream = _find_node (snode->stats_tree, "fallback") == NULL ? 1 : 0;
+        avl_tree_unlock (snode->stats_tree);
         if (fallback_stream)
-            avl_delete(_stats.source_tree, (void *)snode, _free_source_stats);
+            avl_delete(_stats.source_tree, (void *)snode, NULL);
         else
-            avl_tree_unlock (snode->stats_tree);
+            snode = NULL;
         avl_tree_unlock (_stats.source_tree);
+        if (snode)
+            _free_source_stats (snode);
         return;
     }
     avl_tree_wlock (snode->stats_tree);
@@ -1221,16 +1225,15 @@ static int _free_stats(void *key)
     free(node->value);
     free(node->name);
     free(node);
-    
+
     return 1;
 }
 
-static int _free_source_stats(void *key)
+static int _free_source_stats (void *key)
 {
     stats_source_t *node = (stats_source_t *)key;
     stats_listener_send (node->flags, "DELETE %s\n", node->source);
     DEBUG1 ("delete source node %s", node->source);
-    avl_tree_unlock (node->stats_tree);
     avl_tree_free(node->stats_tree, _free_stats);
     free(node->source);
     free(node);
@@ -1243,6 +1246,7 @@ static int _free_source_stats_wrapper (void *key)
     stats_source_t *node = (stats_source_t *)key;
     avl_tree_rlock (node->stats_tree);
     _free_source_stats (node);
+    avl_tree_unlock (node->stats_tree);
     return 1;
 }
 
@@ -1313,11 +1317,15 @@ void stats_purge (time_t mark)
         snode = avl_get_next (snode);
         if (src->source[0] == '/')
         {
+            avl_tree_wlock (src->stats_tree);
             if (src->updated < mark)
             {
-                avl_tree_wlock (src->stats_tree);
-                avl_delete (_stats.source_tree, src, _free_source_stats);
+                avl_delete (_stats.source_tree, src, NULL);
+                avl_tree_unlock (src->stats_tree);
+                _free_source_stats (src);
             }
+            else
+                avl_tree_unlock (src->stats_tree);
             continue;
         }
         int present = fserve_contains (src->source);
@@ -1328,7 +1336,9 @@ void stats_purge (time_t mark)
             /* no source_t and no fallback file stat, so delete */
             DEBUG1 ("dropping unreferenced stats for %s", src->source);
             avl_tree_wlock (src->stats_tree);
-            avl_delete (_stats.source_tree, src, _free_source_stats);
+            avl_delete (_stats.source_tree, src, NULL);
+            avl_tree_unlock (src->stats_tree);
+            _free_source_stats (src);
         }
     }
     avl_tree_unlock (_stats.source_tree);
@@ -1442,7 +1452,6 @@ void stats_flush (stats_handle_t handle)
         avl_node *node;
 
         avl_tree_wlock (src_stats->stats_tree);
-        src_stats->updated = 0;
         while ((node = src_stats->stats_tree->root->right))
         {
             stats_node_t *stats = (stats_node_t*)node->key;
