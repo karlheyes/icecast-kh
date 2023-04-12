@@ -421,7 +421,6 @@ static void metadata_setup (source_t *source)
          INFO1 ("waiting for metadata to be pushed onto queue on %s before updating", source->mount);
          return;
     }
-    source_mp3->update_metadata = 0;
 
     /* work out message length */
     if (source_mp3->url_artist)
@@ -436,15 +435,17 @@ static void metadata_setup (source_t *source)
         len += strlen (source_mp3->url) + strlen (streamurl) + 2;
     if (source_mp3->extra_icy_meta)
         len += strlen (source_mp3->extra_icy_meta);
+    if (source_mp3->update_metadata == 1) // 1 lookup for conversion, 3 already converted
+        charset = source->format->charset;
+
+    source_mp3->update_metadata = 0;
+
 #define MAX_META_LEN 255*16
     if (len > MAX_META_LEN)
     {
         WARN1 ("Metadata too long at %d chars", len);
         return;
     }
-    if (source_mp3->update_metadata == 1) // 1 lookup for conversion, 3 already converted
-        charset = source->format->charset;
-
     /* work out the metadata len byte */
     len_byte = (len-1) / 16 + 1;
 
