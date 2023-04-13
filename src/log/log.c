@@ -36,7 +36,7 @@
 #include "log.h"
 
 #define LOG_MAXLOGS logs_allocated
-#define LOG_MAXLINELEN 1024
+#define LOG_MAXLINELEN 1000
 
 
 static void *_logger_mutex;
@@ -49,9 +49,12 @@ static log_commit_callback  log_callback;
 
 typedef struct _log_entry_t
 {
-   struct _log_entry_t *next;
-   char *line;
-   unsigned int len;
+    struct _log_entry_t *next;
+    char *line;
+    unsigned int len;
+    int flags;
+    int priority;
+    struct timeval tstamp;
 } log_entry_t;
 
 
@@ -79,6 +82,20 @@ typedef struct log_tag
 
     char *buffer;
 } log_t;
+
+typedef struct
+{
+   int flags;
+   int id;
+   int line_len;
+   int priority;
+   uint8_t level;
+   char *line;
+} log_lineinfo_t;
+
+#define LOG_TIME_MS             (1<<0)
+// set internally
+#define LOG_TIME                (1<<8)
 
 int logs_allocated;
 static log_t *loglist;
@@ -179,7 +196,7 @@ static void log_init (log_t *log)
     log->buffer = NULL;
     log->buffer_bytes = 0;
     log->entries = 0;
-    log->keep_entries = 5;
+    log->keep_entries = 10;
     log->written_entry = NULL;
     log->log_head = NULL;
     log->log_tail = NULL;
@@ -512,13 +529,33 @@ static int do_log_run (int log_id)
             break;
 
         loglist [log_id].written_entry = next;
-        _unlock_logger ();
+        if (loglist [log_id].level >= next->priority)
+        {
+            _unlock_logger ();
 
-        // fprintf (stderr, "in log run, line is %s\n", next->line);
-        if (fprintf (loglist [log_id].logfile, "%s\n", next->line) >= 0)
-            loglist [log_id].size += (next->len + 1);
+            char preline [64] = "";
+            if (next->flags & LOG_TIME)
+            {
+                struct tm thetime;
+                time_t secs = next->tstamp.tv_sec;
+                if (next->flags & LOG_TIME_MS)
+                {
+                    int prelen = strftime (preline, sizeof (preline), "[%Y-%m-%d  %H:%M:%S", localtime_r(&secs, &thetime));
+                    prelen += snprintf (preline+prelen, sizeof preline-prelen, ".%06ld] ", (long)next->tstamp.tv_usec);
+                }
+                else
+                {
+                    strftime (preline, sizeof (preline), "[%Y-%m-%d  %H:%M:%S] ", localtime_r(&secs, &thetime));
+                }
+            }
 
-        _lock_logger ();
+            // fprintf (stderr, "in log run, line is %s\n", next->line);
+            int len = fprintf (loglist [log_id].logfile, "%s%s\n", preline, next->line);
+            if (len >= 0)
+                loglist [log_id].size += (len + 1);
+
+            _lock_logger ();
+        }
         next = next->next;
     }
     if (loglist [log_id].in_use == 3)
@@ -578,29 +615,41 @@ static void do_purge (int log_id)
 }
 
 
-static int create_log_entry (int log_id, const char *line)
+static int create_log_entry (log_lineinfo_t *info)
 {
     log_entry_t *entry;
-    int len;
+    int len = info->line_len + 1;
 
     entry = calloc (1, sizeof (log_entry_t));
-    len = entry->len = strlen (line);
-    entry->line = malloc (entry->len+1);
-    snprintf (entry->line, entry->len+1, "%s", line);
-    loglist [log_id].buffer_bytes += entry->len;
+    if (info->flags & LOG_TIME)
+    {
+        if (loglist [info->id].flags & LOG_TIME_MS)
+        {
+            gettimeofday (&entry->tstamp, NULL);
+            entry->flags |= LOG_TIME_MS;
+        }
+        else
+            entry->tstamp.tv_sec = (uint64_t)time (NULL);
+        entry->flags |= LOG_TIME;
+    }
 
-    if (loglist [log_id].log_tail)
-        loglist [log_id].log_tail->next = entry;
+    entry->line = strdup (info->line);
+    entry->len = info->line_len;
+    entry->priority = info->priority;
+    loglist [info->id].buffer_bytes += entry->len;
+
+    if (loglist [info->id].log_tail)
+        loglist [info->id].log_tail->next = entry;
     else
-        loglist [log_id].log_head = entry;
+        loglist [info->id].log_head = entry;
 
-    loglist [log_id].log_tail = entry;
-    loglist [log_id].entries++;
+    loglist [info->id].log_tail = entry;
+    loglist [info->id].entries++;
     if (log_callback)
-        log_callback (log_id);
+        log_callback (info->id);
     else
-        do_log_run (log_id);
-    do_purge (log_id);
+        do_log_run (info->id);
+    do_purge (info->id);
     return len;
 }
 
@@ -651,37 +700,23 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
         const char *fmt, ...)
 {
     static char *prior[] = { "EROR", "WARN", "INFO", "DBUG" };
-    int datelen;
-    time_t now;
-    struct tm thetime;
     char line[LOG_MAXLINELEN];
     va_list ap;
 
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return; /* Bad log number */
-    if (loglist[log_id].level < priority) return;
     if (priority > sizeof(prior)/sizeof(prior[0])) return; /* Bad priority */
+
+    log_lineinfo_t info = { .id = log_id, .line = line, .priority = priority, .flags = LOG_TIME };
 
     va_start(ap, fmt);
 
-#ifdef HAVE_GETTIMEOFDAY
-    struct timeval tv;
-    gettimeofday (&tv, NULL);
-    now = tv.tv_sec;
-    datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S", localtime_r(&now, &thetime));
-    if (loglist[log_id].flags & 1)
-        datelen += snprintf (line+datelen, sizeof line-datelen, ".%06ld] %s %s%s ", (long)tv.tv_usec, prior [priority-1], cat, func);
-    else
-        datelen += snprintf (line+datelen, sizeof line-datelen, "] %s %s%s ", prior [priority-1], cat, func);
-#else
-    now = time(NULL);
-    datelen = strftime (line, sizeof (line), "[%Y-%m-%d  %H:%M:%S]", localtime_r(&now, &thetime));
-    datelen += snprintf (line+datelen, sizeof line-datelen, " %s %s%s ", prior [priority-1], cat, func);
-#endif
-
-    vsnprintf (line+datelen, sizeof line-datelen, fmt, ap);
+    int len = 0;
+    len += snprintf (line, sizeof line, "%s %s%s ", prior [priority-1], cat, func);
+    len += vsnprintf (line+len, sizeof line-len, fmt, ap);
+    info.line_len = (len < LOG_MAXLINELEN) ? len : LOG_MAXLINELEN-1;
 
     _lock_logger();
-    create_log_entry (log_id, line);
+    create_log_entry (&info);
     _unlock_logger();
 
     va_end(ap);
@@ -694,11 +729,14 @@ void log_write_direct(int log_id, const char *fmt, ...)
 
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
 
+    log_lineinfo_t info = { .id = log_id, .line = line };
+
     va_start(ap, fmt);
 
     _lock_logger();
-    vsnprintf(line, LOG_MAXLINELEN, fmt, ap);
-    create_log_entry (log_id, line);
+    int len = vsnprintf(line, LOG_MAXLINELEN, fmt, ap);
+    info.line_len = (len < LOG_MAXLINELEN) ? len : LOG_MAXLINELEN-1;
+    create_log_entry (&info);
     _unlock_logger();
 
     va_end(ap);
