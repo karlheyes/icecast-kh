@@ -164,6 +164,7 @@ void fserve_shutdown(void)
             if (fh && fh->refcount == 0)
             {
                 remove_fh_from_cache (fh);
+                _delete_fh (fh);
                 continue;
             }
             DEBUG1 ("waiting for %u entries to clear", fh_cache->length);
