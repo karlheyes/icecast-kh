@@ -193,47 +193,57 @@ void ServiceMain(int argc, char** argv)
 
 int main (int argc, char *argv[]) 
 {
-    if (argc < 2)
+    do
     {
-        printf (PACKAGE_STRING "\n\n"
-                "Usage: icecastService [remove] | [install <path>]\n"
-                "       icecastService -c icecast.xml\n\n");
-        return -1;
-    }
-    if (!strcmp(argv[1], "install"))
-    {
-        if (argc > 2)
-            installService(argv[2]);
-        else
+        if (argc < 2 || argc > 3)
+            break;
+        if (strcmp (argv[1], "-v") == 0 || strcmp (argv[1], "-h") == 0)
+            break;
+        if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "uninstall"))
+        {
+            removeService();
+            return 0;
+        }
+        if (!strcmp(argv[1], "install"))
+        {
+            if (argc == 3)
+            {
+                installService(argv[2]);
+                Sleep (1000);
+                return 0;
+            }
             printf ("install requires a path arg as well\n");
-        Sleep (1000);
+            break;
+        }
+        if (strcmp (argv[1], "-c") == 0)
+        {
+            if (argc == 3)
+                return run_server (argc, argv);
+            break;
+        }
+
+        if (_chdir(argv[1]) < 0)
+        {
+            char buffer [256];
+            snprintf (buffer, sizeof(buffer), "Unable to change to directory %s", argv[1]);
+            MessageBox (NULL, buffer, NULL, MB_SERVICE_NOTIFICATION);
+            return -1;
+        }
+
+        SERVICE_TABLE_ENTRY ServiceTable[2];
+        ServiceTable[0].lpServiceName = (char*)PACKAGE_STRING;
+        ServiceTable[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)ServiceMain;
+
+        ServiceTable[1].lpServiceName = NULL;
+        ServiceTable[1].lpServiceProc = NULL;
+        // Start the control dispatcher thread for our service
+        if (StartServiceCtrlDispatcher (ServiceTable) == 0)
+            MessageBox (NULL, "StartServiceCtrlDispatcher failed", NULL, MB_SERVICE_NOTIFICATION);
         return 0;
-    }
-    if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "uninstall"))
-    {
-        removeService();
-        return 0;
-    }
+    } while (0);
 
-    if (strcmp (argv[1], "-c") == 0)
-        return run_server (argc, argv);
-
-    if (_chdir(argv[1]) < 0)
-    {
-        char buffer [256];
-        snprintf (buffer, sizeof(buffer), "Unable to change to directory %s", argv[1]);
-        MessageBox (NULL, buffer, NULL, MB_SERVICE_NOTIFICATION);
-        return -1;
-    }
-
-    SERVICE_TABLE_ENTRY ServiceTable[2];
-    ServiceTable[0].lpServiceName = (char*)PACKAGE_STRING;
-    ServiceTable[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)ServiceMain;
-
-    ServiceTable[1].lpServiceName = NULL;
-    ServiceTable[1].lpServiceProc = NULL;
-    // Start the control dispatcher thread for our service
-    if (StartServiceCtrlDispatcher (ServiceTable) == 0)
-        MessageBox (NULL, "StartServiceCtrlDispatcher failed", NULL, MB_SERVICE_NOTIFICATION);
-    return 0;
+    printf (PACKAGE_STRING "\n\n"
+            "Usage: icecast [remove] | [install <path>]\n"
+            "       icecast -c icecast.xml\n\n");
+    return -1;
 }
