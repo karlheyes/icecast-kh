@@ -401,11 +401,16 @@ void config_initialize(void) {
     create_locks();
 }
 
-void config_shutdown(void) {
-    config_get_config();
-    config_clear(&_current_configuration);
-    config_release_config();
-    release_locks();
+void config_shutdown(void)
+{
+    if (config_updated)
+    {
+        config_get_config();
+        config_clear(&_current_configuration);
+        config_release_config();
+        release_locks();
+        config_updated = (uint64_t)0;
+    }
 }
 
 void config_init_configuration(ice_config_t *configuration)
