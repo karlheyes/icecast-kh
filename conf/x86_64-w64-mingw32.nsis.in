@@ -31,7 +31,7 @@ XPStyle on
 
 ;Version Information
 
-VIProductVersion "2.4.0.20"
+VIProductVersion "2.4.0.21"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "Icecast KH"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "2.4.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Karl Heyes @2000-2023"
