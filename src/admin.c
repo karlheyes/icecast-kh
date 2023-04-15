@@ -584,6 +584,8 @@ static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay)
     xmlNewChild (relaynode, NULL, XMLSTR("on_demand"), XMLSTR(str));
     snprintf (str, sizeof (str), "%d", (relay->flags & RELAY_FROM_MASTER ? 1 : 0));
     xmlNewChild (relaynode, NULL, XMLSTR("from_master"), XMLSTR(str));
+    snprintf (str, sizeof (str), "%d", relay->run_on);
+    xmlNewChild (relaynode, NULL, XMLSTR("run_on"), XMLSTR(str));
     while (host)
     {
         xmlNodePtr masternode = xmlNewChild (relaynode, NULL, XMLSTR("master"), NULL);
@@ -591,6 +593,8 @@ static void add_relay_xmlnode (xmlNodePtr node, relay_server *relay)
         xmlNewChild (masternode, NULL, XMLSTR("mount"), XMLSTR(host->mount));
         snprintf (str, sizeof (str), "%d", host->port);
         xmlNewChild (masternode, NULL, XMLSTR("port"), XMLSTR(str));
+        snprintf (str, sizeof (str), "%d", host->priority);
+        xmlNewChild (masternode, NULL, XMLSTR("priority"), XMLSTR(str));
         if (host == relay->in_use)
             xmlNewChild (masternode, NULL, XMLSTR("active"), XMLSTR("true"));
         host = host->next;
