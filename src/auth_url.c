@@ -872,6 +872,7 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         return 0;
     }
     char *pass_headers = NULL;
+    int check_duplicate_users = 0;
 
     authenticator->release = auth_url_clear;
     authenticator->adduser = auth_url_adduser;
@@ -972,8 +973,15 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
             if (strcasecmp (options->value, "yes") == 0)
                 authenticator->flags |= AUTH_SKIP_IF_SLOW;
         }
+        if (!strcmp(options->name, "check_duplicate_users")) {
+            check_duplicate_users = atoi (options->value);
+        }
+
         options = options->next;
     }
+
+    if (!check_duplicate_users)
+        authenticator->flags |=  AUTH_ALLOW_LISTENER_DUP;
 
     if (url_info->auth_header)
         url_info->auth_header_len = strlen (url_info->auth_header);

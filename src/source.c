@@ -2788,7 +2788,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
             thread_rwlock_unlock (&source->lock);
             if (minfo != mountinfo)
                 config_release_mount (minfo);
-            return client_send_403 (client, "Account already in use");
+            return client_send_403 (client, "Account already in use (listener)");
         }
 
         /* set a per-mount disconnect time if auth hasn't set one already */
