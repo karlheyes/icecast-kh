@@ -926,6 +926,7 @@ static int _parse_accesslog (cfg_xml *cfg, void *arg)
         { "archive",        config_get_bool,    &log->archive },
         { "exclude_ext",    config_get_str,     &log->exclude_ext },
         { "display",        config_get_int,     &log->display },
+        { "history",        config_get_int,     &log->display },
         { "querystr",       config_get_bool,    &log->qstr },
         { "size",           config_get_long,    &log->size },
         { "duration",       config_get_int,     &log->duration },
@@ -953,6 +954,7 @@ static int _parse_errorlog (cfg_xml *cfg, void *arg)
         { "name",           config_get_str,             &log->name,    .flags = CFG_TAG_DEF },
         { "archive",        config_get_bool,            &log->archive },
         { "display",        config_get_int,             &log->display },
+        { "history",        config_get_int,             &log->display },
         { "level",          config_get_loglevel,        &log->level },
         { "size",           config_get_long,            &log->size },
         { "duration",       config_get_int,             &log->duration },
@@ -972,6 +974,7 @@ static int _parse_playlistlog (cfg_xml *cfg, void *arg)
         { "name",           config_get_str,     &log->name, .flags = CFG_TAG_DEF },
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
+        { "history",        config_get_int,     &log->display },
         { "size",           config_get_long,    &log->size },
         { "duration",       config_get_int,     &log->duration },
         { NULL, NULL, NULL }
