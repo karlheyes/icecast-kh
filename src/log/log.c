@@ -491,6 +491,28 @@ static log_entry_t *log_entry_pop (int log_id)
     return to_go;
 }
 
+
+static int _log_expand_preline (log_entry_t *next, char *preline, size_t prelen)
+{
+    int r = 0;
+    if (next->flags & LOG_TIME)
+    {
+        struct tm thetime;
+        time_t secs = next->tstamp.tv_sec;
+        if (next->flags & LOG_TIME_MS)
+        {
+            r =  strftime (preline, prelen, "[%Y-%m-%d  %H:%M:%S", localtime_r(&secs, &thetime));
+            r += snprintf (preline+r, prelen-r, ".%06ld] ", (long)next->tstamp.tv_usec);
+        }
+        else
+        {
+            r = strftime (preline, prelen, "[%Y-%m-%d  %H:%M:%S] ", localtime_r(&secs, &thetime));
+        }
+    }
+    return r;
+}
+
+
 // flush out any waiting log entries
 //
 static int do_log_run (int log_id)
@@ -534,20 +556,7 @@ static int do_log_run (int log_id)
             _unlock_logger ();
 
             char preline [64] = "";
-            if (next->flags & LOG_TIME)
-            {
-                struct tm thetime;
-                time_t secs = next->tstamp.tv_sec;
-                if (next->flags & LOG_TIME_MS)
-                {
-                    int prelen = strftime (preline, sizeof (preline), "[%Y-%m-%d  %H:%M:%S", localtime_r(&secs, &thetime));
-                    prelen += snprintf (preline+prelen, sizeof preline-prelen, ".%06ld] ", (long)next->tstamp.tv_usec);
-                }
-                else
-                {
-                    strftime (preline, sizeof (preline), "[%Y-%m-%d  %H:%M:%S] ", localtime_r(&secs, &thetime));
-                }
-            }
+            _log_expand_preline (next, preline, sizeof preline);
 
             // fprintf (stderr, "in log run, line is %s\n", next->line);
             int len = fprintf (loglist [log_id].logfile, "%s%s\n", preline, next->line);
@@ -618,15 +627,18 @@ static void do_purge (int log_id)
 static int create_log_entry (log_lineinfo_t *info)
 {
     log_entry_t *entry;
-    int len = info->line_len + 1;
+    int len = info->line_len + 1,       // add for nul/NL
+        prelen = 0;
 
     entry = calloc (1, sizeof (log_entry_t));
     if (info->flags & LOG_TIME)
     {
+        prelen += 23;   // "[YYYY-MM-DD  HH:MM:SS] "
         if (loglist [info->id].flags & LOG_TIME_MS)
         {
             gettimeofday (&entry->tstamp, NULL);
             entry->flags |= LOG_TIME_MS;
+            prelen += 7;        // "[YYYY-MM-DD  HH:MM:SS.UUUUUU] "
         }
         else
             entry->tstamp.tv_sec = (uint64_t)time (NULL);
@@ -634,7 +646,7 @@ static int create_log_entry (log_lineinfo_t *info)
     }
 
     entry->line = strdup (info->line);
-    entry->len = info->line_len;
+    entry->len = len + prelen;
     entry->priority = info->priority;
     loglist [info->id].buffer_bytes += entry->len;
 
@@ -654,7 +666,7 @@ static int create_log_entry (log_lineinfo_t *info)
 }
 
 
-int log_contents (int log_id, char **_contents, unsigned int *_len)
+int log_contents (int log_id, int level, char **_contents, unsigned int *_len)
 {
     int remain;
     log_entry_t *entry;
@@ -671,21 +683,29 @@ int log_contents (int log_id, char **_contents, unsigned int *_len)
             _unlock_logger ();
             return -1;
         }
-        *_len = loglist [log_id].buffer_bytes + loglist [log_id].entries; // add space for newlines
+        *_len = loglist [log_id].buffer_bytes; // max amount really
         return 1;
     }
     remain = *_len;
 
+    if (level == 0)
+        level = loglist[log_id].level;
     entry = loglist [log_id].log_head;
     ptr = *_contents;
     *ptr = '\0';
     while (entry && remain)
     {
-        int len = snprintf (ptr, remain, "%s\n", entry->line);
-        if (len > 0)
+        if (entry->priority <= level)
         {
-            ptr += len;
-            remain -= len;
+            if (entry->len >= remain) break;
+            char preline [64] = "";
+            _log_expand_preline (entry, preline, sizeof preline);
+            int len = snprintf (ptr, remain, "%s%s\n", preline, entry->line);
+            if (len > 0 && len <= remain)
+            {
+                ptr += len;
+                remain -= len;
+            }
         }
         entry = entry->next;
     }

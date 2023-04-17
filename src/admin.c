@@ -1169,6 +1169,11 @@ static int command_list_log (client_t *client, int response)
     if (logname == NULL)
         return client_send_400 (client, "No log specified");
 
+    const char *level_arg = httpp_get_query_param (client->parser, "level");
+    int level = level_arg ? atoi (level_arg) : 0;
+    if (level < 0 || level > 4)
+        level = 0;      // let log subsys to choose
+
     config = config_get_config ();
     if (strcmp (logname, "errorlog") == 0)
         log = config->error_log.logid;
@@ -1177,14 +1182,14 @@ static int command_list_log (client_t *client, int response)
     else if (strcmp (logname, "playlistlog") == 0)
         log = config->playlist_log.logid;
 
-    if (log_contents (log, NULL, &len) < 0)
+    if (log_contents (log, level, NULL, &len) < 0)
     {
         config_release_config();
         WARN1 ("request to show unknown log \"%s\"", logname);
         return client_send_400 (client, "unknown log");
     }
     content = refbuf_new (len+1);
-    log_contents (log, &content->data, &content->len);
+    log_contents (log, level, &content->data, &content->len);
     config_release_config();
 
     if (response == XSLT)
