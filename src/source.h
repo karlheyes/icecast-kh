@@ -28,7 +28,6 @@ typedef struct source_tag
     char *mount;
     unsigned int flags;
     int listener_send_trigger;
-    char wakeup;
 
     rwlock_t lock;
 

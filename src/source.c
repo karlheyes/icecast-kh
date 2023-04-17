@@ -585,7 +585,6 @@ void source_add_queue_buffer (source_t *source, refbuf_t *r)
 
     source->stream_data_tail = r;
     source->queue_size += r->len;
-    source->wakeup = 1;
 
     /* move the starting point for new listeners */
     source->min_queue_offset += r->len;
@@ -745,7 +744,6 @@ int source_read (source_t *source)
     global_unlock();
     if (source_running (source) == 0)
         return 0;
-    source->wakeup = 0;
     client->schedule_ms = client->worker->time_ms;
     if (source->flags & SOURCE_LISTENERS_SYNC)
     {
