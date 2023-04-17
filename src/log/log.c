@@ -634,14 +634,16 @@ static int create_log_entry (log_lineinfo_t *info)
     if (info->flags & LOG_TIME)
     {
         prelen += 23;   // "[YYYY-MM-DD  HH:MM:SS] "
+#ifdef HAVE_GETTIMEOFDAY
+        gettimeofday (&entry->tstamp, NULL);
+#else
+        entry->tstamp.tv_sec = (uint64_t)time (NULL);
+#endif
         if (loglist [info->id].flags & LOG_TIME_MS)
         {
-            gettimeofday (&entry->tstamp, NULL);
             entry->flags |= LOG_TIME_MS;
             prelen += 7;        // "[YYYY-MM-DD  HH:MM:SS.UUUUUU] "
         }
-        else
-            entry->tstamp.tv_sec = (uint64_t)time (NULL);
         entry->flags |= LOG_TIME;
     }
 
