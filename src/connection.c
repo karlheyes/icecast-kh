@@ -259,7 +259,7 @@ void connection_initialize(void)
     SSL_load_error_strings();                /* readable error messages */
 #endif
     SSL_library_init();                      /* initialize library */
-    ssl_mutexes = malloc(CRYPTO_num_locks() * sizeof(mutex_t));
+    ssl_mutexes = calloc(CRYPTO_num_locks(),  sizeof(mutex_t));
     if (ssl_mutexes)
     {
         int i;
