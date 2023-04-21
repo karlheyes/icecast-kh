@@ -123,19 +123,21 @@ static int _log_open (int id, time_t now)
             FILE *f = NULL;
             struct stat st;
             int exists = 0, archive = 1;
+            off_t trigger = loglist [id] . trigger_level;
 
+            _unlock_logger();
             if (stat (loglist [id] . filename, &st) == 0)
             {
                 exists = 1;
-                if ((loglist [id] . trigger_level && loglist [id] . size > loglist [id] . trigger_level) &&
-                        st.st_size < loglist [id] . trigger_level)
+                if ((trigger && loglist [id].size > trigger) && st.st_size < trigger)
                 {  // log changed from under us, but less than trigger size, better reopen this and not archive for now.
                    archive = 0;
                 }
             }
+            char new_name [4096];
+            _lock_logger();
             if (loglist [id].logfile && loglist [id].logfile != stderr)
             {
-                char new_name [4096];
                 fclose (loglist [id] . logfile);
                 loglist [id] . logfile = NULL;
                 if (archive)
@@ -159,15 +161,19 @@ static int _log_open (int id, time_t now)
                     }
                 }
             }
-            f = fopen (loglist [id] . filename, "a");
+            snprintf (new_name, sizeof new_name, "%s", loglist [id].filename);
+            _unlock_logger();
+
+            f = fopen (new_name, "a");
+
+            _lock_logger();
             if (f == NULL)
             {
                 if (loglist [id] . logfile != stderr)
                 {
                     loglist [id] . logfile = stderr;
-                    do_log_run (id);
                 }
-                return 0;
+                return 1;
             }
             loglist [id].logfile = f;
             setvbuf (loglist [id] . logfile, NULL, IO_BUFFER_TYPE, 0);
@@ -187,21 +193,13 @@ static int _log_open (int id, time_t now)
 
 static void log_init (log_t *log)
 {
-    log->in_use = 0;
+    memset (log, 0, sizeof (*log));
     log->level = 2;
-    log->flags = 0;
-    log->size = 0;
     log->trigger_level = 50*1024*1024;
-    log->duration = 0;
     log->filename = NULL;
     log->logfile = NULL;
     log->buffer = NULL;
-    log->buffer_bytes = 0;
-    log->entries = 0;
-    log->keep_entries = 10;
-    log->written_entry = NULL;
-    log->log_head = NULL;
-    log->log_tail = NULL;
+    log->keep_entries = 20;
 }
 
 void log_initialize_lib (mx_create_func mxc, mx_lock_func mxl)
@@ -460,6 +458,8 @@ void log_close(int log_id)
 
 void log_shutdown(void)
 {
+    if (_initialized == 0)
+        return;
     int log_id;
     log_commit_entries ();
     for (log_id = 0; log_id < logs_allocated ; log_id++)
@@ -531,7 +531,10 @@ static int do_log_run (int log_id)
         next = loglist [log_id].written_entry->next;
 
     // recheck size every so often in case contents are modified outside of this use.
-    if (next && loglist[log_id].logfile && loglist [log_id] .filename && loglist [log_id].recheck_time <= now)
+    if (next &&
+            loglist[log_id].logfile &&
+            loglist [log_id] .filename &&
+            loglist [log_id].recheck_time <= now)
     {
         struct stat st;
         loglist [log_id].recheck_time = now + 6;
@@ -547,7 +550,7 @@ static int do_log_run (int log_id)
         }
     }
     // fprintf (stderr, "in log run, id %d\n", log_id);
-    while (next && ++loop < 300)
+    while (loglist [log_id].in_use == 3 && next && ++loop < 300)
     {
         if (_log_open (log_id, now) == 0)
             break;
@@ -562,13 +565,14 @@ static int do_log_run (int log_id)
 
             // fprintf (stderr, "in log run, line is %s\n", next->line);
             int len = fprintf (loglist [log_id].logfile, "%s%s\n", preline, next->line);
-            if (len >= 0)
-                loglist [log_id].size += (len + 1);
 
             _lock_logger ();
+            if (len >= 0)
+                loglist [log_id].size += (len + 1);
         }
         next = next->next;
     }
+    // fprintf (stderr, "log.c, end of run %d, in_use %d\n", log_id, loglist [log_id].in_use);
     if (loglist [log_id].in_use == 3)
         loglist [log_id].in_use = 1;    // normal route
     else
