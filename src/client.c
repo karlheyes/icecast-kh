@@ -980,7 +980,11 @@ static void worker_stop (void)
             workers = handler->next;
             worker_least_used = worker_balance_to_check = workers;
             if (workers)
-                workers->move_allocations = 1000;
+            {
+                thread_spin_lock (&workers->lock);
+                workers->move_allocations = 100000;
+                thread_spin_unlock (&workers->lock);
+            }
             worker_count--;
         }
         else
@@ -992,12 +996,12 @@ static void worker_stop (void)
 
         if (handler)
         {
+            thread_rwlock_unlock (&workers_lock);
             thread_spin_lock (&handler->lock);
             handler->running = 0;
             thread_spin_unlock (&handler->lock);
 
             worker_wakeup (handler);
-            thread_rwlock_unlock (&workers_lock);
 
             thread_join (handler->thread);
             thread_spin_destroy (&handler->lock);
@@ -1005,9 +1009,11 @@ static void worker_stop (void)
             sock_close (handler->wakeup_fd[1]);
             sock_close (handler->wakeup_fd[0]);
             free (handler);
+
             thread_rwlock_wlock (&workers_lock);
+            if (workers) break;         // break out unless no more normal workers
         }
-    } while (workers == NULL && worker_incoming);
+    } while (worker_incoming);
     thread_rwlock_unlock (&workers_lock);
 }
 
