@@ -439,7 +439,7 @@ void thread_mutex_lock_c(mutex_t *mutex, int line, const char *file)
     _mutex_lock_c(mutex, file, line);
 #ifdef THREAD_DEBUG
     mutex->lock_start = get_count();
-    mutex->file = (char*)file;
+    mutex->file = strdup (file);
     mutex->line = line;
     if (strcmp (file, __FILE__))
         LOG_DEBUG3("Lock on %s acquired at %s:%d", mutex->name, file, line);
@@ -853,14 +853,11 @@ static void _mutex_lock_c(mutex_t *mutex, const char *file, int line)
             log_write (thread_log, 1, "thread/", "mutex", "last lock at %s:%d", mutex->file,mutex->line);
         abort();
     }
-    mutex->file = file;
-    mutex->line = line;
 }
 
 static void _mutex_unlock_c(mutex_t *mutex, const char *file, int line)
 {
     int rc;
-    mutex->file = NULL;
     rc = pthread_mutex_unlock(&mutex->sys_mutex);
     if (lock_problem_abort && rc)
     {
@@ -940,6 +937,7 @@ static int _free_mutex(void *key)
     if (m && m->file) {
         m->file = NULL;
     }
+    free (m->name);
 
     /* all mutexes are static.  don't need to free them */
 
@@ -1031,7 +1029,7 @@ void thread_time_add_ms (struct timespec *ts, unsigned long value)
 }
 
 
-int thread_mtx_create_callback (void **p, int alloc)
+int thread_mtx_create_callback (void **p, const char *filename, size_t line, int alloc)
 {
     mutex_t *mutex;
     if (p == NULL)
@@ -1039,7 +1037,7 @@ int thread_mtx_create_callback (void **p, int alloc)
     if (alloc)
     {
         mutex = malloc (sizeof(mutex_t));
-        thread_mutex_create (mutex);
+        thread_mutex_create_c (mutex, line, filename);
         *p = mutex;
     }
     else
@@ -1053,7 +1051,7 @@ int thread_mtx_create_callback (void **p, int alloc)
 }
 
 
-int thread_mtx_lock_callback (void **p, int lock)
+int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int lock)
 {
     mutex_t *mutex;
     if (p == NULL)
@@ -1061,7 +1059,7 @@ int thread_mtx_lock_callback (void **p, int lock)
     mutex = *p;
     if (lock)
     {
-        thread_mutex_lock (mutex);
+        thread_mutex_lock_c (mutex, line, filename);
     }
     else
     {

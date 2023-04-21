@@ -22,8 +22,8 @@
 #define IO_BUFFER_TYPE _IOLBF
 #endif
 
-typedef int (*mx_create_func)(void**m, int create);
-typedef int (*mx_lock_func)(void**m, int create);
+typedef int (*mx_create_func)(void**m, const char *fn, size_t line, int create);
+typedef int (*mx_lock_func)(void**m, const char *fn, size_t line, int create);
 typedef void (*log_commit_callback)(int id);
 
 void log_initialize_lib (mx_create_func mxc, mx_lock_func mxl);

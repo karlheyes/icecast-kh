@@ -101,10 +101,12 @@ int logs_allocated;
 static log_t *loglist;
 
 static int _get_log_id(void);
-static void _lock_logger(void);
-static void _unlock_logger(void);
+static void _lock_logger_c(const char *file, size_t line);
+static void _unlock_logger_c(const char *file, size_t line);
 static int do_log_run (int log_id);
 
+#define _lock_logger() _lock_logger_c(__FILE__,__LINE__)
+#define _unlock_logger() _unlock_logger_c(__FILE__,__LINE__)
 
 static int _log_open (int id, time_t now)
 {
@@ -211,7 +213,7 @@ void log_initialize_lib (mx_create_func mxc, mx_lock_func mxl)
     log_mutex_lock = mxl ? mxl : NULL;
 
     if (log_mutex_alloc)
-        log_mutex_alloc (&_logger_mutex, 1);
+        log_mutex_alloc (&_logger_mutex, __FILE__, __LINE__, 3);
     log_callback = NULL;
     _initialized = 1;
 }
@@ -467,7 +469,7 @@ void log_shutdown(void)
     loglist = NULL;
     /* destroy mutexes */
     if (log_mutex_alloc)
-        log_mutex_alloc (&_logger_mutex, 0);
+        log_mutex_alloc (&_logger_mutex, __FILE__, __LINE__, 0);
 
     _initialized = 0;
 }
@@ -800,16 +802,16 @@ static int _get_log_id(void)
 }
 
 
-static void _lock_logger(void)
+static void _lock_logger_c(const char *file, size_t line)
 {
     if (log_mutex_lock)
-        log_mutex_lock (&_logger_mutex, 1);
+        log_mutex_lock (&_logger_mutex, file, line, 1);
 }
 
-static void _unlock_logger(void)
+static void _unlock_logger_c(const char *file, size_t line)
 {
     if (log_mutex_lock)
-        log_mutex_lock (&_logger_mutex, 0);
+        log_mutex_lock (&_logger_mutex, file, line, 0);
 }
 
 

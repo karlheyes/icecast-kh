@@ -63,7 +63,7 @@ typedef struct {
 
 #endif
     /* the file and line where the mutex was locked */
-    const char *file;
+    char *file;
     int line;
 
     /* the system specific mutex */
@@ -121,8 +121,8 @@ typedef mutex_t spin_t;
 typedef int (*thread_mx_create_func)(void**m, int create);
 typedef int (*thread_mx_lock_func)(void**m, int create);
 
-int thread_mtx_create_callback(void**m, int create);
-int thread_mtx_lock_callback(void**m, int lock);
+int thread_mtx_create_callback (void **p, const char *filename, size_t line, int alloc);
+int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int lock);
 
 #define thread_create(n,x,y,z) thread_create_c(n,x,y,z,__LINE__,__FILE__)
 #define thread_mutex_create(x) thread_mutex_create_c(x,__LINE__,__FILE__)
