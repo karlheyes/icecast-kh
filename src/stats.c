@@ -1234,6 +1234,7 @@ static int _free_source_stats (void *key)
     DEBUG1 ("delete source node %s", node->source);
     avl_tree_free(node->stats_tree, _free_stats);
     free(node->source);
+    memset (node, 0, sizeof (*node));
     free(node);
 
     return 1;
