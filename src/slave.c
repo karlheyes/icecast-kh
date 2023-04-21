@@ -1849,10 +1849,15 @@ static int relay_read (client_t *client)
             source->flags &= ~SOURCE_RUNNING;
         if (source_running (source))
         {
-            if (source->listeners == 0 && (relay->flags & RELAY_ON_DEMAND) && relay->run_on && client->connection.discon.time == 0)
+            if (source->listeners == 0 && (relay->flags & RELAY_ON_DEMAND) && client->connection.discon.time == 0)
             {
-                INFO2 ("relay %s at 0 listeners, keep running for %d seconds", relay->localmount, relay->run_on);
-                client->connection.discon.time = client->worker->current_time.tv_sec + relay->run_on;
+                if (relay->run_on)
+                {
+                    INFO2 ("relay %s at 0 listeners, keep running for %d seconds", relay->localmount, relay->run_on);
+                    client->connection.discon.time = client->worker->current_time.tv_sec + relay->run_on;
+                }
+                else
+                    source->flags &= ~SOURCE_RUNNING;
             }
             thread_rwlock_unlock (&source->lock);
             return 0;
