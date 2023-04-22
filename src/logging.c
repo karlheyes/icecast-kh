@@ -241,12 +241,14 @@ int restart_logging (ice_config_t *config)
         ret = -1;
     else
     {
+        static const char *prior[] = { "FFF", "EROR", "WARN", "INFO", "DBUG" };
         log_set_trigger (config->error_log.logid, config->error_log.size);
         log_set_reopen_after (config->error_log.logid, config->error_log.duration);
         if (config->error_log.display > 0)
             log_set_lines_kept (config->error_log.logid, config->error_log.display);
         log_set_archive_timestamp (config->error_log.logid, config->error_log.archive);
         log_set_level (config->error_log.logid, config->error_log.level);
+        log_set_priorities (config->error_log.logid, sizeof prior/sizeof prior[0], prior);
     }
     thread_use_log_id (config->error_log.logid);
     errorlog = config->error_log.logid; /* value stays static so avoid taking the config lock */

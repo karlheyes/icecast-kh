@@ -50,6 +50,7 @@ static log_commit_callback  log_callback;
 typedef struct _log_entry_t
 {
     struct _log_entry_t *next;
+    struct _log_entry_t *next_on_priority;
     char *line;
     unsigned int len;
     int flags;
@@ -57,6 +58,13 @@ typedef struct _log_entry_t
     struct timeval tstamp;
 } log_entry_t;
 
+typedef struct _log_priority
+{
+    const char *name;
+    int count;
+    off_t size;
+    log_entry_t *head;
+} log_priority_t;
 
 typedef struct log_tag
 {
@@ -79,6 +87,8 @@ typedef struct log_tag
     log_entry_t *written_entry;
     log_entry_t *log_head;
     log_entry_t *log_tail;
+    int priority_count;
+    log_priority_t *priorities; // array
 
     char *buffer;
 } log_t;
@@ -269,10 +279,31 @@ int log_open(const char *filename)
         loglist [id].size = 0;
         loglist [id].reopen_at = 0;
         loglist [id].archive_timestamp = 0;
+        loglist [id].priority_count = 1;
         _unlock_logger();
     }
 
     return id;
+}
+
+
+void log_set_priorities (int id, int count, const char *names[])
+{
+    if (count < 0 || count > 500)
+        return; // allow a sane range
+    _lock_logger();
+    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use && loglist[id].entries == 0)
+    {
+        log_priority_t *n = realloc (loglist[id].priorities, sizeof (log_priority_t)*count);
+        if (n)
+        {
+            loglist[id].priorities = n;
+            loglist[id].priority_count = count;
+            for (int i=0; i < count; i++)
+                n[i].name = names[i];
+        }
+    }
+    _unlock_logger();
 }
 
 
@@ -727,19 +758,25 @@ int log_contents (int log_id, int level, char **_contents, unsigned int *_len)
 void log_write(int log_id, unsigned priority, const char *cat, const char *func,
         const char *fmt, ...)
 {
-    static char *prior[] = { "EROR", "WARN", "INFO", "DBUG" };
+    const char *p = NULL;
     char line[LOG_MAXLINELEN];
     va_list ap;
 
-    if (log_id < 0 || log_id >= LOG_MAXLOGS) return; /* Bad log number */
-    if (priority > sizeof(prior)/sizeof(prior[0])) return; /* Bad priority */
+    _lock_logger(); // may change to read lock for log subsys instead of mutex, mutex for queue only
+    do {
+        if (log_id < 0 || log_id >= LOG_MAXLOGS) break;         /* Bad log number */
+        if (priority >= loglist[log_id].priority_count) break;  /* Bad priority */
+        p = (loglist[log_id].priorities ? (loglist[log_id].priorities[priority].name) : "");
+    } while (0);
+    _unlock_logger();
+    if (p == NULL) return;
 
     log_lineinfo_t info = { .id = log_id, .line = line, .priority = priority, .flags = LOG_TIME };
 
     va_start(ap, fmt);
 
     int len = 0;
-    len += snprintf (line, sizeof line, "%s %s%s ", prior [priority-1], cat, func);
+    len += snprintf (line, sizeof line, "%s %s%s ", p, cat, func);
     len += vsnprintf (line+len, sizeof line-len, fmt, ap);
     info.line_len = (len < LOG_MAXLINELEN) ? len : LOG_MAXLINELEN-1;
 
