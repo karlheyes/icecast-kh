@@ -546,6 +546,29 @@ static int _log_expand_preline (log_entry_t *next, char *preline, size_t prelen)
 }
 
 
+// purge log entries back to least 1 on the specified log, assumes lock in use
+//
+static void do_purge (int log_id)
+{
+    int last = loglist [log_id].keep_entries;
+
+    //fprintf (stderr, "in log purge, id %d, last %d, entries %d\n", log_id, last, loglist [log_id].entries);
+    while (loglist [log_id].entries > last)
+    {
+        log_entry_t *to_go = log_entry_pop (log_id);
+
+        if (to_go)
+        {
+            //fprintf (stderr, "  log purge (%d), %s\n", loglist [log_id].entries, to_go->line);
+            free (to_go->line);
+            free (to_go);
+            continue;
+        }
+        break;
+    }
+}
+
+
 // flush out any waiting log entries
 //
 static int do_log_run (int log_id)
@@ -603,6 +626,7 @@ static int do_log_run (int log_id)
         }
         next = next->next;
     }
+    do_purge (log_id);
     // fprintf (stderr, "log.c, end of run %d, in_use %d\n", log_id, loglist [log_id].in_use);
     if (loglist [log_id].in_use == 3)
         loglist [log_id].in_use = 1;    // normal route
@@ -637,28 +661,6 @@ void log_set_commit_callback (log_commit_callback f)
     log_callback = f;
 }
 
-
-// purge log entries back to least 1 on the specified log, assumes lock in use
-//
-static void do_purge (int log_id)
-{
-    int last = loglist [log_id].keep_entries;
-
-    //fprintf (stderr, "in log purge, id %d, last %d, entries %d\n", log_id, last, loglist [log_id].entries);
-    while (loglist [log_id].entries > last)
-    {
-        log_entry_t *to_go = log_entry_pop (log_id);
-
-        if (to_go)
-        {
-            //fprintf (stderr, "  log purge (%d), %s\n", loglist [log_id].entries, to_go->line);
-            free (to_go->line);
-            free (to_go);
-            continue;
-        }
-        break;
-    }
-}
 
 
 static int create_log_entry (log_lineinfo_t *info)
@@ -700,7 +702,6 @@ static int create_log_entry (log_lineinfo_t *info)
         log_callback (info->id);
     else
         do_log_run (info->id);
-    do_purge (info->id);
     return len;
 }
 
