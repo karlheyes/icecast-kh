@@ -2465,7 +2465,7 @@ void source_recheck_mounts (int update_all)
         if (_get_source (mount->mountname, &source) < 0)
             continue;   // something else has a lock, so ignore
 
-        if (source == NULL || source_available (source) == 0)
+        if (source == NULL)
         {   // if source locked or set to something then it is being used, skip it
             unsigned int len;
             int rc = -1, loop = 5;
@@ -2499,7 +2499,7 @@ void source_recheck_mounts (int update_all)
             }
             // rc == -1 m just fall thru...
         }
-        if (source)
+        else
             thread_rwlock_unlock (&source->lock);
     }
     avl_tree_unlock (global.source_tree);
