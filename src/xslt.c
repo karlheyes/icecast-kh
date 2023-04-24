@@ -271,7 +271,17 @@ static int xslt_cached (xsl_req *x, uint64_t now)
     uint64_t early_p = now+1, early_f = early_p, early_na = early_p;
     int i, present = CACHESIZE, failed = CACHESIZE, nonadmin = CACHESIZE;
 
-    if (x && x->cache) return 0; // already set
+    if (x && x->cache)
+    {
+        thread_mutex_lock (&cache_lock);
+        if ((x->cache->flags & XSLCACHE_PENDING) == 0)
+        {
+            x->flags &= ~XSLREQ_DELAY;          // toggle off
+            x->cache->cache_age = now;           // update to keep around
+        }
+        thread_mutex_unlock (&cache_lock);
+        return 1; // already set
+    }
     thread_mutex_lock (&cache_lock);
     for (i=0; i < CACHESIZE; i++)
     {
@@ -315,7 +325,8 @@ static int xslt_cached (xsl_req *x, uint64_t now)
                 i = nonadmin;
             else if (present < CACHESIZE)  // oldest of all
                 i = present;
-            if (i == CACHESIZE) break;  // nothing selected, drop out for retry
+            if (i == CACHESIZE)
+                break;  // nothing selected, drop out for retry
             clear_cached_stylesheet (&cache[i], 1);
             DEBUG1 ("cleared slot %d", i);
         }
@@ -597,7 +608,10 @@ int xslt_client (client_t *client)
     {
         if (rc < 0) break;
         if (client->connection.discon.time <= (now/1000))
+        {
+            WARN1 ("Taking too long to get %s from cache", x->filename);
             break;
+        }
         if (rc > 0)
         {       // process only if cached and none already pending
             if (x->flags & XSLREQ_DELAY)
