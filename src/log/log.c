@@ -55,7 +55,11 @@ typedef struct _log_entry_t
     unsigned int len;
     int flags;
     int priority;
+#ifdef HAVE_CLOCK_GETTIME
+    struct timespec tstamp;
+#else
     struct timeval tstamp;
+#endif
 } log_entry_t;
 
 typedef struct _log_priority
@@ -535,7 +539,11 @@ static int _log_expand_preline (log_entry_t *next, char *preline, size_t prelen)
         if (next->flags & LOG_TIME_MS)
         {
             r =  strftime (preline, prelen, "[%Y-%m-%d  %H:%M:%S", localtime_r(&secs, &thetime));
+#ifdef HAVE_CLOCK_GETTIME
+            r += snprintf (preline+r, prelen-r, ".%09ld] ", (long)next->tstamp.tv_nsec);
+#else
             r += snprintf (preline+r, prelen-r, ".%06ld] ", (long)next->tstamp.tv_usec);
+#endif
         }
         else
         {
@@ -673,15 +681,20 @@ static int create_log_entry (log_lineinfo_t *info)
     if (info->flags & LOG_TIME)
     {
         prelen += 23;   // "[YYYY-MM-DD  HH:MM:SS] "
-#ifdef HAVE_GETTIMEOFDAY
+#ifdef HAVE_CLOCK_GETTIME
+        clock_gettime (CLOCK_REALTIME, &entry->tstamp);
+        const int ss = 10;
+#elif defined(HAVE_GETTIMEOFDAY)
         gettimeofday (&entry->tstamp, NULL);
+        const int ss = 7;
 #else
         entry->tstamp.tv_sec = (uint64_t)time (NULL);
+        const int ss = 7;
 #endif
         if (loglist [info->id].flags & LOG_TIME_MS)
         {
             entry->flags |= LOG_TIME_MS;
-            prelen += 7;        // "[YYYY-MM-DD  HH:MM:SS.UUUUUU] "
+            prelen += ss;        // "[YYYY-MM-DD  HH:MM:SS.UUUUUU*] "
         }
         entry->flags |= LOG_TIME;
     }
