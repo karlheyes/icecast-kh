@@ -1067,3 +1067,51 @@ int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int l
     }
     return 0;
 }
+
+
+int thread_rw_create_callback (void **p, const char *filename, size_t line, int alloc)
+{
+    int rc = -1;
+    if (p)
+    {
+        rwlock_t *rwlock;
+        if (alloc)
+        {
+            rwlock = malloc (sizeof (rwlock_t));
+            thread_rwlock_create_c ("thread-rw", rwlock, line, filename);
+        }
+        else
+        {
+            rwlock = *p;
+            thread_rwlock_destroy (rwlock);
+            free (rwlock);
+            rwlock = NULL;
+        }
+        rc = 0;
+        *p = rwlock;
+    }
+    return rc;
+}
+
+
+int thread_rw_lock_callback (void **p, const char *filename, size_t line, int lock)
+{
+    int rc = -1;
+    if (p)
+    {
+        rc = 0;
+        rwlock_t *rwl = *p;
+        if (lock == THREAD_RWL_RLOCK)
+            thread_rwlock_rlock_c (rwl, line, filename);
+        else if (lock == THREAD_RWL_UNLOCK)
+            thread_rwlock_unlock_c (rwl, line, filename);
+        else if (lock == THREAD_RWL_WLOCK)
+            thread_rwlock_wlock_c (rwl, line, filename);
+        else if (lock == THREAD_RWL_TRYRLOCK)
+            rc = thread_rwlock_tryrlock_c (rwl, line, filename);
+        else if (lock == THREAD_RWL_TRYWLOCK)
+            rc = thread_rwlock_trywlock_c (rwl, line, filename);
+    }
+    return rc;
+}
+

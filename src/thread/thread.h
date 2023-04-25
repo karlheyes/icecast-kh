@@ -123,6 +123,8 @@ typedef int (*thread_mx_lock_func)(void**m, int create);
 
 int thread_mtx_create_callback (void **p, const char *filename, size_t line, int alloc);
 int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int lock);
+int thread_rw_create_callback (void **p, const char *filename, size_t line, int alloc);
+int thread_rw_lock_callback (void **p, const char *filename, size_t line, int lock);
 
 #define thread_create(n,x,y,z) thread_create_c(n,x,y,z,__LINE__,__FILE__)
 #define thread_mutex_create(x) thread_mutex_create_c(x,__LINE__,__FILE__)
@@ -147,6 +149,12 @@ int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int l
 #define MUTEX_STATE_UNINIT -3
 #define THREAD_DETACHED 1
 #define THREAD_ATTACHED 0
+
+#define THREAD_RWL_UNLOCK       0
+#define THREAD_RWL_RLOCK        1
+#define THREAD_RWL_WLOCK        2
+#define THREAD_RWL_TRYRLOCK     3
+#define THREAD_RWL_TRYWLOCK     4
 
 #ifdef _mangle
 # define thread_initialize _mangle(thread_initialize)
