@@ -1489,13 +1489,14 @@ static int http_client_request (client_t *client)
         if (ret && client->connection.error == 0)
         {
             /* scale up the retry time, very short initially, usual case */
-            static volatile sig_atomic_t vary = 4;
-            int diff = 2 + (++vary & 15);
-            // DEBUG2 ("client %p diff %d", client, diff);
-            client->schedule_ms = client->worker->time_ms + diff;
+            long c = client->worker->current_time.tv_sec - client->connection.con_time;
+            int diff = 11 + (c * 31);
+            // DEBUG3 ("client %p, c %ld, diff %d", client, c, diff);
+            client->schedule_ms += diff;
             return 0;
         }
     }
+    client->connection.error = 1;
     refbuf_release (refbuf);
     client->shared_data = NULL;
     return -1;
@@ -2069,7 +2070,7 @@ int connection_reset (connection_t *con, uint64_t time_ms)
         return -1;
     }
     con->con_time = time_ms/1000;
-    con->discon.time = con->con_time + 7;
+    con->discon.time = con->con_time + header_timeout;
     con->sent_bytes = 0;
 #ifdef HAVE_OPENSSL
     if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); con->ssl = NULL; }

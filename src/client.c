@@ -162,7 +162,6 @@ void client_destroy(client_t *client)
     client->refbuf = NULL;
     client->pos = 0;
     client->intro_offset = 0;
-    client->aux_data = (uintptr_t)-1;
     client_add_incoming (client);
 }
 
