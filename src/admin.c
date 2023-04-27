@@ -1210,6 +1210,7 @@ static int command_list_log (client_t *client, int response)
         ice_http_t http;
         if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
         ice_http_apply_block (&http, content);
+        http.in_length = content->len;
         ice_http_printf (&http, "Content-Type", 0, "text/plain");
         return client_http_send (&http);
     }
