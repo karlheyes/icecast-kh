@@ -97,7 +97,8 @@ static void _print_usage(void)
 
 void initialize_subsystems(void)
 {
-    log_initialize_lib (thread_mtx_create_callback, thread_mtx_lock_callback);
+    log_locking_t lks = { thread_mtx_create_callback, thread_mtx_lock_callback, thread_rw_create_callback, thread_rw_lock_callback };
+    log_initialize_lib (&lks);
     thread_initialize();
     global_initialize();
     errorlog = log_open_file (stderr);

@@ -1170,9 +1170,9 @@ static int command_list_log (client_t *client, int response)
         return client_send_400 (client, "No log specified");
 
     const char *level_arg = httpp_get_query_param (client->parser, "level");
-    int level = level_arg ? atoi (level_arg) : 0;
+    int level = level_arg ? atoi (level_arg) : -1;
     if (level < 0 || level > 4)
-        level = 0;      // let log subsys to choose
+        level = -1;      // let log subsys to choose
 
     config = config_get_config ();
     if (strcmp (logname, "errorlog") == 0)

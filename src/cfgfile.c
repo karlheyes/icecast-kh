@@ -1015,7 +1015,7 @@ static int _parse_logging (cfg_xml *cfg, void *arg)
     config->access_log.display = 100;
     config->access_log.archive = -1;
     config->error_log.logid = -1;
-    config->error_log.display = 200;
+    config->error_log.display = 20;
     config->error_log.archive = -1;
     config->playlist_log.logid = -1;
     config->playlist_log.display = 10;

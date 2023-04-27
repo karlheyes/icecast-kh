@@ -22,11 +22,21 @@
 #define IO_BUFFER_TYPE _IOLBF
 #endif
 
+typedef int (*rw_create_func)(void**m, const char *fn, size_t line, int create);
+typedef int (*rw_lock_func)(void**m, const char *fn, size_t line, int lock);
 typedef int (*mx_create_func)(void**m, const char *fn, size_t line, int create);
-typedef int (*mx_lock_func)(void**m, const char *fn, size_t line, int create);
+typedef int (*mx_lock_func)(void**m, const char *fn, size_t line, int lock);
 typedef void (*log_commit_callback)(int id);
 
-void log_initialize_lib (mx_create_func mxc, mx_lock_func mxl);
+typedef struct
+{
+    mx_create_func  mxc;    // 0 destroy, 1 create
+    mx_lock_func    mxl;    // 0 unlock, 1 lock
+    rw_create_func  rwc;    // 0 destroy, 1 create
+    rw_lock_func    rwl;    // 0 unlock, 1 rlock, 2 wlock, 3 tryrlock, 4 trywlock
+} log_locking_t;
+
+void log_initialize_lib (log_locking_t *locks);
 void log_initialize(void);
 int log_open_file(FILE *file);
 int log_open(const char *filename);
