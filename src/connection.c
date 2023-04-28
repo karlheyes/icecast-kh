@@ -1333,7 +1333,11 @@ static int http_client_request (client_t *client)
     int remaining, ret = -1;
 
     if (global_state() != ICE_RUNNING || client->connection.error)
+    {
+        refbuf_release (refbuf);
+        client->shared_data = NULL;
         return -1;
+    }
     if (refbuf == NULL)
     {
         client->shared_data = refbuf = refbuf_new (PER_CLIENT_REFBUF_SIZE);
@@ -1349,7 +1353,7 @@ static int http_client_request (client_t *client)
         {
             if (connection_peek (&client->connection) < 0)
             {
-                client->schedule_ms = client->worker->time_ms + 11; // check frequently, on incoming worker
+                client->schedule_ms += 9; // check frequently, on incoming worker
                 return 0;
             }
         }
