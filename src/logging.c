@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>,
+ * Copyright 2010-2023, Karl Heyes <karl@kheyes.plus.com>,
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -33,6 +33,9 @@
 #include "global.h"
 
 #define CATMODULE "logging"
+
+static const char *stdlevels[] = { "FFF", "EROR", "WARN", "INFO", "DBUG" };
+
 
 void fatal_error (const char *perr);
 
@@ -221,7 +224,7 @@ static int recheck_access_log (ice_config_t *config, struct access_log *access)
         log_set_lines_kept (access->logid, access->display);
     int archive = (access->archive == -1) ? config->access_log.archive : access->archive;
     log_set_archive_timestamp (access->logid, archive);
-    log_set_level (access->logid, 4);
+    log_set_level (access->logid, 1);
     // DEBUG4 ("log %s, size %ld, duration %u, archive %d", access->name, max_size, access->duration, archive);
     return 0;
 }
@@ -241,14 +244,13 @@ int restart_logging (ice_config_t *config)
         ret = -1;
     else
     {
-        static const char *prior[] = { "FFF", "EROR", "WARN", "INFO", "DBUG" };
         log_set_trigger (config->error_log.logid, config->error_log.size);
         log_set_reopen_after (config->error_log.logid, config->error_log.duration);
         if (config->error_log.display > 0)
             log_set_lines_kept (config->error_log.logid, config->error_log.display);
         log_set_archive_timestamp (config->error_log.logid, config->error_log.archive);
         log_set_level (config->error_log.logid, config->error_log.level);
-        log_set_priorities (config->error_log.logid, sizeof prior/sizeof prior[0], prior);
+        log_set_priorities (config->error_log.logid, sizeof stdlevels/sizeof stdlevels[0], stdlevels);
     }
     thread_use_log_id (config->error_log.logid);
     errorlog = config->error_log.logid; /* value stays static so avoid taking the config lock */
@@ -277,7 +279,6 @@ int restart_logging (ice_config_t *config)
         if (config->playlist_log.display > 0)
             log_set_lines_kept (config->playlist_log.logid, config->playlist_log.display);
         log_set_archive_timestamp (config->playlist_log.logid, config->playlist_log.archive);
-        log_set_level (config->playlist_log.logid, 4);
     }
     playlistlog = config->playlist_log.logid;
 
@@ -331,5 +332,14 @@ int start_logging (ice_config_t *config)
 void stop_logging(void)
 {
     worker_logger (1);
+}
+
+
+void init_log_subsys ()
+{
+    log_locking_t lks = { thread_mtx_create_callback, thread_mtx_lock_callback, thread_rw_create_callback, thread_rw_lock_callback };
+    log_initialize_lib (&lks);
+    errorlog = log_open_file (stderr);
+    log_set_priorities (errorlog, sizeof stdlevels/sizeof stdlevels[0], stdlevels);
 }
 

@@ -56,8 +56,6 @@ worker_t *worker_balance_to_check, *worker_least_used, *worker_incoming = NULL;
 
 FD_t logger_fd[2];
 
-static void logger_commits (int id);
-
 
 void client_register (client_t *client)
 {
@@ -1036,7 +1034,7 @@ void worker_wakeup (worker_t *worker)
 }
 
 
-static void logger_commits (int id)
+void logger_commits (int id)
 {
     pipe_write (logger_fd[1], "L", 1);
 }

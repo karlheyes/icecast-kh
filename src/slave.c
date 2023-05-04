@@ -1358,6 +1358,7 @@ static void _slave_thread(void)
             }
         }
         worker_balance_trigger (current.tv_sec);
+        logger_commits  (0);
         thread_sleep (1000000);
     }
     global_unlock();

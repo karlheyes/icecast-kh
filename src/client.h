@@ -165,6 +165,8 @@ void worker_logger_init (void);
 void worker_logger (int stop);
 int  is_worker_incoming (worker_t *w);
 
+void logger_commits (int id);
+
 
 /* client flags bitmask */
 #define CLIENT_ACTIVE               (1)
