@@ -3,6 +3,9 @@
 **
 ** This program is distributed under the GNU General Public License, version 2.
 ** A copy of this license is included with this source.
+
+** Copyright 2010-2023, Karl Heyes <karl@kheyes.plus.com>
+*  and others from the Xiph IceCast team over the years
 */
 
 #ifdef HAVE_CONFIG_H
@@ -52,7 +55,6 @@ typedef struct _log_entry_t
     struct _log_entry_t *prev;
     struct _log_entry_t *next_on_priority;
     uint64_t id;
-    char *line;
     unsigned int len;
     int flags;
     int priority;
@@ -61,6 +63,7 @@ typedef struct _log_entry_t
 #else
     struct timeval tstamp;
 #endif
+   char line [LOG_MAXLINELEN];
 } log_entry_t;
 
 typedef struct _log_priority
@@ -126,9 +129,9 @@ static int _get_log_id(void);
 static int do_log_run (int log_id);
 
 // for global rwlock using read lock
-#define _lock_logger()     do { if (_locks.rwl) _locks.rwl (&_logger_rwl, __FILE__, __LINE__, 1); } while (0)
+#define _lock_logger()      do { if (_locks.rwl) _locks.rwl (&_logger_rwl, __FILE__, __LINE__, 1); } while (0)
 #define _wlock_logger()     do { if (_locks.rwl) _locks.rwl (&_logger_rwl, __FILE__, __LINE__, 2); } while (0)
-#define _unlock_logger()     do { if (_locks.rwl) _locks.rwl (&_logger_rwl, __FILE__, __LINE__, 0); } while (0)
+#define _unlock_logger()    do { if (_locks.rwl) _locks.rwl (&_logger_rwl, __FILE__, __LINE__, 0); } while (0)
 // for queue specific locking
 #define _lock_q(N)          do { if (_locks.mxl) _locks.mxl (&loglist[(N)].mutex, __FILE__, __LINE__, 1); } while(0)
 #define _unlock_q(N)        do { if (_locks.mxl) _locks.mxl (&loglist[(N)].mutex, __FILE__, __LINE__, 0); } while(0)
@@ -335,7 +338,7 @@ static void default_set_priorities (int id, int count, const char *names[])
 {
     _unlock_logger();
     _wlock_logger();
-    _set_priorities (id, 1, NULL);
+    _set_priorities (id, count, NULL);
     _unlock_logger();
     _lock_logger();
 }
@@ -354,7 +357,6 @@ static void _release_entry (int log_id, log_entry_t *ent, int cache)
     }
     else
     {   // allow for some pruning in case
-        free (ent->line);
         free (ent);
     }
 }
@@ -386,7 +388,6 @@ static log_entry_t *_get_cached_entry (log_lineinfo_t *info)
         {
             _unlock_q (id);
             ent = calloc (1, sizeof (log_entry_t));
-            ent->line = malloc (LOG_MAXLINELEN);
         }
         else
         {
@@ -404,28 +405,28 @@ static log_entry_t *_get_cached_entry (log_lineinfo_t *info)
         prelen += 23;   // "[YYYY-MM-DD  HH:MM:SS] "
 #ifdef HAVE_CLOCK_GETTIME
         clock_gettime (CLOCK_REALTIME, &ent->tstamp);
-        const int ss = 10;
+        const int ss = 10;  // .nS
 #elif defined(HAVE_GETTIMEOFDAY)
         gettimeofday (&ent->tstamp, NULL);
-        const int ss = 7;
+        const int ss = 7;   // .uS
 #else
         ent->tstamp.tv_sec = (uint64_t)time (NULL);
-        const int ss = 7;
+        const int ss = 1;
 #endif
         if (loglist [info->id].flags & LOG_TIME_SS)
         {
             ent->flags |= LOG_TIME_SS;
-            prelen += ss;        // "[YYYY-MM-DD  HH:MM:SS.UUUUUU*] "
+            prelen += ss;        // "[YYYY-MM-DD  HH:MM:SS.*] "
         }
         ent->flags |= LOG_TIME;
     }
     ent->len = prelen;
     ent->priority = info->priority;
-    info->line = ent->line;
+    info->line = &ent->line[0];
     info->remain = LOG_MAXLINELEN;
     if (loglist [info->id].flags & LOG_MARK_ID)
     {
-        int c = snprintf (ent->line, LOG_MAXLINELEN, "%-24" PRIu64, entry_id);
+        int c = snprintf (&ent->line[0], LOG_MAXLINELEN, "%-24" PRIu64, entry_id);
         info->line += c;
         info->remain -= c;
     }
@@ -449,7 +450,7 @@ void log_set_priorities (int id, int count, const char *names[])
 void log_set_trigger(int id, unsigned long trigger)
 {
     _wlock_logger();
-    if (id >= 0 && id < LOG_MAXLOGS && loglist [id] . in_use)
+    if (id >= 0 && id < LOG_MAXLOGS && loglist [id].in_use)
     {
         if (trigger < 100000)
             trigger = 100000;
@@ -575,6 +576,8 @@ void log_reopen(int log_id)
 
 
 
+// enter with q lock, exit with it unlock and destroyed
+//
 static void _log_close_internal (int log_id)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
@@ -596,7 +599,6 @@ static void _log_close_internal (int log_id)
     {
         log_entry_t *to_go = loglist [log_id].log_head;
         loglist [log_id].log_head = to_go->next;
-        loglist [log_id].buffer_bytes -= to_go->len;
         _release_entry (log_id, to_go, 0);
         loglist [log_id].entries--;
     }
@@ -611,6 +613,7 @@ static void _log_close_internal (int log_id)
     loglist [log_id].priorities = NULL;
     loglist [log_id].written_entry = NULL;
     loglist [log_id].entries = 0;
+    _unlock_q (log_id);
     if (_locks.mxc) _locks.mxc (&loglist [log_id].mutex, __FILE__, __LINE__, 0);
     loglist [log_id].in_use = 0;
 }
@@ -644,6 +647,7 @@ void log_shutdown(void)
     for (log_id = 1; log_id < logs_allocated ; log_id++)
         log_close (log_id);
     log_close (0);
+    log_commit_entries ();
     logs_allocated = 0;
     free (loglist);
     loglist = NULL;
@@ -699,7 +703,6 @@ static log_entry_t *log_entry_pop (int log_id)
     if (to_go->next)
         to_go->next->prev = to_go->prev;
     to_go->next = to_go->prev = NULL;
-    log->buffer_bytes -= to_go->len;
     log->entries--;
     return to_go;
 }
@@ -928,7 +931,7 @@ int log_contents (int log_id, int level, char **_contents, unsigned int *_len)
             l--;
         }
         *_len = len;
-        return 1;
+        return 1;   // return without unlock as we expect to be called again after allocation
     }
     remain = *_len;
 
@@ -937,7 +940,7 @@ int log_contents (int log_id, int level, char **_contents, unsigned int *_len)
     entry = loglist [log_id].log_head;
     ptr = *_contents;
     *ptr = '\0';
-    while (entry && remain)
+    while (entry && remain > 0)
     {
         if (entry->priority <= level)
         {
@@ -984,7 +987,8 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
     va_list ap;
 
     va_start(ap, fmt);
-    _lock_logger(); // may change to read lock for log subsys instead of mutex, mutex for queue only
+    _lock_logger();
+
     do {
         if (log_id < 0 || log_id >= LOG_MAXLOGS) break;         /* Bad log number */
         if (loglist[log_id].priority_count == 0)
@@ -1074,7 +1078,6 @@ static int _get_log_id(void)
         }
     }
 
-    /* unlock mutex */
     _unlock_logger();
 
     return id;
