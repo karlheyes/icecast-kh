@@ -96,6 +96,7 @@ int  start_logging(ice_config_t *config);
 void stop_logging(void);
 void log_parse_failure (void *ctx, const char *fmt, ...);
 void init_log_subsys ();
+void logging_init_levels (log_levels_t *ll, unsigned n);
 
 #endif  /* __LOGGING_H__ */
 

@@ -29,6 +29,7 @@ struct _config_options;
 typedef struct _listener_t listener_t;
 
 #include "avl/avl.h"
+#include "log/log.h"
 #include "auth.h"
 #include "compat.h"
 #include "format.h"
@@ -69,7 +70,7 @@ typedef struct error_log
     int display;
     long size;
     unsigned duration;
-    int level;
+    log_levels_t level;
 } error_log;
 
 typedef struct playlist_log

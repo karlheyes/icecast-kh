@@ -69,7 +69,7 @@ typedef struct _log_entry_t
 
 typedef struct _log_priority
 {
-    const char *name;
+    log_level_t level;
     unsigned present;
     off_t size;
     log_entry_t *head;
@@ -82,14 +82,12 @@ typedef struct log_tag
     uint8_t archive_timestamp;
     uint8_t level;
     uint16_t flags;
+    unsigned int duration;
 
     char *filename;
     FILE *logfile;
     off_t trigger_level;
     time_t reopen_at;
-    unsigned int duration;
-
-    unsigned int keep_entries;
 
     // these need the mutex
     void *mutex;
@@ -126,7 +124,6 @@ typedef struct
 } log_run_t;
 
 
-#define LOG_TIME_SS             (1<<0)
 // set internally
 #define LOG_CLOSING             (1<<8)
 #define LOG_TIME                (1<<9)
@@ -234,9 +231,7 @@ static int _log_open (log_run_t *lr)
             if (f == NULL)
             {
                 if (loglist [id].logfile != stderr)
-                {
                     loglist [id] . logfile = stderr;
-                }
                 break;
             }
             loglist [id].logfile = f;
@@ -254,6 +249,36 @@ static int _log_open (log_run_t *lr)
     return 1;
 }
 
+
+void log_init_levels (int log_id, log_levels_t *ll, unsigned n, unsigned mark)
+{
+    static const log_level_t defaults[] = {
+        { .name = "0",     .keep = 15   },
+        { .name = "1",     .keep = 15   },
+        { .name = "2",     .keep = 15   },
+        { .name = "3",     .keep = 15   },
+        { .name = "4",     .keep = 15   },
+    };
+    if (log_id < 0 || loglist[log_id].priority_count == 0)
+    {
+        if (n == 0 || n > 5)
+            n = sizeof (defaults) / sizeof (defaults[0]);
+        memcpy (&ll->level[0], defaults, sizeof defaults);
+        ll->flags = 0;
+        ll->count = n;
+        ll->mark = n-1;
+    }
+    else
+    {
+        for (int i = 0; i < loglist[log_id].priority_count; i++)
+            ll->level [i] = loglist [log_id].priorities [i].level;
+        ll->flags = loglist[log_id].flags;
+        ll->count = loglist[log_id].priority_count;
+        ll->mark = loglist [log_id].level;
+    }
+}
+
+
 static void log_init (log_t *log)
 {
     memset (log, 0, sizeof (*log));
@@ -262,8 +287,8 @@ static void log_init (log_t *log)
     log->filename = NULL;
     log->logfile = NULL;
     log->buffer = NULL;
-    log->keep_entries = 20;
 }
+
 
 void log_initialize_lib (log_locking_t *locks)
 {
@@ -308,6 +333,7 @@ int log_open_file(FILE *file)
     loglist[log_id].log_head = NULL;
     loglist[log_id].log_tail = NULL;
     loglist[log_id].size = 0;
+    loglist[log_id].flags = 0;
     loglist[log_id].reopen_at = 0;
     loglist[log_id].priority_count = 0;
     loglist[log_id].archive_timestamp = 0;
@@ -335,6 +361,7 @@ int log_open(const char *filename)
         loglist [id].log_tail = NULL;
         loglist [id].logfile = NULL;
         loglist [id].size = 0;
+        loglist [id].flags = 0;
         loglist [id].reopen_at = 0;
         loglist [id].archive_timestamp = 0;
         loglist [id].priority_count = 0;
@@ -354,35 +381,41 @@ int log_open(const char *filename)
 }
 
 
-static void _set_priorities (int id, int count, const char *names[])
+static void _set_priorities (int id, log_levels_t *level)
 {
     if (loglist [id].in_use && loglist[id].log_head == NULL)
     {
-        int newlen = count * sizeof (log_priority_t);
-        log_priority_t *n = realloc (loglist[id].priorities, newlen);
-        if (n)
+        int count = level->count;
+        log_priority_t *n = loglist[id].priorities;
+        if (count != loglist[id].priority_count)
         {
-            int oldlen = loglist[id].priority_count * sizeof (log_priority_t);
-            memset (&n[loglist[id].priority_count], 0, newlen - oldlen);
-            loglist[id].priorities = n;
-            loglist[id].priority_count = count;
-            for (int i=0; i < count; i++)
+            int newlen = count * sizeof (log_priority_t);
+            n = realloc (loglist[id].priorities, newlen);
+            if (n)
             {
-                if (names && names[i])
-                    n[i].name = names[i];
+                int oldlen = loglist[id].priority_count * sizeof (log_priority_t);
+                memset (&n[loglist[id].priority_count], 0, newlen - oldlen);
+                loglist[id].priorities = n;
+                loglist[id].priority_count = count;
             }
         }
+        for (int i=0; i < count; i++)
+            loglist[id].priorities[i].level = level->level[i];
+        loglist [id].level = level->mark;
+        loglist [id].flags = (level->flags|LOG_MARK_ID);
     }
 }
 
 
 // called from first use if not set by user. will be read locked
 //
-static void default_set_priorities (int id, int count, const char *names[])
+static void default_set_priorities (int id)
 {
     _unlock_logger();
+    log_levels_t ll;
     _wlock_logger();
-    _set_priorities (id, count, NULL);
+    log_init_levels (id, &ll, 1, 0);
+    _set_priorities (id, &ll);
     _unlock_logger();
     _lock_logger();
 }
@@ -457,7 +490,7 @@ static log_entry_t *_get_cached_entry (log_lineinfo_t *info)
         ent->tstamp.tv_sec = (uint64_t)time (NULL);
         const int ss = 1;
 #endif
-        if (loglist [info->id].flags & LOG_TIME_SS)
+        if (loglist [id].flags & LOG_TIME_SS)
         {
             ent->flags |= LOG_TIME_SS;
             prelen += ss;        // "[YYYY-MM-DD  HH:MM:SS.*] "
@@ -476,18 +509,6 @@ static log_entry_t *_get_cached_entry (log_lineinfo_t *info)
         info->remain -= c;
     }
     return ent;
-}
-
-
-void log_set_priorities (int id, int count, const char *names[])
-{
-    if (count < 0 || count > 500)
-        return; // allow a sane range
-    _wlock_logger();
-
-    if (id >= 0 && id < LOG_MAXLOGS)
-        _set_priorities (id, count, names);
-    _unlock_logger();
 }
 
 
@@ -557,14 +578,18 @@ int log_open_with_buffer(const char *filename, int size)
 }
 
 
+// wrapper routine for compatability
 void log_set_lines_kept (int log_id, unsigned int count)
 {
     if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
     if (count > 1000000) return;
 
     _wlock_logger ();
-    if (loglist[log_id].in_use)
-        loglist[log_id].keep_entries = count;
+    log_levels_t ll;
+    log_init_levels (log_id, &ll, 1, 0);
+    log_set_levels_keep (&ll, count);
+    _set_priorities (log_id, &ll);
+
     _unlock_logger ();
 }
 
@@ -581,6 +606,31 @@ void log_set_level(int log_id, unsigned level)
         loglist[log_id].level = level;
     _unlock_logger();
 }
+
+
+void log_set_levels (int log_id, log_levels_t *levels)
+{
+    if (log_id < 0 || log_id >= LOG_MAXLOGS) return;
+    _wlock_logger();
+    _set_priorities (log_id, levels);
+    _unlock_logger();
+}
+
+
+void log_set_levels_keep (log_levels_t *levels, unsigned int count)
+{
+    int i = levels->count == 1 ? 0 : 1;
+    int remainder = count;
+    int last = levels->count - 1;
+    for (; i < last; i++)
+    {
+        int each = remainder/(levels->count-i);
+        levels->level [i].keep = each;
+        remainder -= each;
+    }
+    levels->level [i].keep = remainder;
+}
+
 
 void log_flush(int log_id)
 {
@@ -715,7 +765,7 @@ static int _select_priority_entry (log_t *log)
     {
         for (int i=0; i < log->priority_count; i++)
         {
-           if (log->priorities[i].present <= log->keep_entries)
+           if (log->priorities[i].present <= log->priorities [i].level.keep)
                continue;
            if (log->priorities[i].head->id < earliest)
            {
@@ -1039,9 +1089,9 @@ void log_write(int log_id, unsigned priority, const char *cat, const char *func,
     do {
         if (log_id < 0 || log_id >= LOG_MAXLOGS) break;         /* Bad log number */
         if (loglist[log_id].priority_count == 0)
-            default_set_priorities (log_id, loglist[log_id].level+1, NULL);
+            default_set_priorities (log_id);
         if (priority >= loglist[log_id].priority_count) break;  /* Bad priority */
-        p = (loglist[log_id].priorities ? (loglist[log_id].priorities[priority].name) : "");
+        p = (loglist[log_id].priorities ? (loglist[log_id].priorities[priority].level.name) : "");
 
         log_lineinfo_t info = { .id = log_id, .priority = priority, .flags = loglist [log_id].flags|LOG_TIME };
         log_entry_t *entry = _get_cached_entry (&info);
@@ -1073,9 +1123,10 @@ void log_write_direct(int log_id, const char *fmt, ...)
     do
     {
         if (log_id < 0 || log_id >= LOG_MAXLOGS) break;
+        if (loglist [log_id].in_use == 0) break;
 
         if (loglist[log_id].priority_count == 0)
-            default_set_priorities (log_id, loglist [log_id].level+1, NULL);
+            default_set_priorities (log_id);
 
         log_lineinfo_t info = { .id = log_id, .flags = loglist[log_id].flags };
         log_entry_t *entry = _get_cached_entry (&info);

@@ -291,22 +291,67 @@ int config_get_bitrate (cfg_xml *cfg, void *x)
 }
 
 
+static int convert_name_to_level (const char *tag)
+{
+    if (tag)
+    {
+        if (strcasecmp (tag, "debug") == 0)     return 4;
+        if (strcasecmp (tag, "info") == 0)      return 3;
+        if (strcasecmp (tag, "warn") == 0)      return 2;
+        if (strcasecmp (tag, "error") == 0)     return 1;
+    }
+    return 0;   // return a default
+}
+
 int config_get_loglevel (cfg_xml *cfg, void *x)
 {
-    int *p = (int*)x;
-    int v = 2;
+    log_levels_t *level = (log_levels_t*)x;
+    int v = 2, n = 0, l;
 
-    const char *str = cfg_get_string (cfg);
+    const char *str = cfg_get_string (cfg), *s = str;
     do
     {
+        char tag[24], value[32];
         if (str == NULL) break;
-        if ((v=4) && strcasecmp (str, "debug") == 0) break;
-        if ((v=3) && strcasecmp (str, "info") == 0) break;
-        if ((v=2) && strcasecmp (str, "warn") == 0) break;
-        if ((v=1) && strcasecmp (str, "error") == 0) break;
-        v = atoi (str);
-    } while (0);
-    *p = ((v&15) > 0 && (v&15) < 5) ? v : 2;  // set to default if invalid setting provided
+        do
+        {
+            int c = sscanf (s, "%23[0-9a-zA-Z]=%31[a-zA-Z0-9]%n", tag, value, &n);
+            if (c == 1)
+            {
+                n = strlen (tag);
+                if ((l = convert_name_to_level (tag)) > 0)
+                    v = l;
+                else if (strcasecmp (tag, "subsec") == 0)
+                   level->flags = LOG_TIME_SS;
+                else if (sscanf (tag, "%d", &v) != 1)
+                   WARN1 ("unknown level setting %s", tag);
+                break;
+            }
+            if (c == 0)
+            {
+                n = strcspn (s, ", ");
+                WARN2 ("unknown level setting %.*s", (n < 10 ? n : 10), s);
+                break;
+            }
+            l = convert_name_to_level (tag);
+            if (l)
+            {
+               int val = 4;
+               if (sscanf (value, "%d", &val) == 1 && val > 0)
+               {
+                   level->level [l].keep = val;
+                   v = l;
+                   break;
+               }
+            }
+            WARN2 ("unknown level setting %s=%s", tag, value);
+            break;
+
+        } while (0);
+        int skip = strspn (s+n, ", ");
+        s += (n+skip);
+    } while (*s);
+    level->mark = v;
     // WARN1 ("log level set to %d", *p);
     return 1;
 }
@@ -815,7 +860,7 @@ static void _set_defaults(ice_config_t *configuration)
     configuration->access_log.log_ip = 1;
     configuration->access_log.logid = -1;
     configuration->error_log.name = (char *)xmlCharStrdup (CONFIG_DEFAULT_ERROR_LOG);
-    configuration->error_log.level = CONFIG_DEFAULT_LOG_LEVEL;
+    configuration->error_log.level.mark = CONFIG_DEFAULT_LOG_LEVEL;
     configuration->error_log.logid = -1;
     configuration->preroll_log.logid = -1;
     configuration->playlist_log.logid = -1;
@@ -962,7 +1007,7 @@ static int _parse_errorlog (cfg_xml *cfg, void *arg)
     };
 
     log->logid = -1;
-    log->level = 3;
+    logging_init_levels (&log->level, 0);
     return parse_xml_tags (cfg, icecast_tags);
 }
 
@@ -1015,7 +1060,6 @@ static int _parse_logging (cfg_xml *cfg, void *arg)
     config->access_log.display = 100;
     config->access_log.archive = -1;
     config->error_log.logid = -1;
-    config->error_log.display = 20;
     config->error_log.archive = -1;
     config->playlist_log.logid = -1;
     config->playlist_log.display = 10;

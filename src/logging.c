@@ -34,8 +34,6 @@
 
 #define CATMODULE "logging"
 
-static const char *stdlevels[] = { "FFF", "EROR", "WARN", "INFO", "DBUG" };
-
 
 void fatal_error (const char *perr);
 
@@ -117,6 +115,23 @@ void logging_access_id (access_log *accesslog, client_t *client)
     }
     free (username);
     client->respcode = -1;
+}
+
+
+void logging_init_levels (log_levels_t *ll, unsigned n)
+{
+    static const log_level_t ldefault[] = {
+        { .name = "FFF",   .keep = 0    },
+        { .name = "EROR",  .keep = 8    },
+        { .name = "WARN",  .keep = 15   },
+        { .name = "INFO",  .keep = 35   },
+        { .name = "DBUG",  .keep = 100  },
+    };
+    if (n == 0 || n > 5)
+       n = sizeof (ldefault) / sizeof (ldefault[0]);
+
+    log_init_levels (-1, ll, n, 2);
+    memcpy (&ll->level[0], ldefault, sizeof ldefault);
 }
 
 
@@ -224,7 +239,6 @@ static int recheck_access_log (ice_config_t *config, struct access_log *access)
         log_set_lines_kept (access->logid, access->display);
     int archive = (access->archive == -1) ? config->access_log.archive : access->archive;
     log_set_archive_timestamp (access->logid, archive);
-    log_set_level (access->logid, 1);
     // DEBUG4 ("log %s, size %ld, duration %u, archive %d", access->name, max_size, access->duration, archive);
     return 0;
 }
@@ -247,10 +261,9 @@ int restart_logging (ice_config_t *config)
         log_set_trigger (config->error_log.logid, config->error_log.size);
         log_set_reopen_after (config->error_log.logid, config->error_log.duration);
         if (config->error_log.display > 0)
-            log_set_lines_kept (config->error_log.logid, config->error_log.display);
+            log_set_levels_keep (&config->error_log.level, config->error_log.display);
         log_set_archive_timestamp (config->error_log.logid, config->error_log.archive);
-        log_set_level (config->error_log.logid, config->error_log.level);
-        log_set_priorities (config->error_log.logid, sizeof stdlevels/sizeof stdlevels[0], stdlevels);
+        log_set_levels (config->error_log.logid, &config->error_log.level);
     }
     thread_use_log_id (config->error_log.logid);
     errorlog = config->error_log.logid; /* value stays static so avoid taking the config lock */
@@ -264,7 +277,6 @@ int restart_logging (ice_config_t *config)
         if (config->preroll_log.display > 0)
             log_set_lines_kept (config->preroll_log.logid, config->preroll_log.display);
         log_set_archive_timestamp (config->preroll_log.logid, config->preroll_log.archive);
-        log_set_level (config->preroll_log.logid, 4);
     }
 
     if (recheck_access_log (config, &config->access_log) < 0)
@@ -339,7 +351,10 @@ void init_log_subsys ()
 {
     log_locking_t lks = { thread_mtx_create_callback, thread_mtx_lock_callback, thread_rw_create_callback, thread_rw_lock_callback };
     log_initialize_lib (&lks);
+
+    log_levels_t stderrlevels;
     errorlog = log_open_file (stderr);
-    log_set_priorities (errorlog, sizeof stdlevels/sizeof stdlevels[0], stdlevels);
+    logging_init_levels (&stderrlevels, 0);
+    log_set_levels (errorlog, &stderrlevels);
 }
 

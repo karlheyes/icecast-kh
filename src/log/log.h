@@ -36,6 +36,22 @@ typedef struct
     rw_lock_func    rwl;    // 0 unlock, 1 rlock, 2 wlock, 3 tryrlock, 4 trywlock
 } log_locking_t;
 
+typedef struct
+{
+   const char *name;
+   unsigned keep;
+} log_level_t;
+
+typedef struct
+{
+   log_level_t level[5];
+   int count;
+   int flags;
+   int mark;
+} log_levels_t;
+
+#define LOG_TIME_SS             (1<<0)
+
 void log_initialize_lib (log_locking_t *locks);
 void log_initialize(void);
 int log_open_file(FILE *file);
@@ -45,8 +61,10 @@ void log_set_level(int log_id, unsigned level);
 void log_set_trigger(int id, unsigned long trigger);
 void log_set_reopen_after (int id, unsigned int trigger);
 int  log_set_filename(int id, const char *filename);
-void log_set_lines_kept (int log_id, unsigned int count);
-void log_set_priorities (int id, int count, const char *names[]);
+void log_set_lines_kept (int log_id, unsigned int count); // compat
+void log_set_levels_keep (log_levels_t *levels, unsigned int count);
+void log_init_levels (int log_id, log_levels_t *ll, unsigned n, unsigned mark);
+void log_set_levels (int log_id, log_levels_t *levels);
 int  log_contents (int log_id, int level, char **_contents, unsigned int *_len);
 int log_set_archive_timestamp(int id, int value);
 void log_flush(int log_id);
