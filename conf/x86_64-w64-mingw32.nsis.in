@@ -12,6 +12,8 @@
 # which will generate the output file 'installer.exe' which is a Windows
 # installer containing your program.
 
+!include WinVer.nsh
+
 Name "Icecast KH"
 OutFile "icecast-@PACKAGE_VERSION@_win64_setup.exe"
 
@@ -31,7 +33,7 @@ XPStyle on
 
 ;Version Information
 
-VIProductVersion "2.4.0.21"
+VIProductVersion "2.4.0.22"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "Icecast KH"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "2.4.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "Karl Heyes @2000-2023"
@@ -57,6 +59,10 @@ Section "Icecast Installation"
 
   SetOutPath "$INSTDIR"
   File /r "x64/*.dll"
+
+  ${If} ${AtMostWin7}
+  FILE /r "x64/extra/*.dll"
+  ${EndIf}
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
