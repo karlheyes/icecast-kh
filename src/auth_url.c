@@ -417,6 +417,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     if (curl_easy_perform (atd->curl))
     {
         WARN3 ("auth to server %s (%s) failed with \"%s\"", url->removeurl, auth_user->mount, atd->errormsg);
+        INFO1 ("will disable auth service for %d seconds", url->stop_req_duration);
         url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
     }
     else
@@ -564,7 +565,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     {
         url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
         WARN3 ("auth to server %s (%s) failed with %s", url->addurl, auth_user->mount, atd->errormsg);
-        INFO1 ("will not auth new listeners for %d seconds", url->stop_req_duration);
+        INFO1 ("will disable auth service for %d seconds", url->stop_req_duration);
         if (auth->flags & AUTH_SKIP_IF_SLOW)
         {
             auth_user->flags |= CLIENT_AUTHENTICATED;
@@ -797,9 +798,9 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
     url_info->auth_header = strdup ("icecast-auth-user:");
     url_info->timelimit_header = strdup ("icecast-auth-timelimit:");
     url_info->header_chk_prefix = strdup ("ClientHeader-");
-    url_info->timeout = 5;
+    url_info->timeout = 6;
     url_info->redir_limit = 1;
-    url_info->stop_req_duration = 60;
+    url_info->stop_req_duration = 30;
 
     while(options) {
         if(!strcmp(options->name, "username"))
