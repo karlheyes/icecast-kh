@@ -141,6 +141,7 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
     auth_t *auth;
     client_t *failed = NULL;
     auth_client **old_tail;
+    int maxxed = 0;
 
     if (auth_user == NULL || mountinfo == NULL)
         return;
@@ -153,9 +154,9 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
     old_tail = auth->tailp;
     *auth->tailp = auth_user;
     auth->tailp = &auth_user->next;
-    auth->pending_count++;
+    int pending = ++auth->pending_count;
     if (auth->refcount > auth->handlers)
-        DEBUG0 ("max authentication handlers allocated");
+        maxxed = 1;
     else
     {
         int i;
@@ -163,7 +164,7 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
         {
             if (auth->handles [i].thread == NULL)
             {
-                DEBUG1 ("starting auth thread %d", i);
+                //DEBUG1 ("starting auth thread %d", i);
                 auth->refcount++;
                 auth->handles [i].thread = thread_create ("auth thread", auth_run_thread, &auth->handles [i], THREAD_DETACHED);
                 if (auth->handles [i].thread == NULL)
@@ -174,16 +175,16 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
                     auth->refcount--;
                     failed = auth_user->client;
                     auth_user->client = NULL;
-                    ERROR0 ("failed to start auth thread, system limit probably reached");
                 }
                 break;
             }
         }
     }
-    DEBUG2 ("auth on %s has %d pending", auth->mount, auth->pending_count);
     thread_mutex_unlock (&auth->lock);
+    DEBUG3 ("auth on %s has %d pending%s", auth_user->mount, pending, (maxxed?", max handlers" : ""));
     if (failed)
     {
+        ERROR0 ("failed to start auth thread, system limit probably reached");
         client_send_403redirect (failed, auth_user->mount, "system limit reached");
         auth_client_free (auth_user);
     }
