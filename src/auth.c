@@ -181,7 +181,8 @@ static void queue_auth_client (auth_client *auth_user, mount_proxy *mountinfo)
         }
     }
     thread_mutex_unlock (&auth->lock);
-    DEBUG3 ("auth on %s has %d pending%s", auth_user->mount, pending, (maxxed?", max handlers" : ""));
+    if (maxxed == 0)
+        DEBUG2 ("auth on %s has %d pending", auth->mount, pending);
     if (failed)
     {
         ERROR0 ("failed to start auth thread, system limit probably reached");
@@ -364,8 +365,15 @@ static void *auth_run_thread (void *arg)
 {
     auth_thread_t *handler = arg;
     auth_t *auth = handler->auth;
+    int id = handler->id;
 
-    DEBUG2 ("Authentication thread %d started for %s", handler->id, auth->mount);
+    DEBUG2 ("Authentication thread %d started for %s", id, auth->mount);
+    if (handler->data == NULL && auth->alloc_thread_data)
+    {
+        handler->data = auth->alloc_thread_data (auth);
+        DEBUG2 ("...handler %d for %s initialized", id, auth->mount);
+    }
+
     thread_rwlock_rlock (&auth_lock);
 
     while (1)
@@ -375,30 +383,30 @@ static void *auth_run_thread (void *arg)
         {
             auth_client *auth_user = auth->head;
 
-            DEBUG2 ("%d client(s) pending on %s", auth->pending_count, auth->mount);
             auth->head = auth_user->next;
             if (auth->head == NULL)
                 auth->tailp = &auth->head;
-            auth->pending_count--;
+            int pending = --auth->pending_count;
             thread_mutex_unlock (&auth->lock);
             auth_user->next = NULL;
 
             /* associate per-thread data with auth_user here */
             auth_user->thread_data = handler->data;
-            auth_user->handler = handler->id;
+            auth_user->handler = id;
 
             if (auth_user->process)
                 auth_user->process (auth_user);
 
             auth_client_free (auth_user);
-
+            if (pending)
+                DEBUG2 ("%d client(s) pending on %s", pending, auth->mount);
             continue;
         }
         handler->thread = NULL;
         break;
     }
-    DEBUG1 ("Authenication thread %d shutting down", handler->id);
     auth_release (auth);
+    DEBUG1 ("Authenication thread (handler %d) shutting down", id);
     thread_rwlock_unlock (&auth_lock);
     return NULL;
 }
@@ -740,7 +748,8 @@ int auth_release_listener (client_t *client, const char *mount, mount_proxy *mou
         if (mount && mountinfo && mountinfo->auth && mountinfo->auth->release_listener)
         {
             auth_client *auth_user = auth_client_setup (mount, client);
-            client->ops = &auth_release_ops; // put into a wait state
+            client->ops = &auth_release_ops;
+            client->connection.discon.time = time (NULL);
             auth_user->process = auth_remove_listener;
             queue_auth_client (auth_user, mountinfo);
             return 1;
@@ -823,8 +832,6 @@ int auth_get_authenticator (auth_t *auth, config_options_t *options)
     auth->flags |= (AUTH_RUNNING|AUTH_CLEAN_ENV);
     for (int i=0; i<auth->handlers; i++)
     {
-        if (auth->alloc_thread_data)
-            auth->handles[i].data = auth->alloc_thread_data (auth);
         auth->handles[i].id = thread_id++;
         auth->handles[i].auth = auth;
     }

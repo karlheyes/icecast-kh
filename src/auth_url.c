@@ -103,15 +103,16 @@ typedef struct
     char errormsg [CURL_ERROR_SIZE];
 } auth_thread_data;
 
+typedef struct _url_settings_t
+{
+    char *url;
+    time_t stop_until;
+    uint16_t timeout;
+    uint16_t stop_duration;
+} req_settings_t;
+
+
 typedef struct {
-    time_t stop_req_until;
-    int  stop_req_duration;
-    int  timeout;
-    char *addurl;
-    char *removeurl;
-    char *stream_start;
-    char *stream_end;
-    char *stream_auth;
     char *username;
     char *password;
     char *auth_header;
@@ -121,8 +122,16 @@ typedef struct {
     char *userpwd;
     int  header_chk_count;
     int  redir_limit;
+
+    req_settings_t listener_add;
+    req_settings_t listener_remove;
+    req_settings_t mount_add;
+    req_settings_t mount_remove;
+    req_settings_t stream_auth;
+
     char *header_chk_list;      // nulld headers to pass from client into addurl.
     char *header_chk_prefix;    // prefix for POSTing client headers.
+    mutex_t  updating;
 } auth_url;
 
 
@@ -134,6 +143,17 @@ struct build_intro_contents
     size_t intro_len;
 };
 
+
+static void clear_url_settings (req_settings_t *s)
+{
+    if (s)
+    {
+        free (s->url);
+        s->url = NULL;
+    }
+}
+
+
 static void auth_url_clear(auth_t *self)
 {
     auth_url *url;
@@ -143,11 +163,12 @@ static void auth_url_clear(auth_t *self)
     self->state = NULL;
     free (url->username);
     free (url->password);
-    free (url->removeurl);
-    free (url->addurl);
-    free (url->stream_start);
-    free (url->stream_end);
-    free (url->stream_auth);
+    clear_url_settings (&url->listener_add);
+    clear_url_settings (&url->listener_remove);
+    clear_url_settings (&url->mount_add);
+    clear_url_settings (&url->mount_remove);
+    clear_url_settings (&url->stream_auth);
+    thread_mutex_destroy (&url->updating);
     free (url->auth_header);
     free (url->timelimit_header);
     free (url->userpwd);
@@ -199,8 +220,8 @@ static size_t handle_url_header (void *ptr, size_t size, size_t nmemb, void *str
                 }
                 else if ((auth->flags & AUTH_SKIP_IF_SLOW) && retcode >= 400 && retcode < 600)
                 {
+                    /* prevent further attempts for a while */
                     snprintf (atd->errormsg, sizeof(atd->errormsg), "auth on %s disabled, response was \'%.200s...\'", auth->mount, header);
-                    url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
                     auth_user->flags |= CLIENT_AUTHENTICATED;
                     return 0;
                 }
@@ -225,7 +246,8 @@ static size_t handle_url_header (void *ptr, size_t size, size_t nmemb, void *str
         if (header_value_pos == bytes) break;     // EOL
         header_val = header + header_value_pos;
         remain = bytes - header_value_pos;
-
+        if (remain > 8192)
+            return 0;
         char hvalue [remain];
         sscanf (header_val, "%[^\r\n]", hvalue); // local copy with nul, no EOL
 
@@ -351,17 +373,26 @@ static auth_result url_remove_listener (auth_client *auth_user)
     client_t *client = auth_user->client;
     auth_url *url = auth_user->auth->state;
     auth_thread_data *atd = auth_user->thread_data;
-    time_t now = time(NULL), duration = now - client->connection.con_time;
+    time_t now = time(NULL);
     char *userpwd = NULL;
 
-    if (url->removeurl == NULL || client == NULL)
+    if (url->listener_remove.url == NULL || client == NULL)
         return AUTH_OK;
-    if (url->stop_req_until)
+    time_t duration = client->connection.discon.time - client->connection.con_time;
+    thread_mutex_lock (&url->updating);
+    do
     {
-        if (url->stop_req_until >= now)
-            return AUTH_FAILED;
-        url->stop_req_until = 0;
-    }
+        if (url->listener_remove.stop_until < now)
+        {
+            if (url->listener_remove.stop_until)
+                url->listener_remove.stop_until = (time_t)0;
+            break;
+        }
+        thread_mutex_unlock (&url->updating);
+        WARN3 ("auth on %s disabled (client %ld, handler %d)", auth_user->mount, client->connection.id, auth_user->handler);
+        return AUTH_FAILED;
+    } while (0);
+    thread_mutex_unlock (&url->updating);
 
     ice_params_t post;
     ice_params_setup (&post, "=", "&", PARAMS_ESC);
@@ -380,7 +411,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
     refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return AUTH_FAILED;
 
-    if (strchr (url->removeurl, '@') == NULL)
+    if (strchr (url->listener_remove.url, '@') == NULL)
     {
         if (url->userpwd)
             curl_easy_setopt (atd->curl, CURLOPT_USERPWD, url->userpwd);
@@ -403,25 +434,30 @@ static auth_result url_remove_listener (auth_client *auth_user)
         /* url has user/pass but libcurl may need to clear any existing settings */
         curl_easy_setopt (atd->curl, CURLOPT_USERPWD, "");
     }
-    curl_easy_setopt (atd->curl, CURLOPT_URL, url->removeurl);
+    curl_easy_setopt (atd->curl, CURLOPT_URL, url->listener_remove.url);
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, rb->data);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
+    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->listener_remove.timeout);
 #if LIBCURL_VERSION_NUM >= 0x072000
     char msg [100];
     snprintf (msg, sizeof msg, ", listener remove on %s", &client->connection.ip[0]);
     curl_easy_setopt (atd->curl, CURLOPT_XFERINFODATA, msg);
 #endif
 
-    DEBUG2 ("...handler %d (%s) sending request", auth_user->handler, auth_user->mount);
+    DEBUG3 ("...handler %d (%s) sending request (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
     if (curl_easy_perform (atd->curl))
     {
-        WARN3 ("auth to server %s (%s) failed with \"%s\"", url->removeurl, auth_user->mount, atd->errormsg);
-        INFO1 ("will disable auth service for %d seconds", url->stop_req_duration);
-        url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
+        char details [128];
+        snprintf (details, sizeof details, "stop %ds, client %ld, handler %d",
+                url->listener_remove.stop_duration, client->connection.id, auth_user->handler);
+        WARN3 ("auth on %s failed with \"%s\"%s", auth_user->mount, atd->errormsg, msg);
+        thread_mutex_lock (&url->updating);
+        url->listener_remove.stop_until = time (NULL) + url->listener_remove.stop_duration;
+        thread_mutex_unlock (&url->updating);
     }
     else
-        DEBUG2 ("...handler %d (%s) request complete", auth_user->handler, auth_user->mount);
+        DEBUG3 ("...handler %d (%s) request complete (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
 
     free (userpwd);
     refbuf_release (rb);
@@ -441,27 +477,32 @@ static auth_result url_add_listener (auth_client *auth_user)
     char *userpwd = NULL;
 
     client_set_queue (client, NULL);
-    if (url->addurl == NULL || client == NULL)
+    if (url->listener_add.url == NULL || client == NULL)
         return AUTH_OK;
 
-    if (url->stop_req_until)
+    thread_mutex_lock (&url->updating);
+    if (url->listener_add.stop_until)
     {
         time_t now = time(NULL);
-        if (url->stop_req_until <= now)
+        if (url->listener_add.stop_until > now)
         {
-            INFO1 ("restarting url after timeout on %s", auth_user->mount);
-            url->stop_req_until = 0;
-        }
-        else
-        {
+            thread_mutex_unlock (&url->updating);
             if (auth->flags & AUTH_SKIP_IF_SLOW)
             {
+                DEBUG3 ("auth on %s stopped, skipping for client %ld (handler %d)", auth_user->mount, client->connection.id, auth_user->handler);
                 client->flags |= CLIENT_AUTHENTICATED;
                 return AUTH_OK;
             }
+            WARN3 ("auth on %s stopped, drop client %ld (handler %d)", auth_user->mount, client->connection.id, auth_user->handler);
             return AUTH_FAILED;
         }
+        res = 1;
+        url->listener_add.stop_until = 0;
     }
+    thread_mutex_unlock (&url->updating);
+    if (res)
+        INFO2 ("restarting auth after timeout on %s, with client %ld", auth_user->mount, client->connection.id);
+
     ice_params_t post;
     ice_params_setup (&post, "=", "&", PARAMS_ESC);
     ice_params_printf (&post, "action", PARAM_AS,       "listener_add");
@@ -499,7 +540,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return AUTH_FAILED;
 
-    if (strchr (url->addurl, '@') == NULL)
+    if (strchr (url->listener_add.url, '@') == NULL)
     {
         if (url->userpwd)
             curl_easy_setopt (atd->curl, CURLOPT_USERPWD, url->userpwd);
@@ -522,10 +563,11 @@ static auth_result url_add_listener (auth_client *auth_user)
         /* url has user/pass but libcurl may need to clear any existing settings */
         curl_easy_setopt (atd->curl, CURLOPT_USERPWD, "");
     }
-    curl_easy_setopt (atd->curl, CURLOPT_URL, url->addurl);
+    curl_easy_setopt (atd->curl, CURLOPT_URL, url->listener_add.url);
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, rb->data);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
+    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->listener_add.timeout);
 #if LIBCURL_VERSION_NUM >= 0x072000
     char msg [100];
     snprintf (msg, sizeof msg, ", listener add on %s", &client->connection.ip[0]);
@@ -538,9 +580,9 @@ static auth_result url_add_listener (auth_client *auth_user)
     struct build_intro_contents intro = { .type = 0, .head = NULL, .intro_len = 0, .tailp = &intro.head }, *x = &intro;
     client->aux_data = (uintptr_t)&intro;
 
-    DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
+    DEBUG3 ("handler %d (%s) sending request (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
     res = curl_easy_perform (atd->curl);
-    DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
+    DEBUG3 ("handler %d (%s) request finished (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
     client->aux_data = (uintptr_t)0;
 
     free (userpwd);
@@ -563,9 +605,10 @@ static auth_result url_add_listener (auth_client *auth_user)
     }
     if (res)
     {
-        url->stop_req_until = time (NULL) + url->stop_req_duration; /* prevent further attempts for a while */
-        WARN3 ("auth to server %s (%s) failed with %s", url->addurl, auth_user->mount, atd->errormsg);
-        INFO1 ("will disable auth service for %d seconds", url->stop_req_duration);
+        thread_mutex_lock (&url->updating);
+        url->listener_add.stop_until = time (NULL) + url->listener_add.stop_duration; /* prevent further attempts for a while */
+        thread_mutex_unlock (&url->updating);
+        WARN4 ("auth %s (%s) failed with %s, disable for %d seconds", url->listener_add.url, auth_user->mount, atd->errormsg, url->listener_add.stop_duration);
         if (auth->flags & AUTH_SKIP_IF_SLOW)
         {
             auth_user->flags |= CLIENT_AUTHENTICATED;
@@ -591,7 +634,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     }
     else if (atd->errormsg[0])
     {
-        INFO3 ("listener %s (%s) returned \"%s\"", client->connection.ip, url->addurl, atd->errormsg);
+        INFO3 ("listener %s (%s) returned \"%s\"", client->connection.ip, url->listener_add.url, atd->errormsg);
         if (atoi (atd->errormsg) == 403)
         {
             auth_user->client = NULL;
@@ -622,7 +665,7 @@ static void url_stream_start (auth_client *auth_user)
     refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return;
 
-    if (strchr (url->stream_start, '@') == NULL)
+    if (strchr (url->mount_add.url, '@') == NULL)
     {
         if (url->userpwd)
             curl_easy_setopt (atd->curl, CURLOPT_USERPWD, url->userpwd);
@@ -631,14 +674,15 @@ static void url_stream_start (auth_client *auth_user)
     }
     else
         curl_easy_setopt (atd->curl, CURLOPT_USERPWD, "");
-    curl_easy_setopt (atd->curl, CURLOPT_URL, url->stream_start);
+    curl_easy_setopt (atd->curl, CURLOPT_URL, url->mount_add.url);
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, rb->data);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
+    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->mount_add.timeout);
 
     DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     if (curl_easy_perform (atd->curl))
-        WARN3 ("auth to server %s (%s) failed with %s", url->stream_start, auth_user->mount, atd->errormsg);
+        WARN3 ("auth on %s failed with %s (handler %d)", auth_user->mount, atd->errormsg, auth_user->handler);
     else
         DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
     refbuf_release (rb);
@@ -662,7 +706,7 @@ static void url_stream_end (auth_client *auth_user)
     refbuf_t *rb = ice_params_complete (&post);
     if (rb == NULL) return;
 
-    if (strchr (url->stream_end, '@') == NULL)
+    if (strchr (url->mount_remove.url, '@') == NULL)
     {
         if (url->userpwd)
             curl_easy_setopt (atd->curl, CURLOPT_USERPWD, url->userpwd);
@@ -671,14 +715,15 @@ static void url_stream_end (auth_client *auth_user)
     }
     else
         curl_easy_setopt (atd->curl, CURLOPT_USERPWD, "");
-    curl_easy_setopt (atd->curl, CURLOPT_URL, url->stream_end);
+    curl_easy_setopt (atd->curl, CURLOPT_URL, url->mount_remove.url);
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, rb->data);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
+    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->mount_remove.timeout);
 
     DEBUG2 ("handler %d (%s) sending request", auth_user->handler, auth_user->mount);
     if (curl_easy_perform (atd->curl))
-        WARN3 ("auth to server %s (%s) failed with %s", url->stream_end, auth_user->mount, atd->errormsg);
+        WARN3 ("auth on %s failed with %s (handler %d)", auth_user->mount, atd->errormsg, auth_user->handler);
     else
         DEBUG2 ("handler %d (%s) request finished", auth_user->handler, auth_user->mount);
     refbuf_release (rb);
@@ -692,7 +737,7 @@ static void url_stream_auth (auth_client *auth_user)
     auth_thread_data *atd = auth_user->thread_data;
     int adm = 0;
 
-    if (strchr (url->stream_auth, '@') == NULL)
+    if (strchr (url->stream_auth.url, '@') == NULL)
     {
         if (url->userpwd)
             curl_easy_setopt (atd->curl, CURLOPT_USERPWD, url->userpwd);
@@ -720,10 +765,13 @@ static void url_stream_auth (auth_client *auth_user)
     if (rb == NULL) return;
 
     curl_easy_setopt (atd->curl, CURLOPT_POSTFIELDS, rb->data);
+    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->stream_auth.timeout);
     auth_user->flags &= ~CLIENT_AUTHENTICATED;
     DEBUG3 ("handler %d (%s) sending request (adm %d)", auth_user->handler, auth_user->mount, adm);
     if (curl_easy_perform (atd->curl))
-        WARN3 ("auth to server %s (%s) failed with %s", url->stream_auth, auth_user->mount, atd->errormsg);
+        WARN4 ("auth on %s failed with %s (client %ld, handler %d)", auth_user->mount, atd->errormsg, client->connection.id, auth_user->handler);
+    else
+        DEBUG3 ("handler %d (%s) request finished (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
     refbuf_release (rb);
 }
 
@@ -756,7 +804,7 @@ static void *alloc_thread_data (auth_t *auth)
     curl_easy_setopt (atd->curl, CURLOPT_HEADERFUNCTION, handle_url_header);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEFUNCTION, handle_url_data);
     curl_easy_setopt (atd->curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->timeout);
+    curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)6); // a default
     curl_easy_setopt (atd->curl, CURLOPT_ERRORBUFFER, &atd->errormsg[0]);
     curl_easy_setopt (atd->curl, CURLOPT_FOLLOWLOCATION, 1);
     curl_easy_setopt (atd->curl, CURLOPT_MAXREDIRS, (long)url->redir_limit);
@@ -765,7 +813,6 @@ static void *alloc_thread_data (auth_t *auth)
 #endif
     if (auth->flags & AUTH_SKIP_IF_SLOW)
         curl_easy_setopt (atd->curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    INFO0 ("...handler data initialized");
     return atd;
 }
 
@@ -798,11 +845,14 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
     url_info->auth_header = strdup ("icecast-auth-user:");
     url_info->timelimit_header = strdup ("icecast-auth-timelimit:");
     url_info->header_chk_prefix = strdup ("ClientHeader-");
-    url_info->timeout = 6;
     url_info->redir_limit = 1;
-    url_info->stop_req_duration = 30;
+    thread_mutex_create (&url_info->updating);
 
-    while(options) {
+    int timeout = 6;
+    int sduration = 30;
+
+    while (options)
+    {
         if(!strcmp(options->name, "username"))
         {
             free (url_info->username);
@@ -826,32 +876,32 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         if(!strcmp(options->name, "listener_add"))
         {
             authenticator->authenticate = url_add_listener;
-            free (url_info->addurl);
-            url_info->addurl = strdup (options->value);
+            clear_url_settings (&url_info->listener_add);
+            url_info->listener_add = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
         }
         if(!strcmp(options->name, "listener_remove"))
         {
             authenticator->release_listener = url_remove_listener;
-            free (url_info->removeurl);
-            url_info->removeurl = strdup (options->value);
+            clear_url_settings (&url_info->listener_remove);
+            url_info->listener_remove = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
         }
         if(!strcmp(options->name, "mount_add"))
         {
             authenticator->stream_start = url_stream_start;
-            free (url_info->stream_start);
-            url_info->stream_start = strdup (options->value);
+            clear_url_settings (&url_info->mount_add);
+            url_info->mount_add = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
         }
         if(!strcmp(options->name, "mount_remove"))
         {
             authenticator->stream_end = url_stream_end;
-            free (url_info->stream_end);
-            url_info->stream_end = strdup (options->value);
+            clear_url_settings (&url_info->mount_remove);
+            url_info->mount_remove = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
         }
         if(!strcmp(options->name, "stream_auth"))
         {
             authenticator->stream_auth = url_stream_auth;
-            free (url_info->stream_auth);
-            url_info->stream_auth = strdup (options->value);
+            clear_url_settings (&url_info->stream_auth);
+            url_info->stream_auth = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
         }
         if(!strcmp(options->name, "auth_header"))
         {
@@ -872,12 +922,12 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         if (strcmp(options->name, "timeout") == 0)
         {
             int timeout = atoi (options->value);
-            url_info->timeout = timeout > 0 ? timeout : 1;
+            timeout = timeout > 0 ? timeout : 1;
         }
         if (strcmp(options->name, "on_error_wait") == 0)
         {
             int seconds = atoi (options->value);
-            url_info->stop_req_duration = seconds > 0 ? seconds : 1;
+            sduration = seconds > 0 ? seconds : 1;
         }
         if (strcmp(options->name, "presume_innocent") == 0)
         {

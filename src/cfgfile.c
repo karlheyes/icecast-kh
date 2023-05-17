@@ -1399,6 +1399,7 @@ static int _parse_mount_auth (cfg_xml *cfg, void *arg)
         { NULL, NULL, NULL },
     };
     do {
+        auth->handlers = 5;
         if (parse_xml_tags (cfg, icecast_tags) < 0)
             break;
         if (auth_get_authenticator (auth, opt) < 0)
