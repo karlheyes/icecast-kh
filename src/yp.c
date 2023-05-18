@@ -570,7 +570,7 @@ static int do_yp_touch (ypdata_t *yp, char *s, unsigned len)
         stats_handle_t stats = stats_handle (yp->mount);
         if (stats)
         {
-            ice_params_printf (&post, "st", 0, "%s", yp->current_song);
+            ice_params_printf (&post, "st", PARAM_AS, "%s", yp->current_song);
             ice_params_printf (&post, "listeners", PARAM_AS, "%s", yp_stat (stats, "listeners"));
             const char *v = stats_retrieve_nocopy (stats, "max_listeners");
             if (v)
