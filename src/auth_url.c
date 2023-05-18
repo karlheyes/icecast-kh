@@ -389,7 +389,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
             break;
         }
         thread_mutex_unlock (&url->updating);
-        WARN3 ("auth on %s disabled (client %ld, handler %d)", auth_user->mount, client->connection.id, auth_user->handler);
+        WARN3 ("auth on %s disabled (client %" PRI_ConnID", handler %d)", auth_user->mount, CONN_ID(client), auth_user->handler);
         return AUTH_FAILED;
     } while (0);
     thread_mutex_unlock (&url->updating);
@@ -445,19 +445,19 @@ static auth_result url_remove_listener (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_XFERINFODATA, msg);
 #endif
 
-    DEBUG3 ("...handler %d (%s) sending request (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
+    DEBUG3 ("...handler %d (%s) sending request (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
     if (curl_easy_perform (atd->curl))
     {
         char details [128];
-        snprintf (details, sizeof details, "stop %ds, client %ld, handler %d",
-                url->listener_remove.stop_duration, client->connection.id, auth_user->handler);
+        snprintf (details, sizeof details, "stop %ds, client %" PRI_ConnID ", handler %d",
+                url->listener_remove.stop_duration, CONN_ID(client), auth_user->handler);
         WARN3 ("auth on %s failed with \"%s\"%s", auth_user->mount, atd->errormsg, msg);
         thread_mutex_lock (&url->updating);
         url->listener_remove.stop_until = time (NULL) + url->listener_remove.stop_duration;
         thread_mutex_unlock (&url->updating);
     }
     else
-        DEBUG3 ("...handler %d (%s) request complete (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
+        DEBUG3 ("...handler %d (%s) request complete (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
 
     free (userpwd);
     refbuf_release (rb);
@@ -489,11 +489,11 @@ static auth_result url_add_listener (auth_client *auth_user)
             thread_mutex_unlock (&url->updating);
             if (auth->flags & AUTH_SKIP_IF_SLOW)
             {
-                DEBUG3 ("auth on %s stopped, skipping for client %ld (handler %d)", auth_user->mount, client->connection.id, auth_user->handler);
+                DEBUG3 ("auth on %s stopped, skipping for client %" PRI_ConnID " (handler %d)", auth_user->mount, CONN_ID(client), auth_user->handler);
                 client->flags |= CLIENT_AUTHENTICATED;
                 return AUTH_OK;
             }
-            WARN3 ("auth on %s stopped, drop client %ld (handler %d)", auth_user->mount, client->connection.id, auth_user->handler);
+            WARN3 ("auth on %s stopped, drop client %" PRI_ConnID " (handler %d)", auth_user->mount, CONN_ID(client), auth_user->handler);
             return AUTH_FAILED;
         }
         res = 1;
@@ -501,7 +501,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     }
     thread_mutex_unlock (&url->updating);
     if (res)
-        INFO2 ("restarting auth after timeout on %s, with client %ld", auth_user->mount, client->connection.id);
+        INFO2 ("restarting auth after timeout on %s, with client %" PRI_ConnID, auth_user->mount, CONN_ID(client));
 
     ice_params_t post;
     ice_params_setup (&post, "=", "&", PARAMS_ESC);
@@ -580,9 +580,9 @@ static auth_result url_add_listener (auth_client *auth_user)
     struct build_intro_contents intro = { .type = 0, .head = NULL, .intro_len = 0, .tailp = &intro.head }, *x = &intro;
     client->aux_data = (uintptr_t)&intro;
 
-    DEBUG3 ("handler %d (%s) sending request (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
+    DEBUG3 ("handler %d (%s) sending request (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
     res = curl_easy_perform (atd->curl);
-    DEBUG3 ("handler %d (%s) request finished (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
+    DEBUG3 ("handler %d (%s) request finished (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
     client->aux_data = (uintptr_t)0;
 
     free (userpwd);
@@ -769,9 +769,9 @@ static void url_stream_auth (auth_client *auth_user)
     auth_user->flags &= ~CLIENT_AUTHENTICATED;
     DEBUG3 ("handler %d (%s) sending request (adm %d)", auth_user->handler, auth_user->mount, adm);
     if (curl_easy_perform (atd->curl))
-        WARN4 ("auth on %s failed with %s (client %ld, handler %d)", auth_user->mount, atd->errormsg, client->connection.id, auth_user->handler);
+        WARN4 ("auth on %s failed with %s (client %" PRI_ConnID ", handler %d)", auth_user->mount, atd->errormsg, CONN_ID (client), auth_user->handler);
     else
-        DEBUG3 ("handler %d (%s) request finished (client %ld)", auth_user->handler, auth_user->mount, client->connection.id);
+        DEBUG3 ("handler %d (%s) request finished (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID (client));
     refbuf_release (rb);
 }
 
