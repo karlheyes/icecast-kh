@@ -453,7 +453,8 @@ static auth_result url_remove_listener (auth_client *auth_user)
                 url->listener_remove.stop_duration, CONN_ID(client), auth_user->handler);
         WARN3 ("auth on %s failed with \"%s\"%s", auth_user->mount, atd->errormsg, msg);
         thread_mutex_lock (&url->updating);
-        url->listener_remove.stop_until = time (NULL) + url->listener_remove.stop_duration;
+        if (url->listener_remove.stop_until == 0)
+            url->listener_remove.stop_until = time (NULL) + url->listener_remove.stop_duration;
         thread_mutex_unlock (&url->updating);
     }
     else
@@ -606,9 +607,11 @@ static auth_result url_add_listener (auth_client *auth_user)
     if (res)
     {
         thread_mutex_lock (&url->updating);
-        url->listener_add.stop_until = time (NULL) + url->listener_add.stop_duration; /* prevent further attempts for a while */
+        if (url->listener_add.stop_until == 0)
+            url->listener_add.stop_until = time (NULL) + url->listener_add.stop_duration;
         thread_mutex_unlock (&url->updating);
-        WARN4 ("auth %s (%s) failed with %s, disable for %d seconds", url->listener_add.url, auth_user->mount, atd->errormsg, url->listener_add.stop_duration);
+        WARN4 ("auth %s (%s) failed with %s, disable for %d seconds", url->listener_add.url,
+                auth_user->mount, atd->errormsg, url->listener_add.stop_duration);
         if (auth->flags & AUTH_SKIP_IF_SLOW)
         {
             auth_user->flags |= CLIENT_AUTHENTICATED;
@@ -820,9 +823,12 @@ static void *alloc_thread_data (auth_t *auth)
 static void release_thread_data (auth_t *auth, void *thread_data)
 {
     auth_thread_data *atd = thread_data;
-    curl_easy_cleanup (atd->curl);
-    free (atd->server_id);
-    free (atd);
+    if (atd)
+    {
+        curl_easy_cleanup (atd->curl);
+        free (atd->server_id);
+        free (atd);
+    }
     DEBUG1 ("...handler destroyed for %s", auth->mount);
 }
 #endif // HAVE_CURL
