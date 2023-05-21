@@ -86,6 +86,7 @@
 #include "client.h"
 #include "cfgfile.h"
 #include "httpp/httpp.h"
+#include "timing/timing.h"
 #include "mpeg.h"
 #include "global.h"
 #include "stats.h"
@@ -186,6 +187,21 @@ static int my_getpass(void *client, char *prompt, char *buffer, int buflen)
     return 0;
 }
 #endif
+
+
+static CURLcode do_curl_perform (CURL *curl, auth_client *auth_user)
+{
+    uint64_t start = timing_get_time ();
+    CURLcode c = curl_easy_perform (curl);
+    if (c == CURLE_OK)
+    {
+        uint64_t dura = timing_get_time () - start;
+        if (dura > 3000)
+            WARN3 ("slow auth response for client %" PRI_ConnID " (%s), %lums",
+                    CONN_ID(auth_user->client), CONN_ADDR(auth_user->client), dura);
+    }
+    return c;
+}
 
 
 static size_t handle_url_header (void *ptr, size_t size, size_t nmemb, void *stream)
@@ -439,23 +455,21 @@ static auth_result url_remove_listener (auth_client *auth_user)
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)url->listener_remove.timeout);
+    char msg [120];
+    snprintf (msg, sizeof msg, ", listener remove %s, client %" PRI_ConnID ", handler %d",
+            CONN_ADDR (client), CONN_ID(client), auth_user->handler);
 #if LIBCURL_VERSION_NUM >= 0x072000
-    char msg [100];
-    snprintf (msg, sizeof msg, ", listener remove on %s", &client->connection.ip[0]);
     curl_easy_setopt (atd->curl, CURLOPT_XFERINFODATA, msg);
 #endif
 
     DEBUG3 ("...handler %d (%s) sending request (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
-    if (curl_easy_perform (atd->curl))
+    if (do_curl_perform (atd->curl, auth_user))
     {
-        char details [128];
-        snprintf (details, sizeof details, "stop %ds, client %" PRI_ConnID ", handler %d",
-                url->listener_remove.stop_duration, CONN_ID(client), auth_user->handler);
-        WARN3 ("auth on %s failed with \"%s\"%s", auth_user->mount, atd->errormsg, msg);
         thread_mutex_lock (&url->updating);
         if (url->listener_remove.stop_until == 0)
             url->listener_remove.stop_until = time (NULL) + url->listener_remove.stop_duration;
         thread_mutex_unlock (&url->updating);
+        WARN4 ("auth on %s failed with \"%s\"%s, stop %ds", auth_user->mount, atd->errormsg, msg, url->listener_remove.stop_duration);
     }
     else
         DEBUG3 ("...handler %d (%s) request complete (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
@@ -582,7 +596,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     client->aux_data = (uintptr_t)&intro;
 
     DEBUG3 ("handler %d (%s) sending request (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
-    res = curl_easy_perform (atd->curl);
+    res = do_curl_perform (atd->curl, auth_user);
     DEBUG3 ("handler %d (%s) request finished (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
     client->aux_data = (uintptr_t)0;
 
