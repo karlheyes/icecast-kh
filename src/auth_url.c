@@ -189,7 +189,7 @@ static int my_getpass(void *client, char *prompt, char *buffer, int buflen)
 #endif
 
 
-static CURLcode do_curl_perform (CURL *curl, auth_client *auth_user)
+static CURLcode do_curl_perform (CURL *curl, auth_client *auth_user, const char *msg)
 {
     uint64_t start = timing_get_time ();
     CURLcode c = curl_easy_perform (curl);
@@ -197,7 +197,7 @@ static CURLcode do_curl_perform (CURL *curl, auth_client *auth_user)
     {
         uint64_t dura = timing_get_time () - start;
         if (dura > 3000)
-            WARN3 ("slow auth response for client %" PRI_ConnID " (%s), %lums",
+            WARN4 ("slow %s response for client %" PRI_ConnID " (%s), %" PRIu64 "ms", msg,
                     CONN_ID(auth_user->client), CONN_ADDR(auth_user->client), dura);
     }
     return c;
@@ -463,7 +463,7 @@ static auth_result url_remove_listener (auth_client *auth_user)
 #endif
 
     DEBUG3 ("...handler %d (%s) sending request (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
-    if (do_curl_perform (atd->curl, auth_user))
+    if (do_curl_perform (atd->curl, auth_user, "listener remove"))
     {
         thread_mutex_lock (&url->updating);
         if (url->listener_remove.stop_until == 0)
@@ -596,7 +596,7 @@ static auth_result url_add_listener (auth_client *auth_user)
     client->aux_data = (uintptr_t)&intro;
 
     DEBUG3 ("handler %d (%s) sending request (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
-    res = do_curl_perform (atd->curl, auth_user);
+    res = do_curl_perform (atd->curl, auth_user, "listener add");
     DEBUG3 ("handler %d (%s) request finished (client %" PRI_ConnID ")", auth_user->handler, auth_user->mount, CONN_ID(client));
     client->aux_data = (uintptr_t)0;
 
@@ -868,8 +868,7 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
     url_info->redir_limit = 1;
     thread_mutex_create (&url_info->updating);
 
-    int timeout = 6;
-    int sduration = 30;
+    req_settings_t req_templ = { .timeout = 6, .stop_duration = 30 };
 
     while (options)
     {
@@ -897,31 +896,31 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         {
             authenticator->authenticate = url_add_listener;
             clear_url_settings (&url_info->listener_add);
-            url_info->listener_add = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
+            url_info->listener_add.url = options->value;
         }
         if(!strcmp(options->name, "listener_remove"))
         {
             authenticator->release_listener = url_remove_listener;
             clear_url_settings (&url_info->listener_remove);
-            url_info->listener_remove = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
+            url_info->listener_remove.url = options->value;
         }
         if(!strcmp(options->name, "mount_add"))
         {
             authenticator->stream_start = url_stream_start;
             clear_url_settings (&url_info->mount_add);
-            url_info->mount_add = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
+            url_info->mount_add.url = options->value;
         }
         if(!strcmp(options->name, "mount_remove"))
         {
             authenticator->stream_end = url_stream_end;
             clear_url_settings (&url_info->mount_remove);
-            url_info->mount_remove = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
+            url_info->mount_remove.url = options->value;
         }
         if(!strcmp(options->name, "stream_auth"))
         {
             authenticator->stream_auth = url_stream_auth;
             clear_url_settings (&url_info->stream_auth);
-            url_info->stream_auth = (req_settings_t){ .url = strdup (options->value), .timeout = timeout, .stop_duration = sduration };
+            url_info->stream_auth.url = options->value;
         }
         if(!strcmp(options->name, "auth_header"))
         {
@@ -942,12 +941,12 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         if (strcmp(options->name, "timeout") == 0)
         {
             int timeout = atoi (options->value);
-            timeout = timeout > 0 ? timeout : 1;
+            req_templ.timeout = timeout > 0 ? timeout : 1;
         }
         if (strcmp(options->name, "on_error_wait") == 0)
         {
             int seconds = atoi (options->value);
-            sduration = seconds > 0 ? seconds : 1;
+            req_templ.stop_duration = seconds > 0 ? seconds : 1;
         }
         if (strcmp(options->name, "presume_innocent") == 0)
         {
@@ -986,6 +985,21 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         else
             free (pass_headers);
     }
+    if (url_info->listener_add.url)
+        req_templ.url = strdup (url_info->listener_add.url);
+    url_info->listener_add = req_templ;
+    if (url_info->listener_remove.url)
+        req_templ.url = strdup (url_info->listener_remove.url);
+    url_info->listener_remove = req_templ;
+    if (url_info->mount_add.url)
+        req_templ.url = strdup (url_info->mount_add.url);
+    url_info->mount_add = req_templ;
+    if (url_info->mount_remove.url)
+        req_templ.url = strdup (url_info->mount_remove.url);
+    url_info->mount_remove = req_templ;
+    if (url_info->stream_auth.url)
+        req_templ.url = strdup (url_info->stream_auth.url);
+    url_info->stream_auth = req_templ;
 
     authenticator->state = url_info;
     return 0;
