@@ -843,7 +843,6 @@ static void release_thread_data (auth_t *auth, void *thread_data)
         free (atd->server_id);
         free (atd);
     }
-    DEBUG1 ("...handler destroyed for %s", auth->mount);
 }
 #endif // HAVE_CURL
 
@@ -852,6 +851,26 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
 {
 #ifdef HAVE_CURL
     auth_url *url_info;
+    if (authenticator->state)
+    {
+        url_info = authenticator->state;
+        INFO3 ("Timeout %ds (disabled %ds), max redirects %d", url_info->listener_add.timeout,
+                url_info->listener_add.stop_duration, url_info->redir_limit);
+        if (url_info->listener_add.url)
+            INFO1 ("listener add set to %s", url_info->listener_add.url);
+        if (url_info->listener_remove.url)
+            INFO1 ("listener remove set to %s", url_info->listener_remove.url);
+        if (url_info->mount_add.url)
+            INFO1 ("mount add set to %s", url_info->mount_add.url);
+        if (url_info->mount_remove.url)
+            INFO1 ("mount remove set to %s", url_info->mount_remove.url);
+        if (url_info->stream_auth.url)
+            INFO1 ("stream_auth set to %s", url_info->stream_auth.url);
+        INFO1 ("header to auth %s", url_info->auth_header);
+        INFO1 ("timelimit header %s", url_info->timelimit_header);
+        INFO1 ("client header prefix for POST %s", url_info->header_chk_prefix);
+        return 0;
+    }
     char *pass_headers = NULL;
 
     authenticator->release = auth_url_clear;
@@ -985,20 +1004,19 @@ int auth_get_url_auth (auth_t *authenticator, config_options_t *options)
         else
             free (pass_headers);
     }
-    if (url_info->listener_add.url)
-        req_templ.url = strdup (url_info->listener_add.url);
+    req_templ.url = url_info->listener_add.url ? strdup (url_info->listener_add.url) : NULL;
     url_info->listener_add = req_templ;
-    if (url_info->listener_remove.url)
-        req_templ.url = strdup (url_info->listener_remove.url);
+
+    req_templ.url = url_info->listener_remove.url ? strdup (url_info->listener_remove.url) : NULL;
     url_info->listener_remove = req_templ;
-    if (url_info->mount_add.url)
-        req_templ.url = strdup (url_info->mount_add.url);
+
+    req_templ.url = url_info->mount_add.url ? strdup (url_info->mount_add.url) : NULL;
     url_info->mount_add = req_templ;
-    if (url_info->mount_remove.url)
-        req_templ.url = strdup (url_info->mount_remove.url);
+
+    req_templ.url = url_info->mount_remove.url ? strdup (url_info->mount_remove.url) : NULL;
     url_info->mount_remove = req_templ;
-    if (url_info->stream_auth.url)
-        req_templ.url = strdup (url_info->stream_auth.url);
+
+    req_templ.url = url_info->stream_auth.url ? strdup (url_info->stream_auth.url) : NULL;
     url_info->stream_auth = req_templ;
 
     authenticator->state = url_info;

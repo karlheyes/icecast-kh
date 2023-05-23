@@ -1540,6 +1540,8 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         return -1;
     }
     if (mount->priority < 0) mount->priority = INT_MAX;
+    if (mount->auth)
+        auth_finish_setup (mount->auth, mount->mountname);
     if (redirect)
     {
         char patt[] = "/${mount}";
@@ -1549,8 +1551,6 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         snprintf (mount->redirect, len, "%s%s", redirect, patt);
         xmlFree (redirect);
     }
-    if (mount->auth)
-        mount->auth->mount = strdup (mount->mountname);
     if (mount->admin_comments_only)
         mount->url_ogg_meta = 1;
     if (mount->url_ogg_meta)
@@ -1573,7 +1573,6 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
             trail = &m->next;
             m = *trail;
         }
-        // may need some priority order imposed at some point
         mount->next = m;
         *trail = mount;
     }

@@ -208,12 +208,11 @@ void auth_release (auth_t *authenticator)
 
     /* cleanup auth threads attached to this auth */
     authenticator->flags &= ~AUTH_RUNNING;
-    while (authenticator->handlers)
+    for (int i = authenticator->handlers; i>0 ; i--)
     {
         if (authenticator->release_thread_data)
-            authenticator->release_thread_data (authenticator,
-                    authenticator->handles [authenticator->handlers-1].data);
-        authenticator->handlers--;
+            authenticator->release_thread_data (authenticator, authenticator->handles [i].data);
+        DEBUG2 ("...handler %d destroyed for %s", i, authenticator->mount);
     }
     free (authenticator->handles);
 
@@ -769,7 +768,16 @@ static int get_authenticator (auth_t *auth, config_options_t *options)
     }
     do
     {
-        DEBUG1 ("type is %s", auth->type);
+        if (auth->handles)
+        {   // for final setup after all settings supplied, log reporting mainly
+            INFO2 ("on %s is type %s", auth->mount, auth->type);
+            INFO3 ("handlers %d, dup %d, drop %d", auth->handlers, (auth->flags&AUTH_ALLOW_LISTENER_DUP ? 1 : 0),
+                    (auth->flags&AUTH_DEL_EXISTING_LISTENER ? 1 : 0));
+            if (auth->realm)
+                INFO1 ("realm set as %s", auth->realm);
+            if (auth->rejected_mount)
+                INFO1 ("rejected set %s", auth->rejected_mount);
+        }
 
         if (strcmp (auth->type, "url") == 0)
         {
@@ -827,7 +835,7 @@ int auth_get_authenticator (auth_t *auth, config_options_t *options)
         return -1;
     auth->tailp = &auth->head;
 
-    /* allocate N threads */
+    /* allocate for N threads */
     auth->handles = calloc (auth->handlers, sizeof (auth_thread_t));
     auth->flags |= (AUTH_RUNNING|AUTH_CLEAN_ENV);
     for (int i=0; i<auth->handlers; i++)
@@ -940,6 +948,13 @@ int auth_check_source (client_t *client, const char *mount)
     } while (0);
     config_release_config();
     return ret;
+}
+
+
+int auth_finish_setup (auth_t *auth, const char *name)
+{
+    auth->mount = strdup (name);
+    return get_authenticator (auth, NULL);
 }
 
 

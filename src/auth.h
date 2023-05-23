@@ -121,6 +121,9 @@ void auth_shutdown (void);
 int auth_get_authenticator (auth_t *auth, struct _config_options *options);
 void    auth_release (auth_t *authenticator);
 
+// call after params set
+int auth_finish_setup (auth_t *auth, const char *name);
+
 /* call to trigger an event when a stream starts */
 void auth_stream_start (struct _mount_proxy *mountinfo, struct source_tag *source);
 
