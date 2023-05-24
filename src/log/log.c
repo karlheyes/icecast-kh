@@ -174,8 +174,17 @@ static int _log_open (log_run_t *lr)
         if (file_recheck)
         {
             _unlock_q (id);
+            int r = -1;
             struct stat st;
-            if (stat (loglist [id].filename, &st) < 0)
+            if (loglist [id].logfile)
+            {
+                if (access (loglist [id].filename, F_OK) == 0) // in case the log has been moved externally
+                    r = fstat (fileno (loglist [id].logfile), &st);
+            }
+            else
+                r = stat (loglist [id].filename, &st);
+
+            if (r < 0)
             {
                 reopen = 1;
                 archive = 0;
@@ -221,13 +230,16 @@ static int _log_open (log_run_t *lr)
                 if (exists)
                 {
 #ifdef _WIN32
+                    fclose (oldf);  // windows does not allow for renames while open.
+                    loglist [id].logfile = oldf = NULL;
                     remove (new_name);
 #endif
                     rename (loglist [id].filename, new_name);
+                    exists = 0;
                 }
             }
             snprintf (new_name, sizeof new_name, "%s", loglist [id].filename);
-            FILE *f = fopen (new_name, "a");
+            FILE *f = fopen (new_name, "a+t");
             if (f == NULL)
             {
                 if (loglist [id].logfile != stderr)
@@ -235,7 +247,6 @@ static int _log_open (log_run_t *lr)
                 break;
             }
             loglist [id].logfile = f;
-            setvbuf (loglist [id] . logfile, NULL, IO_BUFFER_TYPE, 0);
             if (exists == 0)
                 lr->fsize = 0;
             if (loglist [id] . duration)
@@ -885,9 +896,15 @@ static int do_log_run (int log_id)
             _log_expand_preline (next, preline, sizeof preline);
 
             int len = fprintf (loglist [log_id].logfile, "%s%s\n", preline, _entry_line_start (flags, next));
+            fflush (loglist [log_id].logfile);
 
             if (len > 0)
+            {
+#ifdef _WIN32
+                len++;  // the \n translates to \r\n, but the return does not account for it
+#endif
                 lr.fsize += len;
+            }
             loop = 0;
             count++;
             _lock_q (log_id);
