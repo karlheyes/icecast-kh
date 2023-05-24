@@ -236,13 +236,13 @@ int config_get_long (cfg_xml *cfg, void *x)
     int ret = 1;
     if (str)
     {
-        uint64_t v = 0;
+        unsigned long v = 0;
         errno = 0;
         ret = 1;
-        if (sscanf ((char*)str, "%"SCNu64, &v) != 1)
+        if (sscanf ((char*)str, "%lu", &v) != 1)
             ret = -1;
         else
-            *(uint64_t *)x = v;
+            *(long *)x = v;
     }
     return ret;
 }
