@@ -68,7 +68,7 @@ struct rate_calc
     int64_t total;
     uint64_t cycle_till;
     struct rate_calc_node *current;
-    spin_t lock;
+    mutex_t lock;
     unsigned int samples;
     unsigned int ssec;
     unsigned int blocks;
@@ -721,7 +721,7 @@ struct rate_calc *rate_setup (unsigned int samples, unsigned int ssec)
         free (calc);
         return NULL;
     }
-    thread_spin_create (&calc->lock);
+    thread_mutex_create (&calc->lock);
     calc->samples = samples;
     calc->ssec = ssec;
     return calc;
@@ -753,7 +753,7 @@ static void rate_purge_entries (struct rate_calc *calc, uint64_t cutoff)
         to_free = to_go;
     }
     calc->blocks = count;
-    thread_spin_unlock (&calc->lock);
+    thread_mutex_unlock (&calc->lock);
     while (to_free)
     {
         struct rate_calc_node *to_go = to_free;
@@ -769,7 +769,7 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
 {
     uint64_t cutoff;
 
-    thread_spin_lock (&calc->lock);
+    thread_mutex_lock (&calc->lock);
     cutoff = sid - calc->samples;
     if (calc->cycle_till)
     {
@@ -807,7 +807,7 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
                     calc->current->value += value;
                     calc->total += value;
                 }
-                thread_spin_unlock (&calc->lock);
+                thread_mutex_unlock (&calc->lock);
                 return;
             }
             next = calc->current->next;
@@ -816,17 +816,17 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
         }
         if (to_insert)
         {
-            thread_spin_unlock (&calc->lock);
+            thread_mutex_unlock (&calc->lock);
             node = calloc (1, sizeof (*node));
 
             node->index = sid;
-            thread_spin_lock (&calc->lock);
+            thread_mutex_lock (&calc->lock);
             if ((calc->current && calc->current->next != next) ||
                     (calc->current == NULL && next != NULL))
             {
-                thread_spin_unlock (&calc->lock);
+                thread_mutex_unlock (&calc->lock);
                 free (node);
-                thread_spin_lock (&calc->lock);
+                thread_mutex_lock (&calc->lock);
                 continue;
             }
             node->next = next ? next : node;
@@ -848,7 +848,7 @@ void rate_add_sum (struct rate_calc *calc, long value, uint64_t sid, uint64_t *s
 }
 
 
-/* return the average sample value over all the blocks except the 
+/* return the average sample value over all the blocks except the
  * current one, as that may be incomplete. t to reduce the duration
  */
 long rate_avg_shorten (struct rate_calc *calc, unsigned int t)
@@ -858,7 +858,7 @@ long rate_avg_shorten (struct rate_calc *calc, unsigned int t)
 
     if (calc == NULL)
         return total;
-    thread_spin_lock (&calc->lock);
+    thread_mutex_lock (&calc->lock);
     if (calc && calc->blocks > 1)
     {
         range = (float)(calc->current->index - calc->current->next->index);
@@ -868,7 +868,7 @@ long rate_avg_shorten (struct rate_calc *calc, unsigned int t)
         if (t < calc->ssec)
             ssec = calc->ssec - t;
     }
-    thread_spin_unlock (&calc->lock);
+    thread_mutex_unlock (&calc->lock);
     return (long)(total / range * ssec);
 }
 
@@ -882,14 +882,14 @@ void rate_reduce (struct rate_calc *calc, unsigned int range)
 {
     if (calc == NULL)
         return;
-    thread_spin_lock (&calc->lock);
+    thread_mutex_lock (&calc->lock);
     if (range && calc->blocks > 1)
     {
         calc->cycle_till = calc->current->index;
         rate_purge_entries (calc, calc->current->index - range);
     }
     else
-        thread_spin_unlock (&calc->lock);
+        thread_mutex_unlock (&calc->lock);
 }
 
 
@@ -908,7 +908,7 @@ void rate_free (struct rate_calc *calc)
             free (to_go);
         }
     }
-    thread_spin_destroy (&calc->lock);
+    thread_mutex_destroy (&calc->lock);
     free (calc);
 }
 
