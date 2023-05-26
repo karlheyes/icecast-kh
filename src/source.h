@@ -79,7 +79,7 @@ typedef struct source_tag
     unsigned int queue_size;
     unsigned int queue_size_limit;
 
-    spin_t shrink_lock;
+    mutex_t shrink_lock;
     uint64_t shrink_pos;
     uint64_t shrink_time;
 

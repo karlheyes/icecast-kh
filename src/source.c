@@ -176,7 +176,7 @@ int source_reserve (const char *mount, source_t **sp, int flags)
         src->preroll_log_id = -1;
 
         thread_rwlock_create (&src->lock);
-        thread_spin_create (&src->shrink_lock);
+        thread_mutex_create (&src->shrink_lock);
         src->flags |= SOURCE_RESERVED;
 
         avl_insert (global.source_tree, src);
@@ -346,7 +346,7 @@ static int _free_source (void *p)
 
     thread_rwlock_unlock (&source->lock);
     thread_rwlock_destroy (&source->lock);
-    thread_spin_destroy (&source->shrink_lock);
+    thread_mutex_destroy (&source->shrink_lock);
 
     INFO1 ("freeing source \"%s\"", source->mount);
     format_plugin_clear (source->format, source->client);
@@ -1575,10 +1575,10 @@ static int send_listener (source_t *source, client_t *client)
         lag = source->client->queue_pos - client->queue_pos;
         if (lag > source->queue_size_limit)
             lag = source->queue_size_limit; // impose a higher lag value
-        thread_spin_lock (&source->shrink_lock);
+        thread_mutex_lock (&source->shrink_lock);
         if (client->queue_pos < source->shrink_pos)
             source->shrink_pos = source->client->queue_pos - lag;
-        thread_spin_unlock (&source->shrink_lock);
+        thread_mutex_unlock (&source->shrink_lock);
     }
     return ret;
 }
