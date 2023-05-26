@@ -23,6 +23,11 @@ git_hash.h: FORCE
 	@$(SHELL_PATH) $(srcdir)/GIT-VERSION-GEN
 FORCE:
 
+# example build line
+# make CFLAGS="-O2 -s -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions --param=ssp-buffer-size=4 -fdebug-prefix-map=$(pwd)=." CXXFLAGS='$(CFLAGS)' V=1
+# V=1 to show lines
+# debug-prefix-map to filter out absolute path lines in binary
+#
 debug:
 	$(MAKE) all CFLAGS="-Wno-unused-parameter @DEBUG@"
 
