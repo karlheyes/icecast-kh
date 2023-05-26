@@ -208,7 +208,7 @@ void auth_release (auth_t *authenticator)
 
     /* cleanup auth threads attached to this auth */
     authenticator->flags &= ~AUTH_RUNNING;
-    for (int i = authenticator->handlers; i>0 ; i--)
+    for (int i = 0; i < authenticator->handlers; i++)
     {
         if (authenticator->release_thread_data)
             authenticator->release_thread_data (authenticator, authenticator->handles [i].data);
