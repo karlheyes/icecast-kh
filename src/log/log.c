@@ -157,7 +157,7 @@ static char *_entry_line_start (int flags, log_entry_t*entry)
 static int _log_open (log_run_t *lr)
 {
     int id = lr->id;
-    int file_recheck = 0, reopen = 0, archive = 1, exists = 0;
+    int file_recheck = 0, reopen = 0, archive = 0, exists = 0;
     FILE *oldf = NULL;
     if (loglist [id] . in_use == 0)
         return 0;
@@ -166,9 +166,10 @@ static int _log_open (log_run_t *lr)
         if (loglist [id].filename == NULL) break;
         if (loglist [id].recheck_time <= lr->now)
             file_recheck = 1;
-        if (loglist [id].logfile == NULL ||
-                (loglist [id].duration && loglist [id].reopen_at <= lr->now) ||
-                (loglist [id].trigger_level && lr->fsize > loglist [id].trigger_level))
+        if ((loglist [id].trigger_level && lr->fsize > loglist [id].trigger_level) ||
+                (loglist [id].duration && loglist [id].reopen_at <= lr->now))
+            archive = 1;
+        if (loglist [id].logfile == NULL || archive)
             file_recheck = reopen = 1;
 
         if (file_recheck)
@@ -193,7 +194,7 @@ static int _log_open (log_run_t *lr)
             {
                 if (S_ISREG (st.st_mode))
                 {
-                    // fprintf (stderr, "content check, file %ld, internal %ld\n", st.st_size, lr->fsize);
+                    // fprintf (stderr, "content check, trig %ld, file %ld, internal %ld\n", loglist [id].trigger_level, st.st_size, lr->fsize);
                     exists = 1;
                     if (lr->fsize != st.st_size)
                     {
@@ -230,7 +231,8 @@ static int _log_open (log_run_t *lr)
                 if (exists)
                 {
 #ifdef _WIN32
-                    fclose (oldf);  // windows does not allow for renames while open.
+                    if (oldf)
+                        fclose (oldf);  // windows does not allow for renames while open.
                     loglist [id].logfile = oldf = NULL;
                     remove (new_name);
 #endif
@@ -661,20 +663,12 @@ void log_reopen(int log_id)
     _wlock_logger();
     do
     {
-        if (loglist [log_id] . filename == NULL || loglist [log_id] . logfile == NULL)
+        if (loglist [log_id] . filename == NULL || loglist [log_id].logfile == NULL)
             break;
-        if (loglist [log_id]. archive_timestamp < 0)
-        {
-            struct stat st;
-            fflush (loglist [log_id] . logfile);
-            if (stat (loglist [log_id] . filename, &st) == 0 && st.st_size == loglist [log_id].size)
-                break;
-            // a missing or different sized log indicates an external move so trigger a reopen
-        }
-        if (loglist [log_id] . logfile)
+        if (loglist [log_id].logfile)
         {
             fclose (loglist [log_id] . logfile);
-            loglist [log_id] . logfile = NULL;
+            loglist [log_id].logfile = NULL;
         }
     } while (0);
     _unlock_logger();
