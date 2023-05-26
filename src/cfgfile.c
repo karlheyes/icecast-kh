@@ -88,13 +88,13 @@ static void _set_defaults(ice_config_t *c);
 static void create_locks(void)
 {
     thread_rwlock_create(&_locks.config_lock);
-    thread_spin_create(&_locks.mount_lock);
+    thread_mutex_create(&_locks.mount_lock);
 }
 
 static void release_locks(void)
 {
     thread_rwlock_destroy(&_locks.config_lock);
-    thread_spin_destroy(&_locks.mount_lock);
+    thread_mutex_destroy(&_locks.mount_lock);
 }
 
 typedef struct
@@ -538,9 +538,9 @@ void config_clear_mount (mount_proxy *mount, int log)
     {
         if (log)
         {
-            thread_spin_lock (&_locks.mount_lock);
+            thread_mutex_lock (&_locks.mount_lock);
             int ref = mount->_refcount;
-            thread_spin_unlock (&_locks.mount_lock);
+            thread_mutex_unlock (&_locks.mount_lock);
             WARN2 ("mount block %s has reference %d", mount->mountname, ref);
         }
         return;
@@ -1992,7 +1992,7 @@ int config_mount_ref (mount_proxy *mountinfo, int inc)
 
     if (mountinfo)
     {
-         thread_spin_lock (&_locks.mount_lock);
+         thread_mutex_lock (&_locks.mount_lock);
          if (inc > 0)
              mountinfo->_refcount++;
          else if (mountinfo->_refcount > 0)
@@ -2000,7 +2000,7 @@ int config_mount_ref (mount_proxy *mountinfo, int inc)
          else
              odd = 1;
          val = mountinfo->_refcount;
-         thread_spin_unlock (&_locks.mount_lock);
+         thread_mutex_unlock (&_locks.mount_lock);
          if (odd)
              WARN2 ("request to decrease ref on %s, count %d", mountinfo->mountname, val);
     }
