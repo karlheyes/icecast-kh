@@ -112,7 +112,7 @@ static volatile int update_all_sources = 0;
 static volatile int restart_connection_thread = 0;
 static time_t streamlist_check = 0;
 static rwlock_t slaves_lock;
-static spin_t relay_start_lock;
+static mutex_t relay_start_lock;
 static time_t inactivity_timer;
 static int inactivity_timeout;
 
@@ -190,19 +190,19 @@ relay_server *relay_copy (relay_server *r)
  */
 void slave_update_mounts (void)
 {
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     update_settings = 1;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
 }
 
 /* force a recheck of the mounts.
  */
 void slave_update_all_mounts (void)
 {
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     update_settings = 1;
     update_all_sources = 1;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
 }
 
 
@@ -211,12 +211,12 @@ void slave_update_all_mounts (void)
  */
 void slave_restart (void)
 {
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     restart_connection_thread = 1;
     update_settings = 1;
     update_all_sources = 1;
     streamlist_check = 0;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
 }
 
 
@@ -245,7 +245,7 @@ void slave_initialize(void)
     workers = NULL;
     worker_count = 0;
     relays_connecting = 0;
-    thread_spin_create (&relay_start_lock);
+    thread_mutex_create (&relay_start_lock);
     thread_rwlock_create (&workers_lock);
     global.relays = avl_tree_new (_compare_relay, NULL);
     inactivity_timeout = 0;
@@ -277,7 +277,7 @@ void slave_shutdown(void)
     avl_tree_free (global.relays, NULL);
     thread_rwlock_destroy (&slaves_lock);
     thread_rwlock_destroy (&workers_lock);
-    thread_spin_destroy (&relay_start_lock);
+    thread_mutex_destroy (&relay_start_lock);
     slave_running = 0;
 }
 
@@ -677,9 +677,9 @@ static void *start_relay_stream (void *arg)
     }
     thread_rwlock_unlock (&src->lock);
 
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     relays_connecting--;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
 
     client_add_incoming (client);
     return NULL;
@@ -1312,7 +1312,7 @@ static void _slave_thread(void)
         }
 
         int update = 0, update_all = 0, restart = 0;
-        thread_spin_lock (&relay_start_lock);
+        thread_mutex_lock (&relay_start_lock);
         if (update_settings)
         {
             update = update_settings;
@@ -1322,7 +1322,7 @@ static void _slave_thread(void)
             restart = restart_connection_thread;
             restart_connection_thread = 0;
         }
-        thread_spin_unlock (&relay_start_lock);
+        thread_mutex_unlock (&relay_start_lock);
 
         if (update)
             source_recheck_mounts (update_all);
@@ -1367,10 +1367,10 @@ static void _slave_thread(void)
     stats_clients_wakeup ();
     INFO0 ("shutting down current relays");
     time_t next = time(NULL) + 1000;
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     relay_barrier_xml = next;
     relay_barrier_master = relay_barrier_xml;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
     redirector_clearall();
 
     INFO0 ("Slave thread shutdown complete");
@@ -1505,9 +1505,9 @@ static void redirector_add (const char *server, int port, int interval)
 
 static int relay_expired (relay_server *relay)
 {
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     time_t t = (relay->flags & RELAY_FROM_MASTER) ? relay_barrier_master : relay_barrier_xml;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
 
     return (relay->updated < t) ? 1 : 0;
 }
@@ -1763,10 +1763,10 @@ static void *relay_switch (void *arg)
         config_clear_relay (relay);
     }
 
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     if (relays_connecting > 0)
         relays_connecting--;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
     return NULL;
 }
 
@@ -1816,16 +1816,16 @@ static int relay_read (client_t *client)
                 if (relay->recheck_hosts <= now)
                 {
                     thread_rwlock_unlock (&source->lock);
-                    thread_spin_lock (&relay_start_lock);
+                    thread_mutex_lock (&relay_start_lock);
                     if (relays_connecting < 10)
                     {
                         relays_connecting++;
-                        thread_spin_unlock (&relay_start_lock);
+                        thread_mutex_unlock (&relay_start_lock);
                         relay->recheck_hosts = now + relay->interval;
                         thread_create ("relayswitch", relay_switch, relay_copy (relay), THREAD_DETACHED);
                     }
                     else
-                        thread_spin_unlock (&relay_start_lock);
+                        thread_mutex_unlock (&relay_start_lock);
                     thread_rwlock_wlock (&source->lock);
                 }
             }
@@ -2182,17 +2182,17 @@ static int relay_startup (client_t *client)
     thread_rwlock_unlock (&source->lock);
 
     /* limit the number of relays starting up at the same time */
-    thread_spin_lock (&relay_start_lock);
+    thread_mutex_lock (&relay_start_lock);
     if (relays_connecting > 5)
     {
-        thread_spin_unlock (&relay_start_lock);
+        thread_mutex_unlock (&relay_start_lock);
         client->schedule_ms = worker->time_ms + 100;
         if (global.new_connections_slowdown < 5)
             global.new_connections_slowdown++;
         return 0;
     }
     relays_connecting++;
-    thread_spin_unlock (&relay_start_lock);
+    thread_mutex_unlock (&relay_start_lock);
     client->worker = NULL;
 
     thread_create ("Relay Thread", start_relay_stream, client, THREAD_DETACHED);
