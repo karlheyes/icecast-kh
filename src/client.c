@@ -448,9 +448,9 @@ static worker_t *find_least_busy_handler (int log)
 
         while (handler)
         {
-            thread_spin_lock (&handler->lock);
+            thread_mutex_lock (&handler->lock);
             int cur_count = handler->count + handler->pending_count;
-            thread_spin_unlock (&handler->lock);
+            thread_mutex_unlock (&handler->lock);
 
             if (log) DEBUG2 ("handler %p has %d clients", handler, cur_count);
             if (cur_count < min_count)
@@ -489,9 +489,9 @@ int client_change_worker (client_t *client, worker_t *dest_worker)
         return 0;
     client->next_on_worker = NULL;
 
-    thread_spin_lock (&dest_worker->lock);
+    thread_mutex_lock (&dest_worker->lock);
     worker_add_client (dest_worker, client);
-    thread_spin_unlock (&dest_worker->lock);
+    thread_mutex_unlock (&dest_worker->lock);
     worker_wakeup (dest_worker);
 
     return 1;
@@ -505,11 +505,11 @@ void client_add_worker (client_t *client)
     thread_rwlock_rlock (&workers_lock);
     /* add client to the handler with the least number of clients */
     handler = worker_selected();
-    thread_spin_lock (&handler->lock);
+    thread_mutex_lock (&handler->lock);
     thread_rwlock_unlock (&workers_lock);
 
     worker_add_client (handler, client);
-    thread_spin_unlock (&handler->lock);
+    thread_mutex_unlock (&handler->lock);
     worker_wakeup (handler);
 }
 
@@ -522,10 +522,10 @@ int client_add_incoming (client_t *client)
     client->schedule_ms = 0;
     thread_rwlock_rlock (&workers_lock);
     handler = worker_incoming;
-    thread_spin_lock (&handler->lock);
+    thread_mutex_lock (&handler->lock);
 
     worker_add_client (handler, client);
-    thread_spin_unlock (&handler->lock);
+    thread_mutex_unlock (&handler->lock);
     worker_wakeup (handler);
     thread_rwlock_unlock (&workers_lock);
     return 1;
@@ -581,7 +581,7 @@ typedef struct {
 static void worker_add_pending_clients (worker_client_t *wc)
 {
     worker_t *worker = wc->worker;
-    thread_spin_lock (&worker->lock);
+    thread_mutex_lock (&worker->lock);
     if (worker->pending_clients)
     {
         *worker->fast_tailp = worker->pending_clients;
@@ -591,13 +591,13 @@ static void worker_add_pending_clients (worker_client_t *wc)
         worker->pending_tailp = &worker->pending_clients;
         unsigned count = worker->pending_count;
         worker->pending_count = 0;
-        thread_spin_unlock (&worker->lock);
+        thread_mutex_unlock (&worker->lock);
         DEBUG2 ("Added %d pending clients to %p", count, worker);
         wc->prevp = &worker->fast_clients;
         wc->flags &= ~WKRC_NORMAL_CLIENTS;
         return;
     }
-    thread_spin_unlock (&worker->lock);
+    thread_mutex_unlock (&worker->lock);
 }
 
 
@@ -608,7 +608,7 @@ static void worker_wait (worker_client_t *wc)
     worker_t *worker = wc->worker;
     int ret = 0, duration = 1, running = worker->running;
 
-    thread_spin_unlock (&worker->lock);
+    thread_mutex_unlock (&worker->lock);
     if (running)
     {
         uint64_t tm = worker_check_time_ms (worker);
@@ -692,17 +692,17 @@ static void worker_relocate_clients (worker_client_t *wc)
         }
         if (worker->clients)
         {
-            thread_spin_lock (&workers->lock);
+            thread_mutex_lock (&workers->lock);
             *workers->pending_tailp = worker->clients;
             workers->pending_tailp = prevp;
             workers->pending_count += worker->count;
-            thread_spin_unlock (&workers->lock);
+            thread_mutex_unlock (&workers->lock);
             worker_wakeup (workers);
             worker->clients = NULL;
             worker->last_p = &worker->clients;
             worker->count = 0;
         }
-        thread_spin_lock (&worker->lock);
+        thread_mutex_lock (&worker->lock);
         worker_wait (wc);
     }
 }
@@ -789,12 +789,12 @@ static client_t *worker_pick_client (worker_client_t *wc)
     }
     if (wc->time_recheck == 0)
     {
-        thread_spin_unlock (&worker->lock);
+        thread_mutex_unlock (&worker->lock);
         worker->time_ms = timing_get_time();
         worker->current_time.tv_sec = (time_t)(worker->time_ms/1000);
         wc->time_recheck = 50;
         // DEBUG2 ("%p time recheck at %ld", worker, worker->time_ms);
-        thread_spin_lock (&worker->lock);
+        thread_mutex_lock (&worker->lock);
     }
     if (wc->sched_ms == 0)
     {   // update these periodically to keep in sync
@@ -858,10 +858,10 @@ void *worker (void *arg)
         wc.time_recheck = 0;
         wc.max_run = 5000;
 
-        thread_spin_lock (&worker->lock);
+        thread_mutex_lock (&worker->lock);
         while ((client = worker_pick_client (&wc)))
         {
-            thread_spin_unlock (&worker->lock);
+            thread_mutex_unlock (&worker->lock);
 
             client_t *nxc = client->next_on_worker;
             errno = 0;
@@ -876,7 +876,7 @@ void *worker (void *arg)
                     client->ops->release (client);
                 // at this point, client is unreliable
             }
-            thread_spin_lock (&worker->lock);
+            thread_mutex_lock (&worker->lock);
             if (ret)
             {
                 worker_removed_client (&wc, nxc);
@@ -887,9 +887,9 @@ void *worker (void *arg)
         if (prev_count != worker->count)
         {
             prev_count = worker->count;
-            thread_spin_unlock (&worker->lock);
+            thread_mutex_unlock (&worker->lock);
             DEBUG2 ("%p now has %ld clients", worker, prev_count);
-            thread_spin_lock (&worker->lock);
+            thread_mutex_lock (&worker->lock);
         }
         if (worker->running == 0)
         {
@@ -899,7 +899,7 @@ void *worker (void *arg)
         }
         worker_wait (&wc);
     }
-    thread_spin_unlock (&worker->lock);
+    thread_mutex_unlock (&worker->lock);
     worker_relocate_clients (&wc);
     INFO0 ("shutting down");
     thread_rwlock_unlock (&global.workers_rw);
@@ -920,10 +920,10 @@ void worker_balance_trigger (time_t now)
         {
             worker_t *w = worker_balance_to_check;
             // DEBUG2 ("Worker allocations reset on %p, least is %p", w, worker_least_used);
-            thread_spin_lock (&w->lock);
+            thread_mutex_lock (&w->lock);
             w->move_allocations = 200;
             worker_balance_to_check = w->next;
-            thread_spin_unlock (&w->lock);
+            thread_mutex_unlock (&w->lock);
         }
         if (worker_balance_to_check == NULL)
             worker_balance_to_check = workers;
@@ -939,7 +939,7 @@ static void worker_start (void)
     worker_control_create (&handler->wakeup_fd[0]);
 
     handler->pending_tailp = &handler->pending_clients;
-    thread_spin_create (&handler->lock);
+    thread_mutex_create (&handler->lock);
     handler->last_p = &handler->clients;
     handler->fast_tailp = &handler->fast_clients;
 
@@ -978,9 +978,9 @@ static void worker_stop (void)
             worker_least_used = worker_balance_to_check = workers;
             if (workers)
             {
-                thread_spin_lock (&workers->lock);
+                thread_mutex_lock (&workers->lock);
                 workers->move_allocations = 100000;
-                thread_spin_unlock (&workers->lock);
+                thread_mutex_unlock (&workers->lock);
             }
             worker_count--;
         }
@@ -994,14 +994,14 @@ static void worker_stop (void)
         if (handler)
         {
             thread_rwlock_unlock (&workers_lock);
-            thread_spin_lock (&handler->lock);
+            thread_mutex_lock (&handler->lock);
             handler->running = 0;
-            thread_spin_unlock (&handler->lock);
+            thread_mutex_unlock (&handler->lock);
 
             worker_wakeup (handler);
 
             thread_join (handler->thread);
-            thread_spin_destroy (&handler->lock);
+            thread_mutex_destroy (&handler->lock);
 
             sock_close (handler->wakeup_fd[1]);
             sock_close (handler->wakeup_fd[0]);

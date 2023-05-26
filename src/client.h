@@ -35,7 +35,7 @@ struct _worker_t
     int running;
     int count, pending_count;
     int move_allocations;
-    spin_t lock;
+    mutex_t lock;
     FD_t wakeup_fd[2];
     struct timespec current_time;
     uint64_t time_ms;

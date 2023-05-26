@@ -830,9 +830,9 @@ void source_listeners_wakeup (source_t *source)
         worker_t *w = client->worker;
         if (s->worker != w)
         {
-            thread_spin_lock (&w->lock);
+            thread_mutex_lock (&w->lock);
             client->schedule_ms = 0;
-            thread_spin_unlock (&w->lock);
+            thread_mutex_unlock (&w->lock);
         }
         node = avl_get_next (node);
     }
@@ -2926,9 +2926,9 @@ void source_setup_listener (source_t *source, client_t *client)
         worker_t *worker = source->client->worker;
         client->schedule_ms += (worker == client->worker) ? 5 : 300;
 
-        thread_spin_lock (&worker->lock);
+        thread_mutex_lock (&worker->lock);
         source->client->schedule_ms = 0;
-        thread_spin_unlock (&worker->lock);
+        thread_mutex_unlock (&worker->lock);
 
         worker_wakeup (worker);
         DEBUG1 ("woke up relay on %s", source->mount);
@@ -3162,9 +3162,9 @@ static int  source_client_startup (client_t *client)
             source->flags |= SOURCE_SWITCHOVER;
 
             worker_t *worker = sc->worker;
-            thread_spin_lock (&worker->lock);
+            thread_mutex_lock (&worker->lock);
             sc->schedule_ms = 0;
-            thread_spin_unlock (&worker->lock);
+            thread_mutex_unlock (&worker->lock);
             worker_wakeup (worker);
             thread_rwlock_unlock (&source->lock);
 
@@ -3207,10 +3207,10 @@ static int source_change_worker (source_t *source, client_t *client)
                 char *mount = strdup (source->mount);
                 thread_rwlock_unlock (&source->lock);
 
-                thread_spin_lock (&this_worker->lock);
+                thread_mutex_lock (&this_worker->lock);
                 if (this_worker->move_allocations < 1000000)
                     this_worker->move_allocations--;
-                thread_spin_unlock (&this_worker->lock);
+                thread_mutex_unlock (&this_worker->lock);
 
                 ret = client_change_worker (client, worker);
                 thread_rwlock_unlock (&workers_lock);
@@ -3234,7 +3234,7 @@ static int source_change_worker (source_t *source, client_t *client)
 int listener_change_worker (client_t *client, source_t *source)
 {
     worker_t *this_worker = client->worker, *dest_worker;
-    int ret = 0, spin = 0, locked = 0;
+    int ret = 0, this_worker_locked = 0, locked = 0;
     long diff = 0;
 
     do
@@ -3253,12 +3253,12 @@ int listener_change_worker (client_t *client, source_t *source)
             int move = 0;
             int adj = ((client->connection.id & 7) << 6) + 100;
 
-            thread_spin_lock (&dest_worker->lock);
+            thread_mutex_lock (&dest_worker->lock);
             int dest_count = dest_worker->count;
-            thread_spin_unlock (&dest_worker->lock);
+            thread_mutex_unlock (&dest_worker->lock);
 
-            thread_spin_lock (&this_worker->lock);
-            spin = 1;
+            thread_mutex_lock (&this_worker->lock);
+            this_worker_locked = 1;
             if (this_worker->move_allocations == 0)
                 break;      // already moved many, skip for now
             int this_alloc = this_worker->move_allocations;
@@ -3271,8 +3271,8 @@ int listener_change_worker (client_t *client, source_t *source)
                     break;      // ignore the move this time
             }
             move = 1;
-            thread_spin_unlock (&this_worker->lock);
-            spin = 0;
+            thread_mutex_unlock (&this_worker->lock);
+            this_worker_locked = 0;
             DEBUG3 ("dest count is %d, %d, move %d", dest_count, this_alloc, move);
 
             if (move)
@@ -3288,8 +3288,8 @@ int listener_change_worker (client_t *client, source_t *source)
         }
     } while (0);
 
-    if (spin)
-        thread_spin_unlock (&this_worker->lock);
+    if (this_worker_locked)
+        thread_mutex_unlock (&this_worker->lock);
     if (locked)
         thread_rwlock_unlock (&workers_lock);
     return ret;

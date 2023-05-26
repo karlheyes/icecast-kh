@@ -1720,9 +1720,9 @@ static void *relay_switch (void *arg)
                 relay->in_use = host;
 
                 worker_t *worker = sc->worker;
-                thread_spin_lock (&worker->lock);
+                thread_mutex_lock (&worker->lock);
                 sc->schedule_ms = 0;
-                thread_spin_unlock (&worker->lock);
+                thread_mutex_unlock (&worker->lock);
                 worker_wakeup (worker);
                 thread_rwlock_unlock (&source->lock);
 
@@ -2091,38 +2091,38 @@ static int relay_startup (client_t *client)
         client->schedule_ms = client->worker->time_ms + 50;
         return 0;
     }
-    thread_spin_lock (&worker->lock);
+    thread_mutex_lock (&worker->lock);
     if (worker->move_allocations)
     {
         int ret = 0;
         worker_t *dest_worker;
 
-        thread_spin_unlock (&worker->lock);
+        thread_mutex_unlock (&worker->lock);
         thread_rwlock_rlock (&workers_lock);
         dest_worker = worker_selected ();
         if (dest_worker != worker)
         {
-            thread_spin_lock (&dest_worker->lock);
+            thread_mutex_lock (&dest_worker->lock);
             int dest_count = dest_worker->count;
-            thread_spin_unlock (&dest_worker->lock);
+            thread_mutex_unlock (&dest_worker->lock);
 
-            thread_spin_lock (&worker->lock);
+            thread_mutex_lock (&worker->lock);
             long diff = worker->count - dest_count;
             if (diff > 5)
             {
                 worker->move_allocations--;
-                thread_spin_unlock (&worker->lock);
+                thread_mutex_unlock (&worker->lock);
                 ret = client_change_worker (client, dest_worker);
             }
             else
-                thread_spin_unlock (&worker->lock);
+                thread_mutex_unlock (&worker->lock);
         }
         thread_rwlock_unlock (&workers_lock);
         if (ret)
             return ret;
     }
     else
-        thread_spin_unlock (&worker->lock);
+        thread_mutex_unlock (&worker->lock);
 
     source_t *source = relay->source;
     thread_rwlock_wlock (&source->lock);
