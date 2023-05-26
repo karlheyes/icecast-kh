@@ -112,7 +112,7 @@ struct bufs
 static stylesheet_cache_t cache[CACHESIZE];
 static rwlock_t sheet_lock;     // for the library sheet access
 static mutex_t  cache_lock;     // for cache access (not-sheet), control details
-static spin_t   update_lock;    // for thread/queue access.
+static mutex_t  update_lock;    // for thread/queue access.
 static int xsl_threads = 0;
 
 static client_t *xsl_clients = NULL;
@@ -212,7 +212,7 @@ void xslt_initialize(void)
     memset (&cache[0], 0, sizeof cache);
     thread_rwlock_create (&sheet_lock);
     thread_mutex_create (&cache_lock);
-    thread_spin_create (&update_lock);
+    thread_mutex_create (&update_lock);
     xsl_threads = 0;
 #ifdef MY_ALLOC
     xmlMemSetup(xmlMemFree, xmlMemMalloc, xmlMemRealloc, xmlMemoryStrdup);
@@ -243,7 +243,7 @@ void xslt_shutdown(void) {
 
     thread_rwlock_destroy (&sheet_lock);
     thread_mutex_destroy (&cache_lock);
-    thread_spin_destroy (&update_lock);
+    thread_mutex_destroy (&update_lock);
     xmlCleanupParser();
     xsltCleanupGlobals();
 }
@@ -568,12 +568,12 @@ void *xslt_update (void *arg)
     xmlSetStructuredErrorFunc ("xsl/file", config_xml_parse_failure);
     xsltSetGenericErrorFunc ("", log_parse_failure);
 
-    thread_spin_lock (&update_lock);
+    thread_mutex_lock (&update_lock);
     for (client_t *client = xsl_clients; client; client = xsl_clients)
     {
         xsl_clients = client->next_on_worker;
         xsl_count--;
-        thread_spin_unlock (&update_lock);
+        thread_mutex_unlock (&update_lock);
         int running = global_state() == ICE_RUNNING;
 
         xsl_req *x = (xsl_req *)client->aux_data;
@@ -591,10 +591,10 @@ void *xslt_update (void *arg)
         if (x->client)
             client_send_404 (client, "Could not provide XSLT file");
         xsl_req_clear (x);
-        thread_spin_lock (&update_lock);
+        thread_mutex_lock (&update_lock);
     }
     xsl_threads--;
-    thread_spin_unlock (&update_lock);
+    thread_mutex_unlock (&update_lock);
     return NULL;
 }
 
@@ -619,7 +619,7 @@ int xslt_client (client_t *client)
                 client->schedule_ms += 15;
                 return 0;
             }
-            thread_spin_lock (&update_lock);
+            thread_mutex_lock (&update_lock);
             int q = xsl_count;
             if (q < 40)
             {       // cache slot marked and queue not too bad
@@ -630,17 +630,17 @@ int xslt_client (client_t *client)
                 if (xsl_threads < 5)
                 {
                     xsl_threads++;
-                    thread_spin_unlock (&update_lock);
+                    thread_mutex_unlock (&update_lock);
                     // DEBUG1 ("Starting update thread for %s", x->filename);
                     thread_create ("update xslt", xslt_update, NULL, THREAD_DETACHED);
                     return 1;
                 }
                 int v = xsl_threads;
-                thread_spin_unlock (&update_lock);
+                thread_mutex_unlock (&update_lock);
                 DEBUG2 ("reschedule update, %d queued, %d running", q, v);
                 return 1;
             }
-            thread_spin_unlock (&update_lock);
+            thread_mutex_unlock (&update_lock);
             break;
         }
         INFO1 ("dropping request for %s as cache full and in use", x->filename);
