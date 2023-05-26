@@ -102,7 +102,7 @@ static int  _handle_get_request (client_t *client);
 static int  _handle_source_request (client_t *client);
 static int  _handle_stats_request (client_t *client);
 
-static spin_t _connection_lock;
+static mutex_t _connection_lock;
 static uint64_t _current_id = 0;
 thread_type *conn_tid;
 int sigfd;
@@ -245,7 +245,7 @@ static int compare_banned_ip (void *arg, void *a, void *b)
 
 void connection_initialize(void)
 {
-    thread_spin_create (&_connection_lock);
+    thread_mutex_create (&_connection_lock);
 
     memset (&banned_ip, 0, sizeof (banned_ip));
     memset (&allowed_ip, 0, sizeof (allowed_ip));
@@ -278,7 +278,7 @@ void connection_initialize(void)
 void connection_shutdown(void)
 {
     connection_listen_sockets_close (NULL, 1);
-    thread_spin_destroy (&_connection_lock);
+    thread_mutex_destroy (&_connection_lock);
 #ifdef HAVE_OPENSSL
     SSL_CTX_free (ssl_ctx);
 #if !defined(WIN32) && OPENSSL_VERSION_NUMBER < 0x10000000
@@ -303,9 +303,9 @@ static uint64_t _next_connection_id(void)
 {
     uint64_t id;
 
-    thread_spin_lock (&_connection_lock);
+    thread_mutex_lock (&_connection_lock);
     id = _current_id++;
-    thread_spin_unlock (&_connection_lock);
+    thread_mutex_unlock (&_connection_lock);
 
     return id;
 }
@@ -790,9 +790,9 @@ static int search_banned_ip_locked (char *ip)
 static int search_banned_ip (char *ip)
 {
     int ret;
-    thread_spin_lock (&_connection_lock);
+    thread_mutex_lock (&_connection_lock);
     time_t t = cachefile_timecheck;
-    thread_spin_unlock (&_connection_lock);
+    thread_mutex_unlock (&_connection_lock);
 
     cached_file_recheck (&banned_ip, t);
     global_lock();
@@ -806,9 +806,9 @@ static int search_banned_ip (char *ip)
 static int accept_ip_address (char *ip)
 {
     time_t t = time (NULL);
-    thread_spin_lock (&_connection_lock);
+    thread_mutex_lock (&_connection_lock);
     cachefile_timecheck = t;
-    thread_spin_unlock (&_connection_lock);
+    thread_mutex_unlock (&_connection_lock);
 
     if (search_banned_ip (ip) > 0)
     {
@@ -1005,9 +1005,9 @@ static sock_t wait_for_serversock (void)
                         global_lock();
                         global.running = ICE_HALTING;
                         global_unlock();
-                        thread_spin_lock (&_connection_lock);
+                        thread_mutex_lock (&_connection_lock);
                         connection_running = 0;
-                        thread_spin_unlock (&_connection_lock);
+                        thread_mutex_unlock (&_connection_lock);
                         break;
                     case SIGHUP:
                         INFO0 ("HUP received, reread scheduled");
@@ -1533,12 +1533,12 @@ static void *connection_thread (void *arg)
 
     INFO0 ("connection thread started");
 
-    thread_spin_lock (&_connection_lock);
+    thread_mutex_lock (&_connection_lock);
     connection_running = 1;
 
     while (connection_running)
     {
-        thread_spin_unlock (&_connection_lock);
+        thread_mutex_unlock (&_connection_lock);
         client_t *client = accept_client ();
         if (client)
         {
@@ -1553,10 +1553,10 @@ static void *connection_thread (void *arg)
         }
         if (global.new_connections_slowdown)
             thread_sleep (global.new_connections_slowdown * 5000);
-        thread_spin_lock (&_connection_lock);
+        thread_mutex_lock (&_connection_lock);
     }
     connection_running = 0;
-    thread_spin_unlock (&_connection_lock);
+    thread_mutex_unlock (&_connection_lock);
 
     global_lock();
     cached_file_clear (&banned_ip);
@@ -1589,9 +1589,9 @@ void connection_thread_shutdown ()
 {
     if (conn_tid)
     {
-        thread_spin_lock (&_connection_lock);
+        thread_mutex_lock (&_connection_lock);
         connection_running = 0;
-        thread_spin_unlock (&_connection_lock);
+        thread_mutex_unlock (&_connection_lock);
         INFO0("shutting down connection thread");
         thread_join (conn_tid);
         conn_tid = NULL;
@@ -1599,7 +1599,7 @@ void connection_thread_shutdown ()
 }
 
 
-static int _check_pass_http(http_parser_t *parser, 
+static int _check_pass_http(http_parser_t *parser,
         const char *correctuser, const char *correctpass)
 {
     /* This will look something like "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" */
