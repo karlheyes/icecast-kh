@@ -80,7 +80,7 @@
 
 #define BUFSIZE 4096
 
-static spin_t pending_lock;
+static mutex_t pending_lock;
 static avl_tree *mimetypes = NULL;
 static avl_tree *fh_cache = NULL;
 #ifndef HAVE_PREAD
@@ -128,7 +128,7 @@ void fserve_initialize(void)
     ice_config_t *config = config_get_config();
 
     mimetypes = NULL;
-    thread_spin_create (&pending_lock);
+    thread_mutex_create (&pending_lock);
 #ifndef HAVE_PREAD
     thread_mutex_create (&seekread_lock);
 #endif
@@ -174,7 +174,7 @@ void fserve_shutdown(void)
         avl_tree_free (fh_cache, _delete_fh);
     }
 
-    thread_spin_destroy (&pending_lock);
+    thread_mutex_destroy (&pending_lock);
 #ifndef HAVE_PREAD
     thread_mutex_destroy (&seekread_lock);
 #endif
@@ -194,7 +194,7 @@ char *fserve_content_type (const char *path)
         return strdup ("text/html");
     exttype.ext = strdup (ext);
 
-    thread_spin_lock (&pending_lock);
+    thread_mutex_lock (&pending_lock);
     if (mimetypes && !avl_get_by_key (mimetypes, &exttype, &result))
     {
         mime_type *mime = result;
@@ -202,7 +202,7 @@ char *fserve_content_type (const char *path)
     }
     else
         type = strdup ("application/octet-stream");
-    thread_spin_unlock (&pending_lock);
+    thread_mutex_unlock (&pending_lock);
     free (exttype.ext);
     return type;
 }
@@ -1117,7 +1117,7 @@ void fserve_write_mime_ext (const char *mimetype, char *buf, unsigned int len)
         snprintf (mt, semi, "%s", mimetype);
         mimetype = (const char *)mt;
     }
-    thread_spin_lock (&pending_lock);
+    thread_mutex_lock (&pending_lock);
     node = avl_get_first (mimetypes);
     while (node)
     {
@@ -1129,7 +1129,7 @@ void fserve_write_mime_ext (const char *mimetype, char *buf, unsigned int len)
        }
        node = avl_get_next (node);
     }
-    thread_spin_unlock (&pending_lock);
+    thread_mutex_unlock (&pending_lock);
 }
 
 
@@ -1224,10 +1224,10 @@ void fserve_recheck_mime_types (ice_config_t *config)
         fclose(mimefile);
     } while (0);
 
-    thread_spin_lock (&pending_lock);
+    thread_mutex_lock (&pending_lock);
     old_mimetypes = mimetypes;
     mimetypes = new_mimetypes;
-    thread_spin_unlock (&pending_lock);
+    thread_mutex_unlock (&pending_lock);
     if (old_mimetypes)
         avl_tree_free (old_mimetypes, _delete_mapping);
 }
