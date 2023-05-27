@@ -1732,11 +1732,10 @@ static void *relay_switch (void *arg)
                 client->shared_data = relay;
                 client->schedule_ms = timing_get_time() + 60;
                 client->ops = &relay_switchover_ops;
-                client->flags |= CLIENT_ACTIVE;
-                client_add_worker (client);
                 global_lock ();
                 client_register (client);
                 global_unlock ();
+                client_add_worker (client);
                 client = NULL;
             }
             else
