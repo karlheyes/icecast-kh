@@ -500,6 +500,8 @@ static int add_authenticated_listener (const char *mount, mount_proxy *mountinfo
     if (client->parser->req_type != httpp_req_head)
         client->flags |= CLIENT_AUTHENTICATED;
 
+    client->flags |= CLIENT_KEEPALIVE;
+
     /* some win32 setups do not do TCP win scaling well, so allow an override */
     if (mountinfo && mountinfo->so_sndbuf > 0)
         sock_set_send_buffer (client->connection.sock, mountinfo->so_sndbuf);

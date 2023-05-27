@@ -57,12 +57,11 @@ static int _date_hdr (ice_http_t * http, ice_param_t *curr)
 
 static int _connection_hdr (ice_http_t *http, ice_param_t *curr)
 {
-    if (http->in_major == 1 && http->in_minor == 1)
+    if (http->in_major == 1 && http->in_minor == 1 && (http->client->flags & CLIENT_KEEPALIVE))
     {
         if (http->in_connection && strcasecmp (http->in_connection, "keep-alive") == 0)
         {
             curr->value = strdup ("keep-alive");
-            http->client->flags |= CLIENT_KEEPALIVE;
         }
         return 0;
     }
@@ -417,6 +416,8 @@ int  ice_http_setup_flags (ice_http_t *http, client_t *client, int status, unsig
         http->in_length = -1;
         return 0;
     }
+    if (http->conn.status >= 400)
+        client->flags &= ~CLIENT_KEEPALIVE;  // for permanent errors, avoid keep alive
 
     ice_config_t *config = config_get_config();
     const char *realm = config->server_id;

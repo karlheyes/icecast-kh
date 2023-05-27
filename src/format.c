@@ -425,7 +425,6 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
             client->flags |= CLIENT_CHUNKED;
             ice_http_printf (http, "Transfer-Encoding", 0, "chunked");
         }
-        client->flags &= ~CLIENT_KEEPALIVE;
     }
     ice_http_printf (http, contenttypehdr, 0, "%s", contenttype);
 

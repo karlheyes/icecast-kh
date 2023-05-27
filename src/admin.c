@@ -207,6 +207,7 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
 {
     int ret = -1;
 
+    client->flags |= CLIENT_KEEPALIVE; // allow these for keepalives
     if (response == RAW)
     {
         xmlChar *buff = NULL;
@@ -1065,7 +1066,7 @@ static int command_metadata (client_t *client, source_t *source, int response)
     } while (0);
     INFO1 ("Metadata on mountpoint %s prevented", source->mount);
     thread_rwlock_unlock (&source->lock);
-    xmlNewChild(node, NULL, XMLSTR("message"), 
+    xmlNewChild(node, NULL, XMLSTR("message"),
             XMLSTR("Mountpoint will not accept this URL update"));
     xmlNewChild(node, NULL, XMLSTR("return"), XMLSTR("1"));
     return admin_send_response(doc, client, response, "response.xsl");

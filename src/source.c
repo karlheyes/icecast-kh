@@ -1275,6 +1275,7 @@ static int http_source_listener (client_t *client)
             client->schedule_ms += 200;
             return -1;
         }
+        client->flags &= ~CLIENT_KEEPALIVE;
         if (source->format->create_client_data)
             build_headers = source->format->create_client_data;
 
