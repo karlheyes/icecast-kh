@@ -983,10 +983,11 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     if (client->respcode == 0)
     {
         ice_http_t http = ICE_HTTP_INIT;
+        if (fh->finfo.limit)
+            client->flags &= ~CLIENT_KEEPALIVE; // file loops so drop keep alive
         if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
         {
-            if (client->respcode == 0)
-                ret = format_client_headers (fh->format, &http,  client);
+            ret = format_client_headers (fh->format, &http,  client);
         }
         else
         {
