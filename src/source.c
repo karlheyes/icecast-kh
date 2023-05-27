@@ -2761,7 +2761,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                         config_release_mount (minfo);
                     return ret;
                 }
-                if (client->parser->req_type == httpp_req_head)
+                if ((client->flags & CLIENT_AUTHENTICATED) == 0 || client->parser->req_type == httpp_req_head)
                     break;
                 if ((client->flags & CLIENT_HAS_INTRO_CONTENT) == 0 && client->refbuf->next)
                     break;

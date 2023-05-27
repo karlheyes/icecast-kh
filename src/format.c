@@ -426,7 +426,8 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
             ice_http_printf (http, "Transfer-Encoding", 0, "chunked");
         }
     }
-    ice_http_printf (http, contenttypehdr, 0, "%s", contenttype);
+    if (contenttype)
+        ice_http_printf (http, contenttypehdr, 0, "%s", contenttype);
 
     return fmtcode;
 }
