@@ -255,10 +255,10 @@ typedef struct _relay_server_host
     char *bind;
     char *mount;
     ice_config_http_header_t *http_hdrs;
+    time_t    skip_until;
     int priority;
     int port;
     int timeout;
-    uint8_t    skip;
     uint8_t    secure;
 } relay_server_host;
 

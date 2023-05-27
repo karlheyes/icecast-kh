@@ -157,7 +157,7 @@ relay_server *relay_copy (relay_server *r)
                 to->bind = (char *)xmlCharStrdup (from->bind);
             to->port = from->port;
             to->timeout = from->timeout;
-            to->skip = from->skip;
+            to->skip_until = from->skip_until;
             to->secure = from->secure;
             to->priority = from->priority;
             config_http_copy (from->http_hdrs, &to->http_hdrs);
@@ -581,7 +581,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
     connection_close (con);
     client_set_queue (client, NULL);
     con->con_time = time (NULL); // sources count needs to drop in such cases
-    host->skip = 1;
+    host->skip_until = con->con_time + relay->interval;
     return -1;
 }
 
@@ -598,7 +598,7 @@ int open_relay (relay_server *relay)
     {
         int ret;
 
-        if (host->skip)
+        if (host->skip_until > time (NULL))
         {
             INFO3 ("skipping %s:%d for %s", host->ip, host->port, relay->localmount);
             continue;
@@ -1530,7 +1530,7 @@ static relay_server *get_relay_details (client_t *client)
             relay_server_host *srchost = old->hosts, *dsthost = updated->hosts;
             for (; srchost && dsthost && changed == 0; srchost=srchost->next)
             {
-                dsthost->skip = srchost->skip;
+                dsthost->skip_until = srchost->skip_until;
                 if (old->in_use == srchost)
                     updated->in_use = dsthost;
                 if (strcmp (srchost->ip, dsthost->ip) != 0)
@@ -1574,7 +1574,7 @@ static void relay_reset (relay_server *relay)
     relay_server_host *server = relay->hosts;
 
     for (; server; server = server->next)
-       server->skip = 0;
+       server->skip_until = 0;
     INFO1 ("servers to be retried on %s", relay->localmount);
 }
 
@@ -1646,7 +1646,7 @@ static int relay_wait_on_switchover (client_t *client)
         DEBUG1 ("relay %p switch dropped, adding relay", relay);
         avl_tree_wlock (global.relays);
         relay->flags |= RELAY_IN_LIST;
-        relay->in_use->skip = 0;
+        relay->in_use->skip_until = 0;
         avl_insert (global.relays, relay);
         avl_tree_unlock (global.relays);
 
@@ -1688,7 +1688,7 @@ static void *relay_switch (void *arg)
     {
         if (global.running != ICE_RUNNING) break;
         if (relay_expired (relay)) break;
-        if (host->skip == 0) break;
+        if (host->skip_until > time(NULL)) continue;
         snprintf (msg+n, remain, "host %s:%d%s prio %d", host->ip, host->port, host->mount, host->priority);
         DEBUG1 ("%s", msg);
         if (relay->in_use && host->priority >= relay->in_use->priority) break;
@@ -1872,25 +1872,31 @@ static int relay_read (client_t *client)
             relay->flags |= RELAY_CLEANUP;
         if (client->connection.con_time && serv_state == ICE_RUNNING)
         {
-            if ((relay->flags & RELAY_RUNNING) && relay->in_use)
+            relay_server_host *hs = relay->in_use;
+            if ((relay->flags & RELAY_RUNNING) && hs)
                 fallback = 0;
             if ((relay->flags & RELAY_ON_DEMAND) == 0 &&
-                    client->worker->current_time.tv_sec - client->connection.con_time < 60)
+                    client->worker->current_time.tv_sec - client->connection.con_time < 120)
             {
-                /* force a server skip if a stream cannot be maintained for 1 min */
-                WARN1 ("stream for %s died too quickly, skipping server for now", relay->localmount);
-                if (relay->in_use) relay->in_use->skip = 1;
+                if (hs)
+                {
+                    /* force a server host skip if a stream cannot be maintained for 2 min */
+                    WARN4 ("stream for %s died too quickly, skipping %s:%d/%s for now",
+                            relay->localmount, hs->ip, hs->port, hs->mount);
+                    hs->skip_until = time(NULL) + 600;
+                }
+            }
+            else if (client->connection.sent_bytes < 4000000 && (source->flags & SOURCE_TIMEOUT))
+            {
+                if (hs)
+                {
+                    WARN4 ("stream for %s timed out, skipping %s:%d/%s for now",
+                            relay->localmount, hs->ip, hs->port, hs->mount);
+                    hs->skip_until = time(NULL) + 600;
+                }
             }
             else
-            {
-                if (client->connection.sent_bytes < 500000 && source->flags & SOURCE_TIMEOUT)
-                {
-                    WARN1 ("stream for %s timed out, skipping server for now", relay->localmount);
-                    if (relay->in_use) relay->in_use->skip = 1;
-                }
-                else
-                    relay_reset (relay); // spent some time on this so give other servers a chance
-            }
+                relay_reset (relay); // spent some time on this so give other hosts a chance
         }
         /* don't pause listeners if relay shutting down */
         if ((relay->flags & RELAY_RUNNING) == 0)
