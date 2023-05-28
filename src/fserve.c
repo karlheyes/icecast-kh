@@ -577,6 +577,7 @@ int fserve_client_create (client_t *httpclient, const char *path)
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
     snprintf (fsize, 20, "%" PRId64, (int64_t)file_buf.st_size);
+    httpclient->connection.discon.offset = file_buf.st_size;
     httpp_setvar (httpclient->parser, "__FILESIZE", fsize);
     stats_event_inc (NULL, "file_connections");
 
@@ -983,6 +984,11 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
     if (client->respcode == 0)
     {
         ice_http_t http = ICE_HTTP_INIT;
+        if (client->connection.discon.offset && fh->frame_start_pos)
+        {
+            http.in_length = client->connection.discon.offset - fh->frame_start_pos;
+            client->connection.discon.offset = 0;
+        }
         if (fh->finfo.limit)
             client->flags &= ~CLIENT_KEEPALIVE; // file loops so drop keep alive
         if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)

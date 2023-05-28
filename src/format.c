@@ -364,7 +364,12 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         }
     }
 
-    if (fs)
+    if (http->in_length)
+    {
+        if (length == 0 || http->in_length < length)
+            length = http->in_length;
+    }
+    else if (fs)
     {
         uint64_t len = (uint64_t)-1;
         sscanf (fs, "%" SCNuMAX, &len);
@@ -415,7 +420,7 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
     if (client->respcode == 0)
     {
         ice_http_setup_flags (http, client, 200, http_flags, NULL);
-        http->in_length = (off_t)((fs) ? length : -1);
+        http->in_length = (off_t)((length) ? length : -1);
         int chunked = 0;
 
         if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
