@@ -1176,7 +1176,9 @@ static int command_list_log (client_t *client, int response)
         level = -1;      // let log subsys to choose
 
     config = config_get_config ();
-    if (strcmp (logname, "errorlog") == 0)
+    if (strcmp (logname, "startup") == 0)
+        log = 0;
+    else if (strcmp (logname, "errorlog") == 0)
         log = config->error_log.logid;
     else if (strcmp (logname, "accesslog") == 0)
         log = config->access_log.logid;
