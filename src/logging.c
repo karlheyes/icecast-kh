@@ -130,7 +130,7 @@ void logging_init_levels (log_levels_t *ll, unsigned n)
     if (n == 0 || n > 5)
        n = sizeof (ldefault) / sizeof (ldefault[0]);
 
-    log_init_levels (-1, ll, n, 2);
+    log_init_levels (-1, ll, n);
     memcpy (&ll->level[0], ldefault, sizeof ldefault);
 }
 
@@ -354,7 +354,8 @@ void init_log_subsys ()
 
     log_levels_t stderrlevels;
     errorlog = log_open_file (stderr);
-    logging_init_levels (&stderrlevels, 0);
+    logging_init_levels (&stderrlevels, 5);
+    stderrlevels.mark = 2;      // show warnings on startup
     log_set_levels (errorlog, &stderrlevels);
 }
 

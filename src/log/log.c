@@ -263,7 +263,7 @@ static int _log_open (log_run_t *lr)
 }
 
 
-void log_init_levels (int log_id, log_levels_t *ll, unsigned n, unsigned mark)
+void log_init_levels (int log_id, log_levels_t *ll, unsigned n)
 {
     static const log_level_t defaults[] = {
         { .name = "0",     .keep = 15   },
@@ -427,7 +427,7 @@ static void default_set_priorities (int id)
     _unlock_logger();
     log_levels_t ll;
     _wlock_logger();
-    log_init_levels (id, &ll, 1, 0);
+    log_init_levels (id, &ll, 1);
     _set_priorities (id, &ll);
     _unlock_logger();
     _lock_logger();
@@ -599,7 +599,7 @@ void log_set_lines_kept (int log_id, unsigned int count)
 
     _wlock_logger ();
     log_levels_t ll;
-    log_init_levels (log_id, &ll, 1, 0);
+    log_init_levels (log_id, &ll, 1);
     log_set_levels_keep (&ll, count);
     _set_priorities (log_id, &ll);
 
