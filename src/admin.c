@@ -218,7 +218,7 @@ int admin_send_response (xmlDocPtr doc, client_t *client,
         xmlFree(buff);
         xmlFreeDoc (doc);
 
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         ice_http_setup_flags (&http, client, 200, 0, NULL);
         http.in_length = len;
         ice_http_printf (&http, "Content-Type", 0, "%s", "text/xml");
@@ -475,7 +475,7 @@ static int command_require (client_t *client, const char *name, const char **var
 
 int html_success (client_t *client, const char *message)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
     ice_http_printf (&http, NULL, 0,
             "<html><head><title>Admin request successful</title></head>"
@@ -1208,7 +1208,7 @@ static int command_list_log (client_t *client, int response)
     }
     else
     {
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
         ice_http_apply_block (&http, content);
         http.in_length = content->len;
@@ -1233,7 +1233,7 @@ int command_list_mounts(client_t *client, int response)
         else
             rb = stats_get_streams (0);
 
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         if (ice_http_setup_flags (&http, client, 200, 0, NULL) < 0) return -1;
         ice_http_apply_block (&http, rb);
         return client_http_send (&http);

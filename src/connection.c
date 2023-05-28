@@ -1295,7 +1295,7 @@ int setup_source_client_callback (client_t *client)
             buf->len -= len;
             DEBUG1 ("found %d bytes of stream data after headers", len);
         }
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         if (ice_http_setup_flags (&http, client, 100, 0, NULL) == 0 && expect)
         {
            if (strcasecmp (expect, "100-continue") == 0)

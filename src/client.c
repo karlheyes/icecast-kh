@@ -212,7 +212,7 @@ int client_read_bytes (client_t *client, void *buf, unsigned len)
 int client_send_302(client_t *client, const char *location)
 {
     if (location == NULL) return -1;
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     ice_http_setup_flags (&http, client, 302, 0, NULL);
     ice_http_printf (&http, "Location", 0, "%s", location);
     return client_http_send (&http);
@@ -221,7 +221,7 @@ int client_send_302(client_t *client, const char *location)
 
 int client_send_400(client_t *client, const char *message)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     ice_http_setup_flags (&http, client, 400, 0, NULL);
     ice_http_printf (&http, NULL, 0, "%s", message);
     return client_http_send (&http);
@@ -239,7 +239,7 @@ int client_send_403redirect (client_t *client, const char *mount, const char *re
 
 int client_send_401 (client_t *client, const char *realm)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 401, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     ice_http_printf (&http, "WWW-Authenticate", 0, "Basic realm=\"%s\"", (realm ? realm : http.in_realm));
@@ -249,7 +249,7 @@ int client_send_401 (client_t *client, const char *realm)
 
 int client_send_403 (client_t *client, const char *reason)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     client_set_queue (client,NULL);
     if (ice_http_setup_flags (&http, client, 403, 0, reason) < 0) return -1;
     return client_http_send (&http);
@@ -257,7 +257,7 @@ int client_send_403 (client_t *client, const char *reason)
 
 int client_send_404 (client_t *client, const char *message)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 404, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     if (message)
@@ -268,7 +268,7 @@ int client_send_404 (client_t *client, const char *message)
 
 int client_send_416(client_t *client)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 416, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     return client_http_send (&http);
@@ -277,7 +277,7 @@ int client_send_416(client_t *client)
 
 int client_send_501(client_t *client)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 501, 0, NULL) < 0) return -1;
     return client_http_send (&http);
 }
@@ -285,7 +285,7 @@ int client_send_501(client_t *client)
 
 int client_send_options(client_t *client)
 {
-    ice_http_t http;
+    ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 204, 0, NULL) < 0) return -1;
     client_set_queue (client,NULL);
     return client_http_send (&http);
@@ -383,7 +383,7 @@ int client_send_m3u (client_t *client, const char *path)
             config_release_config();
             host = hostport;
         }
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         ice_http_setup_flags (&http, client, 200, 0, NULL);
         ice_http_printf (&http, "Content-Type", 0,              "%s", "audio/x-mpegurl");
         ice_http_printf (&http, "Content-Disposition", 0,       "%s", "attachment; filename=\"listen.m3u\"");

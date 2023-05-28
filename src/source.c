@@ -1268,7 +1268,7 @@ static int http_source_listener (client_t *client)
     if (client->respcode == 0)
     {
         int (*build_headers)(format_plugin_t *, ice_http_t *http, client_t *) = format_client_headers;
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
 
         if (source_running (source) == 0)
         {
@@ -2750,7 +2750,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                 if (source->format->create_client_data)
                     build_headers = source->format->create_client_data;
 
-                ice_http_t http;
+                ice_http_t http = ICE_HTTP_INIT;
                 ret = build_headers (source->format, &http, client);
                 ice_http_complete (&http);
 
@@ -3050,7 +3050,7 @@ static int source_client_response (client_t *client, source_t *source)
     }
     else
     {
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         ice_http_setup_flags (&http, client, 200, 0, NULL);
         ice_http_complete (&http);
         client->intro_offset = client->pos;

@@ -475,7 +475,7 @@ static int open_relay_connection (client_t *client, relay_server *relay, relay_s
         if (secure && connection_uses_ssl (&client->connection, 0) < 0)
             break;
 
-        ice_http_t http;
+        ice_http_t http = ICE_HTTP_INIT;
         ice_http_setup_flags (&http, client, 0, ICE_HTTP_REQUEST, mount);
         if (relay->flags & RELAY_ICY_META)
             ice_http_printf (&http, "Icy-MetaData", 0, "1");
