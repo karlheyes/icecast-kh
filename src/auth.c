@@ -716,7 +716,7 @@ int auth_add_listener (const char *mount, client_t *client)
                 {
                     auth_client *auth_user = auth_client_setup (mount, client);
                     auth_user->process = auth_new_listener;
-                    DEBUG1 ("adding client #%" PRIu64 " for authentication", client->connection.id);
+                    DEBUG2 ("adding client #%" PRIu64 " (%s) for authentication", CONN_ID(client), CONN_ADDR(client));
                     queue_auth_client (auth_user, mountinfo);
                     config_release_mount (mountinfo);
                     return 1;
