@@ -155,6 +155,7 @@ void client_destroy(client_t *client)
 
     DEBUG1 ("keepalive detected on %s, placing back onto worker", client->connection.ip);
 
+    client->flags = 0;
     client->ops = &http_request_ops;
     client->shared_data = NULL;
     client->refbuf = NULL;
