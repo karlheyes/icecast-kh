@@ -326,6 +326,12 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
                 if (plugin->type == FORMAT_TYPE_AAC)
                     fmtcode |= FMT_FORCE_AAC;
                 http_flags |= ICE_HTTP_CONN_CLOSE;
+                if (client->flags & CLIENT_RANGE_END)
+                {   // only send a short blast in a 200 response
+                    client->connection.flags |= CONN_FLG_DISCON;
+                    client->connection.discon.sent = 100000;
+                    client->flags &= ~CLIENT_RANGE_END;
+                }
             }
             if (strstr (useragent, "BlackBerry"))
             {
