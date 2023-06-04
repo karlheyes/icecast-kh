@@ -57,14 +57,16 @@ static int _date_hdr (ice_http_t * http, ice_param_t *curr)
 
 static int _connection_hdr (ice_http_t *http, ice_param_t *curr)
 {
-    if (http->in_major == 1 && http->in_minor == 1 && (http->client->flags & CLIENT_KEEPALIVE))
+    if (http->in_major == 1 && http->in_minor == 1 && http->in_length >= 0 && http->in_connection)
     {
-        if (http->in_connection && strcasecmp (http->in_connection, "keep-alive") == 0)
+        if (strcasecmp (http->in_connection, "keep-alive") == 0)
         {
+            http->client->flags |= CLIENT_KEEPALIVE;
             curr->value = strdup ("keep-alive");
+            return 0;
         }
-        return 0;
     }
+    http->client->flags &= ~CLIENT_KEEPALIVE;
     curr->value = NULL;
     return 0;
 }
@@ -374,7 +376,6 @@ int  ice_http_setup_flags (ice_http_t *http, client_t *client, int status, unsig
     memset (http, 0, sizeof (*http));
     ice_params_setup (&http->headers, ": ", "\r\n", 0);
     http->client = client;
-    http->in_length = 0;
     if (flags & ICE_HTTP_REQUEST)
         return ice_http_setup_req (http, flags, statusmsg);
 
@@ -398,7 +399,8 @@ int  ice_http_setup_flags (ice_http_t *http, client_t *client, int status, unsig
         snprintf (protocol, sizeof protocol, "HTTP/%d.%d", http->in_major, http->in_minor);
     }
 
-    http->in_connection = httpp_getvar (client->parser, "connection");
+    if ((flags & ICE_HTTP_CONN_CLOSE) == 0)
+        http->in_connection = httpp_getvar (client->parser, "connection");
     http->in_origin = httpp_getvar (client->parser, "origin");
 
     char line [1024];
@@ -480,6 +482,7 @@ int  ice_http_complete (ice_http_t *http)
     {
         rb->next = cl->refbuf;
         cl->refbuf = rb;
+        rb->flags |= BUFFER_CONTAINS_HDR;
         char *p = rb->data + written;
         written += snprintf (p, (rb->len - written), "%s", msg);
         rb->len = written; // don't send the last nul

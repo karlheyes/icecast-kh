@@ -92,6 +92,7 @@ typedef struct  _ice_http_t
 #define ICE_HTTP_REQUEST                        (1<<0)
 #define ICE_HTTP_WILDCARD_ORIGIN                (1<<1)
 #define ICE_HTTP_USE_ICY                        (1<<2)
+#define ICE_HTTP_CONN_CLOSE                     (1<<3)
 
 
 #define ICE_HTTP_INIT   ((ice_http_t){ .client = NULL })

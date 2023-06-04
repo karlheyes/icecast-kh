@@ -59,6 +59,11 @@ struct connection_tag
     char *ip;
 };
 
+// for flags in connection_t
+#define CONN_FLG_SSL                1
+#define CONN_FLG_DISCON             (1<<1)
+#define CONN_FLG_END_UNSPEC         (1<<2)
+
 
 struct connection_bufs
 {

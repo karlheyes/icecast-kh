@@ -1114,7 +1114,10 @@ static int format_mp3_create_client_data (format_plugin_t *plugin, ice_http_t *h
 
     metadata = httpp_getvar(client->parser, "icy-metadata");
     if (metadata && atoi(metadata))
+    {
+        httpp_deletevar (client->parser, HTTPP_VAR_VERSION);
         httpp_setvar (client->parser, HTTPP_VAR_VERSION, "1.0"); // hack force 1.0 if icy metadata requested
+    }
 
     if (format_client_headers (plugin, http, client) < 0)
         return -1;

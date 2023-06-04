@@ -52,11 +52,12 @@ int refbuf_append (refbuf_t *refbuf, int max_len, const char *fmt, ...);
 
 
 
-#define PER_CLIENT_REFBUF_SIZE  4096
+#define PER_CLIENT_REFBUF_SIZE          4096
 
-#define WRITE_BLOCK_GENERIC     01000
-#define REFBUF_SHARED           02000
-#define BUFFER_LOCAL_USE        04000
+#define WRITE_BLOCK_GENERIC             (1<<8)
+#define REFBUF_SHARED                   (1<<9)
+#define BUFFER_LOCAL_USE                (1<<10)
+#define BUFFER_CONTAINS_HDR             (1<<11)
 
 #endif  /* __REFBUF_H__ */
 

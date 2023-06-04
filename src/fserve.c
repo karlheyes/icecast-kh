@@ -766,7 +766,7 @@ static int prefile_send (client_t *client)
             }
             client->pos = 0;
         }
-        if (refbuf->flags & WRITE_BLOCK_GENERIC)
+        if (refbuf->flags & BUFFER_CONTAINS_HDR)
             bytes = format_generic_write_to_client (client);
         else
             bytes = client->check_buffer (client);
