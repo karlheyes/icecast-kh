@@ -1275,7 +1275,6 @@ static int http_source_listener (client_t *client)
             client->schedule_ms += 200;
             return -1;
         }
-        client->flags &= ~CLIENT_KEEPALIVE;
         if (source->format->create_client_data)
             build_headers = source->format->create_client_data;
 
@@ -1497,7 +1496,7 @@ static int send_listener (source_t *source, client_t *client)
     /* check for limited listener time */
     if (client->flags & CLIENT_RANGE_END)
     {
-        if (client->connection.discon.offset <= client->connection.sent_bytes)
+        if (client->connection.discon.sent < client->connection.sent_bytes)
             return -1;
     }
     else if (client->connection.discon.time && now >= client->connection.discon.time)
@@ -2751,6 +2750,7 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
                     build_headers = source->format->create_client_data;
 
                 ice_http_t http = ICE_HTTP_INIT;
+                client->connection.discon.sent -= client->connection.start_pos;
                 ret = build_headers (source->format, &http, client);
                 ice_http_complete (&http);
 
@@ -2864,20 +2864,6 @@ int source_add_listener (const char *mount, mount_proxy *mountinfo, client_t *cl
     global.listeners++;
     global_unlock();
 
-    httpp_deletevar (client->parser, "range");
-    if (client->flags & CLIENT_RANGE_END)
-    {
-        // range given on a stream, impose a length limit
-        if ((off_t)client->connection.discon.offset > client->intro_offset)
-        {
-            client->connection.discon.offset -= client->intro_offset;
-            client->intro_offset = 0;
-        }
-        else
-        {
-            client->flags &= ~CLIENT_RANGE_END;
-        }
-    }
     source_setup_listener (source, client);
     source->listeners++;
 

@@ -226,23 +226,8 @@ int format_file_read (client_t *client, format_plugin_t *plugin, icefile_handle 
 
         if (file_in_use (f) == 0) return -2;
 
-        if (client->flags & CLIENT_RANGE_END)
-        {
-            if (client->intro_offset >= client->connection.discon.offset)
-            {
-                DEBUG1 ("End of requested range (%" PRId64 ")", client->connection.discon.offset);
-                return -1;
-            }
-            if (client->connection.discon.offset < (uint64_t)-1)
-            {
-                range = client->connection.discon.offset - client->intro_offset + 1;
-                if (range && range < len)
-                    len = range;
-            }
-        }
-        else
-            if (client->connection.discon.time && client->worker->current_time.tv_sec >= client->connection.discon.time)
-                return -1;
+        if (client->connection.discon.time && client->worker->current_time.tv_sec >= client->connection.discon.time)
+            return -1;
 
         bytes = pread (f, refbuf->data, len, client->intro_offset);
         if (bytes <= 0)
@@ -292,6 +277,12 @@ int format_generic_write_to_client (client_t *client)
         client->pos += ret;
         client->counter += ret;
         client->queue_pos += ret;
+        if ((refbuf->flags & BUFFER_CONTAINS_HDR) && client->pos >= refbuf->len)
+        {
+            client->connection.sent_bytes = 0;
+            if ((client->flags & CLIENT_RANGE_END) || client->connection.discon.sent)
+                client->connection.flags |= CONN_FLG_DISCON;
+        }
     }
 
     return ret;
@@ -330,8 +321,12 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
                 fmtcode = FMT_RETURN_ICY;
             if (strstr (useragent, "Shoutcast Server")) /* hack for sc_serv */
                 fmtcode = FMT_LOWERCASE_TYPE;
-            if (plugin->type == FORMAT_TYPE_AAC && strstr (useragent, "AppleWebKit"))
-                fmtcode |= FMT_FORCE_AAC;
+            if (strstr (useragent, "AppleWebKit"))
+            {
+                if (plugin->type == FORMAT_TYPE_AAC)
+                    fmtcode |= FMT_FORCE_AAC;
+                http_flags |= ICE_HTTP_CONN_CLOSE;
+            }
             if (strstr (useragent, "BlackBerry"))
             {
                 fmtcode |= FMT_RETURN_ICY;
@@ -364,35 +359,29 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         }
     }
 
-    if (http->in_length)
-    {
-        if (length == 0 || http->in_length < length)
-            length = http->in_length;
-    }
-    else if (fs)
+    if (fs)
     {
         uint64_t len = (uint64_t)-1;
         sscanf (fs, "%" SCNuMAX, &len);
         if (length == 0 || len < length)
             length = len;
     }
+    else if (http->in_length)
+    {
+        if (length == 0 || http->in_length < length)
+            length = http->in_length;
+    }
     if (client->flags & CLIENT_RANGE_END)
     {
-        if (length && client->connection.discon.offset > length)
-            client->connection.discon.offset = length - 1;
+        if (length && client->connection.discon.sent > length)
+            client->connection.discon.sent = length - 1;
 
-        if (client->intro_offset > client->connection.discon.offset)
-        {
-            DEBUG2 ("client range invalid (%ld, %" PRIu64 ")", (long)client->intro_offset, client->connection.discon.offset);
-            client->intro_offset = 0;
-            fs = NULL;
-        }
-        uint64_t range = client->connection.discon.offset - client->intro_offset + 1;
+        uint64_t range = client->connection.discon.sent;
         char total_size [32] = "*";
 
-        if (range == 0 || (fs == NULL && range > 100))
+        if (range == 0 || (fs == NULL && range > (1<<30)))
         {       // ignore most range requests on streams, treat as full
-            client->connection.discon.offset = 0;
+            client->connection.discon.sent = 0;
             client->intro_offset = 0;
             client->flags &= ~CLIENT_RANGE_END;
             length = -1;
@@ -400,16 +389,21 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         else
         {
             ice_http_setup_flags (http, client, 206, 0, NULL);
+            uint64_t last = client->connection.discon.sent + client->connection.start_pos -1;
             if (fs)
                 snprintf (total_size, sizeof total_size, "%" PRIu64, length);
+            else
+                snprintf (total_size, sizeof total_size, "%" PRIu64, ((uint64_t)1<<30)-1);
+            ice_http_printf (http, "Content-Transfer-Encoding", 0, "binary");
             ice_http_printf (http, "Accept-Ranges", 0, "bytes");
             ice_http_printf (http, "Content-Range", 0, "bytes %" PRIu64 "-%" PRIu64 "/%s",
-                    (uint64_t)client->intro_offset, client->connection.discon.offset, total_size );
+                    (uint64_t)client->connection.start_pos, last, total_size );
             http->in_length = range > 0 ? range : -1;
+            DEBUG3 ("client %ld, req %s range %ld requested\n", CONN_ID(client), client->mount, range);
             if (range <= 100 && client->parser->req_type != httpp_req_head)
             {
                 char line [range+1];
-                memset (line, 'A', range);
+                memset (line, 'F', range);
                 line[range] = 0;
                 ice_http_printf (http, NULL, 0, "%s", line);
                 client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
@@ -423,6 +417,8 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         http->in_length = (off_t)((length) ? length : -1);
         int chunked = 0;
 
+        ice_http_printf (http, "Accept-Ranges", 0, "bytes");
+        ice_http_printf (http, "Content-Transfer-Encoding", 0, "binary");
         if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
             chunked = (http->in_major == 1 && http->in_minor == 1) ? 1 : 0;
         if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)

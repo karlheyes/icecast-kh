@@ -125,6 +125,7 @@ typedef struct _fbinfo
     int flags;
     format_type_t type;
     uint64_t limit;
+    uint64_t fsize;
     char *mount;
     char *override;
 } fbinfo;

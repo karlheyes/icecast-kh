@@ -502,7 +502,6 @@ int fserve_client_create (client_t *httpclient, const char *path)
     int ret = -1;
     ice_config_t *config;
     fbinfo finfo;
-    char fsize[20];
 
     config = config_get_config();
     int file_serving = config->fileserve;
@@ -576,9 +575,8 @@ int fserve_client_create (client_t *httpclient, const char *path)
     finfo.override = NULL;
     finfo.limit = 0;
     finfo.type = FORMAT_TYPE_UNDEFINED;
-    snprintf (fsize, 20, "%" PRId64, (int64_t)file_buf.st_size);
-    httpclient->connection.discon.offset = file_buf.st_size;
-    httpp_setvar (httpclient->parser, "__FILESIZE", fsize);
+    finfo.fsize = file_buf.st_size;
+
     stats_event_inc (NULL, "file_connections");
 
     return fserve_setup_client_fb (httpclient, &finfo);
@@ -981,14 +979,25 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         thread_mutex_lock (&fh->lock);
     }
     client->mount = fh->finfo.mount;
-    if (client->respcode == 0)
+    do
     {
+        if (client->respcode) break;
+        ret = -1;
+
+        off_t f_range = (fh->finfo.fsize - fh->frame_start_pos);
+        char fsize [20];
+
+        snprintf (fsize, 20, "%" PRId64, (int64_t)f_range);
+        httpp_setvar (client->parser, "__FILESIZE", fsize);
+
+        if (client->connection.flags & CONN_FLG_END_UNSPEC)
+            client->connection.discon.sent = f_range;
+        else if (client->connection.discon.sent > f_range)
+            break;
+        client->connection.discon.sent -= client->connection.start_pos;
+
         ice_http_t http = ICE_HTTP_INIT;
-        if (client->connection.discon.offset && fh->frame_start_pos)
-        {
-            http.in_length = client->connection.discon.offset - fh->frame_start_pos;
-            client->connection.discon.offset = 0;
-        }
+        http.in_length = client->connection.discon.sent;
         if (fh->finfo.limit)
             client->flags &= ~CLIENT_KEEPALIVE; // file loops so drop keep alive
         if (fh->finfo.type == FORMAT_TYPE_UNDEFINED)
@@ -1001,9 +1010,10 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
                 ret = fh->format->create_client_data (fh->format, &http, client);
             if (fh->format->write_buf_to_client)
                 client->check_buffer = fh->format->write_buf_to_client;
+            ret = 0;
         }
         ice_http_complete (&http);
-    }
+    } while (0);
     if (ret < 0)
     {
         thread_mutex_unlock (&fh->lock);

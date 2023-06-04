@@ -42,17 +42,18 @@ struct connection_tag
     time_t con_time;
     struct {
         time_t      time;
-        uint64_t    offset;
+        uint64_t    sent;
     } discon;
+    uint64_t start_pos;
     uint64_t sent_bytes;
 
     sock_t sock;
     unsigned int chunk_pos; // for short writes on chunk size line
     char error;
     unsigned char readchk;
+    unsigned char flags;
 
 #ifdef HAVE_OPENSSL
-    unsigned char sslflags;
     SSL *ssl;   /* SSL handler */
 #endif
 

@@ -439,7 +439,7 @@ int connection_read_ssl (connection_t *con, void *buf, size_t len)
             break;
         case SSL_ERROR_SSL:
         case SSL_ERROR_SYSCALL:     // avoid the ssl shutdown
-            con->sslflags |= 1;
+            con->flags |= CONN_FLG_SSL;
             // fallthru
         case SSL_ERROR_ZERO_RETURN:
             con->error = 1;
@@ -469,7 +469,7 @@ int connection_send_ssl (connection_t *con, const void *buf, size_t len)
         case SSL_ERROR_SYSCALL: // avoid the ssl shutdown
             // DEBUG3("syscall error %d, on %s (%" PRIu64 ")", sock_error(), &con->ip[0], con->id);
         case SSL_ERROR_SSL:
-            con->sslflags |= 1;
+            con->flags |= CONN_FLG_SSL;
             // fallthru
         case SSL_ERROR_ZERO_RETURN:
             con->error = 1;
@@ -528,6 +528,11 @@ int connection_send (connection_t *con, const void *buf, size_t len)
 {
     if (connection_unreadable (con))
         return -1;
+    if ((con->flags & CONN_FLG_DISCON) && con->discon.sent > 0)
+    {
+        if (con->sent_bytes + len > con->discon.sent)
+            len = con->discon.sent - con->sent_bytes;
+    }
     int bytes = sock_write_bytes (con->sock, buf, len);
     if (bytes < 0)
     {
@@ -535,7 +540,11 @@ int connection_send (connection_t *con, const void *buf, size_t len)
             con->error = 1;
     }
     else
+    {
         con->sent_bytes += bytes;
+        if ((con->flags & CONN_FLG_DISCON) && con->sent_bytes >= con->discon.sent)
+            con->error = 1;
+    }
     return bytes;
 }
 
@@ -2075,7 +2084,9 @@ int connection_reset (connection_t *con, uint64_t time_ms)
     }
     con->con_time = time_ms/1000;
     con->discon.time = con->con_time + header_timeout;
+    con->discon.sent = 0;
     con->sent_bytes = 0;
+    con->flags = 0;
 #ifdef HAVE_OPENSSL
     if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); con->ssl = NULL; }
 #endif
@@ -2085,7 +2096,7 @@ int connection_reset (connection_t *con, uint64_t time_ms)
 void connection_close(connection_t *con)
 {
 #ifdef HAVE_OPENSSL
-    if (con->ssl) { if ((con->sslflags & 1) == 0) SSL_shutdown (con->ssl); SSL_free (con->ssl); }
+    if (con->ssl) { if ((con->flags & CONN_FLG_SSL) == 0) SSL_shutdown (con->ssl); SSL_free (con->ssl); }
 #endif
     if (con->sock != SOCK_ERROR)
         sock_close (con->sock);

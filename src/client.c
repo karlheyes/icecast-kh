@@ -271,6 +271,9 @@ int client_send_416(client_t *client)
 {
     ice_http_t http = ICE_HTTP_INIT;
     if (ice_http_setup_flags (&http, client, 416, 0, NULL) < 0) return -1;
+    const char *fs = httpp_getvar (client->parser, "__FILESIZE");
+    if (fs)
+        ice_http_printf (&http, "Content-Range", 0, "*/%s", fs);
     client_set_queue (client,NULL);
     return client_http_send (&http);
 }

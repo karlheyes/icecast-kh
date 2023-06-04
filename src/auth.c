@@ -500,8 +500,6 @@ static int add_authenticated_listener (const char *mount, mount_proxy *mountinfo
     if (client->parser->req_type != httpp_req_head)
         client->flags |= CLIENT_AUTHENTICATED;
 
-    client->flags |= CLIENT_KEEPALIVE;
-
     /* some win32 setups do not do TCP win scaling well, so allow an override */
     if (mountinfo && mountinfo->so_sndbuf > 0)
         sock_set_send_buffer (client->connection.sock, mountinfo->so_sndbuf);
@@ -634,30 +632,38 @@ int auth_add_listener (const char *mount, client_t *client)
         const char *range = httpp_getvar (client->parser, "range");
         if (range)
         {
-            uint64_t pos1 = 0, pos2 = (uint64_t)-1;
-
             if (strncmp (range, "bytes=", 6) == 0)
             {
-                if (sscanf (range+6, "-%" SCNuMAX, &pos2) < 1)
-                    if (sscanf (range+6, "%" SCNuMAX "-%" SCNuMAX, &pos1, &pos2) < 1)
-                        pos2 = 0;
-            }
-            else
-            {
-                INFO2 ("range header \"%.50s\" from %s", range, &client->connection.ip[0]);
-                pos2 = 0;
-            }
+                int n = 0, v = 0;
+                uint64_t pos1 = 0, pos2 = (uint64_t)-2;
 
-            if (pos1 <= pos2)
-            {
-                client->intro_offset = pos1;
-                client->connection.discon.offset = pos2;
-                client->flags |= CLIENT_RANGE_END;
-                if (pos2 - pos1 < 100)
-                    need_auth = 0; // avoid auth check if range is very small, player hack
+                range += 6;
+                if (range[0] == '-')
+                    v = sscanf (range, "-%" SCNuMAX "%n", &pos2, &n);
+                else
+                {
+                    v = sscanf (range, "%" SCNuMAX "-%" SCNuMAX"%n", &pos1, &pos2, &n);
+                    if (v == 1)
+                    {
+                        v = sscanf (range, "%" SCNuMAX "-%n", &pos1, &n);
+                        client->connection.flags |= CONN_FLG_END_UNSPEC;
+                    }
+                }
+
+                if (v > 0 && range[n] == '\0' && pos1 <= pos2)
+                {
+                    pos2++;     // to help later, use like an eof marker, not end of range
+                    client->intro_offset = pos1;
+                    client->connection.start_pos = pos1;
+                    client->connection.discon.sent = pos2;
+                    client->flags |= CLIENT_RANGE_END;
+                    if ((client->connection.flags & CONN_FLG_END_UNSPEC) == 0 && (pos2 - pos1) < 100)
+                        need_auth = 0; // avoid auth check if range is very small, player hack
+                    range = NULL;
+                }
             }
-            else
-                WARN2 ("client range invalid (%" PRIu64 ", %" PRIu64 "), ignoring", pos1, pos2);
+            if (range)
+                INFO2 ("client %ld has unexpected range (%s), ignoring", CONN_ID (client), range);
         }
     }
     if (client->parser->req_type == httpp_req_head)
