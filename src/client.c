@@ -580,7 +580,7 @@ typedef struct {
 
 #define WKRC_NORMAL_CLIENTS     (1)
 #define WKRC_NORMAL_AFTER       (1<<1) // set when WKRC_NORMAL_CLIENTS is unset to cause an auto run of both fast and normal
-#define WKR_CLIENT_INIT(W)      { .worker = W, .max_run = 5000, .flags = WKRC_NORMAL_CLIENTS }
+#define WKR_CLIENT_INIT(W)      { .worker = W, .max_run = 1000, .flags = WKRC_NORMAL_CLIENTS }
 
 static void worker_add_pending_clients (worker_client_t *wc)
 {
@@ -785,7 +785,7 @@ static client_t *worker_pick_client (worker_client_t *wc)
     int worker_shutdown = (worker->running == 0);
     if (wc->max_run == 0)
     {
-        wc->max_run = worker->count < 2500 ? 5000 : worker->count<<1;
+        wc->max_run = worker->count + 200;
         wc->sched_ms = 0;
         wc->wakeup_ms = worker->time_ms;
         // DEBUG1 ("%p max run limit reached, reset", worker);
@@ -860,7 +860,7 @@ void *worker (void *arg)
         client_t *client;
 
         wc.time_recheck = 0;
-        wc.max_run = 5000;
+        wc.max_run = 1000;
 
         thread_mutex_lock (&worker->lock);
         while ((client = worker_pick_client (&wc)))
