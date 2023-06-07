@@ -138,7 +138,7 @@ void client_destroy(client_t *client)
     do
     {
         global_lock ();
-        if (global.running != ICE_RUNNING || client->connection.error ||
+        if (global.running != ICE_RUNNING || (client->connection.error == CONN_ERR_DOWN) ||
                 (client->flags & CLIENT_KEEPALIVE) == 0 || client_connected (client) == 0)
         {
             global.clients--;
@@ -153,7 +153,7 @@ void client_destroy(client_t *client)
         client->counter = client->schedule_ms = timing_get_time();
     } while (connection_reset (&client->connection, client->schedule_ms) < 0);  // loop back on failure to kick out
 
-    DEBUG1 ("keepalive detected on %s, placing back onto worker", client->connection.ip);
+    DEBUG2 ("keepalive detected on %s (%ld), placing back onto worker", CONN_ADDR(client), CONN_ID(client));
 
     client->flags = 0;
     client->ops = &http_request_ops;
@@ -307,7 +307,9 @@ int client_send_bytes (client_t *client, const void *buf, unsigned len)
 #endif
     ret = con_send (&client->connection, buf, len);
 
-    if (client->connection.error)
+    if (client->connection.error == CONN_ERR_FINI)
+        DEBUG3 ("Client %"PRI_ConnID " connection on %s from %s finished", CONN_ID(client), (client->mount ? client->mount:"unknown"), CONN_ADDR(client));
+    else if (client->connection.error)
         DEBUG3 ("Client %"PRI_ConnID " connection on %s from %s died", CONN_ID(client), (client->mount ? client->mount:"unknown"), CONN_ADDR(client));
 
     return ret;

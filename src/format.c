@@ -412,6 +412,8 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
                 memset (line, 'F', range);
                 line[range] = 0;
                 ice_http_printf (http, NULL, 0, "%s", line);
+                client->connection.flags &= ~CONN_FLG_DISCON;
+                client->connection.discon.sent = 0;
                 client->flags &= ~(CLIENT_AUTHENTICATED|CLIENT_HAS_INTRO_CONTENT); // drop these flags
                 DEBUG2 ("wrote %" PRIu64 " bytes for partial request from %s", range, &client->connection.ip[0]);
             }
@@ -423,7 +425,6 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         http->in_length = (off_t)((length) ? length : -1);
         int chunked = 0;
 
-        ice_http_printf (http, "Accept-Ranges", 0, "bytes");
         ice_http_printf (http, "Content-Transfer-Encoding", 0, "binary");
         if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
             chunked = (http->in_major == 1 && http->in_minor == 1) ? 1 : 0;

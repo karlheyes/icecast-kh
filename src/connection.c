@@ -543,7 +543,7 @@ int connection_send (connection_t *con, const void *buf, size_t len)
     {
         con->sent_bytes += bytes;
         if ((con->flags & CONN_FLG_DISCON) && con->sent_bytes >= con->discon.sent)
-            con->error = 1;
+            con->error = CONN_ERR_FINI;
     }
     return bytes;
 }
@@ -2086,6 +2086,7 @@ int connection_reset (connection_t *con, uint64_t time_ms)
     con->discon.time = con->con_time + header_timeout;
     con->discon.sent = 0;
     con->sent_bytes = 0;
+    con->error = 0;
     con->flags = 0;
 #ifdef HAVE_OPENSSL
     if (con->ssl) { SSL_shutdown (con->ssl); SSL_free (con->ssl); con->ssl = NULL; }
