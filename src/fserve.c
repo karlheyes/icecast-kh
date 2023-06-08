@@ -271,7 +271,7 @@ static void fh_stats (fh_node *fh, int enable)
     if (enable)
     {
         if (fh->finfo.limit == 0) return; // stats only appear for rate limited files
-        if (fh->stats == 0) // assume handle is locked beforehand
+        if (fh->stats == 0)
         {
             int len = strlen (fh->finfo.mount) + 15;
             char buf [len];
@@ -279,13 +279,15 @@ static void fh_stats (fh_node *fh, int enable)
             fh->stats = stats_handle (buf);
             fh->prev_count = ~fh->refcount; // trigger update of listeners
         }
+        else
+            stats_lock (fh->stats, NULL);
         if (fh->finfo.flags & FS_FALLBACK)
             stats_set_flags (fh->stats, "fallback", "file", STATS_COUNTERS|STATS_HIDDEN);
         stats_set_flags (fh->stats, "outgoing_kbitrate", "0", STATS_COUNTERS|STATS_HIDDEN);
         stats_release (fh->stats);
     }
     else if (fh->stats)
-    {
+    {   // drop the stats if enable == 0
         stats_lock (fh->stats, NULL);
         stats_set (fh->stats, NULL, NULL);
         fh->stats = 0;
@@ -470,12 +472,12 @@ static fh_node *open_fh (fbinfo *finfo, mount_proxy *minfo)
                 }
             }
         }
-        if (fh->finfo.limit)
-            fh->out_bitrate = rate_setup (10000, 1000);
     }
     else
         config_release_config ();
     fh->clients = avl_tree_new (client_compare, NULL);
+    if (fh->finfo.limit)
+        fh->out_bitrate = rate_setup (10000, 1000);
     thread_mutex_create (&fh->lock);
     thread_mutex_lock (&fh->lock);
     avl_insert (fh_cache, fh);
@@ -768,13 +770,16 @@ static int prefile_send (client_t *client)
             bytes = format_generic_write_to_client (client);
         else
             bytes = client->check_buffer (client);
+        if (bytes > 0)
+        {
+            written += bytes;
+            global_add_bitrates (global.out_bitrate, bytes, worker->time_ms);
+        }
         if (bytes < 0)
         {
             client->schedule_ms = worker->time_ms + (written ? 150 : 300);
-            return 0;
+            break;
         }
-        written += bytes;
-        global_add_bitrates (global.out_bitrate, bytes, worker->time_ms);
         if (written > 30000)
             break;
     }

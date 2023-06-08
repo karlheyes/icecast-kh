@@ -737,7 +737,7 @@ static client_t *worker_next_client (worker_client_t *wc)
 
     int fast = 0;
     if (client->schedule_ms < worker->time_ms + 2 && client->fast_count < 4)
-        fast = 1;       // treat as rescheule quickly, add to end of fast list
+        fast = 1;       // treat as reschedule quickly, add to end of fast list
     if ((wc->flags & WKRC_NORMAL_CLIENTS))
     {
         if (fast)
