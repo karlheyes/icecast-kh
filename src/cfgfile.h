@@ -188,6 +188,7 @@ typedef struct _mount_proxy {
     ice_config_http_header_t *http_headers;
     char *auth_type; /* Authentication type */
     struct auth_tag *auth;
+    char *listenurl;
     char *cluster_password;
     config_options_t *auth_options; /* Options for this type */
     char *on_connect;

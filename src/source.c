@@ -1300,7 +1300,6 @@ static int http_source_listener (client_t *client)
             client->connection.sent_bytes = 0;
             return ret;
         }
-        client->connection.error = 1;
         return -1;
     }
     client->schedule_ms += 200;
@@ -2237,8 +2236,6 @@ static void source_apply_mount (source_t *source, ice_config_t *config, mount_pr
  */
 void source_update_settings (ice_config_t *_c, source_t *source, mount_proxy *mountinfo)
 {
-    char *listen_url;
-    int len;
     ice_config_t *config = _c ? _c : config_get_config();
 
     /* set global settings first */
@@ -2251,10 +2248,18 @@ void source_update_settings (ice_config_t *_c, source_t *source, mount_proxy *mo
     }
     stats_lock (source->stats, source->mount);
 
-    len = strlen (config->hostname) + strlen(source->mount) + 16;
-    listen_url = alloca (len);
-    snprintf (listen_url, len, "http://%s:%d%s", config->hostname, config->port, source->mount);
-    stats_set_flags (source->stats, "listenurl", listen_url, STATS_COUNTERS);
+    if (mountinfo->listenurl)
+    {
+        INFO2 ("Using supplied listen url for %s (%s)", source->mount, mountinfo->listenurl);
+        stats_set_flags (source->stats, "listenurl", mountinfo->listenurl, STATS_COUNTERS);
+    }
+    else
+    {
+        char listen_url [1024];
+        snprintf (listen_url, sizeof listen_url, "http://%s:%d%s", config->hostname, config->port, source->mount);
+        INFO2 ("Generating listen url for %s (%s)", source->mount, listen_url);
+        stats_set_flags (source->stats, "listenurl", listen_url, STATS_COUNTERS);
+    }
 
     source_apply_mount (source, config, mountinfo);
     if (_c == NULL)

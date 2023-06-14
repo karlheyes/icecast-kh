@@ -1495,6 +1495,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "preroll-log",        _parse_errorlog,    &mount->preroll_log,        .flags = CFG_TAG_NOTATTR },
         { "accesslog",          _parse_accesslog,   &mount->access_log,         .flags = CFG_TAG_NOTATTR },
         /* YP settings */
+        { "listenurl",          config_get_str,     &mount->listenurl },
         { "cluster-password",   config_get_str,     &mount->cluster_password },
         { "stream-name",        config_get_str,     &mount->stream_name },
         { "stream-description", config_get_str,     &mount->stream_description },
