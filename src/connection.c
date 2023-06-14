@@ -533,7 +533,9 @@ int connection_send (connection_t *con, const void *buf, size_t len)
         if (con->sent_bytes + len > con->discon.sent)
             len = con->discon.sent - con->sent_bytes;
     }
-    int bytes = sock_write_bytes (con->sock, buf, len);
+    int bytes = 0;
+    if (len > 0)
+        bytes = sock_write_bytes (con->sock, buf, len);
     if (bytes < 0)
     {
         if (!sock_recoverable (sock_error()))
