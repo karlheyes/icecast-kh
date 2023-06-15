@@ -508,7 +508,7 @@ refbuf_t *ice_params_complete (ice_params_t *pm)
 ice_config_http_header_t default_headers[] =
 {
     { .hdr = { .status = "2*",          .name = "Server",               .value = "Icecast" } },
-    { .hdr = { .status = "[24]*",       .name = "Connection",           .value = "Close",
+    { .hdr = { .status = "[234]*",      .name = "Connection",           .value = "Close",
                                         .callback = _connection_hdr } },
     { .hdr = { .status = "2*",          .name = "Pragma",               .value = "no-cache" } },
     { .hdr = { .status = "2*",          .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
