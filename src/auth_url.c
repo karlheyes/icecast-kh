@@ -763,7 +763,7 @@ static void url_stream_auth (auth_client *auth_user)
     }
     else
         curl_easy_setopt (atd->curl, CURLOPT_USERPWD, "");
-    curl_easy_setopt (atd->curl, CURLOPT_URL, url->stream_auth);
+    curl_easy_setopt (atd->curl, CURLOPT_URL, url->stream_auth.url);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEHEADER, auth_user);
     curl_easy_setopt (atd->curl, CURLOPT_WRITEDATA, auth_user);
 
