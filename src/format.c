@@ -33,6 +33,7 @@
 #include "connection.h"
 #include "refbuf.h"
 
+#include "timing/timing.h"
 #include "source.h"
 #include "format.h"
 #include "global.h"
@@ -289,10 +290,35 @@ int format_generic_write_to_client (client_t *client)
 }
 
 
-#define FMT_RETURN_ICY          1
-#define FMT_LOWERCASE_TYPE      2
-#define FMT_FORCE_AAC           4
-#define FMT_DISABLE_CHUNKED     8
+static const char *search_ua_namever (const char *ua, const char *patt)
+{
+    const char *p = ua;
+    int len = strlen (patt);
+    while (p)
+    {
+       char *s = strstr (p, patt);
+       if (s)
+       {
+           int off = 0;
+           const char *v = s+len;
+           if (sscanf (v, "%*[0-9.]%n", &off) == 0 && (v[off] == ' ' || v[off] == '\0'))
+               return s;
+           p = s+len;
+           continue;
+       }
+       break;
+    }
+    return NULL;
+}
+
+
+#define FMT_RETURN_ICY                      1
+#define FMT_LOWERCASE_TYPE                  (1<<1)
+#define FMT_AACP2AAC                        (1<<2)
+#define FMT_DISABLE_CHUNKED                 (1<<3)
+#define FMT_REDIRECT_WPARAM                 (1<<4)
+#define FMT_DROP_RANGE                      (1<<5)
+
 
 static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, client_t *client)
 {
@@ -301,7 +327,7 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
     const char *contenttypehdr = "Content-Type";
     const char *contenttype = plugin ? plugin->contenttype : "application/octet-stream";
     const char *useragent = httpp_getvar (client->parser, "user-agent");
-    int fmtcode = 0, http_flags = 0;
+    int fmtcode = FMT_AACP2AAC, http_flags = 0;
     uint64_t length = 0;
 
     do {
@@ -314,25 +340,23 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         if (fs == NULL && useragent && plugin)
         {
             if (strstr (useragent, "shoutcastsource")) /* hack for mpc */
-                fmtcode = FMT_RETURN_ICY;
+                fmtcode |= FMT_RETURN_ICY;
             if (strstr (useragent, "Windows-Media-Player")) /* hack for wmp*/
-                fmtcode = FMT_RETURN_ICY;
+                fmtcode |= FMT_RETURN_ICY;
             if (strstr (useragent, "RealMedia")) /* hack for rp (mainly mobile) */
-                fmtcode = FMT_RETURN_ICY;
+                fmtcode |= FMT_RETURN_ICY;
             if (strstr (useragent, "Shoutcast Server")) /* hack for sc_serv */
-                fmtcode = FMT_LOWERCASE_TYPE;
-            if (strstr (useragent, "AppleWebKit"))
-            {
-                if (plugin->type == FORMAT_TYPE_AAC)
-                    fmtcode |= FMT_FORCE_AAC;
-                http_flags |= ICE_HTTP_CONN_CLOSE;
+                fmtcode |= FMT_LOWERCASE_TYPE;
+
+            if (search_ua_namever (useragent, "Safari/"))
+            {   // Safari is an oddball, seems to use multiple connections with one being a range request of 0-1 to get the
+                // size. To add to the confusion, chrome and others use the safari in the useragent, supposedly for compatability
+                // although is does do the same thing.
+                if (search_ua_namever (useragent, "Chrome/") == NULL && search_ua_namever (useragent, "Chromium/") == NULL)
+                    fmtcode |= FMT_REDIRECT_WPARAM|FMT_DROP_RANGE;
             }
             if (strstr (useragent, "BlackBerry"))
-            {
                 fmtcode |= FMT_RETURN_ICY;
-                if (plugin->type == FORMAT_TYPE_AAC)
-                    fmtcode |= FMT_FORCE_AAC;
-            }
         }
     } while (0);
 
@@ -342,8 +366,40 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         http_flags |= ICE_HTTP_USE_ICY;
     if (fmtcode & FMT_LOWERCASE_TYPE)
         contenttypehdr = "content-type";
-    if (fmtcode & FMT_FORCE_AAC) // ie for avoiding audio/aacp
+    // the following may eventually go and just assume aac instead of aacp
+    if ((fmtcode & FMT_AACP2AAC) && plugin->type == FORMAT_TYPE_AAC) // ie for avoiding audio/aacp
         contenttype = "audio/aac";
+    if (fmtcode & FMT_REDIRECT_WPARAM)
+    {
+        const char *ic2 = httpp_get_query_param (client->parser, "_ic2");
+        if (ic2 == NULL && client->respcode == 0)
+        {
+            const char *uhost = httpp_getvar (client->parser, "host");
+            const char *args = httpp_getvar (client->parser, HTTPP_VAR_QUERYARGS); // maybe null
+            const char *uri = httpp_getvar (client->parser, HTTPP_VAR_URI);
+            if (uhost)
+            {   // trigger a redirect with a random query param, to trick any caching
+                const char *proto = not_ssl_connection (&client->connection) ? "http" : "https";
+                char sep = (args) ? '&' : '?';
+                char params [512];
+                snprintf (params, sizeof params,"%s%c_ic2=%"PRId64, (args)?args:"", sep, timing_get_time());
+                ice_http_setup_flags (http, client, 302, 0, NULL);
+                ice_http_printf (http, "Location", 0, "%s://%s%s%s", proto, uhost, uri, params);
+                client->connection.flags |= CONN_FLG_DISCON;
+                client->connection.discon.sent = 0;
+                client->flags &= ~CLIENT_AUTHENTICATED;
+                return fmtcode;
+            }
+        }
+        fmtcode &= ~FMT_REDIRECT_WPARAM;
+    }
+    if (fmtcode & FMT_DROP_RANGE)
+    {
+        client->connection.flags &= ~CONN_FLG_DISCON;
+        client->connection.discon.sent = 0;
+        client->connection.start_pos = 0;
+        client->flags &= ~CLIENT_RANGE_END;
+    }
 
     /* hack for flash player, it wants a length. */
     if (httpp_getvar (client->parser, "x-flash-version"))
@@ -394,7 +450,6 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
                 snprintf (total_size, sizeof total_size, "%" PRIu64, length);
             else
                 snprintf (total_size, sizeof total_size, "%" PRIu64, ((uint64_t)1<<30)-1);
-            ice_http_printf (http, "Content-Transfer-Encoding", 0, "binary");
             ice_http_printf (http, "Accept-Ranges", 0, "bytes");
             ice_http_printf (http, "Content-Range", 0, "bytes %" PRIu64 "-%" PRIu64 "/%s",
                     (uint64_t)client->connection.start_pos, last, total_size );
@@ -419,7 +474,6 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
         http->in_length = (off_t)((length) ? length : -1);
         int chunked = 0;
 
-        ice_http_printf (http, "Content-Transfer-Encoding", 0, "binary");
         if (plugin && plugin->flags & FORMAT_FL_ALLOW_HTTPCHUNKED)
             chunked = (http->in_major == 1 && http->in_minor == 1) ? 1 : 0;
         if (chunked && (fmtcode & FMT_DISABLE_CHUNKED) == 0)
@@ -437,15 +491,14 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
 
 int format_client_headers (format_plugin_t *plugin, ice_http_t *http, client_t *client)
 {
-    avl_node *node;
-
-    apply_client_tweaks (http, plugin, client);
+    if (apply_client_tweaks (http, plugin, client) & FMT_REDIRECT_WPARAM)
+        return 0;
 
     if (plugin && plugin->parser)
     {
         /* iterate through source http headers and send to client */
         avl_tree_rlock (plugin->parser->vars);
-        node = avl_get_first (plugin->parser->vars);
+        avl_node *node = avl_get_first (plugin->parser->vars);
         while (node)
         {
             http_var_t *var = (http_var_t *)node->key;
