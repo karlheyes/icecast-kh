@@ -2248,7 +2248,7 @@ void source_update_settings (ice_config_t *_c, source_t *source, mount_proxy *mo
     }
     stats_lock (source->stats, source->mount);
 
-    if (mountinfo->listenurl)
+    if (mountinfo && mountinfo->listenurl)
     {
         INFO2 ("Using supplied listen url for %s (%s)", source->mount, mountinfo->listenurl);
         stats_set_flags (source->stats, "listenurl", mountinfo->listenurl, STATS_COUNTERS);
