@@ -663,7 +663,7 @@ int auth_add_listener (const char *mount, client_t *client)
                 }
             }
             if (range)
-                INFO2 ("client %ld has unexpected range (%s), ignoring", CONN_ID (client), range);
+                INFO2 ("client %" PRI_ConnID " has unexpected range (%s), ignoring", CONN_ID (client), range);
         }
     }
     if (client->parser->req_type == httpp_req_head)

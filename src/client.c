@@ -153,7 +153,7 @@ void client_destroy(client_t *client)
         client->counter = client->schedule_ms = timing_get_time();
     } while (connection_reset (&client->connection, client->schedule_ms) < 0);  // loop back on failure to kick out
 
-    DEBUG2 ("keepalive detected on %s (%ld), placing back onto worker", CONN_ADDR(client), CONN_ID(client));
+    DEBUG2 ("keepalive detected on %s (%" PRI_ConnID "), placing back onto worker", CONN_ADDR(client), CONN_ID(client));
 
     client->flags = 0;
     client->ops = &http_request_ops;

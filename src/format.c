@@ -454,7 +454,7 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
             ice_http_printf (http, "Content-Range", 0, "bytes %" PRIu64 "-%" PRIu64 "/%s",
                     (uint64_t)client->connection.start_pos, last, total_size );
             http->in_length = range > 0 ? range : -1;
-            DEBUG3 ("client %ld, req %s range %ld requested\n", CONN_ID(client), client->mount, range);
+            DEBUG3 ("client %" PRI_ConnID ", req %s range %" PRIu64 " requested\n", CONN_ID(client), client->mount, range);
             if (range <= 100 && client->parser->req_type != httpp_req_head)
             {
                 char line [range+1];
