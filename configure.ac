@@ -1,5 +1,5 @@
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT([Icecast], [2.4.0-kh21.6], [karl@kheyes.plus.com])
+AC_INIT([Icecast], [2.4.0-kh21.7], [karl@kheyes.plus.com])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign])
 
