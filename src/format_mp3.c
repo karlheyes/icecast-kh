@@ -539,7 +539,7 @@ static void metadata_setup (source_t *source)
         INFO3 ("icy metadata on %s as (%d) %.80s...", source->mount, icy->data[0], icy->data+1);
         yp_touch (source->mount, source->stats);
 
-        flv_meta_append_string (flvmeta, NULL, NULL);
+        flv_meta_append_end_marker (flvmeta);
 
         if (ib_len > 0) ib_len--; // add nul char to help parsing
         iceblock->len -= ib_len;
