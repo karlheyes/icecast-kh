@@ -87,10 +87,10 @@
          the details passed are based on <hostname> and <port> -->
     <!--<master-redirect>1</master-redirect>-->
 
-    <!-- The maximum nuber of slaves that can register for new listener redirection. -->
+    <!-- The maximum number of slaves that can register for new listener redirection. -->
     <!--<max-redirect-slaves>10</max-redirect-slaves>-->
 
-    <!-- Relays. State connection information, and by default 
+    <!-- Relays. State connection information, and by default
          request inline metadata for mp3 streams if available.
          An on-demand relay will only retrieve the stream if
          there are listeners connected -->
