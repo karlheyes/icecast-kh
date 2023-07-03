@@ -15,25 +15,25 @@
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <xsl:for-each select="iceresponse">
-<xsl:value-of select="message" /> 
+<xsl:value-of select="message" />
 </xsl:for-each>
 <xsl:for-each select="source">
 <h3>
 <xsl:if test="server_name"><xsl:value-of select="server_name" /> </xsl:if>
 (<xsl:value-of select="@mount" />)</h3>
-	<table border="0" cellpadding="1" cellspacing="5" bgcolor="444444">
-	<tr>        
-	    <td align="center">
-			<a class="nav2" href="listclients.xsl?mount={@mount}">List Clients</a> |
-        	<a class="nav2" href="moveclients.xsl?mount={@mount}">Move Listeners</a> | 
-			<a class="nav2" href="updatemetadata.xsl?mount={@mount}">Update Metadata</a> |
-        	<a class="nav2" href="killsource.xsl?mount={@mount}">Kill Source</a>
-	    </td></tr>
-	</table>
+  <table border="0" cellpadding="1" cellspacing="5" bgcolor="444444">
+  <tr>
+    <td align="center">
+      <a class="nav2" href="listclients.xsl?mount={@mount}">List Clients</a> |
+      <a class="nav2" href="moveclients.xsl?mount={@mount}">Move Listeners</a> |
+      <a class="nav2" href="updatemetadata.xsl?mount={@mount}">Update Metadata</a> |
+      <a class="nav2" href="killsource.xsl?mount={@mount}">Kill Source</a>
+    </td></tr>
+  </table>
 <br></br>
 <form method="GET" action="manageauth.xsl">
 <table cellpadding="2" cellspacing="4" border="0" >
@@ -72,7 +72,7 @@
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <div class="poster">Support icecast development at <a class="nav" href="http://www.icecast.org">www.icecast.org</a></div>

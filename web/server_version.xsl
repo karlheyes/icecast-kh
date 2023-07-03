@@ -15,7 +15,7 @@
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="./images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <h3>Information</h3>
@@ -66,7 +66,7 @@
 </table>
 </div>
 <div class="roundbottom">
-<img src="./images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br />

@@ -16,17 +16,17 @@
 <xsl:variable name = "currentmount" ><xsl:value-of select="current_source" /></xsl:variable>
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <h3>Move to which mountpoint ?</h3>
 <xsl:for-each select="source">
 	<table border="0" cellpadding="6" cellspacing="5" >
-	<tr>        
-		<td>Move from <xsl:copy-of select="$currentmount" /> to <xsl:value-of select="@mount" /></td>
-		<td>(<xsl:value-of select="listeners" /> Listeners)</td>
-		<td><a class="nav2" href="moveclients.xsl?mount={$currentmount}&amp;destination={@mount}">Move Clients</a></td>
-	</tr>        
+	<tr>
+        <td>Move from <xsl:copy-of select="$currentmount" /> to <xsl:value-of select="@mount" /></td>
+        <td>(<xsl:value-of select="listeners" /> Listeners)</td>
+        <td><a class="nav2" href="moveclients.xsl?mount={$currentmount}&amp;destination={@mount}">Move Clients</a></td>
+	</tr>
 	</table>
 <br />
 <br />
@@ -34,7 +34,7 @@
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <div class="poster">Support icecast development at <a class="nav" href="http://www.icecast.org">www.icecast.org</a></div>

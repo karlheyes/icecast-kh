@@ -18,14 +18,14 @@
 <!--global server stats-->
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <h3>Global Server Stats</h3>
 <table border="0" cellpadding="4">
 <xsl:for-each select="/icestats">
 <xsl:for-each select="*">
-<xsl:if test = "name()!='source'"> 
+<xsl:if test = "name()!='source'">
 <tr>
 	<td width="130"><xsl:value-of select="name()" /></td>
 	<td class="streamdata"><xsl:value-of select="." /></td>
@@ -36,7 +36,7 @@
 </table>
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br />
@@ -47,7 +47,7 @@
 <xsl:for-each select="source">
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <div class="streamheader">
@@ -93,7 +93,7 @@
 </table>
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br />
