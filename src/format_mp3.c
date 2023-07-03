@@ -455,7 +455,7 @@ static void metadata_setup (source_t *source)
     refbuf_t *icy = refbuf_new (size);
     if (icy)
     {
-        refbuf_t *flvmeta = flv_meta_allocate (4000);
+        refbuf_t *flvmeta = flv_meta_allocate (400);
         refbuf_t *iceblock = refbuf_new (4096);
         icy_client_in *icy_in = source->client->format_data;
         mpeg_sync *mpeg_sync = &icy_in->sync;
@@ -539,7 +539,7 @@ static void metadata_setup (source_t *source)
         INFO3 ("icy metadata on %s as (%d) %.80s...", source->mount, icy->data[0], icy->data+1);
         yp_touch (source->mount, source->stats);
 
-        flv_meta_append_string (flvmeta, NULL, NULL);
+        flv_meta_append_end_marker (flvmeta);
 
         if (ib_len > 0) ib_len--; // add nul char to help parsing
         iceblock->len -= ib_len;

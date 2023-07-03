@@ -47,3 +47,4 @@ refbuf_t *flv_meta_allocate (size_t len);
 void flv_meta_append_string (refbuf_t *buffer, const char *tag, const char *value);
 void flv_meta_append_number (refbuf_t *buffer, const char *tag, double value);
 void flv_meta_append_bool (refbuf_t *buffer, const char *tag, int value);
+void flv_meta_append_end_marker (refbuf_t *buffer);
