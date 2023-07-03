@@ -15,7 +15,7 @@
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <xsl:for-each select="source">
@@ -73,7 +73,7 @@
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <div class="poster">Support icecast development at <a class="nav" href="http://www.icecast.org">www.icecast.org</a></div>

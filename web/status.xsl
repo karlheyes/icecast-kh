@@ -17,7 +17,7 @@
 <xsl:for-each select="source">
 <div class="roundcont">
 <div class="roundtop">
-<img src="./images/corner_topleft.jpg" class="corner" style="display: none" alt=""/>
+
 </div>
 <div class="newscontent">
     <div class="streamheader">
@@ -89,12 +89,12 @@
 </xsl:choose>
 </xsl:if>
 
-<tr><td>Current Song:</td><td class="streamdata"> 
+<tr><td>Current Song:</td><td class="streamdata">
 <xsl:if test="artist"><xsl:value-of select="artist" /> - </xsl:if><xsl:value-of select="title" /></td></tr>
 </table>
 </div>
 <div class="roundbottom">
-<img src="./images/corner_bottomleft.jpg" class="corner" style="display: none" alt="" />
+
 </div>
 </div>
 <br />

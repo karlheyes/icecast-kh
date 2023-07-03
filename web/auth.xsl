@@ -19,7 +19,7 @@
 <td>
 <div class="roundcont">
 <div class="roundtop">
-<img src="./images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 
 <div class="newscontent">
@@ -43,7 +43,7 @@
 <xsl:text disable-output-escaping="yes">&amp;</xsl:text>nbsp;
 </div>
 <div class="roundbottom">
-<img src="./images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br></br><br></br>

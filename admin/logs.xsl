@@ -14,7 +14,7 @@
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <h3>Access log</h3>
@@ -23,7 +23,7 @@ no frame support however contents can be found <a href="showlog.xsl?log=accesslo
 </iframe>
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br />
@@ -31,7 +31,7 @@ no frame support however contents can be found <a href="showlog.xsl?log=accesslo
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <h3>Error log</h3>
@@ -40,7 +40,7 @@ no frame support however contents can be found <a href="showlog.xsl?log=errorlog
 </iframe>
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br />
@@ -48,7 +48,7 @@ no frame support however contents can be found <a href="showlog.xsl?log=errorlog
 
 <div class="roundcont">
 <div class="roundtop">
-<img src="../images/corner_topleft.jpg" class="corner" style="display: none" />
+
 </div>
 <div class="newscontent">
 <h3>Playlist log</h3>
@@ -57,7 +57,7 @@ no frame support however contents can be found <a href="showlog.xsl?log=playlist
 </iframe>
 </div>
 <div class="roundbottom">
-<img src="../images/corner_bottomleft.jpg" class="corner" style="display: none" />
+
 </div>
 </div>
 <br />
