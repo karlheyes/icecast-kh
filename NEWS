@@ -18,6 +18,34 @@ Feature differences from Xiph release
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0.kh22
+. auth processing update
+  . url engine uses separate timers for the request types.
+  . small changes to messaging and timeouts
+. fix 404 case from cache starvation.
+. fix stats crash bug from source restart.
+. Relay restart uses a time marker to allow more error case handling
+. range handling updates.
+. fix lock bug on file stats
+. add listenurl to mount block (generated previously), this is sent to YP.
+. trick for safari only (redirect to same url with random code param) to
+  workaround a caching issue.
+. Allow FLV metadata blocks to resize if excessive tags added.
+. worker processing fixes from previous release
+. revert various spin locks to mutexes.
+. small http processing updates
+. log update
+  . split locking, allows for more concurrency.
+  . level can be the original numbers, names or keywords eg subsec for subseconds
+    debug=300, info=100 to keep N lines in that category.
+  . extracting info from core file made easier if need arises.
+  . missed timestamps in showlog, and timestamps can be in millisecs
+  . add level param to showlog to allow just that level up, default is the xml setting
+  . add history tag in logs, like display, overridden by possble level settings
+. drop the corner images, use css to achieve the same thing without the extra requests
+. include a DLL to help the shipped DLLs (eg libcurl) use older windows releases.
+. various internal code cleanups.
+
 2.4.0.kh21
 . Worker update. introduce 2 queues per worker for client processing, fast and
   normal. fast being used for immediate scheduling. The processing routines no longer
