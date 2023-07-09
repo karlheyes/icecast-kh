@@ -3,7 +3,7 @@
  * This program is distributed under the GNU General Public License, version 2.
  * A copy of this license is included with this source.
  *
- * Copyright 2010-2022, Karl Heyes <karl@kheyes.plus.com>
+ * Copyright 2010-2023, Karl Heyes <karl@kheyes.plus.com>
  * Copyright 2000-2004, Jack Moffitt <jack@xiph.org>,
  *                      Michael Smith <msmith@xiph.org>,
  *                      oddsock <oddsock@xiph.org>,
@@ -56,7 +56,7 @@ typedef struct source_tag
     time_t linger_time;
     int linger_duration;
 
-    long termination_count;
+    long listener_check;
     unsigned long peak_listeners;
     unsigned long listeners;
     unsigned long prev_listeners;

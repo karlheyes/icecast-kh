@@ -515,7 +515,7 @@ static int command_move_clients (client_t *client, source_t *source, int respons
     {
         fbinfo fb = { .mount = (char*)dest_source, .limit = rate };
         source_set_fallback (source, &fb);
-        source->termination_count = source->listeners;
+        source->listener_check = source->listeners;
         source->flags |= SOURCE_LISTENERS_SYNC;
     }
 

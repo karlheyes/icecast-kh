@@ -1905,16 +1905,16 @@ static int relay_read (client_t *client)
         INFO2 ("fallback on %s %sattempted", source->mount, fallback ? "" : "not ");
         source_shutdown (source, fallback);
     }
-    if (source->termination_count && source->termination_count <= source->listeners)
+    if (source->listener_check && source->listener_check <= source->listeners)
     {
         client->schedule_ms = client->worker->time_ms + 150;
         if (client->timer_start + 1500 < client->worker->time_ms)
         {
-            WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount);
+            WARN2 ("%ld listeners still to process in terminating %s", source->listener_check, source->mount);
             source->flags &= ~SOURCE_TERMINATING;
         }
         else
-            DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->termination_count, source->listeners);
+            DEBUG3 ("%s waiting (%lu, %lu)", source->mount, source->listener_check, source->listeners);
         thread_rwlock_unlock (&source->lock);
         return 0;
     }
@@ -1939,7 +1939,7 @@ static int relay_read (client_t *client)
         {
             INFO1 ("listeners on terminating relay %s, rechecking", relay->localmount);
             client->timer_start = client->worker->time_ms;
-            source->termination_count = source->listeners;
+            source->listener_check = source->listeners;
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
             source->flags |= SOURCE_LISTENERS_SYNC;
             source_listeners_wakeup (source);

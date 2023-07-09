@@ -341,7 +341,7 @@ static int _free_source (void *p)
 
     /* There should be no listeners on this mount */
     if (source->listeners)
-        WARN3("active listeners on mountpoint %s (%ld, %ld)", source->mount, source->listeners, source->termination_count);
+        WARN3("active listeners on mountpoint %s (%ld, %ld)", source->mount, source->listeners, source->listener_check);
     avl_tree_free (source->clients, NULL);
 
     thread_rwlock_unlock (&source->lock);
@@ -747,7 +747,7 @@ int source_read (source_t *source)
     client->schedule_ms = client->worker->time_ms;
     if (source->flags & SOURCE_LISTENERS_SYNC)
     {
-        if (source->termination_count > 0)
+        if (source->listener_check > 0)
         {
             if (client->timer_start + 1000 < client->worker->time_ms)
             {
@@ -907,11 +907,11 @@ static int source_client_read (client_t *client)
         }
     }
 
-    if (source->termination_count && source->termination_count <= (long)source->listeners)
+    if (source->listener_check && source->listener_check <= (long)source->listeners)
     {
         if (client->timer_start + 1000 < client->worker->time_ms)
         {
-            WARN2 ("%ld listeners still to process in terminating %s", source->termination_count, source->mount);
+            WARN2 ("%ld listeners still to process in terminating %s", source->listener_check, source->mount);
             if (source->listeners != source->clients->length)
             {
                 WARN3 ("source %s has inconsistent listeners (%ld, %u)", source->mount, source->listeners, source->clients->length);
@@ -920,7 +920,7 @@ static int source_client_read (client_t *client)
             source->flags &= ~SOURCE_TERMINATING;
         }
         else
-            DEBUG4 ("%p %s waiting (%lu, %lu)", source, source->mount, source->termination_count, source->listeners);
+            DEBUG4 ("%p %s waiting (%lu, %lu)", source, source->mount, source->listener_check, source->listeners);
         client->schedule_ms = client->worker->time_ms + 50;
     }
     else
@@ -928,7 +928,7 @@ static int source_client_read (client_t *client)
         if (source->listeners)
         {
             INFO1 ("listeners on terminating source %s, rechecking", source->mount);
-            source->termination_count = source->listeners;
+            source->listener_check = source->listeners;
             client->timer_start = client->worker->time_ms;
             source->flags &= ~SOURCE_PAUSE_LISTENERS;
             source->flags |= (SOURCE_TERMINATING|SOURCE_LISTENERS_SYNC);
@@ -1441,7 +1441,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
 
             if (ret <= 0)
             {
-                source->termination_count--;
+                source->listener_check--;
                 return ret;
             }
             read_lock = 0;
@@ -1473,7 +1473,7 @@ int listener_waiting_on_source (source_t *source, client_t *client)
         thread_rwlock_unlock (&source->lock);
         thread_rwlock_wlock (&source->lock);
     }
-    source->termination_count--;
+    source->listener_check--;
     return ret;
 }
 
@@ -1726,7 +1726,7 @@ static int source_set_override (mount_proxy *mountinfo, source_t *dest_source, f
                         source->fallback.mount = strdup (dest_mount);
                         source->fallback.flags = FS_FALLBACK;
                         source->fallback.type = type;
-                        source->termination_count = source->listeners;
+                        source->listener_check = source->listeners;
                         source->client->timer_start = timing_get_time();
                         source->flags |= SOURCE_LISTENERS_SYNC;
                         source_listeners_wakeup (source);
@@ -1847,7 +1847,7 @@ void source_shutdown (source_t *source, int with_fallback)
     INFO1("Source \"%s\" exiting", source->mount);
 
     source->flags &= ~(SOURCE_ON_DEMAND);
-    source->termination_count = source->listeners;
+    source->listener_check = source->listeners;
     source->client->timer_start = source->client->worker->time_ms;
     source->flags |= (SOURCE_TERMINATING | SOURCE_LISTENERS_SYNC);
     source_listeners_wakeup (source);
