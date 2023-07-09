@@ -688,17 +688,17 @@ static int _source_read (source_t *source)
             source->skip_duration = (long)(source->skip_duration * 0.9);
         }
 
-        if (source->shrink_time)
-        {
-            if (source->shrink_time > client->worker->time_ms)
-                break;      // not time yet to consider the purging point
-            queue_size_target = (source->client->queue_pos - source->shrink_pos);
-            source->shrink_pos = 0;
-            source->shrink_time = 0;
-        }
+        if (source->shrink_time == 0 || source->shrink_time > client->worker->time_ms)
+            break;
+        queue_size_target = (source->client->queue_pos - source->shrink_pos);
+        source->shrink_pos = 0;
+        source->shrink_time = 0;
+
         /* lets see if we have too much/little data in the queue */
-        if ((queue_size_target < source->min_queue_size) || (queue_size_target > source->queue_size_limit))
-            queue_size_target = (source->listeners) ? source->queue_size_limit : source->min_queue_size;
+        if (queue_size_target < source->min_queue_size)
+            queue_size_target = source->min_queue_size;
+        else if (queue_size_target > source->queue_size_limit)
+            queue_size_target = source->queue_size_limit;   // unlikely
 
         loop = 48 + (source->incoming_rate >> 13); // scale max on high bitrates
         queue_size_target += 8000; // lets not be too tight to the limit
@@ -1572,12 +1572,13 @@ static int send_listener (source_t *source, client_t *client)
     if (source->shrink_time && client->connection.error == 0)
     {
         lag = source->client->queue_pos - client->queue_pos;
-        if (lag > source->queue_size_limit)
-            lag = source->queue_size_limit; // impose a higher lag value
-        thread_mutex_lock (&source->shrink_lock);
-        if (client->queue_pos < source->shrink_pos)
-            source->shrink_pos = source->client->queue_pos - lag;
-        thread_mutex_unlock (&source->shrink_lock);
+        if (lag < source->queue_size_limit)
+        {
+            thread_mutex_lock (&source->shrink_lock);
+            if (client->queue_pos < source->shrink_pos)
+                source->shrink_pos = client->queue_pos;
+            thread_mutex_unlock (&source->shrink_lock);
+        }
     }
     return ret;
 }
