@@ -518,7 +518,7 @@ ice_config_http_header_t default_headers[] =
                                         .value = "*",
                                         .callback = _send_cors_hdr } },
     { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Credentials",
-                                        .value = "True", .callback = _send_cors_hdr } },
+                                        .value = "true", .callback = _send_cors_hdr } },
     { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Headers",
                                         .value = "Origin, Icy-MetaData, Range",
                                         .callback = _send_cors_hdr } },
