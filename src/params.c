@@ -303,12 +303,9 @@ int  ice_http_apply_cfg (ice_http_t *http, ice_config_http_header_t *h)
 {
     while (h)
     {
-        if (cached_pattern_compare (http->respcode, h->hdr.status) == 0)
-        {
-            ice_param_t hdr = { .name = h->hdr.name, .value = h->hdr.value, .flags = h->flags,
-                .callback = h->hdr.callback, .callback_arg = http };
-            _ice_params_apply (&http->headers, &hdr);
-        }
+        ice_param_t hdr = { .name = h->hdr.name, .value = h->hdr.value, .flags = h->flags,
+            .callback = h->hdr.callback, .callback_arg = http };
+        _ice_params_apply (&http->headers, &hdr);
         h = h->next;
     }
     return 0;
