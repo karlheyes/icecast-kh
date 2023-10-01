@@ -520,7 +520,7 @@ ice_config_http_header_t default_headers[] =
     { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Credentials",
                                         .value = "true", .callback = _send_cors_hdr } },
     { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Headers",
-                                        .value = "Origin, Icy-MetaData, Range",
+                                        .value = "Origin, Icy-MetaData, Range, Authorization",
                                         .callback = _send_cors_hdr } },
     { .hdr = { .status = "2*",          .name = "Access-Control-Expose-Headers",
                                         .value = "Icy-Br, Icy-Description, Icy-Genre, Icy-MetaInt, Icy-Name, Icy-Pub, Icy-Url",
