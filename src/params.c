@@ -303,9 +303,12 @@ int  ice_http_apply_cfg (ice_http_t *http, ice_config_http_header_t *h)
 {
     while (h)
     {
-        ice_param_t hdr = { .name = h->hdr.name, .value = h->hdr.value, .flags = h->flags,
-            .callback = h->hdr.callback, .callback_arg = http };
-        _ice_params_apply (&http->headers, &hdr);
+        if (cached_pattern_compare (http->respcode, h->hdr.status) == 0)
+        {
+            ice_param_t hdr = { .name = h->hdr.name, .value = h->hdr.value, .flags = h->flags,
+                .callback = h->hdr.callback, .callback_arg = http };
+            _ice_params_apply (&http->headers, &hdr);
+        }
         h = h->next;
     }
     return 0;
@@ -511,18 +514,18 @@ ice_config_http_header_t default_headers[] =
     { .hdr = { .status = "2*",          .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
     { .hdr = { .status = "2*",          .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
     { .hdr = { .status = "2*",          .name = "Vary",                 .value = "Origin" } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Origin",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Origin",
                                         .value = "*",
                                         .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Credentials",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Credentials",
                                         .value = "true", .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Headers",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Headers",
                                         .value = "Origin, Icy-MetaData, Range, Authorization",
                                         .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Expose-Headers",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Expose-Headers",
                                         .value = "Icy-Br, Icy-Description, Icy-Genre, Icy-MetaInt, Icy-Name, Icy-Pub, Icy-Url",
                                         .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Methods",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Methods",
                                         .value = "GET, OPTIONS, SOURCE, PUT, HEAD, STATS",
                                         .callback = _send_cors_hdr } },
     { .hdr = { .status = "*",           .name = "Date",                 .callback = _date_hdr } },
