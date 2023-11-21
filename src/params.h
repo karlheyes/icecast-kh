@@ -70,6 +70,7 @@ typedef struct  _ice_http_t
     const char  *in_connection;
     const char  *in_origin;
     char        *in_realm;
+    char        *in_server_id;
 
     client_t    *client;
 
