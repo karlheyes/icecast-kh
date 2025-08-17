@@ -407,7 +407,7 @@ int config_mount_ref (mount_proxy *mountinfo, int inc);
 mount_proxy *config_lock_mount (ice_config_t *config, const char *mount);
 mount_proxy *config_find_mount (ice_config_t *config, const char *mount);
 int config_http_copy (ice_config_http_header_t *src, ice_config_http_header_t **dest);
-void config_xml_parse_failure (void*x,  xmlErrorPtr error);
+void config_xml_parse_failure (void *x, const xmlError *error);
 int config_qsizing_conv_a2n (const char *str, uint32_t *p);
 
 int config_rehash(void);
