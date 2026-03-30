@@ -379,7 +379,8 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
             const char *uri = httpp_getvar (client->parser, HTTPP_VAR_URI);
             if (uhost)
             {   // trigger a redirect with a random query param, to trick any caching
-                const char *proto = not_ssl_connection (&client->connection) ? "http" : "https";
+                const char *proto = httpp_getvar (client->parser, "x-forwarded-proto");
+                proto = proto ? proto : (not_ssl_connection (&client->connection) ? "http" : "https");
                 char sep = (args) ? '&' : '?';
                 unsigned plen = 40 + ((args) ? strlen (args) : 0);
                 char params [plen];
