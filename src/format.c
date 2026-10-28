@@ -296,7 +296,7 @@ static const char *search_ua_namever (const char *ua, const char *patt)
     int len = strlen (patt);
     while (p)
     {
-       char *s = strstr (p, patt);
+       const char *s = strstr (p, patt);
        if (s)
        {
            int off = 0;

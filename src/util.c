@@ -111,8 +111,8 @@ int util_timed_wait_for_fd(sock_t fd, int timeout)
 }
 
 
-char *util_get_extension(const char *path) {
-    char *ext = strrchr(path, '.');
+const char *util_get_extension(const char *path) {
+    const char *ext = strrchr(path, '.');
 
     if(ext == NULL)
         return "";
@@ -122,7 +122,7 @@ char *util_get_extension(const char *path) {
 
 int util_check_valid_extension(const char *uri) {
     int    ret = 0;
-    char    *p2;
+    const char    *p2;
 
     if (uri) {
         p2 = strrchr(uri, '.');

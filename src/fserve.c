@@ -185,7 +185,7 @@ void fserve_shutdown(void)
 /* string returned needs to be free'd */
 char *fserve_content_type (const char *path)
 {
-    char *ext = util_get_extension(path);
+    const char *ext = util_get_extension(path);
     mime_type exttype = { NULL, NULL };
     void *result;
     char *type;

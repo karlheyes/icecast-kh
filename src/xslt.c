@@ -219,8 +219,10 @@ void xslt_initialize(void)
 #endif
     xmlInitParser();
     LIBXML_TEST_VERSION
+#if LIBXML_VERSION < 21200
     xmlSubstituteEntitiesDefault(1);
     xmlLoadExtDtdDefaultValue = 1;
+#endif
 }
 
 

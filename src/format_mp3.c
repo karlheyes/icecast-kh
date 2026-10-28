@@ -311,7 +311,8 @@ static int parse_icy_metadata (const char *name, mp3_state *source_mp3, const ch
     meta_len--;
     do
     {
-        char *s, *end = NULL;
+        char *s;
+        char const *end = NULL;
         int len, term_len = 2;
         if (strncmp (metadata, "StreamTitle='", 13) == 0)
         {
