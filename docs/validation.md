@@ -1,57 +1,88 @@
-# Проверка Icecast 2.4.0-kh22-p1
+# Icecast 2.4.0-kh22 validation
 
-Дата: **5 ноября 2026 года**. Локальный стенд, Linux x86_64, Debian 12,
-Python 3.13.16, GCC 12.2.0. База обоих сравнений:
+## Build p2
+
+On 5 November 2026, `bash tests/check.sh` completed with exit code 0.
+For both XML and XSL variants of `listclients` with source URL authentication,
+KH22 returned 403 for an authorized request, while p2 returned 200. Rejected
+requests returned 401 in both builds. Previous regression scenarios also passed.
+
+Archive `artifacts/icecast-2.4.0-kh22-p2-linux-x86_64.tar.gz`, SHA-256:
+
+```text
+719c343863068b8e54a603a9e343c700b11a5dacd0b88950b6e88e7402392cef
+```
+
+SHA-256 of the binary inside the image:
+
+```text
+2076916b44899a28ce14847b90ac97362cc8495255d1b67ff2bd94336d9f7fa3
+```
+
+The logs and checksums in `artifacts/` correspond to the most recent run, p2.
+The [regression-results.json](regression-results.json) snapshot and the section
+below describe the earlier p1 run.
+
+In a separate check, an HTTP 200 MP3/FLV response began with the `FLV` header,
+while AAC/FLV began with tag data without that header. This is consistent with
+[issue #459](https://github.com/karlheyes/icecast-kh/issues/459), but the fix in
+[PR #461](https://github.com/karlheyes/icecast-kh/pull/461) has not been reviewed
+or included in p2. Player behavior was not checked separately.
+
+## Build p1
+
+Date: **5 November 2026**. Local test environment: Linux x86_64, Debian 12,
+Python 3.13.16, GCC 12.2.0. Baseline for both comparisons:
 `bb4173850be18466adc3c8b12a3b08d4b4ba1a55` (KH22).
 
-## Методика
+## Method
 
-Полный цикл: `bash tests/check.sh`. Исходный и исправленный KH22 собраны
-одним Dockerfile с `make clean`, одинаковыми build dependencies и `-O2 -g`.
-Проверка исходной версии считается успешной только при ожидаемом SIGSEGV
-в целевом сценарии и выживании контрольных сценариев.
+Full run: `bash tests/check.sh`. Baseline and patched KH22 were built using the
+same Dockerfile, `make clean`, the same build dependencies, and `-O2 -g`.
+A baseline check passes only when the target scenario produces the expected
+SIGSEGV and the control scenarios survive.
 
-Каждый runtime-контейнер изолирован: только loopback (`--network none`),
-без опубликованных портов и host volumes, от `nobody`, с read-only root
-и tmpfs `/tmp`. Лимиты: 256 MiB, один CPU, 96 PID, core dumps отключены,
-capabilities удалены. Конфиги, пароли, IP/User-Agent и аудио синтетические.
-Рабочие серверы и конфигурация AzuraCast не использовались.
+Each runtime container is isolated: loopback only (`--network none`), no published
+ports or host volumes, running as `nobody`, with a read-only root and `/tmp` on
+tmpfs. Limits: 256 MiB, one CPU, 96 PIDs, core dumps disabled, and capabilities
+removed. Configs, passwords, IP/User-Agent values, and audio are synthetic.
+Production servers and AzuraCast configuration were not used.
 
-## Зафиксированные результаты
+## Recorded results
 
-Полный цикл завершился с exit code 0. Машиночитаемый снимок:
+The full run completed with exit code 0. Machine-readable snapshot:
 [regression-results.json](regression-results.json).
 
-| Сценарий                    | KH22           | p1             |
-| --------------------------- | -------------- | -------------- |
-| `listclients` без relay     | 100 × HTTP 400 | 100 × HTTP 400 |
-| `stats`, relay подключается | 100 × HTTP 200 | 100 × HTTP 200 |
-| Relay/admin, подключение    | SIGSEGV        | 100 × HTTP 400 |
-| Relay/admin, reconnect      | Не запускался  | 100 × HTTP 400 |
-| Обычный XSLT, успех         | HTTP 200       | HTTP 200       |
-| Обычный XSLT, ошибки        | HTTP 404       | HTTP 404       |
-| URL-auth XSLT               | SIGSEGV        | HTTP 200/404   |
+| Scenario                      | KH22           | p1             |
+| ----------------------------- | -------------- | -------------- |
+| `listclients` without relay   | 100 × HTTP 400 | 100 × HTTP 400 |
+| `stats` while relay connects  | 100 × HTTP 200 | 100 × HTTP 200 |
+| Relay/admin during connection | SIGSEGV        | 100 × HTTP 400 |
+| Relay/admin during reconnect  | Not run        | 100 × HTTP 400 |
+| Ordinary XSLT, success        | HTTP 200       | HTTP 200       |
+| Ordinary XSLT, errors         | HTTP 404       | HTTP 404       |
+| URL-auth XSLT                 | SIGSEGV        | HTTP 200/404   |
 
-На исходном KH22 relay/admin падает на первом запросе. У p1 после обоих
-подключений relay декодируется аудио, меняется metadata и доступна статистика.
-Проверены SOURCE MP3/AAC: аудио, metadata, счётчики и IP/User-Agent;
-fallback: миграция слушателя и новый запрос с декодированием аудио.
-Контрольные процессы KH22 и все процессы p1 завершились по SIGTERM с exit 0.
+Baseline KH22 crashes on the first relay/admin request. With p1, audio decodes,
+metadata changes, and stats are available after each relay connection. SOURCE
+MP3/AAC audio, metadata, counters, and IP/User-Agent were checked; fallback was
+checked through listener migration and audio decoding on a new request. Baseline
+control processes and all p1 processes exited with code 0 after SIGTERM.
 
-Каждый выживший XSLT-сценарий дополнительно выполняет 60 запросов с
-параллельностью 6, чередуя проверяемый и корректный шаблон. После них
-успешно обслуживается `/admin/stats.xsl`. Ошибки: отсутствующий файл,
-повреждённый XML и `xsl:message terminate="yes"`.
-Итого для p1 — 488 публичных XSLT-запросов и восемь admin XSLT-запросов.
+Each surviving XSLT scenario additionally executes 60 requests at concurrency 6,
+alternating the template under test with a valid template. `/admin/stats.xsl`
+then succeeds. Error cases cover a missing file, malformed XML, and
+`xsl:message terminate="yes"`. The p1 total is 488 public XSLT requests and eight
+admin XSLT requests.
 
-Пройдены `mypy --strict --python-version 3.13 tests/regression.py`,
-`bash -n tests/check.sh`, Markdown formatter/linter и `git diff --check`.
-SHA-256 исходников C, теста и Dockerfile в проверенном образе совпали
-с текущими файлами рабочего дерева.
+The checks passed: `mypy --strict --python-version 3.13 tests/regression.py`,
+`bash -n tests/check.sh`, Markdown formatter/linter, and `git diff --check`.
+At the time of the p1 run, SHA-256 checksums of the C sources, test, and Dockerfile
+in the tested image matched the working tree.
 
-Библиотеки стенда: glibc 2.36, libxml2 2.9.14, libxslt 1.1.35,
-libcurl 7.88.1, OpenSSL 3.0.22. Точные Debian revisions и `ldd` сохранены
-в локальном `artifacts/build-environment.txt`.
+Test environment libraries: glibc 2.36, libxml2 2.9.14, libxslt 1.1.35,
+libcurl 7.88.1, OpenSSL 3.0.22. Exact Debian revisions and `ldd` output were
+recorded in the local `artifacts/build-environment.txt` for that run.
 
 Install archive: `artifacts/icecast-2.4.0-kh22-p1-linux-x86_64.tar.gz`.
 SHA-256:
@@ -60,71 +91,70 @@ SHA-256:
 2cad10ead73bb7112c18d4aae37c4b7721f497a0a13efc64e3ad2dea6569b7a6
 ```
 
-Бинарник внутри архива, `usr/local/bin/icecast`. SHA-256:
+Binary inside the archive: `usr/local/bin/icecast`. SHA-256:
 
 ```text
 4d85b570754710ee41b93174d885a1ad73f210aaa3b5c38926fac316e6a646a2
 ```
 
-Локальный тестовый образ `icecast-kh:kh22-p1`:
+Local test image `icecast-kh:kh22-p1`:
 
 ```text
 sha256:041c32dc27744c84b3dbfd6173681655d17413a68338716beb3e3ec5d583658f
 ```
 
-Checksum архива перепроверен после выгрузки из контейнера. Полные логи двух
-сборок, пяти test suites и checksum находятся в `artifacts/`; они сохраняются
-локально и не включаются в Git. При новой сборке checksum архива может отличаться.
+The archive checksum was rechecked after extraction from the container. Full logs
+of both builds, five test suites, and checksums were saved locally in `artifacts/`
+and excluded from Git. Later runs overwrite these logs; archive checksums may
+also differ between builds.
 
-## Проверка жизненного цикла
+## Lifecycle review
 
-Admin handler читает worker под уже взятой блокировкой source. Если source client
-или worker отсутствует, блокировка освобождается и формируется штатный HTTP 400.
-`client_change_worker()` с NULL больше не вызывается по этому пути. Проверка
-восстановления relay нужна также для обнаружения оставшейся блокировки source.
+The admin handler reads the worker while holding the source lock. If the source
+client or worker is absent, the lock is released and a normal HTTP 400 response
+is sent. This path no longer calls `client_change_worker()` with NULL. Relay
+recovery is also tested to detect a lock left held.
 
-Для XSLT просмотрены оба entry point (`stats_transform_xslt` и
-`admin_send_response`), URL-auth (`queue_auth_client` →
-`add_authenticated_listener`), `xslt_client`, `xslt_update`, `client_add_incoming`,
-подготовка ответа, очистка XML/cache и передача в fserve.
+For XSLT, both entry points (`stats_transform_xslt` and `admin_send_response`),
+URL auth (`queue_auth_client` → `add_authenticated_listener`), `xslt_client`,
+`xslt_update`, `client_add_incoming`, response preparation, XML/cache cleanup,
+and the handoff to fserve were reviewed.
 
-URL-auth снимает клиента с worker. По коду предложения
-[RexViber в issue #478](https://github.com/karlheyes/icecast-kh/issues/478)
-при NULL-worker меняются часы, но запрос не передаётся другому обработчику.
-Поэтому здесь после установки `xslt_ops` вызывается `client_add_incoming`;
-после успешной передачи текущий поток больше не обращается к клиенту.
-При уже назначенном worker сохраняется прямой вызов обработчика.
+URL auth removes the client from its worker. The code proposed by
+[RexViber in issue #478](https://github.com/karlheyes/icecast-kh/issues/478)
+changes the clock when the worker is NULL but does not hand the request to another
+handler. This build therefore calls `client_add_incoming` after setting `xslt_ops`;
+after a successful handoff the current thread no longer accesses the client. If
+a worker is already assigned, the handler is called directly as before.
 
-Успешное преобразование очищает `aux_data` в существующем `_apply_sheet`,
-освобождает исходный XML и передаёт ответ в fserve. На ошибочных путях
-`xslt_update` и `xslt_client` теперь также очищают `aux_data` перед отправкой 404;
-`xsl_req_clear` освобождает XML, filename и оставшиеся ссылки cache.
-Повторные успешные запросы после ошибок проверяют дальнейшую работу очереди.
+A successful transformation clears `aux_data` in the existing `_apply_sheet`,
+frees the original XML, and passes the response to fserve. On error paths,
+`xslt_update` and `xslt_client` now also clear `aux_data` before sending 404;
+`xsl_req_clear` frees the XML, filename, and remaining cache references. Repeated
+successful requests after errors check that the queue continues to work.
 
-## Особенности стенда
+## Test environment notes
 
-- Старый временный «guard» не содержал исправления в машинном коде:
-  `make` пропустил `admin.c` при совпавших timestamp и сообщил clock skew.
-  Он упал на том же первом запросе, что baseline. Используются новые чистые сборки;
-  старый временный образ и только его cache records удалены.
-- Общий счётчик слушателей обновляется периодически. Тест ожидает его обновления,
-  сохраняя слушателя подключённым, вместо проверки сразу после подключения.
-- KH22 заменяет `retry-delay` меньше 3 секунд на 60 секунд. Fixture задаёт 3,
-  а reconnect проверяется с отдельным окном ожидания.
-- Проверка смены metadata выявила отдельный крайний случай: KH22 отбрасывает
-  последний байт ICY-блока. Если строка занимает весь блок без NUL-padding,
-  теряется завершающий `;` и title не обновляется. Fixture оставляет NUL-padding;
-  этот дефект парсера не входит в два патча и не исправлен.
-- `make check` выполнен; upstream не регистрирует автоматических тестов
-  через `TESTS`/`check_PROGRAMS`. Доказательство исправлений дают HTTP-сценарии.
+- An earlier temporary "guard" did not contain the fix in its machine code:
+  `make` skipped `admin.c` when timestamps matched and reported clock skew. It
+  crashed on the same first request as the baseline. New clean builds are used;
+  the old temporary image and only its cache records were removed.
+- The global listener counter updates periodically. The test keeps the listener
+  connected and waits for the update instead of checking immediately.
+- KH22 replaces `retry-delay` values below 3 seconds with 60 seconds. The fixture
+  sets it to 3, and reconnect has a separate wait window.
+- The metadata change test exposed a separate edge case: KH22 discards the last
+  byte of an ICY block. If a string fills the block without NUL padding, the
+  terminating `;` is lost and the title is not updated. The fixture leaves NUL
+  padding; this parser defect is outside the two p1 fixes and remains unfixed.
+- `make check` ran; upstream registers no automated tests through
+  `TESTS`/`check_PROGRAMS`. The HTTP scenarios provide evidence for the fixes.
 
-## Ограничения
+## Limitations
 
-Проверка охватывает два дефекта и перечисленные synthetic smoke-сценарии.
-Нагрузочный тест длительного вещания, sanitizers, другие архитектуры,
-интеграция бинарника в образ AzuraCast и установка на серверы не выполнялись.
-Совместимость ABI нужно подтвердить в целевом образе перед установкой.
-Побитовая воспроизводимость не доказана: Debian-пакеты не закреплены snapshot,
-а install archive содержит временные метки сборки.
-
-Публикация на GitHub отменена пользователем: результат сохраняется локально.
+The p1 validation covers two defects and the synthetic smoke scenarios listed
+above. Long-running broadcast load tests, sanitizers, other architectures,
+integration into the AzuraCast image, and server installation were not performed.
+ABI compatibility must be confirmed in the target image before installation.
+Bit-for-bit reproducibility has not been established: Debian packages are not
+pinned to a snapshot, and the install archive contains build timestamps.

@@ -1,84 +1,92 @@
-# Icecast-KH22: два исправления стабильности
+# Icecast-KH22: stability fixes
 
-Собственная сборка **2.4.0-kh22-p1** на базе
+English | [Русский](README.ru.md)
+
+Custom build **2.4.0-kh22-p2** based on
 [Icecast-KH22](https://github.com/karlheyes/icecast-kh/tree/bb4173850be18466adc3c8b12a3b08d4b4ba1a55).
-Сохранены история upstream, авторство и лицензия **GPL-2.0**:
-[COPYING](COPYING), [AUTHORS](AUTHORS), [исходный README](README).
+Upstream history, authorship, and the **GPL-2.0** license are preserved:
+[COPYING](COPYING), [AUTHORS](AUTHORS), and the [original README](README).
 
-## Исправления
+## Fixes
 
-- Mount-specific admin-запрос к подключающемуся relay возвращает HTTP 400
-  `Source is not available`, если у source ещё нет worker. Блокировка source
-  освобождается до формирования ответа. После подключения relay административные
-  команды и подробная статистика снова доступны.
-- XSLT после URL-аутентификации использует независимые часы при отсутствии
-  worker и возвращает запрос в очередь обработки. Ошибки шаблонов дают HTTP 404;
-  перед отправкой ошибки очищается ссылка `aux_data` на XSLT-запрос.
+- A mount-specific admin request to a connecting relay returns HTTP 400
+  `Source is not available` if the source has no worker yet. The source lock is
+  released before the response is prepared. Admin commands and detailed stats
+  are available again after the relay connects.
+- XSLT after URL authentication uses an independent clock when no worker is
+  assigned and queues the request for processing. Template errors return HTTP 404;
+  the `aux_data` reference to the XSLT request is cleared before the response.
+- `listclients` and `listclients.xsl` are handled as admin requests after
+  successful source URL authentication. This fix is based on
+  [upstream PR #431](https://github.com/karlheyes/icecast-kh/pull/431).
 
-Проверка NULL-worker и использование `timing_get_time()` основаны на
-[предложении RexViber, upstream issue #478](https://github.com/karlheyes/icecast-kh/issues/478).
-Здесь дополнительно обеспечена постановка запроса на worker: одного изменения
-часов недостаточно для доставки ответа после URL-аутентификации.
+The NULL-worker check and use of `timing_get_time()` are based on
+[RexViber's proposal in upstream issue #478](https://github.com/karlheyes/icecast-kh/issues/478).
+This build also queues the request on a worker: changing the clock alone does not
+ensure delivery of the response after URL authentication.
 
-## База и совместимость
+## Baseline and compatibility
 
-База — commit `bb4173850be18466adc3c8b12a3b08d4b4ba1a55`, тег
-`icecast-2.4.0-kh22`, используемый рецептом Icecast в AzuraCast 0.24.0.
-Изначально форк был клонирован с `master` на `ea3554b`; между базой KH22 и этим
-commit десять коммитов, затрагивающих девять файлов. Они включают изменения CORS,
-очередей source, TLS/reload и Safari redirect. Для узкой совместимой сборки они
-не включены; исходный `master` сохранён. Работа ведётся в `fixes/kh22-stability`.
+The baseline is commit `bb4173850be18466adc3c8b12a3b08d4b4ba1a55`, tag
+`icecast-2.4.0-kh22`, used by the Icecast recipe in AzuraCast 0.24.0.
+The fork was originally cloned from `master` at `ea3554b`; ten commits affecting
+nine files separate that commit from KH22. They include changes to CORS, source
+queues, TLS/reload, and Safari redirects. They are excluded from this focused
+build; the original `master` is preserved. Work is on `fixes/kh22-stability`.
 
-Сохраняются протоколы SOURCE, MP3/AAC, relay, metadata, fallback, XML stats
-и список слушателей с IP/User-Agent. Изолированные тесты проверяют эти сценарии.
-Это не подтверждение установки внутри рабочего AzuraCast: его Compose, конфиги,
-станции и серверы в этой задаче не изменяются. Совместимость динамических библиотек
-нужно проверять в целевом образе перед отдельным этапом установки.
+SOURCE, MP3/AAC, relay, metadata, fallback, XML stats, and the listener list with
+IP/User-Agent are retained and exercised by isolated tests. These tests do not
+confirm installation in a working AzuraCast instance. Its Compose setup, configs,
+stations, and servers have not been changed. Dynamic library compatibility must
+be checked in the target image before installation.
 
-## Сборка и проверки
+## Build and verification
 
-Требуются Bash, Git и Docker Engine с доступом к Docker socket.
-Сеть нужна только для скачивания базового образа и build dependencies.
+Bash, Git, and Docker Engine with access to the Docker socket are required.
+Network access is needed only to download the base image and build dependencies.
 
 ```bash
 bash tests/check.sh
 ```
 
-Скрипт собирает исходный KH22 и исправленную версию из чистых исходников,
-проверяет ожидаемые SIGSEGV исходной версии и успешные ответы исправленной.
-Runtime-контейнеры работают от `nobody`, с `--network none`, без опубликованных
-портов и host volumes, с read-only root, временным `/tmp`, ограничениями
-256 MiB RAM, одного CPU и 96 PID, без core dumps и Linux capabilities.
-HTTP upstream и URL-auth сервис существуют только на loopback контейнера.
-Аудио — синтетическая синусоида, MP3/AAC генерируются установленным ffmpeg.
+The script builds baseline KH22 and the patched version from clean sources, then
+checks for the expected baseline SIGSEGVs and successful responses in the patched
+version. Runtime containers run as `nobody`, with `--network none`, no published
+ports or host volumes, a read-only root, temporary `/tmp`, limits of 256 MiB RAM,
+one CPU and 96 PIDs, and no core dumps or Linux capabilities. The HTTP upstream
+and URL-auth service run only on the container's loopback interface. Audio is a
+synthetic sine wave; the installed ffmpeg generates MP3/AAC samples.
 
-Проверяются:
+The tests cover:
 
-- 100 admin-запросов в окне подключения relay, контрольные запросы без relay
-  и общий `/admin/stats`;
-- подключение и повторное подключение relay, декодирование аудио, metadata,
-  общий счётчик и подробный список слушателей с IP/User-Agent;
-- обычный и URL-auth XSLT для корректного, отсутствующего, повреждённого
-  и аварийно завершающего преобразование шаблона; по 60 повторных запросов
-  с параллельностью 6, успешный запрос после ошибок и admin XSLT;
-- SOURCE MP3/AAC, metadata, статистика слушателей, fallback и SIGTERM.
+- 100 admin requests while a relay connects, control requests without a relay,
+  and the global `/admin/stats` endpoint;
+- relay connection and reconnection, audio decoding, metadata, the global count,
+  and detailed listener lists with IP/User-Agent;
+- ordinary and URL-auth XSLT with valid, missing, malformed, and terminating
+  templates; 60 repeated requests at concurrency 6, successful requests after
+  errors, and admin XSLT;
+- SOURCE MP3/AAC, metadata, listener stats, fallback, and SIGTERM;
+- `listclients` with accepted and rejected source URL authentication.
 
-В `artifacts/` сохраняются логи обеих сборок и проверок, install archive,
-SHA-256 архива и бинарника, ID образа и diff двух патчей. Каталог исключён из Git.
-Результаты конкретной проверки фиксируются в [docs/validation.md](docs/validation.md).
+`artifacts/` contains both build and test logs, the install archive, SHA-256
+checksums of the archive and binary, the image ID, and a diff of the fixes. This
+directory is excluded from Git. Results of a specific run are recorded in
+[docs/validation.md](docs/validation.md).
 
-Отдельная сборка без regression-тестов:
+To build separately without running the regression tests:
 
 ```bash
-docker build -f tests/Dockerfile -t icecast-kh:kh22-p1 .
+docker build -f tests/Dockerfile -t icecast-kh:kh22-p2 .
 ```
 
-Install archive содержит дерево `usr/local/`, включая бинарник, стандартные
-web/admin-шаблоны, пример конфига и лицензию. Это артефакт для проверки и
-последующей интеграции; распаковка поверх рабочего окружения не входит в процедуру.
-Тестовый образ также содержит compiler и ffmpeg и предназначен для стенда.
+The install archive contains the `usr/local/` tree, including the binary,
+standard web/admin templates, a sample config, and the license. It is an artifact
+for testing and later integration; unpacking it over a live environment is not part
+of this procedure. The test image also contains a compiler and ffmpeg and is
+intended for the test environment.
 
-Нативная сборка с зависимостями, перечисленными в исходном README:
+For a native build with the dependencies listed in the original README:
 
 ```bash
 ./configure
@@ -88,12 +96,12 @@ make check
 ./src/icecast -v
 ```
 
-Файл `version` задаёт суффикс `p1`. После изменения кода для новой публикации
-нужно изменить release suffix. Для контейнерной сборки он переопределяется
-через `--build-arg RELEASE=...`. Чистая сборка обязательна: старый исследовательский
-кандидат пропустил перекомпиляцию `admin.c` из-за одинаковых временных меток.
+The `version` file sets the `p2` suffix. Change the release suffix before a new
+release after modifying the code. For container builds it can be overridden with
+`--build-arg RELEASE=...`. A clean build is required: an earlier research build
+skipped recompilation of `admin.c` due to matching timestamps.
 
-Digest Python base image закреплён в `tests/Dockerfile`; версии Debian-пакетов
-не закреплены snapshot-репозиторием. Команды воспроизводимы, побитовая
-воспроизводимость артефактов не заявляется. Эта сборка исправляет два дефекта
-и не является полным аудитом безопасности Icecast-KH.
+The Python base image digest is pinned in `tests/Dockerfile`; Debian package
+versions are not pinned to a snapshot repository. The commands can be rerun, but
+bit-for-bit reproducibility is not claimed. This build fixes three defects; it is
+not a complete security audit of Icecast-KH.

@@ -19,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Queue
 from typing import ClassVar
+from urllib.parse import parse_qs
 
 BINARY = os.environ.get("TEST_ICECAST_BINARY", "/usr/local/bin/icecast")
 FIXED = os.environ.get("EXPECT_FIXED") == "1"
@@ -397,6 +398,45 @@ def source(mount: str, audio: bytes, content_type: str) -> Iterator[None]:
             assert not thread.is_alive(), "Source thread hung"
 
 
+def auth_tests(base: Path, audio: bytes) -> None:
+    class StreamAuth(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            params = parse_qs(body.decode())
+            self.send_response(200)
+            if params.get("pass") == [PASSWORD]:
+                self.send_header("icecast-auth-user", "1")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    config = """<mount><mount-name>/live</mount-name><authentication type="url">
+    <option name="stream_auth" value="http://127.0.0.1:18081/auth"/>
+    </authentication></mount>"""
+    with service(StreamAuth), icecast(base / "auth", config) as proc:
+        with source("/live", audio, "audio/mpeg"):
+            for password, expected in ((PASSWORD, 200 if FIXED else 403), ("wrong", 401)):
+                for endpoint in ("listclients", "listclients.xsl"):
+                    conn = HTTPConnection("127.0.0.1", 18080, timeout=5)
+                    credentials = base64.b64encode(f"source:{password}".encode()).decode()
+                    try:
+                        conn.request("GET", f"/admin/{endpoint}?mount=/live", headers={
+                            "Authorization": "Basic " + credentials, "Connection": "close"
+                        })
+                        with conn.getresponse() as result:
+                            body = result.read()
+                            assert result.status == expected, (endpoint, result.status, body)
+                            if expected == 200 and endpoint == "listclients":
+                                assert ET.fromstring(body).find(".//source") is not None
+                    finally:
+                        conn.close()
+            assert proc.poll() is None
+            report("stream-auth-listclients", allowed=200 if FIXED else 403, denied=401)
+    assert proc.returncode == 0
+
+
 def source_tests(base: Path, mp3: bytes, aac: bytes) -> None:
     fallback = """<mount><mount-name>/primary</mount-name>
     <fallback-mount>/backup</fallback-mount><fallback-override>1</fallback-override></mount>"""
@@ -484,6 +524,8 @@ def main() -> None:
                     relay_tests(base, audio["mp3"])
                 elif mode == "source":
                     source_tests(base, audio["mp3"], audio["adts"])
+                elif mode == "auth":
+                    auth_tests(base, audio["mp3"])
                 else:
                     raise ValueError(mode)
         except BaseException:

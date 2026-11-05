@@ -601,7 +601,8 @@ void auth_postprocess_source (auth_client *auth_user)
         const char *req = httpp_getvar (client->parser, HTTPP_VAR_URI);
 
         auth_user->client = NULL;
-        if (strcmp (req, "/admin.cgi") == 0 || strncmp ("/admin/metadata", req, 15) == 0)
+        if (strcmp (req, "/admin.cgi") == 0 || strncmp ("/admin/metadata", req, 15) == 0 ||
+            strcmp (req, "/admin/listclients") == 0 || strcmp (req, "/admin/listclients.xsl") == 0)
         {
             DEBUG2 ("metadata request (%s, %s)", req, mount);
             admin_mount_request (client);
