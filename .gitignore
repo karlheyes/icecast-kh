@@ -22,3 +22,6 @@
 /m4/lt~obsolete.m4
 /src/icecast
 /stamp-h1
+/artifacts/
+/.mypy_cache/
+__pycache__/

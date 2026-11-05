@@ -1,0 +1,8 @@
+.git
+.agents
+.codex
+.aws
+PROMPT.md
+artifacts
+.mypy_cache
+**/__pycache__

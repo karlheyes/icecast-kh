@@ -589,7 +589,10 @@ void *xslt_update (void *arg)
         }
 
         if (x->client)
+        {
+            client->aux_data = 0;
             client_send_404 (client, "Could not provide XSLT file");
+        }
         xsl_req_clear (x);
         thread_mutex_lock (&update_lock);
     }
@@ -646,6 +649,7 @@ int xslt_client (client_t *client)
         INFO1 ("dropping request for %s as cache full and in use", x->filename);
         // if cache busy then drop further requests
     } while (0);
+    client->aux_data = 0;
     xsl_req_clear (x);
     return client_send_404 (client, NULL);
 }
@@ -658,10 +662,13 @@ static int _xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *cl
     x->doc = doc;
     x->filename = strdup (xslfilename);
     client->aux_data = (uintptr_t)x;
-    client->schedule_ms = client->worker->time_ms;
+    // NULL-worker timing fallback based on RexViber's upstream issue #478.
+    client->schedule_ms = client->worker ? client->worker->time_ms : timing_get_time();
     client->ops = &xslt_ops;
-    client->connection.discon.time = client->worker->current_time.tv_sec + 3;
-    return client->worker ? client->ops->process (client) : 0;
+    client->connection.discon.time = client->schedule_ms / 1000 + 3;
+    if (client_add_incoming (client))
+        return 0;
+    return client->ops->process (client);
 }
 
 // entry point for xslt requests

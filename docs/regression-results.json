@@ -1,0 +1,182 @@
+{
+  "date": "2026-11-05",
+  "release": "2.4.0-kh22-p1",
+  "baseline": "bb4173850be18466adc3c8b12a3b08d4b4ba1a55",
+  "results": {
+    "baseline-relay": [
+      {
+        "case": "no-relay-listclients",
+        "responses": 100,
+        "codes": [
+          400
+        ],
+        "exit_code": null
+      },
+      {
+        "case": "connecting-relay-stats",
+        "responses": 100,
+        "codes": [
+          200
+        ],
+        "exit_code": null
+      },
+      {
+        "case": "connecting-relay-listclients",
+        "responses": 0,
+        "codes": [],
+        "exit_code": -11
+      }
+    ],
+    "baseline-xslt": [
+      {
+        "case": "xslt-False-good",
+        "status": 200,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-False-missing",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-False-broken",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-False-apply-error",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-True-good",
+        "signal": "SIGSEGV",
+        "expected": true
+      },
+      {
+        "case": "xslt-True-missing",
+        "signal": "SIGSEGV",
+        "expected": true
+      },
+      {
+        "case": "xslt-True-broken",
+        "signal": "SIGSEGV",
+        "expected": true
+      },
+      {
+        "case": "xslt-True-apply-error",
+        "signal": "SIGSEGV",
+        "expected": true
+      }
+    ],
+    "fixed-relay": [
+      {
+        "case": "no-relay-listclients",
+        "responses": 100,
+        "codes": [
+          400
+        ],
+        "exit_code": null
+      },
+      {
+        "case": "connecting-relay-stats",
+        "responses": 100,
+        "codes": [
+          200
+        ],
+        "exit_code": null
+      },
+      {
+        "case": "connecting-relay-listclients",
+        "responses": 100,
+        "codes": [
+          400
+        ],
+        "exit_code": null
+      },
+      {
+        "case": "relay-reconnect",
+        "polls": 100,
+        "audio": true,
+        "metadata": true,
+        "listeners": true
+      }
+    ],
+    "fixed-xslt": [
+      {
+        "case": "xslt-False-good",
+        "status": 200,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-False-missing",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-False-broken",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-False-apply-error",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-True-good",
+        "status": 200,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-True-missing",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-True-broken",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      },
+      {
+        "case": "xslt-True-apply-error",
+        "status": 404,
+        "repeated": 60,
+        "alive": true
+      }
+    ],
+    "fixed-source": [
+      {
+        "case": "source-mp3",
+        "audio": true,
+        "metadata": true,
+        "listeners": true
+      },
+      {
+        "case": "source-aac",
+        "audio": true,
+        "metadata": true,
+        "listeners": true
+      },
+      {
+        "case": "fallback",
+        "audio": true
+      },
+      {
+        "case": "SIGTERM",
+        "exit_code": 0
+      }
+    ]
+  }
+}

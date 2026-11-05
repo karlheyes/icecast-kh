@@ -323,7 +323,12 @@ int admin_mount_request (client_t *client)
         avl_tree_unlock (global.source_tree);
 
         // see if we should move workers. avoid excessive write lock bubbles in worker run queue
-        worker_t *src_worker = source->client->worker;
+        worker_t *src_worker = source->client ? source->client->worker : NULL;
+        if (src_worker == NULL)
+        {
+            thread_rwlock_unlock (&source->lock);
+            return client_send_400 (client, "Source is not available");
+        }
         if (src_worker != client->worker)
         {
             thread_rwlock_rlock (&workers_lock);
