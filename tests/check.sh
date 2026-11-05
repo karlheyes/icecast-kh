@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 baseline=bb4173850be18466adc3c8b12a3b08d4b4ba1a55
-release=kh22-p3
+release=kh22-p4
 mkdir -p artifacts
 context=$(mktemp -d)
 trap 'rm -rf "$context"' EXIT
@@ -25,7 +25,7 @@ for mode in relay xslt auth upstream; do
     docker run "${isolated[@]}" icecast-kh:kh22-baseline "$mode" \
         2>&1 | tee "artifacts/baseline-$mode.log"
 done
-for mode in relay xslt source auth upstream; do
+for mode in relay xslt source auth upstream cors queue; do
     docker run "${isolated[@]}" -e EXPECT_FIXED=1 "icecast-kh:$release" "$mode" \
         2>&1 | tee "artifacts/fixed-$mode.log"
 done
@@ -43,8 +43,10 @@ docker run "${isolated[@]}" --entrypoint /bin/sh "icecast-kh:$release" -c \
     dpkg-query -W libc6 libxml2 libxslt1.1 libcurl4 libssl3 libvorbis0a;
     /usr/local/bin/icecast -v; ldd /usr/local/bin/icecast' > artifacts/build-environment.txt
 sha256sum src/admin.c src/auth.c src/xslt.c src/fserve.c src/connection.c src/format.c \
-    tests/regression.py tests/Dockerfile \
+    src/params.c src/params.h src/source.c src/source.h src/slave.c \
+    tests/regression.py tests/Dockerfile tests/check.sh \
     > artifacts/source-SHA256SUMS
 git diff "$baseline" -- src/admin.c src/auth.c src/xslt.c src/fserve.c \
-    src/connection.c src/format.c > artifacts/fixes.diff
+    src/connection.c src/format.c src/params.c src/params.h src/source.c src/source.h \
+    src/slave.c > artifacts/fixes.diff
 printf '\nPASS: baseline crashes reproduced; patched regressions passed. See artifacts/.\n'

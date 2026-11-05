@@ -1,5 +1,89 @@
 # Icecast 2.4.0-kh22 validation
 
+## Build p4: full master integration
+
+On 5 November 2026, `bash tests/check.sh` completed with exit code 0. Clean
+configure/build and `make check` succeeded. Baseline KH22 reproduced the expected
+failures; all seven p4 suites passed: relay, XSLT, SOURCE/fallback, source URL-auth,
+the three p3 upstream regressions, CORS, and queue load. Commit `f23606b` retains
+the separately checked p3 baseline. The integration preserves every commit from
+the fork's `master` at `ea3554b5167f6780a8be77f1715f90ed02005665`.
+
+Archive `artifacts/icecast-2.4.0-kh22-p4-linux-x86_64.tar.gz`, SHA-256:
+
+```text
+c9bd65e7e54d49a0ecc6a9e6f3200c0cc98aa1d96b4a1aabb9be9a971b2835b8
+```
+
+Binary SHA-256:
+
+```text
+b6c6741bd89c4998f99f250bf180b632641fc0724ae832fbd65a279749e28acd
+```
+
+### CORS and Server header
+
+The new test reproduced reflected origins with credentials on the earlier
+`review-master` image. P4 passed 40 HTTP cases covering admin, stream, Safari
+redirect, and OPTIONS responses with no origin, the configured origin, an
+untrusted origin, and `null`. Default responses with an Origin return wildcard
+access without the credentials header. Explicit global and mount origins remain
+fixed and permit credentials only for a matching browser origin. Unauthenticated
+admin requests still return 401. Redirects include `Vary: Origin`; OPTIONS returns
+204 with Authorization permitted, and successful responses honor `server-id`.
+These are HTTP contract checks, not a browser or cache integration test.
+
+### Queue comparison
+
+The same 120-second workload ran on p3 and p4: eight readers consumed the stream
+continuously while four throttled sockets read at most 128 bytes per second.
+Slow readers reconnected at 40 and 80 seconds. The test used a 262144-byte queue
+setting, 32768-byte minimum, 4096-byte burst and socket send buffer, synthetic
+MP3, and the existing source pump. It restarted the source and decoded a fresh
+listener's audio afterward. The upstream queue implementation is unchanged.
+
+| Build        | Peak queue, B | RSS growth, KiB | Slow drops |
+| ------------ | ------------- | --------------- | ---------- |
+| p3           | 240740        | 128             | 12         |
+| p4           | 376154        | 0               | 12         |
+| p4/AzuraCast | 275847        | 0               | 12         |
+
+Queue and RSS measurements exclude the first ten seconds of warm-up. All runs
+kept the queue below the test's 524288-byte bound; the configured size is not an
+instantaneous hard cap. RSS variation stayed below the 16384-KiB bound. Every
+fast reader received more than 4.5 MB without disconnecting; the maximum sampled
+read gap was below three seconds. The slow readers exercised actual eviction,
+and source restart succeeded. These results establish bounded behavior for this
+workload; they do not establish a memory improvement or production capacity.
+
+### AzuraCast 0.24.0 compatibility
+
+A temporary image based on the same official digest used for p3 replaced only
+`/usr/local/bin/icecast`. The binary reported p4, matched the SHA-256 above, and
+resolved all dynamic libraries. All seven suites passed inside this image,
+including CORS and the complete queue workload. Containers had loopback networking
+only, no published ports or station data, a read-only root, temporary `/tmp`,
+256 MiB RAM, one CPU, 96 PIDs, and no Linux capabilities.
+
+P4 did not repeat p3's full demo-station setup, AutoDJ/web-proxy/player-page test.
+Browser playback, real station configurations, other AzuraCast versions and
+architectures, and long-running production load remain unverified. No production
+installation was changed. The p3 demo-station result is recorded separately below.
+
+### Evidence and static checks
+
+The final build and runtime logs, source hashes, environment, image ID, archive,
+and binary checksums are in ignored `artifacts/`. The extra comparison and
+AzuraCast evidence is in `artifacts/integration-p4/`; p3's latest logs and archive
+were retained in `artifacts/p3-latest/` before p4 overwrote the current-run logs.
+These ignored files are local evidence and are not included in a fresh clone.
+
+`uvx --from mypy mypy --strict --python-version 3.13 tests/regression.py`,
+`bash -n tests/check.sh`, and `git diff --check` passed. Changed project Markdown
+passes Prettier and markdownlint. Repository-wide Markdown lint separately finds
+111 pre-existing issues in the unchanged `.context/last.md` history export;
+the export is preserved as required by the context-restoration procedure.
+
 ## Build p3
 
 On 5 November 2026, `bash tests/check.sh` completed with exit code 0. The tests
@@ -24,8 +108,8 @@ SHA-256 of the binary inside the image:
 The full p3 check was repeated before committing the integration baseline. The
 binary SHA-256 stayed unchanged; repackaging changed the archive checksum.
 The original p3 archive and checksums are retained in `artifacts/p3-records/`.
-The latest p3 run's logs and checksums are in `artifacts/`. Earlier p2 logs and
-checksums were preserved in `artifacts/p2-records/`. The tests use synthetic
+The latest p3 run's logs and checksums are in `artifacts/p3-latest/`. Earlier p2
+logs and checksums were preserved in `artifacts/p2-records/`. The tests use synthetic
 clients and do not establish real Safari playback.
 
 ### AzuraCast 0.24.0 test

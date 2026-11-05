@@ -8,6 +8,26 @@ is the current tip of upstream GitHub.
 The review preceded p3. That build includes the file-serving, TLS reload, and
 Safari redirect fixes; see [validation.md](validation.md) for its results.
 
+## Integration follow-up: p4
+
+The p4 candidate integrates all ten reviewed commits through a history-preserving
+merge with the fork's `master` at `ea3554b`. Commit `f23606b` retains p3 before
+integration. The original findings below describe the earlier candidate.
+
+P4 keeps the upstream CORS fixes and configured Server identity. The wildcard
+origin now stays `*`, which suppresses the default credentials header instead of
+reflecting an arbitrary origin. A fixed origin can be configured using the existing
+`http-headers` block. `Vary: Origin` also covers redirects. Regression tests cover
+admin, stream, redirect, and OPTIONS responses with default and explicit origins.
+
+The upstream queue implementation is retained unchanged. A new comparative
+120-second test runs eight fast listeners alongside four throttled listeners,
+reconnects the slow listeners twice, then restarts the source. It checks queue
+size, RSS, slow-listener eviction, fast-listener continuity, and audio decoding.
+See the p4 section of [validation.md](validation.md) for measured results and
+remaining limits. This short synthetic test does not establish production scale
+or long-running behavior.
+
 The stability branch started at KH22 to match the source revision in the
 AzuraCast 0.24.0 recipe. That was a controlled comparison baseline; it does not
 mean the later upstream changes are unnecessary or unsafe.

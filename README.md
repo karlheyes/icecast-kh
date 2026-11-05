@@ -2,7 +2,7 @@
 
 English | [Русский](README.ru.md)
 
-Custom build **2.4.0-kh22-p3** based on
+Custom build **2.4.0-kh22-p4** based on
 [Icecast-KH22](https://github.com/karlheyes/icecast-kh/tree/bb4173850be18466adc3c8b12a3b08d4b4ba1a55).
 Upstream history, authorship, and the **GPL-2.0** license are preserved:
 [COPYING](COPYING), [AUTHORS](AUTHORS), and the [original README](README).
@@ -23,6 +23,10 @@ Upstream history, authorship, and the **GPL-2.0** license are preserved:
   certificate reload keeps the previous TLS context usable; and long Safari
   redirect query strings are preserved. These fixes follow upstream commits
   `a8cfaae`, `c7aeda5`, and `ea3554b` respectively.
+- All post-KH22 changes from the fork's `master` at `ea3554b` are integrated,
+  including queue pruning, configured Server identity, and CORS updates.
+  Public CORS uses `*` without credentials; credentialed access requires an
+  explicitly configured origin. Redirects also include `Vary: Origin`.
 
 The NULL-worker check and use of `timing_get_time()` are based on
 [RexViber's proposal in upstream issue #478](https://github.com/karlheyes/icecast-kh/issues/478).
@@ -34,18 +38,54 @@ ensure delivery of the response after URL authentication.
 The baseline is commit `bb4173850be18466adc3c8b12a3b08d4b4ba1a55`, tag
 `icecast-2.4.0-kh22`, used by the Icecast recipe in AzuraCast 0.24.0.
 The fork was originally cloned from `master` at `ea3554b`; ten commits affecting
-nine files separate that commit from KH22. They include changes to CORS, source
-queues, TLS/reload, and Safari redirects. This build includes the three fixes
-listed above; the other changes are excluded. Work is on `fixes/kh22-stability`.
+nine files separate that commit from KH22. This build integrates all of them
+while preserving their history, together with the fork's stability fixes and
+the CORS safeguards described below. Commit `f23606b` preserves p3 before this
+integration.
 
 The [post-KH22 upstream review](docs/upstream-review.md) evaluates these commits,
-including isolated comparison results and conditions for a later integration.
+including the original comparison and the follow-up integration checks.
 
 SOURCE, MP3/AAC, relay, metadata, fallback, XML stats, and the listener list with
-IP/User-Agent are retained and exercised by isolated tests. A separate test with
-the official AzuraCast 0.24.0 image started a demo station, served audio through
-its web proxy, and checked fallback and authentication. See the validation
-report for details. The user's installation and browser playback are not tested.
+IP/User-Agent are retained and exercised by isolated tests. The validation report
+separates p3's demo-station test from the checks performed on p4. The user's
+installation and browser playback are not tested.
+
+## CORS configuration
+
+By default, public streams are accessible from any browser origin without
+credentialed CORS. Icecast does not reflect arbitrary request origins or grant
+credentialed reads to them. Password checks remain enforced.
+
+For a trusted web client that needs credentialed CORS, set a fixed origin using
+the existing global or mount-specific configuration. Use the client's exact
+scheme, host, and port, without a trailing slash:
+
+```xml
+<http-headers>
+    <header name="Access-Control-Allow-Origin"
+            value="https://player.example.org" />
+</http-headers>
+```
+
+Check all relevant mounts and admin responses, including any headers added by
+your reverse proxy. This example permits one origin, not a list of origins.
+The [Fetch standard](https://fetch.spec.whatwg.org/#http-access-control-allow-credentials)
+defines the distinction between wildcard and credentialed CORS.
+
+## Repository workflow
+
+`master` is the target branch for the fork's validated changes. Start temporary
+branches from it and open pull requests into this repository's `master`.
+Integrate upstream in a temporary branch, preserve its history, and validate
+the combined result before merging. Merge this integration PR with a merge
+commit to retain the p3 checkpoint and upstream ancestry. A PR to the original
+project is optional.
+
+For a downloadable version, tag the validated commit as `v2.4.0-kh22-pN` and
+create a GitHub Release with the compiled archive and `SHA256SUMS`. Keep binaries
+out of Git. Candidate builds should be prereleases until target-environment
+checks are complete. This integration does not publish a release or install it.
 
 ## Build and verification
 
@@ -76,7 +116,11 @@ The tests cover:
 - SOURCE MP3/AAC, metadata, listener stats, fallback, and SIGTERM;
 - `listclients` with accepted and rejected source URL authentication;
 - rate-limited files with URL authentication, TLS after a failed certificate
-  reload, and Safari redirects with short and long query strings.
+  reload, and Safari redirects with short and long query strings;
+- CORS on admin, stream, redirect, and OPTIONS responses, with default and fixed
+  origins, missing credentials, and missing or untrusted origins;
+- 120 seconds with eight fast and four throttled listeners, queue and RSS bounds,
+  slow-listener eviction/reconnection, continuous fast playback, and source restart.
 
 `artifacts/` contains both build and test logs, the install archive, SHA-256
 checksums of the archive and binary, the image ID, and a diff of the fixes. This
@@ -86,7 +130,7 @@ directory is excluded from Git. Results of a specific run are recorded in
 To build separately without running the regression tests:
 
 ```bash
-docker build -f tests/Dockerfile -t icecast-kh:kh22-p3 .
+docker build -f tests/Dockerfile -t icecast-kh:kh22-p4 .
 ```
 
 The install archive contains the `usr/local/` tree, including the binary,
@@ -105,12 +149,12 @@ make check
 ./src/icecast -v
 ```
 
-The `version` file sets the `p3` suffix. Change the release suffix before a new
+The `version` file sets the `p4` suffix. Change the release suffix before a new
 release after modifying the code. For container builds it can be overridden with
 `--build-arg RELEASE=...`. A clean build is required: an earlier research build
 skipped recompilation of `admin.c` due to matching timestamps.
 
 The Python base image digest is pinned in `tests/Dockerfile`; Debian package
 versions are not pinned to a snapshot repository. The commands can be rerun, but
-bit-for-bit reproducibility is not claimed. This build fixes six defects; it is
-not a complete security audit of Icecast-KH.
+bit-for-bit reproducibility is not claimed. The checks are not a complete
+security audit or a long-running production load test of Icecast-KH.

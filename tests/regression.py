@@ -571,6 +571,173 @@ def upstream_tests(base: Path, audio: bytes) -> None:
     assert proc.returncode == (0 if FIXED else -signal.SIGSEGV)
 
 
+def cors_tests(base: Path, audio: bytes) -> None:
+    allowed = "https://player.invalid"
+    policy = f"""<http-headers><header name="Access-Control-Allow-Origin"
+    value="{allowed}"/></http-headers>"""
+    for configured in (False, True):
+        headers = policy if configured else ""
+        extra = f"""<server-id>integration-test</server-id>{headers}
+        <mount><mount-name>/live</mount-name>{headers}</mount>"""
+        with icecast(base / f"cors-{configured}", extra) as proc, source(
+            "/live", audio, "audio/mpeg"
+        ):
+            for origin in (None, allowed, "https://untrusted.invalid", "null"):
+                for method, path, admin, safari, status in (
+                    ("GET", "/admin/stats", True, False, 200),
+                    ("GET", "/admin/stats", False, False, 401),
+                    ("GET", "/live", False, False, 200),
+                    ("GET", "/live", False, True, 302),
+                    ("OPTIONS", "/live", False, False, 204),
+                ):
+                    request_headers = {"Connection": "close"}
+                    if origin is not None:
+                        request_headers["Origin"] = origin
+                    if admin:
+                        request_headers["Authorization"] = ADMIN
+                    if safari:
+                        request_headers["User-Agent"] = "Safari/605.1.15"
+                    if method == "OPTIONS":
+                        request_headers["Access-Control-Request-Method"] = "GET"
+                        request_headers["Access-Control-Request-Headers"] = "Authorization"
+                    conn = HTTPConnection("127.0.0.1", 18080, timeout=4)
+                    try:
+                        conn.request(method, path, headers=request_headers)
+                        with conn.getresponse() as result:
+                            assert result.status == status, (method, path, result.status)
+                            if status == 401 or (origin is None and not configured):
+                                assert result.getheader("Access-Control-Allow-Credentials") is None
+                                continue
+                            expected = allowed if configured else "*"
+                            assert result.getheader("Access-Control-Allow-Origin") == expected, (
+                                configured, origin, path, dict(result.getheaders())
+                            )
+                            assert result.getheader("Access-Control-Allow-Credentials") == (
+                                "true" if configured and origin is not None else None
+                            )
+                            assert "Origin" in result.getheader("Vary", "")
+                            if origin is not None:
+                                assert "Authorization" in result.getheader(
+                                    "Access-Control-Allow-Headers", ""
+                                )
+                            if status in (200, 204):
+                                assert result.getheader("Server") == "integration-test"
+                    finally:
+                        conn.close()
+            assert proc.poll() is None
+        assert proc.returncode == 0
+        report("cors-policy", explicit_origin=configured, requests=20)
+
+
+def queue_tests(base: Path, audio: bytes) -> None:
+    config = """<mount><mount-name>/load</mount-name><queue-size>262144</queue-size>
+    <min-queue-size>32768</min-queue-size><burst-size>4096</burst-size>
+    <so-sndbuf>4096</so-sndbuf></mount>"""
+    root = base / "queue"
+    with icecast(root, config) as proc:
+        with source("/load", audio, "audio/mpeg"):
+            stop = threading.Event()
+            last_read = [time.monotonic()] * 8
+
+            def fast_listener(index: int) -> int:
+                received = 0
+                sample = bytearray()
+                with response("/load") as result:
+                    assert result.status == 200
+                    while not stop.is_set():
+                        chunk = result.read(4096)
+                        assert len(chunk) == 4096, "Fast listener disconnected"
+                        if len(sample) < 16384:
+                            sample.extend(chunk)
+                        received += len(chunk)
+                        last_read[index] = time.monotonic()
+                decode(bytes(sample), "mp3")
+                return received
+
+            slow: list[socket.socket] = []
+
+            def connect_slow() -> None:
+                for _ in range(4):
+                    conn = socket.socket()
+                    slow.append(conn)
+                    conn.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)
+                    conn.settimeout(4)
+                    conn.connect(("127.0.0.1", 18080))
+                    conn.sendall(b"GET /load?norequeue HTTP/1.0\r\n\r\n")
+                    header = b""
+                    while b"\r\n\r\n" not in header:
+                        chunk = conn.recv(1)
+                        assert chunk, header
+                        header += chunk
+                    assert b"200" in header.split(b"\r\n")[0], header
+                    conn.settimeout(0.05)
+
+            sizes: list[int] = []
+            memory: list[int] = []
+            max_gap = 0.0
+            try:
+                with ThreadPoolExecutor(max_workers=8) as pool:
+                    futures = [pool.submit(fast_listener, index) for index in range(8)]
+                    try:
+                        connect_slow()
+                        for second in range(120):
+                            time.sleep(1)
+                            assert proc.poll() is None, "Icecast exited during load"
+                            for future in futures:
+                                if future.done():
+                                    future.result()
+                                    raise AssertionError("Fast listener stopped")
+                            gap = max(time.monotonic() - value for value in last_read)
+                            max_gap = max(max_gap, gap)
+                            assert gap < 5, (second, gap)
+                            stats = xml().find("./source[@mount='/load']")
+                            assert stats is not None
+                            size = int(stats.findtext("queue_size", "0"))
+                            rss = next(
+                                int(line.split()[1])
+                                for line in Path(f"/proc/{proc.pid}/status").read_text().splitlines()
+                                if line.startswith("VmRSS:")
+                            )
+                            if second >= 10:
+                                sizes.append(size)
+                                memory.append(rss)
+                                assert 0 < size <= 524288, (second, size)
+                            if second in (39, 79):
+                                for conn in slow:
+                                    conn.close()
+                                slow.clear()
+                                connect_slow()
+                            for conn in slow:
+                                try:
+                                    conn.recv(128)
+                                except (TimeoutError, ConnectionResetError):
+                                    pass
+                            if second % 20 == 19:
+                                report("queue-sample", seconds=second + 1, queue_bytes=size, rss_kib=rss)
+                    finally:
+                        stop.set()
+                    counts = [future.result(timeout=10) for future in futures]
+            finally:
+                for conn in slow:
+                    conn.close()
+            assert min(counts) > 1000000, counts
+            assert max(memory) - min(memory) < 16384, memory
+            drops = (root / "error.log").read_text().count("has fallen too far behind")
+            assert drops > 0, "Slow listeners did not exercise queue eviction"
+            report("queue-load", seconds=120, fast_listeners=8, slow_listeners=4,
+                   slow_reconnects=8, slow_drops=drops, fast_bytes_min=min(counts),
+                   queue_max=max(sizes), rss_growth_kib=max(memory) - min(memory),
+                   max_read_gap=round(max_gap, 3))
+        for _ in range(100):
+            if xml().find("./source[@mount='/load']") is None:
+                break
+            time.sleep(0.05)
+        with source("/load", audio, "audio/mpeg"):
+            check_listener("/load", "mp3")
+            report("queue-source-reconnect", audio=True)
+    assert proc.returncode == 0
+
+
 def main() -> None:
     # Every run has fresh logs/configs; all network peers are container loopback.
     with tempfile.TemporaryDirectory(prefix="kh-regression-") as directory:
@@ -615,6 +782,10 @@ def main() -> None:
                     auth_tests(base, audio["mp3"])
                 elif mode == "upstream":
                     upstream_tests(base, audio["mp3"])
+                elif mode == "cors":
+                    cors_tests(base, audio["mp3"])
+                elif mode == "queue":
+                    queue_tests(base, audio["mp3"])
                 else:
                     raise ValueError(mode)
         except BaseException:

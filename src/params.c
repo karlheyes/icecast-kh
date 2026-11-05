@@ -55,6 +55,13 @@ static int _date_hdr (ice_http_t * http, ice_param_t *curr)
 }
 
 
+static int _server_hdr (ice_http_t *http, ice_param_t *curr)
+{
+    curr->value = strdup (http->in_server_id);
+    return 0;
+}
+
+
 static int _connection_hdr (ice_http_t *http, ice_param_t *curr)
 {
     if (http->in_major == 1 && http->in_minor == 1 && http->in_length >= 0 && http->in_connection)
@@ -83,8 +90,6 @@ static int _send_cors_hdr (ice_http_t *http, ice_param_t *curr)
 
     if (strcasecmp (curr->name, "Access-Control-Allow-Origin") == 0)
     {
-        if (strcmp (curr->value, "*") == 0)
-            curr->value = strdup (http->in_origin);
         if (strcmp (curr->value, "*") == 0)
             params->flags |= ICE_HTTP_WILDCARD_ORIGIN;
         else
@@ -234,8 +239,9 @@ void ice_http_clear (ice_http_t *http)
     if (http->client == NULL) return; // not been through setup
     ice_params_clear (&http->headers);
     free (http->in_realm);
+    free (http->in_server_id);
     free (http->msg);
-    http->msg = http->in_realm = NULL;
+    http->msg = http->in_realm = http->in_server_id = NULL;
     http->client = NULL;
 }
 
@@ -424,6 +430,7 @@ int  ice_http_setup_flags (ice_http_t *http, client_t *client, int status, unsig
     ice_config_t *config = config_get_config();
     const char *realm = config->server_id;
     mount_proxy *mountinfo = client->mount ? config_find_mount (config, client->mount) : NULL;
+    http->in_server_id = strdup (realm ? realm : PACKAGE_STRING);
     if (mountinfo)
     {
         if (mountinfo->auth && mountinfo->auth->realm)
@@ -507,25 +514,26 @@ refbuf_t *ice_params_complete (ice_params_t *pm)
 
 ice_config_http_header_t default_headers[] =
 {
-    { .hdr = { .status = "2*",          .name = "Server",               .value = "Icecast" } },
+    { .hdr = { .status = "2*",          .name = "Server",               .value = "Icecast",
+                                        .callback = _server_hdr }, },
     { .hdr = { .status = "[234]*",      .name = "Connection",           .value = "Close",
                                         .callback = _connection_hdr } },
     { .hdr = { .status = "2*",          .name = "Pragma",               .value = "no-cache" } },
     { .hdr = { .status = "2*",          .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
     { .hdr = { .status = "2*",          .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
-    { .hdr = { .status = "2*",          .name = "Vary",                 .value = "Origin" } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Origin",
+    { .hdr = { .status = "[23]*",      .name = "Vary",                 .value = "Origin" } },
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Origin",
                                         .value = "*",
                                         .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Credentials",
-                                        .value = "True", .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Headers",
-                                        .value = "Origin, Icy-MetaData, Range",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Credentials",
+                                        .value = "true", .callback = _send_cors_hdr } },
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Headers",
+                                        .value = "Origin, Icy-MetaData, Range, Authorization",
                                         .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Expose-Headers",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Expose-Headers",
                                         .value = "Icy-Br, Icy-Description, Icy-Genre, Icy-MetaInt, Icy-Name, Icy-Pub, Icy-Url",
                                         .callback = _send_cors_hdr } },
-    { .hdr = { .status = "2*",          .name = "Access-Control-Allow-Methods",
+    { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Methods",
                                         .value = "GET, OPTIONS, SOURCE, PUT, HEAD, STATS",
                                         .callback = _send_cors_hdr } },
     { .hdr = { .status = "*",           .name = "Date",                 .callback = _date_hdr } },

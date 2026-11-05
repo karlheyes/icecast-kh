@@ -417,7 +417,7 @@ static void get_ssl_certificate (ice_config_t *config)
         SSL_CTX_free (new_ssl_ctx);
 
     if (ssl_ctx)
-    {
+    {   // use the existing certificate details
         ssl_ok = 1;
         INFO0 ("SSL not reloaded, will keep using previous certificate/key");
     }
