@@ -2,7 +2,7 @@ FROM python:3.13-slim-bookworm@sha256:a1165e272e578941b84abc79e4ab38a0305cd12803
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config libxslt1-dev libvorbis-dev libssl-dev libcurl4-openssl-dev patch ffmpeg && rm -rf /var/lib/apt/lists/*
 
 FROM dependencies AS build
-ARG RELEASE=p2
+ARG RELEASE=p3
 WORKDIR /build/icecast
 COPY . .
 # A clean build avoids timestamp-dependent reuse of unpatched object files.

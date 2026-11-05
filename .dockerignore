@@ -1,6 +1,7 @@
 .git
 .agents
 .codex
+.context
 .aws
 PROMPT.md
 artifacts

@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -19,7 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Queue
 from typing import ClassVar
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 BINARY = os.environ.get("TEST_ICECAST_BINARY", "/usr/local/bin/icecast")
 FIXED = os.environ.get("EXPECT_FIXED") == "1"
@@ -484,6 +485,92 @@ def source_tests(base: Path, mp3: bytes, aac: bytes) -> None:
     report("SIGTERM", exit_code=proc.returncode)
 
 
+def upstream_tests(base: Path, audio: bytes) -> None:
+    with icecast(base / "safari") as proc, source("/live", audio, "audio/mpeg"):
+        for length in (0, 700, 3300):
+            value = "x" * length
+            path = "/live" + ("?token=" + value if value else "")
+            conn = HTTPConnection("127.0.0.1", 18080, timeout=4)
+            try:
+                conn.request("GET", path, headers={
+                    "User-Agent": "Safari/605.1.15", "Connection": "close"
+                })
+                with conn.getresponse() as result:
+                    assert result.status == 302
+                    location = result.getheader("Location")
+                    assert location is not None
+                    params = parse_qs(urlsplit(location).query)
+                    intact = (not value or params.get("token") == [value]) and "_ic2" in params
+                    assert intact == (FIXED or length == 0), (length, params)
+            finally:
+                conn.close()
+            report("safari-redirect", query_length=length, intact=intact)
+        assert proc.poll() is None
+    assert proc.returncode == 0
+
+    cert, key = base / "cert.pem", base / "key.pem"
+    subprocess.run([
+        "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-subj",
+        "/CN=localhost", "-days", "1", "-keyout", str(key), "-out", str(cert),
+    ], check=True, capture_output=True, timeout=15)
+    tls_config = f"""<listen-socket><port>18443</port><bind-address>127.0.0.1</bind-address>
+    <ssl>1</ssl></listen-socket><paths><ssl-certificate>{cert}</ssl-certificate>
+    <ssl-private-key>{key}</ssl-private-key></paths>"""
+
+    def tls_request() -> bytes:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        with socket.create_connection(("127.0.0.1", 18443), timeout=3) as raw:
+            with context.wrap_socket(raw, server_hostname="localhost") as conn:
+                conn.sendall(
+                    f"GET /admin/stats HTTP/1.0\r\nAuthorization: {ADMIN}\r\n\r\n".encode()
+                )
+                return conn.recv(4096).split(b"\r\n")[0]
+
+    with icecast(base / "tls", tls_config) as proc:
+        assert b"200" in tls_request()
+        cert.unlink()
+        proc.send_signal(signal.SIGHUP)
+        for _ in range(100):
+            if "SSL not reloaded" in (base / "tls/error.log").read_text():
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("TLS reload did not complete")
+        try:
+            status = tls_request()
+        except (OSError, TimeoutError):
+            assert not FIXED, "TLS stopped after failed reload"
+            report("tls-failed-reload", connected=False)
+        else:
+            assert FIXED and b"200" in status, status
+            report("tls-failed-reload", connected=True)
+        assert proc.poll() is None
+    assert proc.returncode == 0
+
+    mount = """<mount><mount-name>/protected.mp3</mount-name><limit-rate>128000</limit-rate>
+    <authentication type="url"><option name="listener_add"
+    value="http://127.0.0.1:18081/auth"/></authentication></mount>"""
+    while not Auth.calls.empty():
+        Auth.calls.get_nowait()
+    with service(Auth), icecast(base / "file", mount) as proc:
+        (base / "file/web/protected.mp3").write_bytes(audio)
+        try:
+            with response("/protected.mp3") as result:
+                assert FIXED and result.status == 200, result.status
+                decode(result.read(8192), "mp3")
+        except (RemoteDisconnected, ConnectionResetError):
+            assert not FIXED, "Unexpected file-serving disconnect"
+            assert proc.wait(timeout=5) == -signal.SIGSEGV
+            report("url-auth-throttled-file", signal="SIGSEGV")
+        else:
+            assert proc.poll() is None
+            report("url-auth-throttled-file", status=200, audio=True)
+        assert b"action=listener_add" in Auth.calls.get(timeout=1)
+    assert proc.returncode == (0 if FIXED else -signal.SIGSEGV)
+
+
 def main() -> None:
     # Every run has fresh logs/configs; all network peers are container loopback.
     with tempfile.TemporaryDirectory(prefix="kh-regression-") as directory:
@@ -526,6 +613,8 @@ def main() -> None:
                     source_tests(base, audio["mp3"], audio["adts"])
                 elif mode == "auth":
                     auth_tests(base, audio["mp3"])
+                elif mode == "upstream":
+                    upstream_tests(base, audio["mp3"])
                 else:
                     raise ValueError(mode)
         except BaseException:

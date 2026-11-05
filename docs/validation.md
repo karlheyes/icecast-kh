@@ -1,5 +1,59 @@
 # Icecast 2.4.0-kh22 validation
 
+## Build p3
+
+On 5 November 2026, `bash tests/check.sh` completed with exit code 0. The tests
+reproduced the three newly addressed defects on both the p2 image and baseline
+KH22. On p3, URL-authenticated rate-limited file playback returned HTTP 200 and
+decoded as MP3; TLS remained available after a failed certificate reload; and
+Safari redirects retained short, 700-character, and 3300-character query values.
+All previous relay, XSLT, SOURCE, fallback, and source-auth regressions passed.
+
+Archive `artifacts/icecast-2.4.0-kh22-p3-linux-x86_64.tar.gz`, SHA-256:
+
+```text
+5e411bc4038bfc622bf65129813c3860365529718bde4f3a03a99ba7e9d8aa11
+```
+
+SHA-256 of the binary inside the image:
+
+```text
+634e4d3f67aeb4c4159af40678c55dbe4bcf336a7fdee7d68a1222a804ba3f93
+```
+
+The full p3 check was repeated before committing the integration baseline. The
+binary SHA-256 stayed unchanged; repackaging changed the archive checksum.
+The original p3 archive and checksums are retained in `artifacts/p3-records/`.
+The latest p3 run's logs and checksums are in `artifacts/`. Earlier p2 logs and
+checksums were preserved in `artifacts/p2-records/`. The tests use synthetic
+clients and do not establish real Safari playback.
+
+### AzuraCast 0.24.0 test
+
+The official `ghcr.io/azuracast/azuracast:0.24.0` image was pinned to digest
+`sha256:2a4aa1e0b2fdc93170ef1dbc51ae2ea036053f0a74931692b23d0d7c072e5c06`.
+A temporary derived image replaced only `/usr/local/bin/icecast` with the p3
+binary, retaining AzuraCast's web and admin templates. `ldd` resolved all its
+dependencies and the binary reported `Icecast 2.4.0-kh22-p3`. All five isolated
+Icecast regression suites passed in this image using AzuraCast's libraries.
+
+A second temporary container ran AzuraCast's services with `--network none`,
+no published ports or host mounts, and a fresh database. Its setup and demo
+fixtures created a station; supervisor started both its AutoDJ and Icecast p3.
+The installed p3 binary's SHA-256 matched the archive. The station delivered
+8192 bytes of decodable MP3 both on its Icecast port and through the AzuraCast
+web proxy. The station's public player page returned HTTP 200. After stopping
+the demo AutoDJ, the station returned decodable fallback MP3. Source and admin
+requests with invalid credentials returned 401; valid credentials returned 200.
+The AutoDJ was restarted and proxy playback was rechecked before the disposable
+container was stopped. Sanitized logs and the station probe are in the ignored
+`artifacts/azuracast-0.24.0/` directory.
+
+The test checked the page and its audio endpoint over HTTP, not a browser UI or
+real Safari. It used synthetic demo data and did not touch an existing AzuraCast
+installation. Other versions, architectures, reverse proxies, real stations,
+and long-running broadcast load remain unverified.
+
 ## Build p2
 
 On 5 November 2026, `bash tests/check.sh` completed with exit code 0.
@@ -19,7 +73,7 @@ SHA-256 of the binary inside the image:
 2076916b44899a28ce14847b90ac97362cc8495255d1b67ff2bd94336d9f7fa3
 ```
 
-The logs and checksums in `artifacts/` correspond to the most recent run, p2.
+The earlier p2 logs and checksums are preserved in `artifacts/p2-records/`.
 The [regression-results.json](regression-results.json) snapshot and the section
 below describe the earlier p1 run.
 

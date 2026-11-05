@@ -963,7 +963,7 @@ int fserve_setup_client_fb (client_t *client, fbinfo *finfo)
         }
         if (fh->finfo.limit)
         {
-            client->timer_start = client->worker->current_time.tv_sec;
+            client->timer_start = time (NULL);
             if (client->connection.sent_bytes == 0)
                 client->timer_start -= 2;
             client->counter = 0;

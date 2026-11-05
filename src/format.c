@@ -381,7 +381,8 @@ static int apply_client_tweaks (ice_http_t *http, format_plugin_t *plugin, clien
             {   // trigger a redirect with a random query param, to trick any caching
                 const char *proto = not_ssl_connection (&client->connection) ? "http" : "https";
                 char sep = (args) ? '&' : '?';
-                char params [512];
+                unsigned plen = 40 + ((args) ? strlen (args) : 0);
+                char params [plen];
                 snprintf (params, sizeof params,"%s%c_ic2=%"PRId64, (args)?args:"", sep, timing_get_time());
                 ice_http_setup_flags (http, client, 302, 0, NULL);
                 ice_http_printf (http, "Location", 0, "%s://%s%s%s", proto, uhost, uri, params);
