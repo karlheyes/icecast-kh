@@ -1781,6 +1781,7 @@ static int _handle_source_request (client_t *client)
 
 static int _handle_stats_request (client_t *client)
 {
+    int ret = 0;
     if (connection_check_admin_pass (client->parser))
         stats_add_listener (client, STATS_ALL);
     else
@@ -1790,9 +1791,16 @@ static int _handle_stats_request (client_t *client)
         if (strcmp (uri, "/admin/streams") == 0 && connection_check_relay_pass (client->parser))
             stats_add_listener (client, STATS_SLAVE|STATS_GENERAL);
         else
-            return auth_add_listener (uri, client);
+        {
+            char *norm_uri = util_normalise_uri (uri);
+            if (norm_uri)
+                ret = auth_add_listener (norm_uri, client);
+            else
+                ret = client_send_400 (client, "invalid request URI");
+            free (norm_uri);
+        }
     }
-    return 0;
+    return ret;
 }
 
 
