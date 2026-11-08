@@ -238,6 +238,9 @@ int  auth_get_htpasswd_auth (auth_t *authenticator, config_options_t *options)
 {
     htpasswd_auth_state *state;
 
+    if (authenticator->state)
+        return 0;
+
     authenticator->authenticate = htpasswd_auth;
     authenticator->release = htpasswd_clear;
     authenticator->adduser = htpasswd_adduser;
