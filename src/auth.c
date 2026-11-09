@@ -534,7 +534,10 @@ static int add_authenticated_listener (const char *mount, mount_proxy *mountinfo
         /* If the file exists, then transform it, otherwise, write a 404 */
         config_release_mount (mountinfo);
         DEBUG0("Stats request, sending XSL transformed stats");
-        return stats_transform_xslt (client, mount);
+        if (stats_transform_xslt (client, mount) < 0)
+            return -1;
+        client_add_incoming (client); // maybe not on worker
+        return 0;
     }
 
     ret = source_add_listener (mount, mountinfo, client);
