@@ -649,7 +649,7 @@ int xslt_client (client_t *client)
         // if cache busy then drop further requests
     } while (0);
     xsl_req_clear (x);
-    return client_send_404 (client, NULL);
+    return client_send_404 (client, "Could not provide XSLT file");
 }
 
 
@@ -660,10 +660,13 @@ static int _xslt_transform (xmlDocPtr doc, const char *xslfilename, client_t *cl
     x->doc = doc;
     x->filename = strdup (xslfilename);
     client->aux_data = (uintptr_t)x;
-    client->schedule_ms = client->worker->time_ms;
     client->ops = &xslt_ops;
-    client->connection.discon.time = client->worker->current_time.tv_sec + 3;
-    return client->worker ? client->ops->process (client) : 0;
+    if (client->worker)
+        client->schedule_ms = client->worker->time_ms;
+    else
+        client->schedule_ms = timing_get_time();
+    client->connection.discon.time = (client->schedule_ms / 1000) + 3;
+    return 0;
 }
 
 // entry point for xslt requests

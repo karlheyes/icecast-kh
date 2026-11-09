@@ -570,6 +570,7 @@ static int auth_postprocess_listener (auth_client *auth_user)
         return 0;
 
     client->flags = auth_user->flags;
+    client->mount = NULL;   // clear this here to avoid freed memory on auth_user cleanup
 
     if ((auth_user->flags & CLIENT_AUTHENTICATED) == 0)
     {
