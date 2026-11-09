@@ -334,6 +334,7 @@ static void get_ssl_certificate (ice_config_t *config)
 {
     ssl_ok = 0;
     SSL_CTX *new_ssl_ctx = NULL;
+    char fmt[128] = "";
 
     do
     {
@@ -373,26 +374,27 @@ static void get_ssl_certificate (ice_config_t *config)
         }
         DH_free (dh);
 #endif
+
         if (SSL_CTX_use_certificate_chain_file (new_ssl_ctx, config->cert_file) <= 0)
         {
-            WARN2 ("Invalid cert file %s (%s)", config->cert_file, ERR_reason_error_string (ERR_peek_last_error()));
+            snprintf (fmt, sizeof fmt, "Invalid cert file %s (%%s)", config->cert_file);
             break;
         }
         if (SSL_CTX_use_PrivateKey_file (new_ssl_ctx, config->key_file, SSL_FILETYPE_PEM) <= 0)
         {
-            WARN2 ("Invalid private key file %s (%s)", config->key_file, ERR_reason_error_string (ERR_peek_last_error()));
+            snprintf (fmt, sizeof fmt, "Invalid private key file %s (%%s)", config->key_file);
             break;
         }
         if (config->ca_file && SSL_CTX_load_verify_locations (new_ssl_ctx, config->ca_file, NULL) != 0)
         {
-            WARN2 ("Invalid CA file %s (%s)", config->ca_file, ERR_reason_error_string (ERR_peek_last_error()));
+            snprintf (fmt, sizeof fmt, "Invalid CA file %s (%%s)", config->ca_file);
             break;
         }
         SSL_CTX_set_verify_depth (new_ssl_ctx,1);
 
         if (!SSL_CTX_check_private_key (new_ssl_ctx))
         {
-            ERROR2 ("Invalid %s - Private key does not match cert public key (%s)", config->key_file, ERR_reason_error_string (ERR_peek_last_error()));
+            ERROR2 ("Invalid %s - Private key does not match cert public key (%s)", config->key_file, ERR_error_string (ERR_peek_last_error(), NULL));
             break;
         }
         if (SSL_CTX_set_cipher_list (new_ssl_ctx, config->cipher_list) <= 0)
@@ -412,6 +414,25 @@ static void get_ssl_certificate (ice_config_t *config)
         ssl_ctx = new_ssl_ctx;
         return;
     } while (0);
+
+    unsigned long e;
+    while (fmt[0] && (e = ERR_get_error()) != 0)
+    {
+        char errmsg [128];
+        if (ERR_SYSTEM_ERROR (e))
+        {
+            char *err = strerror_r (ERR_GET_REASON(e), errmsg, sizeof errmsg);
+            if (err == NULL)
+                continue;
+            WARN1 (fmt, err);
+        }
+        else
+        {
+            ERR_error_string_n (e, errmsg, sizeof (errmsg));
+            WARN1 (fmt, errmsg);
+        }
+    }
+    ERR_clear_error();
 
     if (new_ssl_ctx)
         SSL_CTX_free (new_ssl_ctx);
