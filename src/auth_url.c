@@ -823,7 +823,7 @@ static void *alloc_thread_data (auth_t *auth)
     curl_easy_setopt (atd->curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt (atd->curl, CURLOPT_TIMEOUT, (long)6); // a default
     curl_easy_setopt (atd->curl, CURLOPT_ERRORBUFFER, &atd->errormsg[0]);
-    curl_easy_setopt (atd->curl, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_setopt (atd->curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt (atd->curl, CURLOPT_MAXREDIRS, (long)url->redir_limit);
 #ifdef CURLOPT_POSTREDIR
     curl_easy_setopt (atd->curl, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);

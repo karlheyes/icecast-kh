@@ -67,6 +67,7 @@ void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_
 #endif
 
 #define icefile_handle   int
+#define tsafe_calloc(N,X)    (X*)calloc(N,sizeof(X))
 
 #endif /* __COMPAT_H__ */
 

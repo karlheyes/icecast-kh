@@ -1029,16 +1029,17 @@ void thread_time_add_ms (struct timespec *ts, unsigned long value)
 }
 
 
-int thread_mtx_create_callback (void **p, const char *filename, size_t line, int alloc)
+int thread_mtx_create_callback (void **_p, const char *filename, size_t line, int alloc)
 {
+    mutex_t **p = (mutex_t**)_p;
     mutex_t *mutex;
     if (p == NULL)
         return -1;
     if (alloc)
     {
-        mutex = malloc (sizeof(mutex_t));
+        mutex = (mutex_t*)malloc (sizeof(mutex_t));
         thread_mutex_create_c (mutex, line, filename);
-        *p = mutex;
+        *(mutex_t**)p = mutex;
     }
     else
     {
@@ -1051,8 +1052,9 @@ int thread_mtx_create_callback (void **p, const char *filename, size_t line, int
 }
 
 
-int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int lock)
+int thread_mtx_lock_callback (void **_p, const char *filename, size_t line, int lock)
 {
+    mutex_t **p = (mutex_t**)_p;
     mutex_t *mutex;
     if (p == NULL)
         return -1;
@@ -1069,15 +1071,16 @@ int thread_mtx_lock_callback (void **p, const char *filename, size_t line, int l
 }
 
 
-int thread_rw_create_callback (void **p, const char *filename, size_t line, int alloc)
+int thread_rw_create_callback (void **_p, const char *filename, size_t line, int alloc)
 {
+    rwlock_t **p = (rwlock_t **)_p;
     int rc = -1;
     if (p)
     {
         rwlock_t *rwlock;
         if (alloc)
         {
-            rwlock = malloc (sizeof (rwlock_t));
+            rwlock = (rwlock_t *)malloc (sizeof (rwlock_t));
             thread_rwlock_create_c ("thread-rw", rwlock, line, filename);
         }
         else
@@ -1094,8 +1097,9 @@ int thread_rw_create_callback (void **p, const char *filename, size_t line, int 
 }
 
 
-int thread_rw_lock_callback (void **p, const char *filename, size_t line, int lock)
+int thread_rw_lock_callback (void **_p, const char *filename, size_t line, int lock)
 {
+    rwlock_t **p = (rwlock_t **)_p;
     int rc = -1;
     if (p)
     {

@@ -83,7 +83,7 @@ typedef struct playlist_log
     unsigned duration;
 } playlist_log;
 
-typedef struct error_log preroll_log;
+typedef struct error_log preroll_log_t;
 
 
 typedef struct ice_config_dir_tag
@@ -197,7 +197,7 @@ typedef struct _mount_proxy {
     unsigned int max_listener_duration;
 
     struct access_log      access_log;
-    preroll_log     preroll_log;
+    preroll_log_t     preroll_log;
 
     char *redirect;
     char *stream_name;
@@ -297,7 +297,7 @@ typedef struct ice_config_tag
 {
     char *config_filename;
 
-    char *gitversion;
+    const char *gitversion;
     char *location;
     char *admin;
 
@@ -374,7 +374,7 @@ typedef struct ice_config_tag
     struct access_log      access_log;
     struct error_log       error_log;
     struct playlist_log    playlist_log;
-    preroll_log     preroll_log;
+    preroll_log_t           preroll_log;
 
     int chroot;
     int chuid;

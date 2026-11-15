@@ -117,16 +117,16 @@ static aliases* config_clear_alias (aliases *alias);
 struct cfg_tag
 {
     const char *name;
-    int (*retrieve) (cfg_xml *node, void *x);
-    void *storage;
+    int (*fn) (cfg_xml *node, void *x);
+    void *v;
     unsigned int flags;
 };
 
-#define CFG_TAG_DEF             (1<<0)
-#define CFG_TAG_NOTATTR         (1<<1)
-#define CFG_TAG_MULTITAG        (1<<2)
-#define CFG_TAG_ALLOW_MANY      (1<<3)
-#define CFG_TAG_ASSIGNED        (1<<4)
+#define CFG_TAG_DEF             (1<<0)      // requires defining in the xml
+#define CFG_TAG_NOTATTR         (1<<1)      // not to be used as an attribute
+#define CFG_TAG_MULTITAG        (1<<2)      // Unused, when tags may have multiple meanings
+#define CFG_TAG_ALLOW_MANY      (1<<3)      // can be defined multiple times for multiple instances
+#define CFG_TAG_ASSIGNED        (1<<4)      // unused, to report when something was already set
 
 
 static const char *cfg_get_string (cfg_xml *cfg)
@@ -156,7 +156,7 @@ int config_qsizing_conv_a2n (const char *str, uint32_t *p)
         }
     } else if (r != 1) // error converting
         return -1;
-    if (v > (1<<31))  // enforce cap on largest number
+    if (v > (1UL<<31UL))  // enforce cap on largest number
         v = (unsigned int) (1<<31) - 1;
     *p += v;
     return 0;
@@ -276,7 +276,7 @@ int config_get_bitrate (cfg_xml *cfg, void *x)
         char metric = '\0';
 
         errno = 0;
-        int rc = sscanf ((char*)str, "%"SCNd64 "%c", &p, &metric);
+        int rc = sscanf ((char*)str, "%" SCNd64 "%c", &p, &metric);
         if (rc > 0)
         {
             if (metric == 'k' || metric == 'K')
@@ -369,7 +369,7 @@ int parse_xml_tag_set (cfg_xml *cfg, struct cfg_tag *tag)
         xmlNodePtr cnode = node->xmlChildrenNode;
         if (cnode && xmlNodeIsText (cnode) && !xmlIsBlankNode(cnode))
             cfg->val = xmlNodeListGetString (node->doc, cnode, 1);
-        ret = tag->retrieve (cfg, tag->storage);
+        ret = tag->fn (cfg, tag->v);
         if (ret < 0)
             xmlParserWarning (NULL, "failed to read element \"%s\" within \"%s\" at line %ld\n", node->name, parent->name, xmlGetLineNo(node));
     }
@@ -379,7 +379,7 @@ int parse_xml_tag_set (cfg_xml *cfg, struct cfg_tag *tag)
         if (v)
         {
             cfg->val = v;
-            ret = tag->retrieve (cfg, tag->storage);
+            ret = tag->fn (cfg, tag->v);
             if (ret < 0)
                 xmlParserWarning (NULL, "failed to read attribute \"%s\" within \"%s\" at line %ld\n",
                         tag->name, node->name, xmlGetLineNo(node));
@@ -732,11 +732,12 @@ int config_parse_file(const char *filename, ice_config_t *configuration)
 {
     xmlDocPtr doc;
     xmlNodePtr node;
+    static char heading [] = "conf/file";
 
     if (filename == NULL || strcmp(filename, "") == 0) return CONFIG_EINSANE;
 
-    xmlSetGenericErrorFunc ("conf/file", log_parse_failure);
-    xmlSetStructuredErrorFunc ("conf/file", config_xml_parse_failure);
+    xmlSetGenericErrorFunc (heading, log_parse_failure);
+    xmlSetStructuredErrorFunc (heading, config_xml_parse_failure);
     doc = xmlParseFile(filename);
     if (doc == NULL) {
         return CONFIG_EPARSE;
@@ -757,7 +758,7 @@ int config_parse_file(const char *filename, ice_config_t *configuration)
 
     configuration->config_filename = (char *)strdup(filename);
 
-    cfg_xml cfg = { .config = configuration, .node = node };
+    cfg_xml cfg = { .node = node, .config = configuration };
 
     if (_parse_root (&cfg, NULL) < 0)
     {
@@ -881,7 +882,7 @@ static void _set_defaults(ice_config_t *configuration)
 
 static int _parse_alias (cfg_xml *cfg, void *arg)
 {
-    aliases **cur, *alias = calloc (1, sizeof (aliases));
+    aliases **cur, *alias = tsafe_calloc (1, aliases);
     struct cfg_tag icecast_tags[] =
     {
         { "source",             config_get_str,     &alias->source },
@@ -961,11 +962,11 @@ static int _parse_security (cfg_xml *cfg, void *arg)
 
 static int _parse_accesslog (cfg_xml *cfg, void *arg)
 {
-    struct access_log *log = arg;
+    struct access_log *log = (struct access_log*) arg;
     char *type = NULL;
     struct cfg_tag icecast_tags[] =
     {
-        { "name",           config_get_str,     &log->name,     .flags = CFG_TAG_DEF },
+        { "name",           config_get_str,     &log->name,     CFG_TAG_DEF },
         { "ip",             config_get_bool,    &log->log_ip },
         { "type",           config_get_str,     &type },
         { "archive",        config_get_bool,    &log->archive },
@@ -993,10 +994,10 @@ static int _parse_accesslog (cfg_xml *cfg, void *arg)
 
 static int _parse_errorlog (cfg_xml *cfg, void *arg)
 {
-    error_log *log = arg;
+    error_log *log = (error_log *) arg;
     struct cfg_tag icecast_tags[] =
     {
-        { "name",           config_get_str,             &log->name,    .flags = CFG_TAG_DEF },
+        { "name",           config_get_str,             &log->name,    CFG_TAG_DEF },
         { "archive",        config_get_bool,            &log->archive },
         { "display",        config_get_int,             &log->display },
         { "history",        config_get_int,             &log->display },
@@ -1013,10 +1014,10 @@ static int _parse_errorlog (cfg_xml *cfg, void *arg)
 
 static int _parse_playlistlog (cfg_xml *cfg, void *arg)
 {
-    playlist_log *log = arg;
+    playlist_log *log = (playlist_log*)arg;
     struct cfg_tag icecast_tags[] =
     {
-        { "name",           config_get_str,     &log->name, .flags = CFG_TAG_DEF },
+        { "name",           config_get_str,     &log->name,     CFG_TAG_DEF },
         { "archive",        config_get_bool,    &log->archive },
         { "display",        config_get_int,     &log->display },
         { "history",        config_get_int,     &log->display },
@@ -1110,7 +1111,7 @@ static int parse_include (cfg_xml *cfg, void *arg)
         glob_t globbuf;
         if (glob (pattern, 0, NULL, &globbuf) == 0)
         {
-            int i;
+            size_t i;
             for (i=0; i<globbuf.gl_pathc; i++)
             {
                 xmlDocPtr sub_doc = xmlParseFile (globbuf.gl_pathv[i]);
@@ -1160,7 +1161,7 @@ static int parse_xforward (cfg_xml *cfg, void *arg)
     char *str = (char*)cfg_get_string (cfg);
     if (str)
     {
-        struct xforward_entry **p = arg, *e = calloc (1, sizeof(struct xforward_entry));
+        struct xforward_entry **p = (struct xforward_entry **)arg, *e = tsafe_calloc (1, struct xforward_entry);
 
         e->ip = (char*)str;
         if (e->ip)
@@ -1181,7 +1182,7 @@ static int _parse_paths (cfg_xml *cfg, void *arg)
     {
         { "basedir",            config_get_str, &config->base_dir },
         { "logdir",             config_get_str, &config->log_dir },
-        { "x-forwarded-for",    parse_xforward, &config->xforward,      .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "x-forwarded-for",    parse_xforward, &config->xforward,      CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { "mime-types",         config_get_str, &config->mimetypes_fn },
         { "pidfile",            config_get_str, &config->pidfile },
         { "banfile",            config_get_str, &config->banfile },
@@ -1196,7 +1197,7 @@ static int _parse_paths (cfg_xml *cfg, void *arg)
         { "ssl-allowed-ciphers",    config_get_str,     &config->cipher_list },
         { "webroot",            config_get_str,         &config->webroot_dir },
         { "adminroot",          config_get_str,         &config->adminroot_dir },
-        { "alias",              _parse_alias,           .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "alias",              _parse_alias,           NULL,       CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { NULL, NULL, NULL }
     };
 
@@ -1262,7 +1263,7 @@ static int _add_http_header (ice_config_http_header_t **top, const ice_config_ht
     }
     if (cur == NULL)    // a new one
     {
-        cur = malloc (sizeof (*cur));
+        cur = (ice_config_http_header_t*) malloc (sizeof (*cur));
         *cur = *src;
         cur->next = *trail;
         *trail = cur;
@@ -1281,7 +1282,7 @@ static int _add_http_header (ice_config_http_header_t **top, const ice_config_ht
 
 static int config_get_http_header (cfg_xml *cfg, void *arg)
 {
-    ice_config_http_header_t **top = arg;
+    ice_config_http_header_t **top = (ice_config_http_header_t **)arg;
     char *name = NULL, *value = NULL, *code = NULL;
 
     struct cfg_tag icecast_tags[] =
@@ -1310,7 +1311,7 @@ static int config_get_http_header (cfg_xml *cfg, void *arg)
             break;
         }
 
-        ice_config_http_header_t hdr = { .flags = PARAM_NOCOPY, .hdr = { .name = name, .value = value, .status = code } };
+        ice_config_http_header_t hdr = { .flags = PARAM_NOCOPY, .hdr = { .status = code, .name = name, .value = value } };
         if (_add_http_header (top,  &hdr, 1) < 0)
             break;
 
@@ -1340,10 +1341,10 @@ int config_http_copy (ice_config_http_header_t *src, ice_config_http_header_t **
 
 static int _parse_http_headers (cfg_xml *cfg, void *arg)
 {
-    ice_config_http_header_t **h_p = arg;
+    ice_config_http_header_t **h_p = (ice_config_http_header_t **)arg;
     struct cfg_tag icecast_tags[] =
     {
-        { "header",               config_get_http_header,    h_p,  .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "header",               config_get_http_header,    h_p,  CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { NULL, NULL, NULL },
     };
 
@@ -1366,7 +1367,7 @@ config_options_t *config_clear_option (config_options_t *opt)
 
 static int _parse_mount_auth_option (cfg_xml *cfg, void *arg)
 {
-    config_options_t *opt = calloc (1, sizeof (*opt)), **head = arg;
+    config_options_t *opt = tsafe_calloc (1, config_options_t), **head = (config_options_t **)arg;
     struct cfg_tag icecast_tags[] =
     {
         { "name",               config_get_str,    &opt->name },
@@ -1391,11 +1392,11 @@ static int _parse_mount_auth (cfg_xml *cfg, void *arg)
 {
     config_options_t *opt = NULL;
     int ret = -1;
-    auth_t *auth = calloc (1, sizeof (auth_t));
+    auth_t *auth = tsafe_calloc (1, auth_t);
     struct cfg_tag icecast_tags[] =
     {
         { "type",            config_get_str,            &auth->type },
-        { "option",         _parse_mount_auth_option,   &opt,   .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "option",         _parse_mount_auth_option,   &opt,   CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { NULL, NULL, NULL },
     };
     do {
@@ -1423,7 +1424,7 @@ static int _parse_fallback (cfg_xml *cfg, void *x)
     int64_t limit = 0;
     struct cfg_tag icecast_tags[] =
     {
-        { "mount",              config_get_str,         &fb->mount,   .flags = CFG_TAG_DEF },
+        { "mount",              config_get_str,         &fb->mount,   CFG_TAG_DEF },
         { "rate",               config_get_bitrate,     &limit },
         { NULL, NULL, NULL },
     };
@@ -1439,7 +1440,7 @@ static int _parse_fallback (cfg_xml *cfg, void *x)
 static int _parse_mount (cfg_xml *cfg, void *arg)
 {
     ice_config_t *config = cfg->config;
-    mount_proxy *mount = calloc(1, sizeof(mount_proxy));
+    mount_proxy *mount = tsafe_calloc(1, mount_proxy);
     char *redirect = NULL;
 
     struct cfg_tag icecast_tags[] =
@@ -1472,7 +1473,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "linger-for",         config_get_int,     &mount->linger_duration },
         { "redirect",           config_get_str,     &redirect },
         { "redirect-to",        config_get_str,     &mount->redirect },
-        { "http-headers",       _parse_http_headers,      &mount->http_headers,          .flags = CFG_TAG_NOTATTR },
+        { "http-headers",       _parse_http_headers,      &mount->http_headers,          CFG_TAG_NOTATTR },
         { "metadata-interval",  config_get_int,     &mount->mp3_meta_interval },
         { "mp3-metadata-interval",
                                 config_get_int,     &mount->mp3_meta_interval },
@@ -1485,15 +1486,15 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "intro-skip-replay",  config_get_int,     &mount->intro_skip_replay },
         { "so-sndbuf",          config_get_int,     &mount->so_sndbuf },
         { "hidden",             config_get_bool,    &mount->hidden },
-        { "authentication",     _parse_mount_auth,  &mount->auth,               .flags = CFG_TAG_NOTATTR },
+        { "authentication",     _parse_mount_auth,  &mount->auth,               CFG_TAG_NOTATTR },
         { "on-connect",         config_get_str,     &mount->on_connect },
         { "on-disconnect",      config_get_str,     &mount->on_disconnect },
         { "max-stream-duration",
                                 config_get_int,     &mount->max_stream_duration },
         { "max-listener-duration",
                                 config_get_int,     &mount->max_listener_duration },
-        { "preroll-log",        _parse_errorlog,    &mount->preroll_log,        .flags = CFG_TAG_NOTATTR },
-        { "accesslog",          _parse_accesslog,   &mount->access_log,         .flags = CFG_TAG_NOTATTR },
+        { "preroll-log",        _parse_errorlog,    &mount->preroll_log,        CFG_TAG_NOTATTR },
+        { "accesslog",          _parse_accesslog,   &mount->access_log,         CFG_TAG_NOTATTR },
         /* YP settings */
         { "listenurl",          config_get_str,     &mount->listenurl },
         { "cluster-password",   config_get_str,     &mount->cluster_password },
@@ -1503,8 +1504,8 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         { "genre",              config_get_str,     &mount->stream_genre },
         { "bitrate",            config_get_str,     &mount->bitrate },
         { "public",             config_get_bool,    &mount->yp_public },
-        { "type",               config_get_str,     &mount->type,       .flags = CFG_TAG_NOTATTR }, // clash with type on xiph build
-        { "subtype",            config_get_str,     &mount->subtype,    .flags = CFG_TAG_NOTATTR },
+        { "type",               config_get_str,     &mount->type,       CFG_TAG_NOTATTR }, // clash with type on xiph build
+        { "subtype",            config_get_str,     &mount->subtype,    CFG_TAG_NOTATTR },
         { NULL, NULL, NULL },
     };
 
@@ -1548,7 +1549,7 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
         char patt[] = "/${mount}";
         int len = strlen (redirect) + strlen (patt) + 1;
         xmlFree (mount->redirect);
-        mount->redirect = xmlMalloc (len);
+        mount->redirect = (char*)xmlMalloc (len);
         snprintf (mount->redirect, len, "%s%s", redirect, patt);
         xmlFree (redirect);
     }
@@ -1586,8 +1587,8 @@ static int _parse_mount (cfg_xml *cfg, void *arg)
 
 static int _relay_host (cfg_xml *cfg, void *arg)
 {
-    relay_server *relay = arg;
-    relay_server_host *host = calloc (1, sizeof (relay_server_host));
+    relay_server *relay = (relay_server *)arg;
+    relay_server_host *host = tsafe_calloc (1, relay_server_host);
     int secure = 0;
 
     struct cfg_tag icecast_tags[] =
@@ -1600,7 +1601,7 @@ static int _relay_host (cfg_xml *cfg, void *arg)
         { "tls",            config_get_bool,    &secure },
         { "bind",           config_get_str,     &host->bind },
         { "timeout",        config_get_int,     &host->timeout },
-        { "http-headers",   _parse_http_headers,     &host->http_hdrs, .flags = CFG_TAG_NOTATTR },
+        { "http-headers",   _parse_http_headers,     &host->http_hdrs,  CFG_TAG_NOTATTR },
         { "priority",       config_get_int,     &host->priority },
         { NULL, NULL, NULL },
     };
@@ -1640,14 +1641,14 @@ static int _relay_host (cfg_xml *cfg, void *arg)
 static int _parse_relay (cfg_xml *cfg, void *arg)
 {
     ice_config_t *config = cfg->config;
-    relay_server *relay = calloc(1, sizeof(relay_server));
-    relay_server_host *host = calloc (1, sizeof (relay_server_host));
+    relay_server *relay = tsafe_calloc(1, relay_server);
+    relay_server_host *host = tsafe_calloc (1, relay_server_host);
     int on_demand = config->on_demand, icy_metadata = 1, running = 1;
 
     struct cfg_tag icecast_tags[] =
     {
-        { "master",                     _relay_host,        relay,      .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
-        { "host",                       _relay_host,        relay,      .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "master",                     _relay_host,        relay,      CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "host",                       _relay_host,        relay,      CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { "server",                     config_get_str,     &host->ip },
         { "ip",                         config_get_str,     &host->ip },
         { "bind",                       config_get_str,     &host->bind },
@@ -1657,7 +1658,7 @@ static int _parse_relay (cfg_xml *cfg, void *arg)
         { "local-mount",                config_get_str,     &relay->localmount },
         { "on-demand",                  config_get_bool,    &on_demand },
         { "run-on",                     config_get_int,     &relay->run_on },
-        { "http-headers",               _parse_http_headers,  &relay->http_hdrs,   .flags = CFG_TAG_NOTATTR },
+        { "http-headers",               _parse_http_headers,  &relay->http_hdrs,  CFG_TAG_NOTATTR },
         { "retry-delay",                config_get_int,     &relay->interval },
         { "relay-icy-metadata",         config_get_bool,    &icy_metadata },
         { "relay-shoutcast-metadata",   config_get_bool,    &icy_metadata },
@@ -1717,7 +1718,7 @@ static int _parse_relay (cfg_xml *cfg, void *arg)
 static int _parse_redirect (cfg_xml *cfg, void *arg)
 {
     ice_config_t *config = cfg->config;
-    redirect_host *redir = calloc (1, sizeof (*redir));
+    redirect_host *redir = tsafe_calloc (1, redirect_host);
 
     struct cfg_tag icecast_tags[] =
     {
@@ -1805,7 +1806,7 @@ static int _parse_master (cfg_xml *cfg, void *arg)
 static int _parse_listen_sock (cfg_xml *cfg, void *arg)
 {
     ice_config_t *config = cfg->config;
-    listener_t *listener = calloc (1, sizeof(listener_t));
+    listener_t *listener = tsafe_calloc (1, listener_t);
 
     struct cfg_tag icecast_tags[] =
     {
@@ -1841,7 +1842,7 @@ static int _parse_listen_sock (cfg_xml *cfg, void *arg)
             if (config->shoutcast_mount == NULL)
                 config->shoutcast_mount = (char*)xmlStrdup (XMLSTR(listener->shoutcast_mount));
 
-            listener_t *sc_port = calloc (1, sizeof (listener_t));
+            listener_t *sc_port = tsafe_calloc (1, listener_t);
             sc_port->refcount = 1;
             sc_port->port = listener->port+1;
             sc_port->qlen = listener->qlen;
@@ -1897,18 +1898,18 @@ static int _parse_root (cfg_xml *cfg, void *p)
         { "max-redirect-slaves",config_get_int,     &config->max_redirects },
         { "redirect",           _parse_redirect },
         { "shoutcast-mount",    config_get_str,     &config->shoutcast_mount },
-        { "listen-socket",      _parse_listen_sock,             .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
-        { "limits",             _parse_limits,                  .flags = CFG_TAG_NOTATTR },
-        { "http-headers",       _parse_http_headers,    &config->http_headers,  .flags = CFG_TAG_NOTATTR },
-        { "relay",              _parse_relay,                   .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
-        { "mount",              _parse_mount,                   .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
-        { "master",             _parse_master,                  .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
-        { "directory",          _parse_directory,               .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
-        { "paths",              _parse_paths,                   .flags = CFG_TAG_NOTATTR },
-        { "logging",            _parse_logging,                 .flags = CFG_TAG_NOTATTR },
-        { "security",           _parse_security,                .flags = CFG_TAG_NOTATTR },
-        { "authentication",     _parse_authentication,          .flags = CFG_TAG_NOTATTR },
-        { "include",            parse_include,                  .flags = CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "listen-socket",      _parse_listen_sock, NULL,             CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "limits",             _parse_limits,      NULL,             CFG_TAG_NOTATTR },
+        { "http-headers",       _parse_http_headers,    &config->http_headers,  CFG_TAG_NOTATTR },
+        { "relay",              _parse_relay,       NULL,             CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "mount",              _parse_mount,       NULL,             CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "master",             _parse_master,      NULL,             CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "directory",          _parse_directory,   NULL,             CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
+        { "paths",              _parse_paths,       NULL,             CFG_TAG_NOTATTR },
+        { "logging",            _parse_logging,     NULL,             CFG_TAG_NOTATTR },
+        { "security",           _parse_security,    NULL,             CFG_TAG_NOTATTR },
+        { "authentication",     _parse_authentication, NULL,          CFG_TAG_NOTATTR },
+        { "include",            parse_include,      NULL,             CFG_TAG_NOTATTR|CFG_TAG_ALLOW_MANY },
         { NULL, NULL, NULL }
     };
 
@@ -1928,7 +1929,7 @@ static int _parse_root (cfg_xml *cfg, void *p)
     {
         if (config->port)
         {
-            listener_t *listener = calloc (1, sizeof(listener_t));
+            listener_t *listener = tsafe_calloc (1, listener_t);
             listener->refcount = 1;
             listener->port = config->port;
             listener->qlen = ICE_LISTEN_QUEUE;
@@ -1980,7 +1981,7 @@ mount_proxy *config_find_mount (ice_config_t *_c, const char *mount)
         mountinfo = to_return;
     }
     else
-        mountinfo = result;
+        mountinfo = (mount_proxy *) result;
     return mountinfo;
 }
 
