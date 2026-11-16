@@ -725,11 +725,11 @@ void log_close(int log_id)
     _lock_logger();
     do
     {
+        if (loglist [log_id].in_use != 1)
+            break;
+        _lock_q (log_id);
         if (log_callback)
         {
-            if (loglist [log_id].in_use != 1)
-                break;
-            _lock_q (log_id);
             loglist [log_id].flags |= LOG_CLOSING;
             _unlock_q (log_id);
             break;

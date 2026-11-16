@@ -1039,7 +1039,7 @@ int thread_mtx_create_callback (void **_p, const char *filename, size_t line, in
     {
         mutex = (mutex_t*)malloc (sizeof(mutex_t));
         thread_mutex_create_c (mutex, line, filename);
-        *(mutex_t**)p = mutex;
+        *p = mutex;
     }
     else
     {
