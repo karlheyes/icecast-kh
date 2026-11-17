@@ -2903,7 +2903,7 @@ void source_setup_listener (source_t *source, client_t *client)
     client->mount = source->mount;
     client->flags &= ~CLIENT_IN_FSERVE;
 
-    if (client->connection.sent_bytes > 0)
+    if (client->respcode)
         client->check_buffer = http_source_introfile; // may need incomplete data sending
     else
         client->check_buffer = http_source_listener; // special case for headers
