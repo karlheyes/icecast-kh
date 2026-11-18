@@ -1777,7 +1777,13 @@ int connection_check_pass (http_parser_t *parser, const char *user, const char *
 static int _handle_source_request (client_t *client)
 {
     const char *uri = httpp_getvar (client->parser, HTTPP_VAR_URI);
+    const char *len = httpp_getvar (client->parser, "content-length");
 
+    if (len)
+    {
+        INFO2 ("source %s logging in with a content length header of %s, dropped", uri, len);
+        return client_send_401 (client, NULL);
+    }
     INFO1("Source logging in at mountpoint \"%s\"", uri);
 
     client->flags &= ~CLIENT_KEEPALIVE;
