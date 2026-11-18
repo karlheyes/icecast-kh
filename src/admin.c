@@ -315,7 +315,7 @@ int admin_mount_request (client_t *client)
         if (strncmp (cmd->request, "killclient", 10) == 0)
             return fserve_kill_client (client, mount, cmd->response);
         WARN1("Admin command on non-existent source %s", mount);
-        return client_send_400 (client, "Source does not exist");
+        return client_send_404 (client, "Source does not exist");
     }
     else
     {
@@ -337,7 +337,7 @@ int admin_mount_request (client_t *client)
         {
             thread_rwlock_unlock (&source->lock);
             INFO1("Received admin command on unavailable mount \"%s\"", mount);
-            return client_send_400 (client, "Source is not available");
+            return client_send_404 (client, "Source is not available");
         }
         return cmd->handle.source (client, source, cmd->response);
     }
