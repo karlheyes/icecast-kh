@@ -605,15 +605,20 @@ void auth_postprocess_source (auth_client *auth_user)
         const char *req = httpp_getvar (client->parser, HTTPP_VAR_URI);
 
         auth_user->client = NULL;
-        if (strcmp (req, "/admin.cgi") == 0 || strncmp ("/admin/metadata", req, 15) == 0)
+        switch (client->parser->req_type)
         {
+        case httpp_req_get:
             DEBUG2 ("metadata request (%s, %s)", req, mount);
             admin_mount_request (client);
-        }
-        else
-        {
+            break;
+        case httpp_req_source:
+        case httpp_req_put:
             DEBUG1 ("on mountpoint %s", mount);
             source_startup (client, mount);
+            break;
+        default:
+            INFO1 ("unsupported request type on %s", mount);
+            client_send_400 (client, "Unsupported");
         }
         return;
     }
