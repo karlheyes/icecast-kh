@@ -79,6 +79,17 @@ static int _connection_hdr (ice_http_t *http, ice_param_t *curr)
 }
 
 
+static int _send_options (ice_http_t *http, ice_param_t *curr)
+{
+    if (http->in_origin)
+    {
+        curr->value = NULL; // drop header but not error out
+        return -1;
+    }
+    return 0;
+}
+
+
 static int _send_cors_hdr (ice_http_t *http, ice_param_t *curr)
 {
     ice_params_t *params = &http->headers;
@@ -524,6 +535,7 @@ ice_config_http_header_t default_headers[] =
     { .hdr = { .status = "2*",          .name = "Expires",              .value = "Thu, 19 Nov 1981 08:52:00 GMT" } },
     { .hdr = { .status = "2*",          .name = "Cache-Control",        .value = "no-store, no-cache, private" } },
     { .hdr = { .status = "2*",          .name = "Vary",                 .value = "Origin" } },
+    { .hdr = { .status = "204",         .name = "Allow",                .value = "OPTIONS, GET, HEAD, SOURCE, PUT", .callback = _send_options } },
     { .hdr = { .status = "[23]*",          .name = "Access-Control-Allow-Origin",
                                         .value = "*",
                                         .callback = _send_cors_hdr } },
