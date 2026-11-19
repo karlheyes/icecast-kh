@@ -421,10 +421,9 @@ static void get_ssl_certificate (ice_config_t *config)
         char errmsg [128];
         if (ERR_SYSTEM_ERROR (e))
         {
-            char *err = strerror_r (ERR_GET_REASON(e), errmsg, sizeof errmsg);
-            if (err == NULL)
+            if (ic_strerror_r (ERR_GET_REASON(e), errmsg, sizeof errmsg) < 0)
                 continue;
-            WARN1 (fmt, err);
+            WARN1 (fmt, errmsg);
         }
         else
         {
@@ -1137,7 +1136,10 @@ static client_t *accept_client (void)
     {
         if (sock_recoverable (sock_error()))
             return NULL;
-        WARN2 ("accept() failed with error %d: %s", sock_error(), strerror(sock_error()));
+        char msg[128] = "unknown";
+        int err = sock_error();
+        ic_strerror_r (err, msg, sizeof msg);
+        WARN2 ("accept() failed with error %d: %s", err, msg);
         thread_sleep (500000);
         return NULL;
     }

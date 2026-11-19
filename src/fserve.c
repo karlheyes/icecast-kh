@@ -528,7 +528,11 @@ int fserve_client_create (client_t *httpclient, const char *path)
             if (redirect_client (path, httpclient) == 0)
             {
                 if ((httpclient->flags & CLIENT_SKIP_ACCESSLOG) == 0)
-                    WARN2 ("req for file \"%s\" %s", fullpath, strerror (errno));
+                {
+                    char msg[128] = "unknown";
+                    ic_strerror_r (errno, msg, sizeof msg);
+                    WARN2 ("req for file \"%s\" %s", fullpath, msg);
+                }
                 ret = client_send_404 (httpclient, "The file you requested could not be found");
             }
             free (fullpath);

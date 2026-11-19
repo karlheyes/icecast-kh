@@ -1037,9 +1037,11 @@ void cached_file_recheck (cache_file_contents *cache, time_t now)
             cached_prune (cache);
             break;
         }
+        char msg[128] = "unknown";
         if (stat (cache->filename, &file_stat) < 0)
         {
-            WARN2 ("failed to check status of \"%s\": %s", cache->filename, strerror(errno));
+            ic_strerror_r (errno, msg, sizeof msg);
+            WARN2 ("failed to check status of \"%s\": %s", cache->filename, msg);
             break;
         }
         if (file_stat.st_mtime == cache->file_mtime)
@@ -1050,7 +1052,8 @@ void cached_file_recheck (cache_file_contents *cache, time_t now)
         file = fopen (cache->filename, "r");
         if (file == NULL)
         {
-            WARN2("Failed to open file \"%s\": %s", cache->filename, strerror (errno));
+            ic_strerror_r (errno, msg, sizeof msg);
+            WARN2("Failed to open file \"%s\": %s", cache->filename, msg);
             break;
         }
 

@@ -434,7 +434,9 @@ static int xslt_apply_sheet (xsl_req *x, uint64_t now)
             int failed = stat (fn, &file);
             if (failed)
             {
-                WARN2 ("Error checking for stylesheet file \"%s\": %s", fn, strerror(errno));
+                char msg[128] = "unknown";
+                ic_strerror_r (errno, msg, sizeof msg);
+                WARN2 ("Error checking for stylesheet file \"%s\": %s", fn, msg);
                 break;
             }
 

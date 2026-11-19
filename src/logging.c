@@ -212,8 +212,10 @@ static int recheck_log_file (ice_config_t *config, int *id, const char *file)
         *id = log_open (fn);
         if (*id < 0)
         {
+            char msg[128] = "unknown";
             char buf[1024];
-            snprintf (buf,1024, "could not open log %.300s: %s", fn, strerror(errno));
+            ic_strerror_r (errno, msg, sizeof msg);
+            snprintf (buf,1024, "could not open log %.300s: %s", fn, msg);
             fatal_error (buf);
             return -1;
         }

@@ -341,7 +341,9 @@ static auth_result auth_cmd_client (auth_client *auth_user)
                 DEBUG1 ("Waiting on pid %ld", (long)pid);
                 if (waitpid (pid, &wstatus, 0) < 0)
                 {
-                    ERROR1("waitpid error %s", strerror(errno));
+                    char msg[128] = "unknown";
+                    ic_strerror_r (errno, msg, sizeof msg);
+                    ERROR1("waitpid error %s", msg);
                     break;
                 }
                 if (WIFEXITED(wstatus))

@@ -1603,8 +1603,9 @@ void source_init (source_t *source)
             source->dumpfile = fopen (buffer, "ab");
             if (source->dumpfile == NULL)
             {
-                WARN2("Cannot open dump file \"%s\" for appending: %s, disabling.",
-                        buffer, strerror(errno));
+                char msg[128] = "unknown";
+                ic_strerror_r (errno, msg, sizeof msg);
+                WARN2("Cannot open dump file \"%s\" for appending: %s, disabling.", buffer, msg);
             }
         }
     }
@@ -1810,7 +1811,9 @@ int source_set_intro (source_t *source, ice_config_t *_c, const char *file_patte
         icefile_handle intro_file;
         if (file_open (&intro_file, buffer) < 0)
         {
-            WARN3 ("Cannot open intro for %s \"%s\": %s", source->mount, buffer, strerror(errno));
+            char msg[128] = "unknown";
+            ic_strerror_r (errno, msg, sizeof msg);
+            WARN3 ("Cannot open intro for %s \"%s\": %s", source->mount, buffer, msg);
             break;
         }
         format_check_t intro;
@@ -2178,7 +2181,9 @@ static void source_apply_mount (source_t *source, ice_config_t *config, mount_pr
         localtime_r (&now, &local);
         if (strftime (buffer, sizeof (buffer), mountinfo->dumpfile, &local) == 0)
         {
-            WARN3 ("had problem on %s expanding dumpfile %s (%s)", source->mount, mountinfo->dumpfile, strerror(errno));
+            char msg[128] = "unknown";
+            ic_strerror_r (errno, msg, sizeof msg);
+            WARN3 ("had problem on %s expanding dumpfile %s (%s)", source->mount, mountinfo->dumpfile, msg);
             errno = 0;
         }
         else
@@ -2348,7 +2353,9 @@ static void source_run_script (char *command, char *mountpoint)
 #endif
     if (access (comm, X_OK) != 0)
     {
-        ERROR3 ("Unable to run command %s on %s (%s)", comm, mountpoint, strerror (errno));
+        char msg[128] = "unknown";
+        ic_strerror_r (errno, msg, sizeof msg);
+        ERROR3 ("Unable to run command %s on %s (%s)", comm, mountpoint, msg);
         free (comm);
         return;
     }
@@ -2399,7 +2406,9 @@ static void source_run_script (char *command, char *mountpoint)
             }
             exit (0);
         case -1:    // ok, in parent context, no lock clash.
-            ERROR1 ("Unable to fork %s", strerror (errno));
+            char msg[128] = "unknown";
+            ic_strerror_r (errno, msg, sizeof msg);
+            ERROR1 ("Unable to fork %s", msg);
             break;
         default: /* parent */
             do
