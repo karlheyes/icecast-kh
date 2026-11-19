@@ -2,7 +2,7 @@
 # Run this to set up the build system: configure, makefiles, etc.
 # (based on the version in enlightenment's cvs)
 
-package="icecast"
+package="Icecast KH"
 
 olddir=`pwd`
 srcdir=`dirname $0`
@@ -19,11 +19,11 @@ DIE=0
         DIE=1
 }
 VERSIONGREP="sed -e s/.*[^0-9\.]\([0-9]\.[0-9]\).*/\1/"
-                                                                                
+
 # do we need automake?
 if test -r Makefile.am; then
     echo Checking for automake version
-    options=`fgrep AUTOMAKE_OPTIONS Makefile.am`
+    options=`grep -F AUTOMAKE_OPTIONS Makefile.am`
     AM_NEEDED=`echo "$options" | $VERSIONGREP`
     AM_PROGS=automake
     AC_PROGS=aclocal

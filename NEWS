@@ -18,6 +18,16 @@ Feature differences from Xiph release
 
 any extra tags are shown in the conf/icecast.xml.dist file
 
+2.4.0.kh23
+. several crash cases fixed, related to xslt or auth
+. admin via auth works better now.
+. SSL fixes on reload and logging of error messages.
+. various CORS updates
+. Fix Stats request security issue.
+. some client related fixes
+. build sync up.
+. Updated Windows libs like curl/ssl/xml etc, they themselves have dependencies but look ok.
+
 2.4.0.kh22
 . auth processing update
   . url engine uses separate timers for the request types.
