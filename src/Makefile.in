@@ -124,9 +124,9 @@ PROGRAMS = $(bin_PROGRAMS)
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 am__libicecast_la_SOURCES_DIST = cfgfile.c main.c logging.c \
 	sighandler.c connection.c global.c util.c slave.c source.c \
-	stats.c refbuf.c client.c params.c xslt.c fserve.c event.c \
-	admin.c md5.c format.c format_ogg.c format_mp3.c format_midi.c \
-	format_flac.c format_ebml.c format_opus.c auth.c \
+	stats.c refbuf.c client.c params.c strerror.c xslt.c fserve.c \
+	event.c admin.c md5.c format.c format_ogg.c format_mp3.c \
+	format_midi.c format_flac.c format_ebml.c format_opus.c auth.c \
 	auth_htpasswd.c auth_url.c format_kate.c format_skeleton.c \
 	mpeg.c flv.c fnmatch.c yp.c format_vorbis.c format_speex.c \
 	format_theora.c auth_cmd.c
@@ -142,18 +142,19 @@ am__objects_7 = libicecast_la-cfgfile.lo libicecast_la-main.lo \
 	libicecast_la-util.lo libicecast_la-slave.lo \
 	libicecast_la-source.lo libicecast_la-stats.lo \
 	libicecast_la-refbuf.lo libicecast_la-client.lo \
-	libicecast_la-params.lo libicecast_la-xslt.lo \
-	libicecast_la-fserve.lo libicecast_la-event.lo \
-	libicecast_la-admin.lo libicecast_la-md5.lo \
-	libicecast_la-format.lo libicecast_la-format_ogg.lo \
-	libicecast_la-format_mp3.lo libicecast_la-format_midi.lo \
-	libicecast_la-format_flac.lo libicecast_la-format_ebml.lo \
-	libicecast_la-format_opus.lo libicecast_la-auth.lo \
-	libicecast_la-auth_htpasswd.lo libicecast_la-auth_url.lo \
-	libicecast_la-format_kate.lo libicecast_la-format_skeleton.lo \
-	libicecast_la-mpeg.lo libicecast_la-flv.lo $(am__objects_1) \
-	$(am__objects_2) $(am__objects_3) $(am__objects_4) \
-	$(am__objects_5) $(am__objects_6)
+	libicecast_la-params.lo libicecast_la-strerror.lo \
+	libicecast_la-xslt.lo libicecast_la-fserve.lo \
+	libicecast_la-event.lo libicecast_la-admin.lo \
+	libicecast_la-md5.lo libicecast_la-format.lo \
+	libicecast_la-format_ogg.lo libicecast_la-format_mp3.lo \
+	libicecast_la-format_midi.lo libicecast_la-format_flac.lo \
+	libicecast_la-format_ebml.lo libicecast_la-format_opus.lo \
+	libicecast_la-auth.lo libicecast_la-auth_htpasswd.lo \
+	libicecast_la-auth_url.lo libicecast_la-format_kate.lo \
+	libicecast_la-format_skeleton.lo libicecast_la-mpeg.lo \
+	libicecast_la-flv.lo $(am__objects_1) $(am__objects_2) \
+	$(am__objects_3) $(am__objects_4) $(am__objects_5) \
+	$(am__objects_6)
 @WINDOWS_TRUE@am_libicecast_la_OBJECTS = $(am__objects_7)
 libicecast_la_OBJECTS = $(am_libicecast_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -166,11 +167,12 @@ libicecast_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 @WINDOWS_TRUE@am_libicecast_la_rpath =
 am__icecast_SOURCES_DIST = cfgfile.c main.c logging.c sighandler.c \
 	connection.c global.c util.c slave.c source.c stats.c refbuf.c \
-	client.c params.c xslt.c fserve.c event.c admin.c md5.c \
-	format.c format_ogg.c format_mp3.c format_midi.c format_flac.c \
-	format_ebml.c format_opus.c auth.c auth_htpasswd.c auth_url.c \
-	format_kate.c format_skeleton.c mpeg.c flv.c fnmatch.c yp.c \
-	format_vorbis.c format_speex.c format_theora.c auth_cmd.c
+	client.c params.c strerror.c xslt.c fserve.c event.c admin.c \
+	md5.c format.c format_ogg.c format_mp3.c format_midi.c \
+	format_flac.c format_ebml.c format_opus.c auth.c \
+	auth_htpasswd.c auth_url.c format_kate.c format_skeleton.c \
+	mpeg.c flv.c fnmatch.c yp.c format_vorbis.c format_speex.c \
+	format_theora.c auth_cmd.c
 @BUILD_FNMATCH_TRUE@am__objects_8 = fnmatch.$(OBJEXT)
 @BUILD_YP_TRUE@am__objects_9 = yp.$(OBJEXT)
 @BUILD_VORBIS_TRUE@am__objects_10 = format_vorbis.$(OBJEXT)
@@ -181,9 +183,10 @@ am_icecast_OBJECTS = cfgfile.$(OBJEXT) main.$(OBJEXT) \
 	logging.$(OBJEXT) sighandler.$(OBJEXT) connection.$(OBJEXT) \
 	global.$(OBJEXT) util.$(OBJEXT) slave.$(OBJEXT) \
 	source.$(OBJEXT) stats.$(OBJEXT) refbuf.$(OBJEXT) \
-	client.$(OBJEXT) params.$(OBJEXT) xslt.$(OBJEXT) \
-	fserve.$(OBJEXT) event.$(OBJEXT) admin.$(OBJEXT) md5.$(OBJEXT) \
-	format.$(OBJEXT) format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
+	client.$(OBJEXT) params.$(OBJEXT) strerror.$(OBJEXT) \
+	xslt.$(OBJEXT) fserve.$(OBJEXT) event.$(OBJEXT) \
+	admin.$(OBJEXT) md5.$(OBJEXT) format.$(OBJEXT) \
+	format_ogg.$(OBJEXT) format_mp3.$(OBJEXT) \
 	format_midi.$(OBJEXT) format_flac.$(OBJEXT) \
 	format_ebml.$(OBJEXT) format_opus.$(OBJEXT) auth.$(OBJEXT) \
 	auth_htpasswd.$(OBJEXT) auth_url.$(OBJEXT) \
@@ -254,13 +257,15 @@ am__depfiles_remade = ./$(DEPDIR)/admin.Po ./$(DEPDIR)/auth.Po \
 	./$(DEPDIR)/libicecast_la-slave.Plo \
 	./$(DEPDIR)/libicecast_la-source.Plo \
 	./$(DEPDIR)/libicecast_la-stats.Plo \
+	./$(DEPDIR)/libicecast_la-strerror.Plo \
 	./$(DEPDIR)/libicecast_la-util.Plo \
 	./$(DEPDIR)/libicecast_la-xslt.Plo \
 	./$(DEPDIR)/libicecast_la-yp.Plo ./$(DEPDIR)/logging.Po \
 	./$(DEPDIR)/main.Po ./$(DEPDIR)/md5.Po ./$(DEPDIR)/mpeg.Po \
 	./$(DEPDIR)/params.Po ./$(DEPDIR)/refbuf.Po \
 	./$(DEPDIR)/sighandler.Po ./$(DEPDIR)/slave.Po \
-	./$(DEPDIR)/source.Po ./$(DEPDIR)/stats.Po ./$(DEPDIR)/util.Po \
+	./$(DEPDIR)/source.Po ./$(DEPDIR)/stats.Po \
+	./$(DEPDIR)/strerror.Po ./$(DEPDIR)/util.Po \
 	./$(DEPDIR)/xslt.Po ./$(DEPDIR)/yp.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -529,8 +534,8 @@ noinst_HEADERS = admin.h cfgfile.h logging.h sighandler.h connection.h \
 
 icecast_SOURCES = cfgfile.c main.c logging.c sighandler.c connection.c \
 	global.c util.c slave.c source.c stats.c refbuf.c client.c \
-	params.c xslt.c fserve.c event.c admin.c md5.c format.c \
-	format_ogg.c format_mp3.c format_midi.c format_flac.c \
+	params.c strerror.c xslt.c fserve.c event.c admin.c md5.c \
+	format.c format_ogg.c format_mp3.c format_midi.c format_flac.c \
 	format_ebml.c format_opus.c auth.c auth_htpasswd.c auth_url.c \
 	format_kate.c format_skeleton.c mpeg.c flv.c $(am__append_1) \
 	$(am__append_2) $(am__append_3) $(am__append_4) \
@@ -712,6 +717,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-slave.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-source.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-stats.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-strerror.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-util.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-xslt.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libicecast_la-yp.Plo@am__quote@ # am--include-marker
@@ -725,6 +731,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slave.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/source.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stats.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strerror.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xslt.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/yp.Po@am__quote@ # am--include-marker
@@ -846,6 +853,13 @@ libicecast_la-params.lo: params.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='params.c' object='libicecast_la-params.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-params.lo `test -f 'params.c' || echo '$(srcdir)/'`params.c
+
+libicecast_la-strerror.lo: strerror.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-strerror.lo -MD -MP -MF $(DEPDIR)/libicecast_la-strerror.Tpo -c -o libicecast_la-strerror.lo `test -f 'strerror.c' || echo '$(srcdir)/'`strerror.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libicecast_la-strerror.Tpo $(DEPDIR)/libicecast_la-strerror.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='strerror.c' object='libicecast_la-strerror.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -c -o libicecast_la-strerror.lo `test -f 'strerror.c' || echo '$(srcdir)/'`strerror.c
 
 libicecast_la-xslt.lo: xslt.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libicecast_la_CFLAGS) $(CFLAGS) -MT libicecast_la-xslt.lo -MD -MP -MF $(DEPDIR)/libicecast_la-xslt.Tpo -c -o libicecast_la-xslt.lo `test -f 'xslt.c' || echo '$(srcdir)/'`xslt.c
@@ -1289,6 +1303,7 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/libicecast_la-slave.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-source.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-stats.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-strerror.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-util.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-xslt.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-yp.Plo
@@ -1302,6 +1317,7 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/slave.Po
 	-rm -f ./$(DEPDIR)/source.Po
 	-rm -f ./$(DEPDIR)/stats.Po
+	-rm -f ./$(DEPDIR)/strerror.Po
 	-rm -f ./$(DEPDIR)/util.Po
 	-rm -f ./$(DEPDIR)/xslt.Po
 	-rm -f ./$(DEPDIR)/yp.Po
@@ -1410,6 +1426,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/libicecast_la-slave.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-source.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-stats.Plo
+	-rm -f ./$(DEPDIR)/libicecast_la-strerror.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-util.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-xslt.Plo
 	-rm -f ./$(DEPDIR)/libicecast_la-yp.Plo
@@ -1423,6 +1440,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/slave.Po
 	-rm -f ./$(DEPDIR)/source.Po
 	-rm -f ./$(DEPDIR)/stats.Po
+	-rm -f ./$(DEPDIR)/strerror.Po
 	-rm -f ./$(DEPDIR)/util.Po
 	-rm -f ./$(DEPDIR)/xslt.Po
 	-rm -f ./$(DEPDIR)/yp.Po

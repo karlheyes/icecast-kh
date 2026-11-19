@@ -34,6 +34,7 @@ fi
 AM_CONDITIONAL([WINDOWS], [test x$host_os = xmingw32])
 if test x$host_os = xmingw32; then
 AC_DEFINE([_POSIX], 1, [Define to use C99 routines on MS])
+AC_DEFINE([MINGW_HAS_SECURE_API], 1, [Define to enable the secure API])
 fi
 
 AC_ARG_VAR([ICY_CHARSET], [Character set used for ICY metadata, default is UTF8])
@@ -53,6 +54,7 @@ AC_CHECK_HEADERS(pwd.h, AC_DEFINE(CHUID, 1, [Define if you have pwd.h]),,)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 XIPH_C__FUNC__
+AC_FUNC_STRERROR_R
 
 dnl Check for types
 AC_TYPE_OFF_T
@@ -60,7 +62,7 @@ AC_CHECK_TYPES([struct timespec])
 
 dnl Checks for library functions.
 AC_CHECK_FUNCS([localtime_r gmtime_r FindFirstFile memmem sigaction])
-AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp strncasecmp])
+AC_CHECK_FUNCS([fseeko fnmatch chroot fork poll atoll strtoll strsep strcasecmp strncasecmp strerror_s])
 AC_CHECK_FUNCS([getrlimit gettimeofday ftime fsync glob pread pipe2 setresuid setresgid])
 AC_CHECK_TYPES([struct signalfd_siginfo],
                [AC_DEFINE(HAVE_SIGNALFD, 1 ,[Define if signalfd exists])], [],
