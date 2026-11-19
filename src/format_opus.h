@@ -5,6 +5,7 @@
  * At your option, this specific source file can also be distributed
  * under the GNU GPL version 3.
  *
+ * Copyright 2025-2026, Karl Heyes <heyes.karl@gmail.com>,
  * Copyright 2012,      David Richards, Mozilla Foundation,
  *                      and others (see AUTHORS for details).
  */
