@@ -365,6 +365,8 @@ int write_flv_buf_to_client (client_t *client)
             memcpy (flv->wrapper->data, header, 9);
             connection_bufs_append (&flv->bufs, flv->wrapper->data, 9);
             flv->wrapper_offset += 9;
+
+            ret = send_flv_buffer (client, flv);
         }
         flv->samples -= flv->samples_in_buffer; // role back the sample count;
 
